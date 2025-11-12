@@ -43,6 +43,10 @@ def uninstall() -> bool:
     project_name, project_path = detect_project_context()
     log(f"Starting {project_name} system uninstall")
     log(f"Project: {project_name} at {project_path}")
+    
+    # Discover script names from tier user directory
+    hen_script_name, gateway_script_name = discover_script_names(project_name)
+    log(f"Discovered script names: hen={hen_script_name}, gateway={gateway_script_name}")
 
     # Parse additional users to remove
     remove_users = gateway.get_arg('remove_user')
@@ -150,8 +154,8 @@ def uninstall() -> bool:
 
     # Step 4: Clean up human user (project owner) home directory
     if not is_error():
-        cleanup_human_user_home(project_name, project_path)
-        cleanup_root_user_scripts(project_name, project_path)
+        cleanup_human_user_home(project_name, project_path, hen_script_name, gateway_script_name)
+        cleanup_root_user_scripts(project_name, project_path, hen_script_name, gateway_script_name)
 
     # Step 5: Remove users from .htpasswd files
     if not is_error():
@@ -186,17 +190,26 @@ def uninstall() -> bool:
                 groups_deleted.append(group)
         
         # Check what human scripts were removed
-        if project_owner:
+        if project_owner and hen_script_name:
             human_home = Path(f'/home/{project_owner}')
-            hen_script = human_home / 'hen'
+            hen_script = human_home / hen_script_name
             if not hen_script.exists():
-                human_scripts_removed.append(f"/home/{project_owner}/hen")
+                human_scripts_removed.append(f"/home/{project_owner}/{hen_script_name}")
+            if gateway_script_name:
+                gateway_script = human_home / gateway_script_name
+                if not gateway_script.exists():
+                    human_scripts_removed.append(f"/home/{project_owner}/{gateway_script_name}")
         
         # Check what root scripts were removed
-        root_home = Path('/root')
-        root_hen_script = root_home / 'hen'
-        if not root_hen_script.exists():
-            root_scripts_removed.append("/root/hen")
+        if hen_script_name:
+            root_home = Path('/root')
+            root_hen_script = root_home / hen_script_name
+            if not root_hen_script.exists():
+                root_scripts_removed.append(f"/root/{hen_script_name}")
+            if gateway_script_name:
+                root_gateway_script = root_home / gateway_script_name
+                if not root_gateway_script.exists():
+                    root_scripts_removed.append(f"/root/{gateway_script_name}")
         
         result_data = {
             "project_name": project_name,
@@ -427,6 +440,71 @@ def detect_project_owner(project_path: Path) -> Optional[str]:
 # Import detect_project_context from utils
 from hh.deploy.utils import detect_project_context
 
+def discover_script_names(project_name: str) -> Tuple[Optional[str], Optional[str]]:
+    """Discover hen script name and gateway script name from tier user directory."""
+    trace_in()
+    hen_script_name = None
+    gateway_script_name = None
+    
+    try:
+        # Get first tier user
+        if not HENHOUSE_TIERS:
+            warn("No tiers defined - cannot discover script names")
+            trace_out()
+            return None, None
+        
+        first_tier = HENHOUSE_TIERS[0]
+        tier_user = f"{project_name}_{first_tier}"
+        tier_user_home = Path(f'/home/{tier_user}')
+        
+        if not tier_user_home.exists():
+            log(f"Tier user home {tier_user_home} does not exist - cannot discover script names")
+            trace_out()
+            return None, None
+        
+        # Look for hen script (could be 'hen' or custom name)
+        # Look for gateway script (could be 'gateway.py' or 'gateway-{name}')
+        for item in tier_user_home.iterdir():
+            if item.is_file() and os.access(item, os.X_OK):
+                name = item.name
+                # Check if it's a hen script (contains 'python3 gateway')
+                if name != 'gateway.py' and not name.startswith('gateway-'):
+                    try:
+                        with open(item, 'r') as f:
+                            content = f.read()
+                        if 'python3 gateway' in content:
+                            hen_script_name = name
+                            log(f"Discovered hen script name: {hen_script_name}")
+                    except Exception:
+                        pass
+                
+                # Check if it's a gateway script (starts with gateway)
+                if name == 'gateway.py' or name.startswith('gateway-'):
+                    gateway_script_name = name
+                    log(f"Discovered gateway script name: {gateway_script_name}")
+        
+        if not hen_script_name:
+            # Default to 'hen' if not found
+            hen_script_name = 'hen'
+            log("No custom hen script found, defaulting to 'hen'")
+        
+        if not gateway_script_name:
+            # Default to 'gateway.py' if not found
+            gateway_script_name = 'gateway.py'
+            log("No gateway script found, defaulting to 'gateway.py'")
+        
+        log(f"Discovered script names: hen={hen_script_name}, gateway={gateway_script_name}")
+        
+    except Exception as e:
+        warn(f"Error discovering script names: {str(e)}")
+        # Default to standard names on error
+        hen_script_name = 'hen'
+        gateway_script_name = 'gateway.py'
+    finally:
+        trace_out()
+    
+    return hen_script_name, gateway_script_name
+
 def reset_project_group_ownership(project_name: str, project_path: Path) -> None:
     """Reset project folder group ownership and delete project group."""
     trace_in()
@@ -467,11 +545,17 @@ def reset_project_group_ownership(project_name: str, project_path: Path) -> None
     finally:
         trace_out()
 
-def cleanup_user_convenience_scripts(project_name: str, project_path: Path, username: str, is_root: bool = False) -> None:
+def cleanup_user_convenience_scripts(project_name: str, project_path: Path, username: str, hen_script_name: Optional[str] = None, gateway_script_name: Optional[str] = None, is_root: bool = False) -> None:
     """Clean up convenience scripts (hen) for a user."""
     trace_in()
     try:
         log(f"Cleaning up convenience scripts for {'root' if is_root else username}")
+        
+        # Default to standard names if not provided
+        if not hen_script_name:
+            hen_script_name = 'hen'
+        if not gateway_script_name:
+            gateway_script_name = 'gateway.py'
         
         # Determine home directory
         if is_root:
@@ -489,36 +573,36 @@ def cleanup_user_convenience_scripts(project_name: str, project_path: Path, user
             return
         
         # Remove hen script if it exists and looks like our script
-        hen_script = user_home / 'hen'
+        hen_script = user_home / hen_script_name
         if hen_script.exists():
             try:
                 with open(hen_script, 'r') as f:
                     content = f.read()
                 
-                if 'python3 hen.py' in content:
+                # Check if it references the gateway script (either gateway.py or gateway-{name})
+                if f'python3 {gateway_script_name}' in content or 'python3 gateway' in content:
                     hen_script.unlink()
-                    log(f"Removed hen script from {user_display}'s home directory")
+                    log(f"Removed hen script ({hen_script_name}) from {user_display}'s home directory")
                 else:
-                    log(f"hen script in {user_display}'s home directory doesn't match our pattern - skipping")
+                    log(f"hen script ({hen_script_name}) in {user_display}'s home directory doesn't match our pattern - skipping")
             except Exception as e:
                 warn(f"Failed to remove hen script from {user_display}'s home: {str(e)}")
         
-        # Remove gateway.py script if it exists and looks like our script (only for root)
-        if is_root:
-            gateway_script = user_home / 'gateway.py'
-            if gateway_script.exists():
-                try:
-                    with open(gateway_script, 'r') as f:
-                        content = f.read()
-                    
-                    # Check if it's our gateway script (has sys.path.insert)
-                    if 'sys.path.insert' in content:
-                        gateway_script.unlink()
-                        log(f"Removed gateway.py script from {user_display}'s home directory")
-                    else:
-                        log(f"gateway.py in {user_display}'s home directory doesn't match our pattern - skipping")
-                except Exception as e:
-                    warn(f"Failed to remove gateway.py from {user_display}'s home: {str(e)}")
+        # Remove gateway script if it exists and looks like our script
+        gateway_script = user_home / gateway_script_name
+        if gateway_script.exists():
+            try:
+                with open(gateway_script, 'r') as f:
+                    content = f.read()
+                
+                # Check if it's our gateway script (has sys.path.insert)
+                if 'sys.path.insert' in content:
+                    gateway_script.unlink()
+                    log(f"Removed gateway script ({gateway_script_name}) from {user_display}'s home directory")
+                else:
+                    log(f"gateway script ({gateway_script_name}) in {user_display}'s home directory doesn't match our pattern - skipping")
+            except Exception as e:
+                warn(f"Failed to remove gateway script from {user_display}'s home: {str(e)}")
         
         
         # Remove PATH modification from .profile
@@ -550,7 +634,7 @@ def cleanup_user_convenience_scripts(project_name: str, project_path: Path, user
     finally:
         trace_out()
 
-def cleanup_human_user_home(project_name: str, project_path: Path) -> None:
+def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_name: Optional[str] = None, gateway_script_name: Optional[str] = None) -> None:
     """Clean up human user (project owner) home directory setup."""
     trace_in()
     try:
@@ -562,19 +646,19 @@ def cleanup_human_user_home(project_name: str, project_path: Path) -> None:
             return
         
         log(f"Cleaning up human user home directory for {project_owner}")
-        cleanup_user_convenience_scripts(project_name, project_path, project_owner, is_root=False)
+        cleanup_user_convenience_scripts(project_name, project_path, project_owner, hen_script_name, gateway_script_name, is_root=False)
         
     except Exception as e:
         warn(f"Failed to cleanup human user home directory: {str(e)}")
     finally:
         trace_out()
 
-def cleanup_root_user_scripts(project_name: str, project_path: Path) -> None:
+def cleanup_root_user_scripts(project_name: str, project_path: Path, hen_script_name: Optional[str] = None, gateway_script_name: Optional[str] = None) -> None:
     """Clean up root user convenience scripts."""
     trace_in()
     try:
         log("Cleaning up root user convenience scripts")
-        cleanup_user_convenience_scripts(project_name, project_path, "root", is_root=True)
+        cleanup_user_convenience_scripts(project_name, project_path, "root", hen_script_name, gateway_script_name, is_root=True)
         
     except Exception as e:
         warn(f"Failed to cleanup root user convenience scripts: {str(e)}")
