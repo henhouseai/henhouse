@@ -28,7 +28,7 @@ def _initialize_debug():
 
 from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.users.access import auto_scan_user_keys, generate_ssh_keys, add_user_key
-from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, create_root_gateway_script, setup_user_convenience_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner, create_human_user_gateway_script
+from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, setup_user_convenience_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
@@ -127,9 +127,6 @@ def install() -> bool:
         
         # Set up root user convenience script
         setup_root_user_script(project_name, project_path, hen_script_name)
-        
-        # Create root gateway script
-        create_root_gateway_script(project_name, project_path, hen_script_name)
         
         # Set up images directory with proper permissions
         setup_images_directory(project_name)
@@ -230,23 +227,15 @@ def check_existing_setup(project_name: str) -> List[str]:
     return conflicts
 
 def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -> List[str]:
-    """Check for existing scripts in root and human user directories."""
+    """Check for existing hen scripts in root and human user directories."""
     trace_in()
     conflicts = []
     
     try:
-        # Determine expected gateway script name
-        if hen_script_name == 'hen':
-            expected_gateway = 'gateway.py'
-        else:
-            expected_gateway = f'gateway-{hen_script_name}'
-        
         # Check root directory
         root_home = Path('/root')
         root_hen = root_home / 'hen'
         root_expected_hen = root_home / hen_script_name
-        root_gateway = root_home / 'gateway.py'
-        root_expected_gateway = root_home / expected_gateway
         
         # Check if default hen exists when we want to use default name
         if root_hen.exists() and hen_script_name == 'hen':
@@ -257,22 +246,11 @@ def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -
             conflicts.append(f"/root/{hen_script_name}")
             log(f"Found existing script: /root/{hen_script_name}")
         
-        # Check if default gateway exists when we want to use default name
-        if root_gateway.exists() and expected_gateway == 'gateway.py':
-            conflicts.append(f"/root/gateway.py")
-            log(f"Found existing script: /root/gateway.py")
-        # Check if our custom gateway name already exists
-        elif root_expected_gateway.exists() and expected_gateway != 'gateway.py':
-            conflicts.append(f"/root/{expected_gateway}")
-            log(f"Found existing script: /root/{expected_gateway}")
-        
         # Check human user directory
         if project_owner:
             human_home = Path(f'/home/{project_owner}')
             human_hen = human_home / 'hen'
             human_expected_hen = human_home / hen_script_name
-            human_gateway = human_home / 'gateway.py'
-            human_expected_gateway = human_home / expected_gateway
             
             # Check if default hen exists when we want to use default name
             if human_hen.exists() and hen_script_name == 'hen':
@@ -282,15 +260,6 @@ def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -
             elif human_expected_hen.exists() and hen_script_name != 'hen':
                 conflicts.append(f"/home/{project_owner}/{hen_script_name}")
                 log(f"Found existing script: /home/{project_owner}/{hen_script_name}")
-            
-            # Check if default gateway exists when we want to use default name
-            if human_gateway.exists() and expected_gateway == 'gateway.py':
-                conflicts.append(f"/home/{project_owner}/gateway.py")
-                log(f"Found existing script: /home/{project_owner}/gateway.py")
-            # Check if our custom gateway name already exists
-            elif human_expected_gateway.exists() and expected_gateway != 'gateway.py':
-                conflicts.append(f"/home/{project_owner}/{expected_gateway}")
-                log(f"Found existing script: /home/{project_owner}/{expected_gateway}")
         
         if conflicts:
             log(f"Found {len(conflicts)} script conflicts")
