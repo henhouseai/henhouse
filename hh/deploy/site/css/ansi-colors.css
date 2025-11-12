@@ -1,0 +1,115 @@
+/* ANSI Color Classes - Maps CLI color codes to HTML/CSS classes */
+/* These classes are used when ANSI color codes are converted to HTML spans */
+
+.color-red { color: #FF0000; }
+.color-orange { color: #FF8700; }
+.color-yellow { color: #FFFF00; }
+.color-green { color: #00FF00; }
+.color-cyan { color: #00FFFF; }
+.color-blue { color: #0000FF; }
+.color-magenta { color: #FF00FF; }
+.color-gold { color: #FFAF00; }
+.color-white { color: #FFFFFF; }
+.color-brown { color: #804000; }
+.color-pink { color: #FFB8D1; }
+.color-pastel_yellow { color: #FFFFD7; }
+.color-pastel_cyan { color: #D7FFFF; }
+.color-pastel_pink { color: #FFD7FF; }
+.color-pastel_green { color: #D7FFD7; }
+.color-pastel_blue { color: #D7FFFF; }
+.color-pastel_purple { color: #EBD7FF; }
+.color-pastel_orange { color: #FFE7D7; }
+.color-pastel_red { color: #FFE7E7; }
+.color-pastel_lavender { color: #F5D7FF; }
+.color-pastel_peach { color: #FFD1AF; }
+.color-pastel_mint { color: #AAFFAA; }
+.color-pastel_lilac { color: #D1AAFF; }
+.color-pastel_sky { color: #9FD7FF; }
+.color-pastel_rose { color: #FFE7E7; }
+.color-pastel_aqua { color: #B8E7E7; }
+.color-pastel_coral { color: #FFD7AA; }
+.color-pastel_lime { color: #D7FFAA; }
+.color-pastel_violet { color: #D7E7AA; }
+
+/* Support for row-level color classes */
+tr.color-red,
+tr.color-red td { color: #FF0000; }
+tr.color-orange,
+tr.color-orange td { color: #FF8700; }
+tr.color-yellow,
+tr.color-yellow td { color: #FFFF00; }
+tr.color-green,
+tr.color-green td { color: #00FF00; }
+tr.color-cyan,
+tr.color-cyan td { color: #00FFFF; }
+tr.color-blue,
+tr.color-blue td { color: #0000FF; }
+tr.color-magenta,
+tr.color-magenta td { color: #FF00FF; }
+tr.color-gold,
+tr.color-gold td { color: #FFAF00; }
+
+/* Support for cell-level color classes - use specific selectors to override table defaults */
+table.pageTableView td.color-red { color: #FF0000 !important; }
+table.pageTableView td.color-orange { color: #FF8700 !important; }
+table.pageTableView td.color-yellow { color: #FFFF00 !important; }
+table.pageTableView td.color-green { color: #00FF00 !important; }
+table.pageTableView td.color-cyan { color: #00FFFF !important; }
+table.pageTableView td.color-blue { color: #0000FF !important; }
+table.pageTableView td.color-magenta { color: #FF00FF !important; }
+table.pageTableView td.color-gold { color: #FFAF00 !important; }
+table.pageTableView td.color-white { color: #FFFFFF !important; }
+table.pageTableView td.color-brown { color: #804000 !important; }
+table.pageTableView td.color-pink { color: #FFB8D1 !important; }
+
+/* Support for inline span colors */
+table.pageTableView td .color-red { color: #FF0000 !important; }
+table.pageTableView td .color-orange { color: #FF8700 !important; }
+table.pageTableView td .color-yellow { color: #FFFF00 !important; }
+table.pageTableView td .color-green { color: #00FF00 !important; }
+table.pageTableView td .color-cyan { color: #00FFFF !important; }
+table.pageTableView td .color-blue { color: #0000FF !important; }
+table.pageTableView td .color-magenta { color: #FF00FF !important; }
+table.pageTableView td .color-gold { color: #FFAF00 !important; }
+table.pageTableView td .color-white { color: #FFFFFF !important; }
+table.pageTableView td .color-brown { color: #804000 !important; }
+table.pageTableView td .color-pink { color: #FFB8D1 !important; }
+
+/* Pastel colors for cells and spans */
+table.pageTableView td.color-pastel_yellow,
+table.pageTableView td .color-pastel_yellow { color: #FFFFD7 !important; }
+table.pageTableView td.color-pastel_cyan,
+table.pageTableView td .color-pastel_cyan { color: #D7FFFF !important; }
+table.pageTableView td.color-pastel_pink,
+table.pageTableView td .color-pastel_pink { color: #FFD7FF !important; }
+table.pageTableView td.color-pastel_green,
+table.pageTableView td .color-pastel_green { color: #D7FFD7 !important; }
+table.pageTableView td.color-pastel_blue,
+table.pageTableView td .color-pastel_blue { color: #D7FFFF !important; }
+table.pageTableView td.color-pastel_purple,
+table.pageTableView td .color-pastel_purple { color: #EBD7FF !important; }
+table.pageTableView td.color-pastel_orange,
+table.pageTableView td .color-pastel_orange { color: #FFE7D7 !important; }
+table.pageTableView td.color-pastel_red,
+table.pageTableView td .color-pastel_red { color: #FFE7E7 !important; }
+table.pageTableView td.color-pastel_lavender,
+table.pageTableView td .color-pastel_lavender { color: #F5D7FF !important; }
+table.pageTableView td.color-pastel_peach,
+table.pageTableView td .color-pastel_peach { color: #FFD1AF !important; }
+table.pageTableView td.color-pastel_mint,
+table.pageTableView td .color-pastel_mint { color: #AAFFAA !important; }
+table.pageTableView td.color-pastel_lilac,
+table.pageTableView td .color-pastel_lilac { color: #D1AAFF !important; }
+table.pageTableView td.color-pastel_sky,
+table.pageTableView td .color-pastel_sky { color: #9FD7FF !important; }
+table.pageTableView td.color-pastel_rose,
+table.pageTableView td .color-pastel_rose { color: #FFE7E7 !important; }
+table.pageTableView td.color-pastel_aqua,
+table.pageTableView td .color-pastel_aqua { color: #B8E7E7 !important; }
+table.pageTableView td.color-pastel_coral,
+table.pageTableView td .color-pastel_coral { color: #FFD7AA !important; }
+table.pageTableView td.color-pastel_lime,
+table.pageTableView td .color-pastel_lime { color: #D7FFAA !important; }
+table.pageTableView td.color-pastel_violet,
+table.pageTableView td .color-pastel_violet { color: #D7E7AA !important; }
+

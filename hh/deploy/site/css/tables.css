@@ -1,0 +1,112 @@
+/* Table View CSS - Dark theme styling for pageTableView */
+/* Terminal-inspired dark theme */
+
+div.tableViewDiv {
+	padding: 0;
+	width: auto;
+	max-width: 100%;
+	display: block;
+	background-color: var(--tableview-header, #1e1e1e);
+	border: 1px solid #45584b;
+	border-radius: 10px;
+	overflow: hidden;
+	color: var(--tableview-header-text, #d4d4d4);
+}
+
+div.tableViewDiv a:link,
+div.tableViewDiv a:visited {
+	color: #79c0ff;
+	text-decoration: none;
+}
+
+div.tableViewDiv a:hover,
+div.tableViewDiv a:active {
+	color: #a5d6ff;
+	text-decoration: underline;
+}
+
+table.pageTableView {
+	border: 0;
+	text-align: center;
+	width: 100%;
+	border-collapse: collapse;
+	border-spacing: 0;
+	table-layout: auto;
+}
+
+div.tableViewDiv + div.tableViewDiv {
+	margin-top: 25px;
+}
+
+table.pageTableView tr.odd,
+table.pageTableView tr.odd td {
+	background-color: var(--tableview-odd-row, #1e1e1e);
+	color: var(--tableview-text, #d4d4d4);
+}
+
+table.pageTableView tr.even,
+table.pageTableView tr.even td {
+	background-color: var(--tableview-even-row, #252526);
+	color: var(--tableview-text, #d4d4d4);
+}
+
+table.pageTableView tr.error,
+table.pageTableView tr.error td,
+table.pageTableView tr.error td a,
+table.pageTableView tr.red,
+table.pageTableView tr.red td,
+table.pageTableView tr.red td a {
+	color: var(--tableview-error-text, #f85149);
+}
+
+table.pageTableView tr.private,
+table.pageTableView tr.private td,
+table.pageTableView tr.private td a {
+	color: var(--tableview-private-text, #8b949e);
+}
+
+table.pageTableView tr.hidden,
+table.pageTableView tr.hidden td,
+table.pageTableView tr.hidden td a {
+	color: var(--tableview-hidden-text, #6e7681);
+}
+
+table.pageTableView th {
+	border: 0;
+	font-size: 10pt;
+	margin: 0;
+	padding: 2px 15px 2px 6px;
+	text-align: left;
+	vertical-align: top;
+	font-weight: bold;
+	color: var(--tableview-header-text, #d4d4d4);
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+}
+
+table.pageTableView td {
+	border: 0;
+	font-size: 9pt;
+	font-weight: normal;
+	margin: 0;
+	padding: 2px 6px;
+	text-align: left;
+	vertical-align: top;
+	color: var(--tableview-text, #d4d4d4);
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+}
+
+table.pageTableView tr td.name {
+	font-weight: bold;
+}
+
+table.pageTableView tr td.numChildren {
+	color: var(--tableview-numChildren-text, #8b949e);
+	text-align: center;
+}
+
+table.pageTableView tr td.label {
+	font-weight: normal;
+}
+

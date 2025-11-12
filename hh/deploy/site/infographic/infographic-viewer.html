@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infographic Layout Viewer</title>
+    <link rel="stylesheet" href="../css/site.css">
+    <link rel="stylesheet" href="../css/ansi-colors.css">
+    <link rel="stylesheet" href="../css/tables.css">
+    <link rel="stylesheet" href="infographic-viewer.css">
+    <script src="infographic-glossary-json.js"></script>
+    <script src="infographic-gateway-access-methods-json.js"></script>
+    <script src="infographic-gateway-architecture-json.js"></script>
+    <script src="infographic-request-response-pipeline-json.js"></script>
+    <script src="infographic-http-deployment-architecture-json.js"></script>
+    <script src="infographic-project-folder-hierarchy-json.js"></script>
+    <script src="infographic-json.js"></script>
+    <script src="infographic-state.js"></script>
+    <script src="infographic-editor-state.js"></script>
+    <script src="infographic-glossary.js"></script>
+    <script src="infographic-canvas.js"></script>
+    <script src="infographic-data.js"></script>
+    <script src="infographic-editor-data.js"></script>
+    <script src="infographic-rendering.js"></script>
+    <script src="infographic-editor-rendering.js"></script>
+    <script src="infographic-interaction.js"></script>
+    <script src="infographic-editor-interaction.js"></script>
+    <script src="infographic-layout.js"></script>
+    <script src="infographic-main.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="controls-header">
+                <h2>Infographic Viewer</h2>
+            </div>
+            
+            <label>Select Infographic:</label>
+            <select id="infographicSelector" onchange="switchInfographic()">
+                <option value="">-- Loading --</option>
+            </select>
+            
+            <div id="highLevelGlossaryList">
+                <strong>Topics:</strong>
+                <div id="highLevelGlossaryContent"></div>
+            </div>
+            
+            <div class="concepts-details-box">
+                <div id="conceptsList">
+                    <strong>Concepts:</strong>
+                    <div id="conceptsListContent"></div>
+                </div>
+                
+                <div id="detailsList">
+                    <strong>Topic Details:</strong>
+                    <div id="detailsListContent"></div>
+                </div>
+            </div>
+            
+            <div class="connections-box">
+                <div id="connectionsList">
+                    <strong>Concept Connections:</strong>
+                    <div id="connectionsListContent"></div>
+                </div>
+                
+                <div id="connectionDetailsList">
+                    <strong>Concept Connection Details:</strong>
+                    <div id="connectionDetailsListContent"></div>
+                </div>
+            </div>
+            
+            <div id="glossaryList">
+                <strong>Glossary:</strong>
+                <div id="glossaryListContent"></div>
+            </div>
+            
+            <div id="orphansList">
+                <strong>Orphans:</strong>
+                <div id="orphansListContent"></div>
+            </div>
+            
+            <div id="unknownsList">
+                <strong>Unknowns:</strong>
+                <div id="unknownsListContent"></div>
+            </div>
+            
+            <button class="export-button" onclick="exportLayout()">Export Layout (JSON)</button>
+        </div>
+        
+        <div class="canvas-container">
+            <div class="zoom-controls">
+                <button class="zoom-button" onclick="zoomIn()" title="Zoom In">+</button>
+                <button class="zoom-button" onclick="zoomOut()" title="Zoom Out">−</button>
+                <button class="zoom-button" onclick="zoomToFit()" title="Zoom to Fit">⌂</button>
+                <button class="toggle-controls-button" onclick="toggleControls()" title="Collapse/Expand Controls" id="toggleControlsBtn">◀</button>
+                <button class="zoom-button grid-button" onclick="toggleGrid()" title="Toggle Grid" id="gridToggleBtn" style="display: none;">⬜</button>
+                <button class="zoom-button grid-resolution-button" onclick="increaseGridResolution()" title="Increase Grid Resolution" id="increaseGridBtn" style="display: none;">⬆</button>
+                <button class="zoom-button grid-resolution-button" onclick="decreaseGridResolution()" title="Decrease Grid Resolution" id="decreaseGridBtn" style="display: none;">⬇</button>
+            </div>
+            <svg id="canvas"></svg>
+        </div>
+    </div>
+
+    <!-- Startup Overlay -->
+    <div id="startupOverlay" class="startup-overlay"></div>
+
+    <!-- Glossary Modal Overlay -->
+    <div id="glossaryOverlay" class="glossary-overlay" onclick="dismissGlossaryModal(event)">
+        <div class="glossary-modal" onclick="event.stopPropagation()">
+            <button class="close-button" onclick="dismissGlossaryModal()" title="Close">×</button>
+            <a id="glossaryModalPageLink" class="page-link-button" href="#" style="display: none;" title="View full page">View full page</a>
+            <h3 id="glossaryModalTitle"></h3>
+            <p id="glossaryModalDescription"></p>
+        </div>
+    </div>
+
+</body>
+</html>
+
+

@@ -1,0 +1,570 @@
+/* Scrollbar styling for dark mode */
+/* Firefox */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #30363d #0d1117;
+}
+/* Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+	width: 12px;
+	height: 12px;
+}
+::-webkit-scrollbar-track {
+	background: #0d1117;
+	border-radius: 6px;
+}
+::-webkit-scrollbar-thumb {
+	background: #30363d;
+	border-radius: 6px;
+	border: 2px solid #0d1117;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #484f58;
+}
+
+/* Layout styles - inherits colors from site.css */
+/* Override container for infographic view - scoped to avoid conflicts */
+.container {
+	display: flex;
+	gap: 0;
+	min-height: 400px;
+	max-height: calc(100vh - 40px);
+	max-width: 100%;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	border: none;
+	box-shadow: none;
+}
+.container:not(.controls-collapsed) {
+	gap: 20px;
+}
+.controls {
+	width: 300px;
+	padding: 20px;
+	border-radius: 8px;
+	border: 1px solid #30363d;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+	overflow-y: auto;
+	background: #161b22;
+	color: #ffffff;
+	transition: width 0.3s ease, opacity 0.3s ease;
+	position: relative;
+	align-self: stretch;
+	height: 100%;
+}
+
+.controls.collapsed {
+	width: 0;
+	padding: 0;
+	border: none;
+	overflow: hidden;
+	opacity: 0;
+}
+
+.container.controls-collapsed .controls {
+	width: 0;
+	padding: 0;
+	border: none;
+	overflow: hidden;
+	opacity: 0;
+}
+
+.container.controls-collapsed .canvas-container {
+	flex: 1;
+	width: 100%;
+}
+
+/* Toggle button stays in same position always */
+/* Removed collapsed-toggle specific positioning */
+
+.controls h2 {
+	color: #ffffff;
+}
+.controls label {
+	color: #ffffff;
+}
+.controls strong {
+	color: #ffffff;
+}
+.canvas-container {
+	flex: 1;
+	border-radius: 8px;
+	border: 1px solid #30363d;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+	position: relative;
+	overflow: hidden;
+	background: #161b22;
+	align-self: stretch;
+	height: 100%;
+}
+
+/* Deploy mode: ensure canvas-container doesn't exceed viewport */
+body.infographic-deploy-mode .canvas-container {
+	height: 100vh !important;
+	max-height: 100vh !important;
+	width: 100% !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	box-sizing: border-box !important;
+	overflow: hidden !important;
+}
+
+/* Ensure body/html don't add extra height in deploy mode */
+body.infographic-deploy-mode {
+	margin: 0 !important;
+	padding: 0 !important;
+	height: 100% !important;
+	overflow: hidden !important;
+	box-sizing: border-box !important;
+}
+
+html.infographic-deploy-mode {
+	margin: 0 !important;
+	padding: 0 !important;
+	height: 100% !important;
+	overflow: hidden !important;
+	box-sizing: border-box !important;
+}
+#canvas {
+	width: 100%;
+	height: 100%;
+	cursor: move;
+	position: relative;
+	z-index: 1;
+}
+textarea {
+	width: 100%;
+	height: 200px;
+	padding: 10px;
+	font-family: monospace;
+	font-size: 12px;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	resize: vertical;
+	background: #0d1117;
+	color: #d4d4d4;
+}
+button {
+	width: 100%;
+	padding: 10px;
+	margin: 10px 0;
+	background: #21262d;
+	color: #79c0ff;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 500;
+}
+button:hover {
+	background: #30363d;
+	border-color: #79c0ff;
+	color: #a5d6ff;
+}
+input[type="file"] {
+	width: 100%;
+	margin: 10px 0;
+}
+.node {
+	cursor: grab;
+	user-select: none;
+}
+.node:active {
+	cursor: grabbing;
+}
+.node-title {
+	pointer-events: none;
+	font-size: 14px;
+	font-weight: bold;
+	fill: #ffffff;
+}
+.node-bullet {
+	pointer-events: none;
+	font-size: 11px;
+	fill: #ffffff;
+}
+.connection-label {
+	font-size: 10px;
+	fill: #ffffff;
+	pointer-events: none;
+}
+.connection-title {
+	pointer-events: none;
+	font-size: 11px;
+	font-weight: bold;
+	fill: #ffffff;
+}
+.connection-bullet {
+	pointer-events: none;
+	font-size: 9px;
+	fill: #ffffff;
+}
+/* Hover styles for clickable glossary links in SVG */
+.node-title[data-glossary-term]:hover,
+.node-bullet[data-glossary-term]:hover,
+.connection-bullet[data-glossary-term]:hover,
+.connection-title[data-glossary-term]:hover {
+	text-decoration: underline;
+	fill: #79c0ff !important;
+	cursor: pointer;
+}
+/* h2 styling inherited from site.css */
+.info {
+	margin-top: 20px;
+	padding: 10px;
+	border-radius: 4px;
+	font-size: 12px;
+	border: 1px solid #30363d;
+	background: #0d1117;
+}
+.glossary-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 10000;
+	display: none;
+	align-items: center;
+	justify-content: center;
+}
+.glossary-modal {
+	background: #161b22;
+	border: 1px solid #30363d;
+	border-radius: 8px;
+	padding: 20px;
+	max-width: 500px;
+	max-height: 80vh;
+	overflow-y: auto;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+	position: relative;
+	z-index: 10001;
+}
+.glossary-modal h3 {
+	margin-top: 0;
+	margin-bottom: 15px;
+	color: #79c0ff;
+	font-size: 20px;
+}
+.glossary-modal p {
+	margin: 0;
+	color: #d4d4d4;
+	line-height: 1.6;
+	font-size: 14px;
+}
+.glossary-modal .close-button {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	background: #21262d;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	width: 30px;
+	height: 30px;
+	cursor: pointer;
+	font-size: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #d4d4d4;
+	margin: 0;
+	padding: 0;
+	line-height: 1;
+	box-sizing: border-box;
+	font-family: inherit;
+	font-weight: normal;
+	vertical-align: top;
+}
+.glossary-modal .close-button:hover {
+	background: #30363d;
+	color: #79c0ff;
+	border-color: #79c0ff;
+}
+.glossary-modal .page-link-button {
+	position: absolute;
+	top: 10px;
+	right: 50px;
+	background: #21262d;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	height: 30px;
+	padding: 0 12px;
+	cursor: pointer;
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #d4d4d4;
+	text-decoration: none;
+	white-space: nowrap;
+	margin: 0;
+	line-height: 1;
+	box-sizing: border-box;
+	font-family: inherit;
+	font-weight: normal;
+	vertical-align: top;
+}
+.glossary-modal .page-link-button:hover {
+	background: #30363d;
+	color: #79c0ff;
+	border-color: #79c0ff;
+}
+.glossary-link {
+	cursor: pointer;
+}
+.glossary-list-item {
+	padding: 6px 8px;
+	margin: 0;
+	background: #21262d;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.glossary-list-item:hover {
+	background: #30363d;
+	border-color: #79c0ff;
+}
+.glossary-list-item .term-name {
+	flex: 1;
+	color: #ffffff;
+	text-decoration: none;
+	font-weight: 500;
+}
+.glossary-list-item:hover .term-name {
+	color: #ffffff;
+}
+.glossary-list-item .term-count {
+	color: #a5b4c4;
+	font-size: 11px;
+	margin-left: 8px;
+}
+#infographicSelector {
+	width: 100%;
+	padding: 8px;
+	margin: 10px 0;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	background: #0d1117;
+	color: #d4d4d4;
+}
+#highLevelGlossaryList {
+	margin-top: 20px;
+}
+#highLevelGlossaryContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+.concepts-details-box {
+	margin-top: 20px;
+	padding: 12px;
+	background: #1a4d2a;
+	border: 3px solid #56d364;
+	border-radius: 8px;
+}
+.concepts-details-box strong {
+	color: #ffffff;
+}
+.concepts-details-box .glossary-list-item {
+	background: #10351b;
+	border: none;
+}
+.concepts-details-box .glossary-list-item:hover {
+	background: #1f5d35;
+	border: none;
+}
+.concepts-details-box .glossary-list-item .term-name {
+	color: #ffffff;
+}
+.concepts-details-box .glossary-list-item:hover .term-name {
+	color: #ffffff;
+}
+#conceptsListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+#detailsList {
+	margin-top: 15px;
+}
+#detailsListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+.connections-box {
+	margin-top: 20px;
+	padding: 12px;
+	background: #1a3a6b;
+	border: 3px solid #79c0ff;
+	border-radius: 8px;
+}
+.connections-box strong {
+	color: #ffffff;
+}
+.connections-box .glossary-list-item {
+	background: #0c2342;
+	border: none;
+}
+.connections-box .glossary-list-item:hover {
+	background: #1f4a7b;
+	border: none;
+}
+.connections-box .glossary-list-item .term-name {
+	color: #ffffff;
+}
+.connections-box .glossary-list-item:hover .term-name {
+	color: #ffffff;
+}
+#connectionsListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+#connectionDetailsList {
+	margin-top: 15px;
+}
+#connectionDetailsListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+#glossaryList {
+	margin-top: 20px;
+}
+#glossaryListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+#orphansList {
+	margin-top: 20px;
+}
+#orphansListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+#unknownsList {
+	margin-top: 20px;
+}
+#unknownsListContent {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-top: 10px;
+}
+.export-button {
+	margin-top: 20px;
+	color: #ffffff;
+}
+.export-button:hover {
+	color: #ffffff;
+}
+.zoom-controls {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	z-index: 1000;
+	display: flex !important;
+	flex-direction: column;
+	gap: 8px;
+	pointer-events: none; /* Allow clicks to pass through to buttons */
+}
+
+.zoom-controls .zoom-button {
+	pointer-events: auto; /* Re-enable clicks on buttons */
+}
+
+.toggle-controls-button {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	margin: 0;
+	background: #21262d;
+	color: #79c0ff;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 16px;
+	font-weight: bold;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	user-select: none;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+	pointer-events: auto;
+}
+
+.toggle-controls-button:hover {
+	background: #30363d;
+	border-color: #79c0ff;
+	color: #a5d6ff;
+}
+
+.toggle-controls-button:active {
+	background: #484f58;
+	transform: scale(0.95);
+}
+
+.controls-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.controls-header h2 {
+	margin: 0;
+	flex: 1;
+}
+.zoom-button {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	margin: 0;
+	background: #21262d;
+	color: #79c0ff;
+	border: 1px solid #30363d;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 20px;
+	font-weight: bold;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	user-select: none;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.zoom-button:hover {
+	background: #30363d;
+	border-color: #79c0ff;
+	color: #a5d6ff;
+}
+.zoom-button:active {
+	background: #484f58;
+	transform: scale(0.95);
+}
+.startup-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: #000000;
+	z-index: 99999;
+	opacity: 1;
+	transition: opacity 0.8s ease-out;
+	pointer-events: none;
+}
+.startup-overlay.fade-out {
+	opacity: 0;
+}
+.startup-overlay.hidden {
+	display: none;
+}

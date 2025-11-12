@@ -1,0 +1,3011 @@
+{
+  "icons": {
+    "agent": {
+      "value": "\ud83e\udd16",
+      "module": "hh.agents.config_labels"
+    },
+    "role_inactive": {
+      "value": "\ud83d\udc64",
+      "module": "hh.agents.config_labels"
+    },
+    "role_active": {
+      "value": "\ud83d\udc64",
+      "module": "hh.agents.config_labels"
+    },
+    "runs": {
+      "value": "\ud83c\udfc3",
+      "module": "hh.agents.config_labels"
+    },
+    "session_id": {
+      "value": "\ud83d\udd17",
+      "module": "hh.agents.config_labels"
+    },
+    "role_terminated": {
+      "value": "\ud83d\udc64",
+      "module": "hh.agents.config_labels"
+    },
+    "gate_started_ts": {
+      "value": "\u23f0",
+      "module": "hh.agents.config_labels"
+    },
+    "status_inactive": {
+      "value": "\ud83d\udd34",
+      "module": "hh.agents.config_labels"
+    },
+    "status_active": {
+      "value": "\ud83d\udfe2",
+      "module": "hh.agents.config_labels"
+    },
+    "operation": {
+      "value": "\ud83d\udd17",
+      "module": "hh.agents.config_labels"
+    },
+    "purge": {
+      "value": "\ud83d\uddd1\ufe0f",
+      "module": "hh.agents.config_labels"
+    },
+    "terminated": {
+      "value": "\ud83d\udeab",
+      "module": "hh.agents.config_labels"
+    },
+    "gate_status": {
+      "value": "\ud83d\udeaa",
+      "module": "hh.agents.config_labels"
+    },
+    "filters": {
+      "value": "\ud83d\udd0d",
+      "module": "hh.agents.config_labels"
+    },
+    "agent_name": {
+      "value": "\ud83e\udd16",
+      "module": "hh.agents.config_labels"
+    },
+    "agent_id": {
+      "value": "\ud83e\udd16",
+      "module": "hh.agents.config_labels"
+    },
+    "agent_list_header": {
+      "value": "\ud83d\udccb",
+      "module": "hh.agents.config_labels"
+    },
+    "help_file": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.help.config_labels"
+    },
+    "help_child": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.help.config_labels"
+    },
+    "help_section": {
+      "value": "\ud83d\udd38",
+      "module": "hh.help.config_labels"
+    },
+    "help_topic": {
+      "value": "\u2753",
+      "module": "hh.help.config_labels"
+    },
+    "extra_data_new_caption": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.image.config_labels"
+    },
+    "extra_data_old_caption": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.image.config_labels"
+    },
+    "extra_data_image_id": {
+      "value": "\ud83c\udd94",
+      "module": "hh.image.config_labels"
+    },
+    "extra_actions_item": {
+      "value": "\ud83d\udccb",
+      "module": "hh.image.config_labels"
+    },
+    "extra_actions_header": {
+      "value": "\u2139\ufe0f",
+      "module": "hh.image.config_labels"
+    },
+    "image_path": {
+      "value": "\ud83d\udd38",
+      "module": "hh.image.config_labels"
+    },
+    "image_path_header": {
+      "value": "\ud83d\udd38",
+      "module": "hh.image.config_labels"
+    },
+    "image_username": {
+      "value": "\ud83d\udc64",
+      "module": "hh.image.config_labels"
+    },
+    "image_view_count": {
+      "value": "\ud83d\udc40",
+      "module": "hh.image.config_labels"
+    },
+    "image_visibility": {
+      "value": "\ud83d\udc41\ufe0f",
+      "module": "hh.image.config_labels"
+    },
+    "instance_item": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.image.config_labels"
+    },
+    "instances_header": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.image.config_labels"
+    },
+    "image_usage_item": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.image.config_labels"
+    },
+    "image_usage_header": {
+      "value": "\ud83d\udd17",
+      "module": "hh.image.config_labels"
+    },
+    "image_uploaded": {
+      "value": "\u23f0",
+      "module": "hh.image.config_labels"
+    },
+    "image_file_path": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.image.config_labels"
+    },
+    "image_num_instances": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.image.config_labels"
+    },
+    "image_max_filesize": {
+      "value": "\ud83d\udcbe",
+      "module": "hh.image.config_labels"
+    },
+    "image_max_height": {
+      "value": "\ud83d\udccf",
+      "module": "hh.image.config_labels"
+    },
+    "image_max_width": {
+      "value": "\ud83d\udccf",
+      "module": "hh.image.config_labels"
+    },
+    "image_aspect_ratio": {
+      "value": "\ud83d\udcd0",
+      "module": "hh.image.config_labels"
+    },
+    "image_caption": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.image.config_labels"
+    },
+    "image_id": {
+      "value": "\ud83c\udd94",
+      "module": "hh.image.config_labels"
+    },
+    "show_image_header": {
+      "value": "\ud83d\uddbc\ufe0f",
+      "module": "hh.image.config_labels"
+    },
+    "mcp_action_request_tool": {
+      "value": "\ud83d\udd27",
+      "module": "hh.mcp_action_request.config_labels"
+    },
+    "mcp_action_request_status": {
+      "value": "\ud83d\udea6",
+      "module": "hh.mcp_action_request.config_labels"
+    },
+    "mcp_action_request": {
+      "value": "\ud83d\udee0\ufe0f",
+      "module": "hh.mcp_action_request.config_labels"
+    },
+    "mcp_request_counts": {
+      "value": "\ud83e\uddee",
+      "module": "hh.mcp_request.config_labels"
+    },
+    "mcp_request_status": {
+      "value": "\ud83d\udea6",
+      "module": "hh.mcp_request.config_labels"
+    },
+    "mcp_request": {
+      "value": "\ud83d\udce6",
+      "module": "hh.mcp_request.config_labels"
+    },
+    "modify_text": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.page.config_labels"
+    },
+    "modify_name": {
+      "value": "\u270f\ufe0f",
+      "module": "hh.page.config_labels"
+    },
+    "count_pages": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.page.config_labels"
+    },
+    "image_rank": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_move_type": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_source_ranks": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_moved_count": {
+      "value": "\ud83d\udcca",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_total_failed": {
+      "value": "\u274c",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_total_processed": {
+      "value": "\u2705",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_total_found": {
+      "value": "\ud83d\udd0d",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_failed_images": {
+      "value": "\u274c",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_processed_images": {
+      "value": "\u2705",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_max_depth": {
+      "value": "\ud83d\udccf",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_recursive": {
+      "value": "\ud83d\udd01",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_new_rank": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_old_rank": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_set_rank_start": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removed_instances": {
+      "value": "\ud83d\udcca",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removal_type": {
+      "value": "\ud83d\udcca",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removed_rank": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removed_image_id": {
+      "value": "\ud83d\uddd1\ufe0f",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_copied_image_ids": {
+      "value": "\ud83d\udccb",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_copied_image_id": {
+      "value": "\ud83d\udccb",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_rank_operation": {
+      "value": "\ud83d\udcca",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_set_rank": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_operation": {
+      "value": "\u26a1",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_source_rank": {
+      "value": "\ud83d\udd22",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_source_page_id": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_moved_image_id": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_item": {
+      "value": "\ud83d\udccb",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_header": {
+      "value": "\u2139\ufe0f",
+      "module": "hh.page.config_labels"
+    },
+    "image_item": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.page.config_labels"
+    },
+    "images_header": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.page.config_labels"
+    },
+    "page_path": {
+      "value": "\ud83d\udd38",
+      "module": "hh.page.config_labels"
+    },
+    "page_num_children": {
+      "value": "\ud83d\udc76",
+      "module": "hh.page.config_labels"
+    },
+    "page_username": {
+      "value": "\ud83d\udc64",
+      "module": "hh.page.config_labels"
+    },
+    "page_modified": {
+      "value": "\u23f0",
+      "module": "hh.page.config_labels"
+    },
+    "page_text": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.page.config_labels"
+    },
+    "page_class": {
+      "value": "\ud83e\udde0",
+      "module": "hh.page.config_labels"
+    },
+    "page_parent": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.page.config_labels"
+    },
+    "page_link": {
+      "value": "\ud83d\udd17",
+      "module": "hh.page.config_labels"
+    },
+    "page_name": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.page.config_labels"
+    },
+    "page_id": {
+      "value": "\ud83c\udd94",
+      "module": "hh.page.config_labels"
+    },
+    "text_content": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.page.config_labels"
+    },
+    "project_name": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.page.config_labels"
+    },
+    "homepage_id": {
+      "value": "\ud83c\udfe0",
+      "module": "hh.page.config_labels"
+    },
+    "table_count_header": {
+      "value": "\ud83d\udcca",
+      "module": "hh.page.config_labels"
+    },
+    "delete_status": {
+      "value": "\u2705",
+      "module": "hh.page.config_labels"
+    },
+    "page": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.page.config_labels"
+    },
+    "child_page": {
+      "value": "\ud83d\udc76",
+      "module": "hh.page.config_labels"
+    },
+    "source_code_file_powershell": {
+      "value": "\u26a1",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_ini": {
+      "value": "\ud83d\udccb",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_html": {
+      "value": "\ud83c\udf10",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_typescript": {
+      "value": "\ud83d\udd37",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_css": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_javascript": {
+      "value": "\ud83d\udfe8",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_markdown": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_python": {
+      "value": "\ud83d\udc0d",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "page_language": {
+      "value": "\ud83d\udcac",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "page_file_path": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "filename": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.tp.config_labels"
+    },
+    "caption": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.tp.config_labels"
+    },
+    "unknown_row": {
+      "value": "\u2753",
+      "module": "hh.tp.config_labels"
+    },
+    "custom_value": {
+      "value": "\u2728",
+      "module": "hh.tp.config_labels"
+    },
+    "image_row": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.tp.config_labels"
+    },
+    "image_link_image": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.tp.config_labels"
+    },
+    "image_link_page": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.tp.config_labels"
+    },
+    "unknown_header": {
+      "value": "\u2753",
+      "module": "hh.tp.config_labels"
+    },
+    "custom_header": {
+      "value": "\u2728",
+      "module": "hh.tp.config_labels"
+    },
+    "image_header": {
+      "value": "\ud83d\udd17",
+      "module": "hh.tp.config_labels"
+    },
+    "image_link_header": {
+      "value": "\ud83d\udd17",
+      "module": "hh.tp.config_labels"
+    },
+    "page_link_header": {
+      "value": "\ud83d\udd17",
+      "module": "hh.tp.config_labels"
+    },
+    "command": {
+      "value": "\u2328\ufe0f",
+      "module": "hh.render.config.config_labels"
+    },
+    "warn": {
+      "value": "\ud83d\udea8",
+      "module": "hh.render.config.config_labels"
+    },
+    "trace_out": {
+      "value": "\u2705",
+      "module": "hh.render.config.config_labels"
+    },
+    "trace_in": {
+      "value": "\ud83d\udd32",
+      "module": "hh.render.config.config_labels"
+    },
+    "todo": {
+      "value": "\ud83d\udd32",
+      "module": "hh.render.config.config_labels"
+    },
+    "task": {
+      "value": "\ud83d\udccc",
+      "module": "hh.render.config.config_labels"
+    },
+    "tab": {
+      "value": "  ",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_tree": {
+      "value": "\ud83d\udccd",
+      "module": "hh.render.config.config_labels"
+    },
+    "step": {
+      "value": "\ud83d\udccd",
+      "module": "hh.render.config.config_labels"
+    },
+    "status": {
+      "value": "\ud83d\udd38",
+      "module": "hh.render.config.config_labels"
+    },
+    "statistics": {
+      "value": "\ud83d\udcca",
+      "module": "hh.render.config.config_labels"
+    },
+    "sql": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.render.config.config_labels"
+    },
+    "sort_order": {
+      "value": "# ",
+      "module": "hh.render.config.config_labels"
+    },
+    "sidecar_link": {
+      "value": "\ud83d\udd17",
+      "module": "hh.render.config.config_labels"
+    },
+    "number": {
+      "value": "\ud83d\udd22",
+      "module": "hh.render.config.config_labels"
+    },
+    "notes": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.render.config.config_labels"
+    },
+    "mysql": {
+      "value": "\ud83d\udc2c",
+      "module": "hh.render.config.config_labels"
+    },
+    "log": {
+      "value": "\ud83d\udd38",
+      "module": "hh.render.config.config_labels"
+    },
+    "linked_items": {
+      "value": "\ud83d\udd17",
+      "module": "hh.render.config.config_labels"
+    },
+    "kind": {
+      "value": "\ud83d\udd38",
+      "module": "hh.render.config.config_labels"
+    },
+    "filing_cabinet": {
+      "value": "\ud83d\udcc2",
+      "module": "hh.render.config.config_labels"
+    },
+    "file": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.render.config.config_labels"
+    },
+    "done": {
+      "value": "\u2705",
+      "module": "hh.render.config.config_labels"
+    },
+    "doing": {
+      "value": "\ud83d\udd04",
+      "module": "hh.render.config.config_labels"
+    },
+    "docket": {
+      "value": "\ud83d\udcbc",
+      "module": "hh.render.config.config_labels"
+    },
+    "debug_header": {
+      "value": "\ud83d\udd0d",
+      "module": "hh.render.config.config_labels"
+    },
+    "debug": {
+      "value": "\ud83d\udc1b",
+      "module": "hh.render.config.config_labels"
+    },
+    "success": {
+      "value": "\u2705",
+      "module": "hh.render.config.config_labels"
+    },
+    "info": {
+      "value": "\ud83d\udcca",
+      "module": "hh.render.config.config_labels"
+    },
+    "error": {
+      "value": "\u274c",
+      "module": "hh.render.config.config_labels"
+    },
+    "count": {
+      "value": "\ud83d\udd22",
+      "module": "hh.render.config.config_labels"
+    },
+    "created_at": {
+      "value": "\u23f0",
+      "module": "hh.render.config.config_labels"
+    },
+    "content": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.render.config.config_labels"
+    },
+    "blank_emoji": {
+      "value": "  ",
+      "module": "hh.render.config.config_labels"
+    },
+    "ask": {
+      "value": "\ud83e\udde9",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity": {
+      "value": "\ud83d\udccb",
+      "module": "hh.render.config.config_labels"
+    },
+    "activities": {
+      "value": "\ud83d\udccb",
+      "module": "hh.render.config.config_labels"
+    },
+    "function_name": {
+      "value": "\ud83d\udd27",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "function": {
+      "value": "\ud83d\udd27",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "args": {
+      "value": "\u2699\ufe0f",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "failed": {
+      "value": "\u274c",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "found": {
+      "value": "\ud83d\udd32",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "loaded": {
+      "value": "\u2705",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "list": {
+      "value": "\ud83d\udccb",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "retryable": {
+      "value": "\ud83d\udd04",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "retry": {
+      "value": "\ud83d\udd04",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "error_source": {
+      "value": "\ud83c\udfaf",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "error_code": {
+      "value": "\ud83d\udd22",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "error_message": {
+      "value": "\ud83d\udea8",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "link_resolution_error": {
+      "value": "\ud83d\udd17",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "syntax_error": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "json_error": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "connection_error": {
+      "value": "\ud83d\udd0c",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "registry_error": {
+      "value": "\ud83d\udccb",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "request_error": {
+      "value": "\ud83d\udce8",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "backend_error": {
+      "value": "\ud83d\udd27",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "action_error": {
+      "value": "\u26a1",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "file_path": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "item_type": {
+      "value": "\ud83d\udccb",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "clear_cache_header": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "cache_cleared": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "initialization_status": {
+      "value": "\u2705",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "created_tables": {
+      "value": "\ud83d\udccb",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "init_sql_file": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "init_db_header": {
+      "value": "\ud83c\udfd7\ufe0f",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "cleanup_status": {
+      "value": "\u2705",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "remaining_tables": {
+      "value": "\ud83d\udccb",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "clean_sql_file": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "clean_db_header": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "row_count": {
+      "value": "\ud83d\udd22",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "table_info": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "table_count": {
+      "value": "\ud83d\udccb",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "import_size": {
+      "value": "\ud83d\udcca",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "export_size": {
+      "value": "\ud83d\udcca",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "import_file": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "export_file": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_not_found": {
+      "value": "\u2753",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_removed": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_updated": {
+      "value": "\ud83d\udd04",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_failed": {
+      "value": "\u274c",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_existing": {
+      "value": "\ud83d\udc65",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_created": {
+      "value": "\u2705",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "permission_message": {
+      "value": "\ud83d\udcac",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "check_db_header": {
+      "value": "\ud83d\udd0d",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "import_db_header": {
+      "value": "\ud83d\udce5",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "export_db_header": {
+      "value": "\ud83d\udcbe",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "remove_db_users_header": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "add_db_users_header": {
+      "value": "\ud83d\udc65",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "daemon_not_deployed": {
+      "value": "\ud83d\udced",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_not_running": {
+      "value": "\u26aa",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_stopped": {
+      "value": "\ud83d\udd34",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_error": {
+      "value": "\ud83d\udca5",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_not_found": {
+      "value": "\u26a0\ufe0f",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_failed": {
+      "value": "\u274c",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_running": {
+      "value": "\ud83d\udfe2",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_restarted": {
+      "value": "\ud83d\udd01",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_started": {
+      "value": "\u2705",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_status_header": {
+      "value": "\ud83e\udd16",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "flask_status_header": {
+      "value": "\ud83d\udcca",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "flask_stop_header": {
+      "value": "\ud83d\uded1",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "flask_start_header": {
+      "value": "\ud83d\ude80",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "stage_file_created": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "has_changes": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "branch": {
+      "value": "\ud83c\udf3f",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "push_message": {
+      "value": "\ud83d\udcac",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "push_project_header": {
+      "value": "\ud83d\udce4",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "time_ago": {
+      "value": "\u23f0",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "commit_message": {
+      "value": "\ud83d\udcac",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "short_hash": {
+      "value": "\ud83d\udd17",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "branch_switched": {
+      "value": "\ud83d\udd04",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "current_branch": {
+      "value": "\ud83c\udf3f",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "pull_project_header": {
+      "value": "\ud83d\udce5",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "git_repo": {
+      "value": "\ud83d\udce6",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "context_whitelist": {
+      "value": "\ud83d\udcc2",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "misc_whitelist": {
+      "value": "\ud83d\udce6",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "css_whitelist": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "js_whitelist": {
+      "value": "\ud83d\udcdc",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_other": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_other": {
+      "value": "\ud83c\udf0d",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_henhouse": {
+      "value": "\ud83d\udce6",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_henhouse": {
+      "value": "\u2705",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "site_https": {
+      "value": "\ud83d\udd12",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "site_http": {
+      "value": "\ud83c\udf10",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "site_header": {
+      "value": "\ud83c\udf10",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "summary_header": {
+      "value": "\ud83d\udcc8",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "inactive_service": {
+      "value": "\u274c",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_service": {
+      "value": "\u2705",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "service_header": {
+      "value": "\ud83d\udc4b",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_other_header": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_other_header": {
+      "value": "\ud83c\udf0d",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_henhouse_header": {
+      "value": "\ud83d\udce6",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_henhouse_header": {
+      "value": "\u2705",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_remove_header": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "subdomain": {
+      "value": "\ud83d\udd17",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "main_domain": {
+      "value": "\ud83c\udf10",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_config_path": {
+      "value": "\ud83c\udf0d",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "port": {
+      "value": "\ud83d\udd0c",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "nginx_active": {
+      "value": "\u2705",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "certificate_path": {
+      "value": "\ud83d\udd11",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "domain_header": {
+      "value": "\ud83c\udf10",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_status_header": {
+      "value": "\ud83d\udcca",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_deploy_ssl_header": {
+      "value": "\ud83d\udd12",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_deploy_header": {
+      "value": "\ud83c\udf10",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "project_info": {
+      "value": "\u2139\ufe0f",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "misc_count": {
+      "value": "\ud83d\udce6",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "css_count": {
+      "value": "\ud83c\udfa8",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "js_count": {
+      "value": "\ud83d\udcdc",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "cache_permissions": {
+      "value": "\ud83d\udd12",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "ownership_set": {
+      "value": "\ud83d\udc64",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "context_deployed": {
+      "value": "\ud83d\udcc2",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "flask_deployed": {
+      "value": "\ud83c\udf10",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "cache_cleaned": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "deployment_cleaned": {
+      "value": "\ud83e\uddf9",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "code_deployed": {
+      "value": "\u2705",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "deploy_header": {
+      "value": "\ud83d\ude80",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "project_header": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "username": {
+      "value": "\ud83d\udc64",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "failed_count": {
+      "value": "\u274c",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "success_count": {
+      "value": "\u2705",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "users_processed": {
+      "value": "\ud83d\udc65",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "install_cursor_header": {
+      "value": "\ud83d\udcbb",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "safety_checks": {
+      "value": "\ud83d\udd0d",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "groups_deleted": {
+      "value": "\ud83d\udc65",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "project_directory": {
+      "value": "\ud83d\udcc1",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "users_removed": {
+      "value": "\ud83d\udc64",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "uninstall_header": {
+      "value": "\ud83d\uddd1\ufe0f",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "ownership": {
+      "value": "\ud83d\udc51",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "root_scripts": {
+      "value": "\ud83d\udc51",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "human_scripts": {
+      "value": "\ud83d\udcdc",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "ssh_keys": {
+      "value": "\ud83d\udd11",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "users_created": {
+      "value": "\ud83d\udc64",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "groups_created": {
+      "value": "\ud83d\udc65",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "install_header": {
+      "value": "\ud83d\udd27",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "characters": {
+      "value": "\ud83d\udd24",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "messages": {
+      "value": "\ud83d\udcac",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "operator": {
+      "value": "\u2699\ufe0f",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "channel": {
+      "value": "\ud83d\udcfa",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "arrow": {
+      "value": "\u27a1\ufe0f",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "target": {
+      "value": "\ud83c\udfaf",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "subscription": {
+      "value": "\ud83d\udce1",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "queue": {
+      "value": "\ud83d\udceb",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "pointer": {
+      "value": "\ud83d\udc49",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "microlog": {
+      "value": "\ud83d\udd14",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_to": {
+      "value": "\ud83d\udce5",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_from": {
+      "value": "\ud83d\udce4",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message": {
+      "value": "\ud83d\udce7",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "channels": {
+      "value": "\ud83d\udce1",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "role": {
+      "value": "\ud83d\udc64",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "complete": {
+      "value": "\u2705",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "exam": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "coffee": {
+      "value": "\u2615",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "recorded": {
+      "value": "\ud83d\udcdd",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "question": {
+      "value": "\u2753",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "document": {
+      "value": "\ud83d\udcc4",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "badge": {
+      "value": "\ud83c\udfc6",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "answers": {
+      "value": "\ud83d\udcac",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "training": {
+      "value": "\ud83d\udcda",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "onboard": {
+      "value": "\ud83d\ude80",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "answer": {
+      "value": "\ud83d\udcac",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "promote": {
+      "value": "\u2b06\ufe0f",
+      "module": "hh.agents.onboarding.config_labels"
+    }
+  },
+  "labels": {
+    "timeclock_header": {
+      "value": "Timeclock Punch",
+      "module": "hh.agents.config_labels"
+    },
+    "purge_header": {
+      "value": "Agent Purge",
+      "module": "hh.agents.config_labels"
+    },
+    "agent": {
+      "value": "Agent:",
+      "module": "hh.agents.config_labels"
+    },
+    "role_inactive": {
+      "value": "Role:",
+      "module": "hh.agents.config_labels"
+    },
+    "role_active": {
+      "value": "Role:",
+      "module": "hh.agents.config_labels"
+    },
+    "runs": {
+      "value": "Runs:",
+      "module": "hh.agents.config_labels"
+    },
+    "session_id": {
+      "value": "Session ID:",
+      "module": "hh.agents.config_labels"
+    },
+    "role_terminated": {
+      "value": "Role:",
+      "module": "hh.agents.config_labels"
+    },
+    "gate_started_ts": {
+      "value": "Gate Started:",
+      "module": "hh.agents.config_labels"
+    },
+    "status_inactive": {
+      "value": "Status:",
+      "module": "hh.agents.config_labels"
+    },
+    "status_active": {
+      "value": "Status:",
+      "module": "hh.agents.config_labels"
+    },
+    "operation": {
+      "value": "Operation:",
+      "module": "hh.agents.config_labels"
+    },
+    "purge": {
+      "value": "Purge:",
+      "module": "hh.agents.config_labels"
+    },
+    "terminated": {
+      "value": "Terminated:",
+      "module": "hh.agents.config_labels"
+    },
+    "gate_status": {
+      "value": "Gate Status:",
+      "module": "hh.agents.config_labels"
+    },
+    "filters": {
+      "value": "Filters:",
+      "module": "hh.agents.config_labels"
+    },
+    "agent_name": {
+      "value": "Agent Name:",
+      "module": "hh.agents.config_labels"
+    },
+    "agent_id": {
+      "value": "Agent ID:",
+      "module": "hh.agents.config_labels"
+    },
+    "agent_list_header": {
+      "value": "Agent List",
+      "module": "hh.agents.config_labels"
+    },
+    "help_header": {
+      "value": "Help System",
+      "module": "hh.help.config_labels"
+    },
+    "help_file": {
+      "value": "Command:",
+      "module": "hh.help.config_labels"
+    },
+    "help_child": {
+      "value": "Category:",
+      "module": "hh.help.config_labels"
+    },
+    "help_section": {
+      "value": "Section:",
+      "module": "hh.help.config_labels"
+    },
+    "help_topic": {
+      "value": "Help:",
+      "module": "hh.help.config_labels"
+    },
+    "extra_data_new_caption": {
+      "value": "New Caption:",
+      "module": "hh.image.config_labels"
+    },
+    "extra_data_old_caption": {
+      "value": "Old Caption:",
+      "module": "hh.image.config_labels"
+    },
+    "extra_data_image_id": {
+      "value": "Image ID:",
+      "module": "hh.image.config_labels"
+    },
+    "extra_actions_item": {
+      "value": "Action:",
+      "module": "hh.image.config_labels"
+    },
+    "extra_actions_header": {
+      "value": "Extra Actions:",
+      "module": "hh.image.config_labels"
+    },
+    "image_path": {
+      "value": "Path:",
+      "module": "hh.image.config_labels"
+    },
+    "image_path_header": {
+      "value": "Path:",
+      "module": "hh.image.config_labels"
+    },
+    "image_username": {
+      "value": "Username:",
+      "module": "hh.image.config_labels"
+    },
+    "image_view_count": {
+      "value": "View Count:",
+      "module": "hh.image.config_labels"
+    },
+    "image_visibility": {
+      "value": "Visibility:",
+      "module": "hh.image.config_labels"
+    },
+    "instance_item": {
+      "value": "Instance:",
+      "module": "hh.image.config_labels"
+    },
+    "instances_header": {
+      "value": "Image Instances:",
+      "module": "hh.image.config_labels"
+    },
+    "image_usage_item": {
+      "value": "Page:",
+      "module": "hh.image.config_labels"
+    },
+    "image_usage_header": {
+      "value": "Used By Pages:",
+      "module": "hh.image.config_labels"
+    },
+    "image_uploaded": {
+      "value": "Uploaded:",
+      "module": "hh.image.config_labels"
+    },
+    "image_file_path": {
+      "value": "File Path:",
+      "module": "hh.image.config_labels"
+    },
+    "image_num_instances": {
+      "value": "Instances:",
+      "module": "hh.image.config_labels"
+    },
+    "image_max_filesize": {
+      "value": "Max Filesize:",
+      "module": "hh.image.config_labels"
+    },
+    "image_max_height": {
+      "value": "Max Height:",
+      "module": "hh.image.config_labels"
+    },
+    "image_max_width": {
+      "value": "Max Width:",
+      "module": "hh.image.config_labels"
+    },
+    "image_aspect_ratio": {
+      "value": "Aspect Ratio:",
+      "module": "hh.image.config_labels"
+    },
+    "image_caption": {
+      "value": "Caption:",
+      "module": "hh.image.config_labels"
+    },
+    "image_id": {
+      "value": "Image ID:",
+      "module": "hh.image.config_labels"
+    },
+    "show_image_header": {
+      "value": "Image Details",
+      "module": "hh.image.config_labels"
+    },
+    "mcp_action_request_tool": {
+      "value": "Tool:",
+      "module": "hh.mcp_action_request.config_labels"
+    },
+    "mcp_action_request_status": {
+      "value": "Status:",
+      "module": "hh.mcp_action_request.config_labels"
+    },
+    "mcp_action_request": {
+      "value": "MCP Action:",
+      "module": "hh.mcp_action_request.config_labels"
+    },
+    "mcp_request_counts": {
+      "value": "Totals:",
+      "module": "hh.mcp_request.config_labels"
+    },
+    "mcp_request_status": {
+      "value": "Status:",
+      "module": "hh.mcp_request.config_labels"
+    },
+    "mcp_request": {
+      "value": "MCP Request:",
+      "module": "hh.mcp_request.config_labels"
+    },
+    "modify_text": {
+      "value": "Modify Text",
+      "module": "hh.page.config_labels"
+    },
+    "modify_name": {
+      "value": "Modify Name",
+      "module": "hh.page.config_labels"
+    },
+    "count_pages": {
+      "value": "Count Pages",
+      "module": "hh.page.config_labels"
+    },
+    "image_rank": {
+      "value": "Rank:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_move_type": {
+      "value": "Move Type:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_source_ranks": {
+      "value": "Source Ranks:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_moved_count": {
+      "value": "Moved Count:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_total_failed": {
+      "value": "Total Failed:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_total_processed": {
+      "value": "Total Processed:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_total_found": {
+      "value": "Total Found:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_failed_images": {
+      "value": "Failed Images:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_processed_images": {
+      "value": "Processed Images:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_max_depth": {
+      "value": "Max Depth:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_recursive": {
+      "value": "Recursive:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_new_rank": {
+      "value": "New Rank:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_old_rank": {
+      "value": "Old Rank:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_set_rank_start": {
+      "value": "Set Rank Start:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removed_instances": {
+      "value": "Removed Instances:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removal_type": {
+      "value": "Removal Type:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removed_rank": {
+      "value": "Removed Rank:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_removed_image_id": {
+      "value": "Removed Image ID:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_copied_image_ids": {
+      "value": "Copied Image IDs:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_copied_image_id": {
+      "value": "Copied Image ID:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_rank_operation": {
+      "value": "Rank Operation:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_set_rank": {
+      "value": "Set Rank:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_operation": {
+      "value": "Operation:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_source_rank": {
+      "value": "Source Rank:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_source_page_id": {
+      "value": "Source Page ID:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_moved_image_id": {
+      "value": "Moved Image ID:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_item": {
+      "value": "Detail:",
+      "module": "hh.page.config_labels"
+    },
+    "extra_data_header": {
+      "value": "Action Details:",
+      "module": "hh.page.config_labels"
+    },
+    "image_item": {
+      "value": "Image:",
+      "module": "hh.page.config_labels"
+    },
+    "images_header": {
+      "value": "Images:",
+      "module": "hh.page.config_labels"
+    },
+    "page_path": {
+      "value": "Path:",
+      "module": "hh.page.config_labels"
+    },
+    "page_num_children": {
+      "value": "Children:",
+      "module": "hh.page.config_labels"
+    },
+    "page_username": {
+      "value": "Username:",
+      "module": "hh.page.config_labels"
+    },
+    "page_modified": {
+      "value": "Modified:",
+      "module": "hh.page.config_labels"
+    },
+    "page_text": {
+      "value": "Text:",
+      "module": "hh.page.config_labels"
+    },
+    "page_class": {
+      "value": "Class:",
+      "module": "hh.page.config_labels"
+    },
+    "page_parent": {
+      "value": "Parent:",
+      "module": "hh.page.config_labels"
+    },
+    "page_link": {
+      "value": "Link:",
+      "module": "hh.page.config_labels"
+    },
+    "page_name": {
+      "value": "Name:",
+      "module": "hh.page.config_labels"
+    },
+    "page_id": {
+      "value": "Page ID:",
+      "module": "hh.page.config_labels"
+    },
+    "text_content": {
+      "value": "Content:",
+      "module": "hh.page.config_labels"
+    },
+    "project_name": {
+      "value": "Project Name:",
+      "module": "hh.page.config_labels"
+    },
+    "homepage_id": {
+      "value": "Homepage ID:",
+      "module": "hh.page.config_labels"
+    },
+    "table_count_header": {
+      "value": "Count Summary:",
+      "module": "hh.page.config_labels"
+    },
+    "delete_status": {
+      "value": "Status:",
+      "module": "hh.page.config_labels"
+    },
+    "page": {
+      "value": "Page:",
+      "module": "hh.page.config_labels"
+    },
+    "child_page": {
+      "value": "Child Page:",
+      "module": "hh.page.config_labels"
+    },
+    "deleted_page_id": {
+      "value": "Deleted Page ID:",
+      "module": "hh.page.config_labels"
+    },
+    "page_path_header": {
+      "value": "Path:",
+      "module": "hh.page.config_labels"
+    },
+    "children_header": {
+      "value": "Child Pages:",
+      "module": "hh.page.config_labels"
+    },
+    "delete_page_header": {
+      "value": "Page Deletion",
+      "module": "hh.page.config_labels"
+    },
+    "modify_text_header": {
+      "value": "Page Text Modification",
+      "module": "hh.page.config_labels"
+    },
+    "modify_name_header": {
+      "value": "Page Name Modification",
+      "module": "hh.page.config_labels"
+    },
+    "show_page_header": {
+      "value": "Page Details",
+      "module": "hh.page.config_labels"
+    },
+    "init_homepage_header": {
+      "value": "Homepage Initialization",
+      "module": "hh.page.config_labels"
+    },
+    "count_pages_header": {
+      "value": "Page Count Summary",
+      "module": "hh.page.config_labels"
+    },
+    "source_code_file_powershell": {
+      "value": "PowerShell Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_ini": {
+      "value": "INI Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_html": {
+      "value": "HTML Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_typescript": {
+      "value": "TypeScript Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_css": {
+      "value": "CSS Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_javascript": {
+      "value": "JavaScript Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_markdown": {
+      "value": "Markdown Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file_python": {
+      "value": "Python Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "source_code_file": {
+      "value": "Source Code File:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "page_language": {
+      "value": "Language:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "page_file_path": {
+      "value": "Path:",
+      "module": "hh.source_code_file.config_labels"
+    },
+    "filename": {
+      "value": "Filename",
+      "module": "hh.tp.config_labels"
+    },
+    "caption": {
+      "value": "Caption",
+      "module": "hh.tp.config_labels"
+    },
+    "unknown_row": {
+      "value": "Unknown Element",
+      "module": "hh.tp.config_labels"
+    },
+    "custom_value": {
+      "value": "Value",
+      "module": "hh.tp.config_labels"
+    },
+    "image_row": {
+      "value": "Image",
+      "module": "hh.tp.config_labels"
+    },
+    "image_link_image": {
+      "value": "Image",
+      "module": "hh.tp.config_labels"
+    },
+    "image_link_page": {
+      "value": "Page",
+      "module": "hh.tp.config_labels"
+    },
+    "unknown_header": {
+      "value": "Unknown Element",
+      "module": "hh.tp.config_labels"
+    },
+    "custom_header": {
+      "value": "Custom Decorator",
+      "module": "hh.tp.config_labels"
+    },
+    "image_header": {
+      "value": "Image",
+      "module": "hh.tp.config_labels"
+    },
+    "image_link_header": {
+      "value": "Image Link",
+      "module": "hh.tp.config_labels"
+    },
+    "page_link_header": {
+      "value": "Page Link",
+      "module": "hh.tp.config_labels"
+    },
+    "command": {
+      "value": "Command:",
+      "module": "hh.render.config.config_labels"
+    },
+    "work_preview_header": {
+      "value": "Work Preview",
+      "module": "hh.render.config.config_labels"
+    },
+    "work_docket": {
+      "value": "Work Docket:",
+      "module": "hh.render.config.config_labels"
+    },
+    "name": {
+      "value": "Name:",
+      "module": "hh.render.config.config_labels"
+    },
+    "title": {
+      "value": "Title:",
+      "module": "hh.render.config.config_labels"
+    },
+    "timestamp": {
+      "value": "Timestamp:",
+      "module": "hh.render.config.config_labels"
+    },
+    "timeclock_punch_header": {
+      "value": "Timeclock Punch",
+      "module": "hh.render.config.config_labels"
+    },
+    "task_context": {
+      "value": "Task Context:",
+      "module": "hh.render.config.config_labels"
+    },
+    "subscriptions": {
+      "value": "Subscriptions:",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_tree_header": {
+      "value": "Step Tree",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_title": {
+      "value": "Step Title:",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_status": {
+      "value": "Step Status:",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_id": {
+      "value": "Step ID:",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_description": {
+      "value": "Step Description:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sql_query": {
+      "value": "SQL Query:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sql_params": {
+      "value": "SQL Parameters:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sidecar_links": {
+      "value": "Sidecar Links:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sidecar": {
+      "value": "Sidecar:",
+      "module": "hh.render.config.config_labels"
+    },
+    "session": {
+      "value": "Session:",
+      "module": "hh.render.config.config_labels"
+    },
+    "remaining": {
+      "value": "remaining:",
+      "module": "hh.render.config.config_labels"
+    },
+    "occurred": {
+      "value": "occurred:",
+      "module": "hh.render.config.config_labels"
+    },
+    "mysql_sqlstate": {
+      "value": "SQL State:",
+      "module": "hh.render.config.config_labels"
+    },
+    "mysql_message": {
+      "value": "MySQL Message:",
+      "module": "hh.render.config.config_labels"
+    },
+    "mysql_errno": {
+      "value": "MySQL Error Code:",
+      "module": "hh.render.config.config_labels"
+    },
+    "more_items": {
+      "value": "more items:",
+      "module": "hh.render.config.config_labels"
+    },
+    "main_header": {
+      "value": "\ud83c\udfe0 Henhouse: ",
+      "module": "hh.render.config.config_labels"
+    },
+    "keyword": {
+      "value": "Keyword:",
+      "module": "hh.render.config.config_labels"
+    },
+    "items": {
+      "value": "items:",
+      "module": "hh.render.config.config_labels"
+    },
+    "id": {
+      "value": "ID:",
+      "module": "hh.render.config.config_labels"
+    },
+    "from": {
+      "value": "From:",
+      "module": "hh.render.config.config_labels"
+    },
+    "docket_context": {
+      "value": "Docket Context:",
+      "module": "hh.render.config.config_labels"
+    },
+    "deep_mode": {
+      "value": "Deep Mode:",
+      "module": "hh.render.config.config_labels"
+    },
+    "chars": {
+      "value": "more chars:",
+      "module": "hh.render.config.config_labels"
+    },
+    "ask_context": {
+      "value": "Ask Context:",
+      "module": "hh.render.config.config_labels"
+    },
+    "agent_tree_header": {
+      "value": "Agent Tree",
+      "module": "hh.render.config.config_labels"
+    },
+    "agent_tree": {
+      "value": "Agent Tree:",
+      "module": "hh.render.config.config_labels"
+    },
+    "agent_state": {
+      "value": "Agent State:",
+      "module": "hh.render.config.config_labels"
+    },
+    "agent_purge_header": {
+      "value": "Agent Purge",
+      "module": "hh.render.config.config_labels"
+    },
+    "affected_rows": {
+      "value": "Affected Rows:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity_timestamp": {
+      "value": "Timestamp:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity_logs": {
+      "value": "Activity Logs:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity_kind": {
+      "value": "Kind:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity_id": {
+      "value": "Activity ID:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity_content": {
+      "value": "Content:",
+      "module": "hh.render.config.config_labels"
+    },
+    "action_args": {
+      "value": "Action Args:",
+      "module": "hh.render.config.config_labels"
+    },
+    "action": {
+      "value": "Action:",
+      "module": "hh.render.config.config_labels"
+    },
+    "warn": {
+      "value": "Warning:",
+      "module": "hh.render.config.config_labels"
+    },
+    "trace_out": {
+      "value": "Out:",
+      "module": "hh.render.config.config_labels"
+    },
+    "trace_in": {
+      "value": "In:",
+      "module": "hh.render.config.config_labels"
+    },
+    "todo": {
+      "value": "Todo:",
+      "module": "hh.render.config.config_labels"
+    },
+    "task": {
+      "value": "Task:",
+      "module": "hh.render.config.config_labels"
+    },
+    "tab": {
+      "value": "",
+      "module": "hh.render.config.config_labels"
+    },
+    "step_tree": {
+      "value": "Step Tree:",
+      "module": "hh.render.config.config_labels"
+    },
+    "step": {
+      "value": "Step:",
+      "module": "hh.render.config.config_labels"
+    },
+    "status": {
+      "value": "Status:",
+      "module": "hh.render.config.config_labels"
+    },
+    "statistics": {
+      "value": "Statistics:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sql": {
+      "value": "SQL:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sort_order": {
+      "value": "Sort Order:",
+      "module": "hh.render.config.config_labels"
+    },
+    "sidecar_link": {
+      "value": "Sidecar Link:",
+      "module": "hh.render.config.config_labels"
+    },
+    "number": {
+      "value": "Number:",
+      "module": "hh.render.config.config_labels"
+    },
+    "notes": {
+      "value": "Notes:",
+      "module": "hh.render.config.config_labels"
+    },
+    "mysql": {
+      "value": "MySQL:",
+      "module": "hh.render.config.config_labels"
+    },
+    "log": {
+      "value": "Log:",
+      "module": "hh.render.config.config_labels"
+    },
+    "linked_items": {
+      "value": "Linked Items:",
+      "module": "hh.render.config.config_labels"
+    },
+    "kind": {
+      "value": "Kind:",
+      "module": "hh.render.config.config_labels"
+    },
+    "filing_cabinet": {
+      "value": "Filing Cabinet:",
+      "module": "hh.render.config.config_labels"
+    },
+    "file": {
+      "value": "File:",
+      "module": "hh.render.config.config_labels"
+    },
+    "done": {
+      "value": "Done:",
+      "module": "hh.render.config.config_labels"
+    },
+    "doing": {
+      "value": "Doing:",
+      "module": "hh.render.config.config_labels"
+    },
+    "docket": {
+      "value": "Docket:",
+      "module": "hh.render.config.config_labels"
+    },
+    "debug_header": {
+      "value": "Debug Trace",
+      "module": "hh.render.config.config_labels"
+    },
+    "debug": {
+      "value": "Debug:",
+      "module": "hh.render.config.config_labels"
+    },
+    "success": {
+      "value": "Success:",
+      "module": "hh.render.config.config_labels"
+    },
+    "info": {
+      "value": "Info:",
+      "module": "hh.render.config.config_labels"
+    },
+    "error": {
+      "value": "Error:",
+      "module": "hh.render.config.config_labels"
+    },
+    "count": {
+      "value": "Count:",
+      "module": "hh.render.config.config_labels"
+    },
+    "created_at": {
+      "value": "Created At:",
+      "module": "hh.render.config.config_labels"
+    },
+    "content": {
+      "value": "Content:",
+      "module": "hh.render.config.config_labels"
+    },
+    "blank_emoji": {
+      "value": "",
+      "module": "hh.render.config.config_labels"
+    },
+    "ask": {
+      "value": "Ask:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activity": {
+      "value": "Activity:",
+      "module": "hh.render.config.config_labels"
+    },
+    "activities": {
+      "value": "Activities:",
+      "module": "hh.render.config.config_labels"
+    },
+    "http_list_header": {
+      "value": "HTTP List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "mcp_list_header": {
+      "value": "MCP List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "parser_list_header": {
+      "value": "Parser List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "action_list_header": {
+      "value": "Action List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "backend_list_header": {
+      "value": "Backend List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "command_list_header": {
+      "value": "Command List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "function_name": {
+      "value": "Function:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "function": {
+      "value": "Function:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "args": {
+      "value": "Action Args:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "failed": {
+      "value": "Failed:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "found": {
+      "value": "Found:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "loaded": {
+      "value": "Loaded:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "list": {
+      "value": "List:",
+      "module": "hh.gateway.registry.config_labels"
+    },
+    "retryable": {
+      "value": "Retryable:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "retry": {
+      "value": "Retry:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "error_source": {
+      "value": "Error Source:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "error_code": {
+      "value": "Error Code:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "error_message": {
+      "value": "Error Message:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "link_resolution_error": {
+      "value": "Link Resolution Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "syntax_error": {
+      "value": "Syntax Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "json_error": {
+      "value": "JSON Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "connection_error": {
+      "value": "Connection Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "registry_error": {
+      "value": "Registry Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "request_error": {
+      "value": "Request Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "backend_error": {
+      "value": "Backend Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "action_error": {
+      "value": "Action Error:",
+      "module": "hh.gateway.response.config_labels"
+    },
+    "file_path": {
+      "value": "Path:",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "item_type": {
+      "value": "Type:",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "clear_cache_header": {
+      "value": "Cache Clear Status",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "cache_cleared": {
+      "value": "Cache Cleared:",
+      "module": "hh.deploy.cache.config_labels"
+    },
+    "initialization_status": {
+      "value": "Initialization Status:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "created_tables": {
+      "value": "Created Tables:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "init_sql_file": {
+      "value": "Init SQL File:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "init_db_header": {
+      "value": "DB Initialization Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "cleanup_status": {
+      "value": "Cleanup Status:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "remaining_tables": {
+      "value": "Remaining Tables:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "clean_sql_file": {
+      "value": "Clean SQL File:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "clean_db_header": {
+      "value": "DB Cleanup Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "row_count": {
+      "value": "Row Count:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "table_info": {
+      "value": "Table Info:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "table_count": {
+      "value": "Tables:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "import_size": {
+      "value": "Import Size:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "export_size": {
+      "value": "Export Size:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "import_file": {
+      "value": "Import File:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "export_file": {
+      "value": "Export File:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_not_found": {
+      "value": "User Not Found:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_removed": {
+      "value": "User Removed:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_updated": {
+      "value": "User Updated:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_failed": {
+      "value": "User Failed:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_existing": {
+      "value": "User Existing:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "user_created": {
+      "value": "User Created:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "permission_message": {
+      "value": "Permission Message:",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "check_db_header": {
+      "value": "Database Check Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "import_db_header": {
+      "value": "Database Import Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "export_db_header": {
+      "value": "Database Export Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "remove_db_users_header": {
+      "value": "Remove Database Users Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "add_db_users_header": {
+      "value": "Add Database Users Results",
+      "module": "hh.deploy.db.config_labels"
+    },
+    "daemon_not_deployed": {
+      "value": "Not Deployed:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_not_running": {
+      "value": "Not Running:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_stopped": {
+      "value": "Stopped:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_error": {
+      "value": "Error:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_not_found": {
+      "value": "Not Found:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_failed": {
+      "value": "Failed:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_running": {
+      "value": "Running:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_restarted": {
+      "value": "Restarted:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_started": {
+      "value": "Started:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "daemon_status_header": {
+      "value": "Daemon:",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "flask_status_header": {
+      "value": "Flask Daemon Status",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "flask_stop_header": {
+      "value": "Flask Daemon Stop Status",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "flask_start_header": {
+      "value": "Flask Daemon Start Status",
+      "module": "hh.deploy.flask.config_labels"
+    },
+    "stage_file_created": {
+      "value": "Stage File Created:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "has_changes": {
+      "value": "Has Changes:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "branch": {
+      "value": "Branch:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "push_message": {
+      "value": "Message:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "push_project_header": {
+      "value": "Project Push Status",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "time_ago": {
+      "value": "Committed:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "commit_message": {
+      "value": "Commit Message:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "short_hash": {
+      "value": "Commit Hash:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "branch_switched": {
+      "value": "Branch Switched:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "current_branch": {
+      "value": "Current Branch:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "pull_project_header": {
+      "value": "Project Pull Status",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "git_repo": {
+      "value": "Git Repository:",
+      "module": "hh.deploy.git.config_labels"
+    },
+    "context_whitelist": {
+      "value": "Context Whitelist:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "misc_whitelist": {
+      "value": "Misc Whitelist:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "css_whitelist": {
+      "value": "CSS Whitelist:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "js_whitelist": {
+      "value": "JS Whitelist:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_other": {
+      "value": "Available Other:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_other": {
+      "value": "Active Other:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_henhouse": {
+      "value": "Available Henhouse:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_henhouse": {
+      "value": "Active Henhouse:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "site_https": {
+      "value": "HTTP + SSL:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "site_http": {
+      "value": "HTTP:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "site_header": {
+      "value": "Site:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "summary_header": {
+      "value": "Summary:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "inactive_service": {
+      "value": "Service (Inactive):",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_service": {
+      "value": "Service (Active):",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "service_header": {
+      "value": "Service Status:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_other_header": {
+      "value": "Available Other Sites",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_other_header": {
+      "value": "Active Other Sites",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "available_henhouse_header": {
+      "value": "Available Henhouse Sites",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "active_henhouse_header": {
+      "value": "Active Henhouse Sites",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_remove_header": {
+      "value": "HTTP Removal Status",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "subdomain": {
+      "value": "Subdomain:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "main_domain": {
+      "value": "Main Domain:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_config_path": {
+      "value": "Config File Path:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "port": {
+      "value": "Port:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "nginx_active": {
+      "value": "Nginx Active:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "certificate_path": {
+      "value": "Certificate Path:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "domain_header": {
+      "value": "Domain:",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_status_header": {
+      "value": "HTTP Site Deployment Status",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_deploy_ssl_header": {
+      "value": "HTTP SSL Deployment Status",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "http_deploy_header": {
+      "value": "HTTP Deployment Status",
+      "module": "hh.deploy.http.config_labels"
+    },
+    "project_info": {
+      "value": "Project Info:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "misc_count": {
+      "value": "Misc Files Deployed:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "css_count": {
+      "value": "CSS Files Deployed:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "js_count": {
+      "value": "JS Files Deployed:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "cache_permissions": {
+      "value": "Cache Permissions:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "ownership_set": {
+      "value": "Ownership Set:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "context_deployed": {
+      "value": "Context Deployed:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "flask_deployed": {
+      "value": "Flask App Deployed:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "cache_cleaned": {
+      "value": "Cache Cleaned:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "deployment_cleaned": {
+      "value": "Deployment Cleaned:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "code_deployed": {
+      "value": "Code Deployed:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "deploy_header": {
+      "value": "Deployment Status",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "project_header": {
+      "value": "Project:",
+      "module": "hh.deploy.srv.config_labels"
+    },
+    "username": {
+      "value": "Username:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "failed_count": {
+      "value": "Failed:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "success_count": {
+      "value": "Successful:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "users_processed": {
+      "value": "Users Processed:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "install_cursor_header": {
+      "value": "Cursor Installation Status",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "safety_checks": {
+      "value": "Safety Checks:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "groups_deleted": {
+      "value": "Groups Deleted:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "project_directory": {
+      "value": "Project Directory:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "users_removed": {
+      "value": "Users Removed:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "uninstall_header": {
+      "value": "Uninstall Status",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "ownership": {
+      "value": "Project Ownership:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "root_scripts": {
+      "value": "Root Scripts:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "human_scripts": {
+      "value": "Human Scripts:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "ssh_keys": {
+      "value": "SSH Keys:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "users_created": {
+      "value": "Users Created:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "groups_created": {
+      "value": "Groups Created:",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "install_header": {
+      "value": "Installation Status",
+      "module": "hh.deploy.users.config_labels"
+    },
+    "no_messages": {
+      "value": "No messages found",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "messages_preview": {
+      "value": "Messages Preview",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "direction": {
+      "value": "Direction:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_index": {
+      "value": "Message #:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "export_time": {
+      "value": "Export Time:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "output_file": {
+      "value": "Output File:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_count": {
+      "value": "Message Count:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "subscription_target_title": {
+      "value": "Target Title:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "subscription_target_id": {
+      "value": "Target ID:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "subscription_target_type": {
+      "value": "Target Type:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_timestamp": {
+      "value": "Sent:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "queued_timestamp": {
+      "value": "Queued:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_kind": {
+      "value": "Kind:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_channel": {
+      "value": "Channel:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "subscription_header": {
+      "value": "Subscription Operations",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "gulp_header": {
+      "value": "Watercooler Gulp Export",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "gossip_header": {
+      "value": "Watercooler Gossip",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "sip_header": {
+      "value": "Watercooler Sip",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "peek_header": {
+      "value": "Watercooler Queue Sip/Peek",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "characters": {
+      "value": "Characters:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "messages": {
+      "value": "Messages:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "operator": {
+      "value": "Operator:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "channel": {
+      "value": "Channel:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "arrow": {
+      "value": "Arrow:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "target": {
+      "value": "Target:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "subscription": {
+      "value": "Subscription:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "queue": {
+      "value": "Queue:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "pointer": {
+      "value": "Pointer:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "microlog": {
+      "value": "Microlog:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_to": {
+      "value": "To:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message_from": {
+      "value": "From:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "message": {
+      "value": "Message ID:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "channels": {
+      "value": "Channels:",
+      "module": "hh.agents.feed.config_labels"
+    },
+    "next_command": {
+      "value": "Next Command:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "training_gate": {
+      "value": "Training Gate:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "training_complete": {
+      "value": "Training Complete:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "exams_total": {
+      "value": "Total Exams:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "exams_done": {
+      "value": "Exams Completed:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "coffees_total": {
+      "value": "Total Coffees:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "coffees_done": {
+      "value": "Coffees Completed:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "response_recorded": {
+      "value": "Response Recorded:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "has_question": {
+      "value": "Has Question:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "doc_path": {
+      "value": "Document Path:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "badge_ts": {
+      "value": "Badge Timestamp:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "role_training_complete": {
+      "value": "Role Training Complete:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "promotion_successful": {
+      "value": "Promotion Successful:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "new_role": {
+      "value": "New Role:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "old_role": {
+      "value": "Previous Role:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "training_progress": {
+      "value": "Training Progress:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "agent_info": {
+      "value": "Agent Information:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "onboard_header": {
+      "value": "Agent Onboarding",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "answer_header": {
+      "value": "Training Answer",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "promote_header": {
+      "value": "Agent Promotion",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "status_header": {
+      "value": "Agent Status",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "role": {
+      "value": "Role:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "complete": {
+      "value": "Complete:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "exam": {
+      "value": "Exam:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "coffee": {
+      "value": "Coffee:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "recorded": {
+      "value": "Recorded:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "question": {
+      "value": "Question:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "document": {
+      "value": "Document:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "badge": {
+      "value": "Badge:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "answers": {
+      "value": "Answers:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "training": {
+      "value": "Training:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "onboard": {
+      "value": "Onboard:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "answer": {
+      "value": "Answer:",
+      "module": "hh.agents.onboarding.config_labels"
+    },
+    "promote": {
+      "value": "Promote:",
+      "module": "hh.agents.onboarding.config_labels"
+    }
+  },
+  "last_scan": "1762826082.948262"
+}

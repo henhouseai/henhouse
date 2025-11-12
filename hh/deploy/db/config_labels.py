@@ -1,0 +1,32 @@
+from hh.render.config.config_registry import register_label
+
+@register_label('add_db_users_header',                 'Add Database Users Results',     '👥')
+@register_label('remove_db_users_header',             'Remove Database Users Results',   '🧹')
+@register_label('export_db_header',                    'Database Export Results',        '💾')
+@register_label('import_db_header',                    'Database Import Results',        '📥')
+@register_label('check_db_header',                     'Database Check Results',         '🔍')
+@register_label('permission_message',                  'Permission Message:',            '💬')
+@register_label('user_created',                        'User Created:',                  '✅')
+@register_label('user_existing',                       'User Existing:',                 '👥')
+@register_label('user_failed',                         'User Failed:',                    '❌')
+@register_label('user_updated',                        'User Updated:',                  '🔄')
+@register_label('user_removed',                        'User Removed:',                  '🧹')
+@register_label('user_not_found',                     'User Not Found:',                '❓')
+@register_label('export_file',                         'Export File:',                   '📄')
+@register_label('import_file',                         'Import File:',                   '📄')
+@register_label('export_size',                         'Export Size:',                   '📊')
+@register_label('import_size',                         'Import Size:',                   '📊')
+@register_label('table_count',                         'Tables:',                        '📋')
+@register_label('table_info',                          'Table Info:',                    '📁')
+@register_label('row_count',                           'Row Count:',                     '🔢')
+@register_label('clean_db_header',                     'DB Cleanup Results',             '🧹')
+@register_label('clean_sql_file',                      'Clean SQL File:',                '📄')
+@register_label('remaining_tables',                    'Remaining Tables:',              '📋')
+@register_label('cleanup_status',                      'Cleanup Status:',                '✅')
+@register_label('init_db_header',                      'DB Initialization Results',      '🏗️')
+@register_label('init_sql_file',                       'Init SQL File:',                 '📄')
+@register_label('created_tables',                      'Created Tables:',                '📋')
+@register_label('initialization_status',                 'Initialization Status:',         '✅')
+def _register_config():
+    pass
+

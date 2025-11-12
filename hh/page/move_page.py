@@ -1,0 +1,78 @@
+from __future__ import annotations
+from typing import Dict, Any
+from hh.gateway.connection.decorators import db_write
+from hh.gateway.registry.registry import register_action, register_command
+from hh.gateway.gateway import get_gateway
+from hh.gateway.response.json_standard import success_payload
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.error.error_store import report_error, is_error
+from hh.page.page_registry import get_page, find_page
+from hh.image.image_registry import get_image
+from hh.page.page import Page
+from hh.image.image import Image
+
+trace_in = lambda message=None: None
+trace_out = lambda message=None: None
+log = lambda message: None
+debug = lambda message: None
+warn = lambda message: None
+
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
+    log = get_log(True)
+    debug = get_debug(True)
+    warn = get_warn(True)
+
+@register_action('move_page')
+@register_command('move_page')
+@db_write
+def move_page(conn) -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return False
+    if not gateway.is_set('source_page') and not gateway.is_set('s_page'):
+        warn("No source page ID provided")
+        report_error("action", "Source page ID is required")
+    if not is_error():
+        if not gateway.is_set('target_page') and not gateway.is_set('t_page'):
+            warn("No target page ID provided")
+            report_error("action", "Target page ID is required")
+    if not is_error():
+        source_page_arg = gateway.get_arg('source_page') or gateway.get_arg('s_page')
+        target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
+        try:
+            source_page_id = int(source_page_arg)
+            target_page_id = int(target_page_arg)
+        except ValueError:
+            warn(f"Invalid source page ID: {source_page_arg} or target page ID: {target_page_arg}")
+            report_error("action", "Source page ID and target page ID must be numbers")
+    if not is_error():
+        source_page = get_page(page_id=source_page_id)
+        if not source_page:
+            warn(f"Source page {source_page_id} not found")
+            report_error("action", f"Source page {source_page_id} not found")
+    if not is_error():
+        # Perform the move operation
+        success = source_page.move_page(target_page_id)
+        if not success:
+            warn(f"Failed to move page {source_page_id} to target {target_page_id}")
+            report_error("action", f"Failed to move page {source_page_id} to target {target_page_id}")
+    if not is_error():
+        # Get updated page data for response
+        updated_page = get_page(page_id=source_page_id)
+        if updated_page:
+            response_data = updated_page.show_page()
+            response_data["message"] = f"Page {source_page_id} successfully moved to parent {target_page_id}"
+            gateway.response.set_action_response(success_payload(response_data))
+            log(f"Successfully moved page {source_page_id} to parent {target_page_id}")
+        else:
+            warn(f"Failed to reload page {source_page_id} after move")
+            report_error("action", f"Failed to reload page {source_page_id} after move")
+    trace_out()
+    return not is_error()

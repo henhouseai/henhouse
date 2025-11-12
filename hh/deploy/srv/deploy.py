@@ -1,0 +1,642 @@
+import os
+import shutil
+import subprocess
+import pwd
+from pathlib import Path
+from typing import List
+from hh.gateway.registry.registry import register_action
+from hh.gateway.registry.registry import register_command
+from hh.gateway.gateway import get_gateway
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+
+from hh.deploy.cache.cache_cleanup_registry import get_cache_directories
+from hh.gateway.response.json_standard import success_payload
+from hh.gateway.error.error_store import report_error, is_error
+
+trace_in = lambda message=None: None
+trace_out = lambda message=None: None
+log = lambda message: None
+debug = lambda message: None
+warn = lambda message: None
+
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
+    log = get_log(True)
+    debug = get_debug(True)
+    warn = get_warn(True)
+
+from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.context_whitelist import CONTEXT_WHITELIST
+from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
+from hh.deploy.conf.js_whitelist import JS_WHITELIST
+from hh.deploy.conf.css_whitelist import CSS_WHITELIST
+from hh.deploy.conf.py_whitelist import PY_WHITELIST
+from hh.deploy.conf.misc_whitelist import MISC_WHITELIST
+from hh.deploy.conf.deploy_whitelist import DEPLOY_WHITELIST, EXTRA_DEPLOY_FILES, FLASK_APP_SOURCE
+
+@register_action('deploy')
+@register_command('deploy')
+def deploy() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return False
+
+    # Detect project context
+    current_path = Path.cwd()
+    while current_path != current_path.parent:
+        hh_dir = current_path / 'hh'
+        if hh_dir.exists() and hh_dir.is_dir():
+            project_name = current_path.name
+            break
+        current_path = current_path.parent
+    else:
+        project_name = Path.cwd().name
+        current_path = Path.cwd()
+    
+    # Get starting port from gateway args (default 5001)
+    start_port_arg = gateway.get_arg('start_port')
+    start_port = int(start_port_arg) if start_port_arg else 5001
+    
+    source = current_path
+    dest = Path(f'/srv/{project_name}')
+    log(f"Deploying from {source} to {dest} (starting port: {start_port})")
+
+    # Preserve git folder by temporarily moving it out, then restore after cleanup
+    git_dir = dest / 'git'
+    temp_git_path = dest.parent / f'{project_name}_git'
+    git_preserved = False
+    if not is_error():
+        try:
+            if git_dir.exists():
+                if temp_git_path.exists():
+                    shutil.rmtree(temp_git_path)
+                    log(f"Removed existing temporary git directory: {temp_git_path}")
+                shutil.move(str(git_dir), str(temp_git_path))
+                git_preserved = True
+                log(f"Temporarily moved git directory to: {temp_git_path}")
+            else:
+                log("No git directory found to preserve")
+        except Exception as e:
+            warn(f"Failed to preserve git directory: {e}")
+            report_error("backend", f"Failed to preserve git directory: {e}")
+
+    # Sterilize deployment directory (remove everything except preserved git)
+    if not is_error():
+        try:
+            if dest.exists():
+                # Remove all contents
+                for item in dest.iterdir():
+                    try:
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            item.unlink()
+                        log(f"Removed: {item}")
+                    except Exception as e:
+                        warn(f"Failed to remove {item}: {e}")
+                log(f"Sterilized deployment directory: {dest}")
+            else:
+                dest.mkdir(parents=True, exist_ok=True)
+                log(f"Created deployment directory: {dest}")
+        except Exception as e:
+            warn(f"Failed to sterilize deployment directory: {e}")
+            report_error("backend", f"Failed to sterilize deployment directory: {e}")
+
+    # Restore git folder
+    if not is_error() and git_preserved:
+        try:
+            if temp_git_path.exists():
+                shutil.move(str(temp_git_path), str(git_dir))
+                log(f"Restored git directory: {git_dir}")
+            else:
+                warn(f"Temporary git directory not found: {temp_git_path}")
+        except Exception as e:
+            warn(f"Failed to restore git directory: {e}")
+            report_error("backend", f"Failed to restore git directory: {e}")
+
+    # Deploy main code
+    if not is_error():
+        hh_source = source / 'hh'
+        hh_dest = dest / 'hh'
+        code_deployed = False
+        try:
+            shutil.copytree(hh_source, hh_dest)
+            code_deployed = True
+            log(f"Deployed code: {hh_source} -> {hh_dest}")
+        except Exception as e:
+            warn(f"Failed to deploy code: {e}")
+            report_error("backend", f"Failed to deploy code: {e}")
+
+    # Clean deployment directory but preserve whitelisted items
+    if not is_error():
+        deploy_dir = dest / 'hh' / 'deploy'
+        preserved_items = {}  # Map of item_name -> (source_path, temp_path)
+        deployment_cleaned = False
+        try:
+            # Temporarily move whitelisted items out
+            for item_name in DEPLOY_WHITELIST:
+                item_path = deploy_dir / item_name
+                if item_path.exists():
+                    temp_path = dest / f".{project_name}_{item_name.replace('/', '_').replace('.', '_')}_tmp"
+                    
+                    # Clean up existing temp if it exists
+                    if temp_path.exists():
+                        if temp_path.is_dir():
+                            shutil.rmtree(temp_path)
+                        else:
+                            temp_path.unlink()
+                    
+                    # Move item to temp location
+                    shutil.move(str(item_path), str(temp_path))
+                    preserved_items[item_name] = (item_path, temp_path)
+                    log(f"Temporarily moved {item_name}: {item_path} -> {temp_path}")
+
+            # Remove entire deploy directory contents
+            if deploy_dir.exists():
+                shutil.rmtree(deploy_dir)
+                log(f"Removed deploy directory: {deploy_dir}")
+
+            # Recreate deploy directory and restore preserved items
+            deploy_dir.mkdir(parents=True, exist_ok=True)
+            for item_name, (original_path, temp_path) in preserved_items.items():
+                if temp_path.exists():
+                    restored_path = deploy_dir / item_name
+                    shutil.move(str(temp_path), str(restored_path))
+                    log(f"Restored {item_name}: {restored_path}")
+
+            deployment_cleaned = True
+        except Exception as e:
+            warn(f"Failed to clean deploy directory while preserving whitelisted items: {e}")
+            report_error("backend", f"Failed to clean deploy directory while preserving whitelisted items: {e}")
+
+    # Clean cache files
+    if not is_error():
+        cache_cleaned = {
+            'pycache_dirs': 0,
+            'pyc_files': 0,
+            'cache_files': 0,
+            'cache_dirs': 0
+        }
+        try:
+            # Remove __pycache__ directories
+            for pycache_dir in dest.rglob('__pycache__'):
+                shutil.rmtree(pycache_dir)
+                cache_cleaned['pycache_dirs'] += 1
+                log(f"Removed __pycache__ directory: {pycache_dir}")
+            
+            # Remove .pyc files
+            for pyc_file in dest.rglob('*.pyc'):
+                pyc_file.unlink()
+                cache_cleaned['pyc_files'] += 1
+                log(f"Removed .pyc file: {pyc_file}")
+            
+            # Remove cache files
+            cache_patterns = ['*-reg.json', '*.cycle.json', 'cache.json', '*.cache']
+            for pattern in cache_patterns:
+                for cache_file in dest.rglob(pattern):
+                    cache_file.unlink()
+                    cache_cleaned['cache_files'] += 1
+                    log(f"Removed cache file: {cache_file}")
+            
+            # Remove .cache directories
+            for cache_dir in dest.rglob('.cache'):
+                shutil.rmtree(cache_dir)
+                cache_cleaned['cache_dirs'] += 1
+                log(f"Removed .cache directory: {cache_dir}")
+            
+            log(f"Cache cleanup complete: {cache_cleaned['pycache_dirs']} __pycache__ dirs, {cache_cleaned['pyc_files']} .pyc files, {cache_cleaned['cache_files']} cache files, {cache_cleaned['cache_dirs']} .cache dirs")
+        except Exception as e:
+            warn(f"Failed to clean cache files: {e}")
+            report_error("backend", f"Failed to clean cache files: {e}")
+
+    # Deploy Flask app with tier suffixes
+    if not is_error():
+        flask_deployed = []
+        try:
+            app_source = source / FLASK_APP_SOURCE
+            if app_source.exists():
+                for i, tier in enumerate(HENHOUSE_TIERS):
+                    app_name = f'{project_name}_{tier}.py'
+                    app_dest = dest / app_name
+                    
+                    # Read the app.py content
+                    with open(app_source, 'r') as f:
+                        content = f.read()
+                    
+                    # Replace the port with the tier-specific port
+                    port = start_port + i
+                    content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
+                    
+                    # Replace the log file path with tier-specific path
+                    log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
+                    content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
+                    
+                    # Write the modified content
+                    with open(app_dest, 'w') as f:
+                        f.write(content)
+                    
+                    flask_deployed.append(app_name)
+                    log(f"Deployed Flask app: {app_name} (port {port})")
+                log(f"Flask deployment complete: {len(flask_deployed)} instances")
+            else:
+                log("Flask app.py not found, skipping Flask deployment")
+        except Exception as e:
+            warn(f"Failed to deploy Flask apps: {e}")
+            report_error("backend", f"Failed to deploy Flask apps: {e}")
+
+    # Deploy extra top-level files (config-driven)
+    if not is_error():
+        try:
+            for rel_path in EXTRA_DEPLOY_FILES:
+                src = source / rel_path
+                if src.exists():
+                    dst = dest / src.name
+                    shutil.copy2(src, dst)
+                    log(f"Deployed extra file: {rel_path}")
+                else:
+                    log(f"Extra deploy file not found: {rel_path}")
+        except Exception as e:
+            warn(f"Failed to deploy extra files: {e}")
+            report_error("backend", f"Failed to deploy extra files: {e}")
+
+    # Deploy context folders and files
+    if not is_error():
+        context_deployed = []
+        site_deployed = []
+        try:
+            for item in CONTEXT_WHITELIST:
+                source_item = source / item
+                if source_item.exists():
+                    dest_item = dest / 'context' / item
+                    if source_item.is_dir():
+                        # Handle directories
+                        if dest_item.exists():
+                            shutil.rmtree(dest_item)
+                        shutil.copytree(source_item, dest_item, ignore=should_ignore_context_path)
+                        context_deployed.append(item)
+                        log(f"Deployed context folder: {item} -> context/{item}")
+                    elif source_item.is_file():
+                        # Handle files
+                        dest_item.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source_item, dest_item)
+                        context_deployed.append(item)
+                        log(f"Deployed context file: {item} -> context/{item}")
+                    else:
+                        log(f"Context item is neither file nor directory: {item}")
+                else:
+                    log(f"Context item not found: {item}")
+            log(f"Context deployment complete: {len(context_deployed)} items")
+        except Exception as e:
+            warn(f"Failed to deploy context folders: {e}")
+            report_error("backend", f"Failed to deploy context folders: {e}")
+
+    # Deploy site folders (js, css, misc)
+    if not is_error():
+        try:
+            site_dest = dest / 'site'
+            if site_dest.exists():
+                shutil.rmtree(site_dest)
+                log(f"Cleared existing site directory: {site_dest}")
+            site_dest.mkdir(parents=True, exist_ok=True)
+            
+            js_count = 0
+            css_count = 0
+            py_count = 0
+            misc_count = 0
+            
+            # Deploy JS files
+            js_dest = site_dest / 'js'
+            js_dest.mkdir(exist_ok=True)
+            for js_file in JS_WHITELIST:
+                source_js = source / js_file
+                if source_js.exists():
+                    dest_js = js_dest / source_js.name
+                    if dest_js.exists():
+                        dest_js.unlink()
+                    shutil.copy2(source_js, dest_js)
+                    site_deployed.append(f"js/{source_js.name}")
+                    js_count += 1
+                    log(f"Deployed JS file: {js_file} -> site/js/{source_js.name}")
+                else:
+                    log(f"JS file not found: {js_file}")
+            
+            # Deploy CSS files
+            css_dest = site_dest / 'css'
+            css_dest.mkdir(exist_ok=True)
+            for css_file in CSS_WHITELIST:
+                source_css = source / css_file
+                if source_css.exists():
+                    dest_css = css_dest / source_css.name
+                    if dest_css.exists():
+                        dest_css.unlink()
+                    shutil.copy2(source_css, dest_css)
+                    site_deployed.append(f"css/{source_css.name}")
+                    css_count += 1
+                    log(f"Deployed CSS file: {css_file} -> site/css/{source_css.name}")
+                else:
+                    log(f"CSS file not found: {css_file}")
+            
+            # Deploy Python files
+            py_dest = site_dest / 'py'
+            py_dest.mkdir(exist_ok=True)
+            for py_file in PY_WHITELIST:
+                source_py = source / py_file
+                if source_py.exists():
+                    dest_py = py_dest / source_py.name
+                    if dest_py.exists():
+                        dest_py.unlink()
+                    shutil.copy2(source_py, dest_py)
+                    site_deployed.append(f"py/{source_py.name}")
+                    py_count += 1
+                    log(f"Deployed Python file: {py_file} -> site/py/{source_py.name}")
+                else:
+                    log(f"Python file not found: {py_file}")
+            
+            # Deploy misc files (top level in site/)
+            for misc_file in MISC_WHITELIST:
+                source_misc = source / misc_file
+                if source_misc.exists():
+                    if source_misc.is_dir():
+                        # Copy entire directory
+                        dest_misc = site_dest / source_misc.name
+                        if dest_misc.exists():
+                            shutil.rmtree(dest_misc)
+                        shutil.copytree(source_misc, dest_misc)
+                        site_deployed.append(misc_file)
+                        misc_count += 1
+                        log(f"Deployed misc directory: {misc_file} -> site/{source_misc.name}")
+                    else:
+                        # Copy single file
+                        dest_misc = site_dest / source_misc.name
+                        if dest_misc.exists():
+                            dest_misc.unlink()
+                        shutil.copy2(source_misc, dest_misc)
+                        site_deployed.append(misc_file)
+                        misc_count += 1
+                        log(f"Deployed misc file: {misc_file} -> site/{source_misc.name}")
+                else:
+                    log(f"Misc file not found: {misc_file}")
+            
+            log(f"Site deployment complete: {len(site_deployed)} items (JS: {js_count}, CSS: {css_count}, PY: {py_count}, MISC: {misc_count})")
+        except Exception as e:
+            warn(f"Failed to deploy site folders: {e}")
+            report_error("backend", f"Failed to deploy site folders: {e}")
+
+    # Set ownership and permissions
+    if not is_error():
+        ownership_set = False
+        try:
+            project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+            project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+            deploy_group_name = f"{project_name}_deploy"
+            
+            subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(dest)], check=True)
+            subprocess.run(['find', str(dest), '-type', 'd', '-exec', 'chmod', '750', '{}', ';'], check=True)
+            subprocess.run(['find', str(dest), '-type', 'f', '-exec', 'chmod', '640', '{}', ';'], check=True)
+            
+            # Fix git directory permissions
+            git_dir = dest / 'git'
+            if git_dir.exists():
+                subprocess.run(['chown', '-R', f'{project_highest_uid}:{project_name}', str(git_dir)], check=True)
+                subprocess.run(['find', str(git_dir), '-type', 'd', '-exec', 'chmod', '770', '{}', ';'], check=True)
+                subprocess.run(['find', str(git_dir), '-type', 'f', '-exec', 'chmod', '660', '{}', ';'], check=True)
+                log(f"Set git directory permissions: {project_highest_user}:{project_name}")
+            
+            ownership_set = True
+            log(f"Set ownership and permissions: {project_highest_user}:{deploy_group_name}")
+        except Exception as e:
+            warn(f"Failed to set ownership and permissions: {e}")
+            report_error("backend", f"Failed to set ownership and permissions: {e}")
+
+    # Set up cache permissions
+    if not is_error():
+        cache_permissions_set = False
+        try:
+            project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+            project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+            deploy_group_name = f"{project_name}_deploy"
+            
+            cache_dirs = [dest / cache_dir for cache_dir in get_cache_directories()]
+            
+            for cache_dir in cache_dirs:
+                if cache_dir.exists():
+                    os.chmod(cache_dir, 0o2775)
+                    log(f"Set cache directory permissions: {cache_dir}")
+                else:
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                    os.chmod(cache_dir, 0o2775)
+                    log(f"Created cache directory with group write: {cache_dir}")
+                
+                # Set ownership so all tier users can write via group permissions
+                subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(cache_dir)], check=True)
+                log(f"Set cache directory ownership: {cache_dir} -> {project_highest_user}:{deploy_group_name}")
+            
+            cache_permissions_set = True
+            log("Cache directory permissions set successfully")
+        except Exception as e:
+            warn(f"Failed to set up cache permissions: {e}")
+            report_error("backend", f"Failed to set up cache permissions: {e}")
+
+    # Set up logs directory for Flask daemons
+    if not is_error():
+        logs_permissions_set = False
+        try:
+            logs_dir = dest / 'logs'
+            if logs_dir.exists():
+                shutil.rmtree(logs_dir)
+                log(f"Cleared existing logs directory: {logs_dir}")
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            os.chmod(logs_dir, 0o2775)
+            
+            # Set ownership so Flask daemons can write logs
+            project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+            project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+            deploy_group_name = f"{project_name}_deploy"
+            subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(logs_dir)], check=True)
+            
+            log(f"Created fresh logs directory with group write: {logs_dir}")
+            log(f"Set logs directory ownership: {project_highest_user}:{deploy_group_name}")
+            
+            logs_permissions_set = True
+            log("Logs directory permissions set successfully")
+        except Exception as e:
+            warn(f"Failed to set up logs permissions: {e}")
+            report_error("backend", f"Failed to set up logs permissions: {e}")
+
+
+    # Final result
+    result = not is_error()
+    if result:
+        log("Deployment completed successfully")
+        result_data = {
+            "project_name": project_name,
+            "source": str(source),
+            "destination": str(dest),
+            "code_deployed": code_deployed,
+            "deployment_cleaned": deployment_cleaned,
+            "cache_cleaned": cache_cleaned,
+            "flask_deployed": flask_deployed,
+            "context_deployed": context_deployed,
+            "site_deployed": site_deployed,
+            "js_count": js_count if 'js_count' in locals() else 0,
+            "css_count": css_count if 'css_count' in locals() else 0,
+            "py_count": py_count if 'py_count' in locals() else 0,
+            "misc_count": misc_count if 'misc_count' in locals() else 0,
+            "ownership_set": ownership_set,
+            "cache_permissions_set": cache_permissions_set,
+            "logs_permissions_set": logs_permissions_set,
+            "status": "deployed"
+        }
+        gateway.response.set_action_response(success_payload(result_data))
+    else:
+        log("Deployment encountered problems")
+
+    # Clear registry cache to prevent permission issues
+    from hh.deploy.cache.cache_cleanup_registry import clean_all_caches
+    clean_all_caches()
+    
+    trace_out()
+    return result
+
+
+def cleanup_old_deployment() -> None:
+    # Get project name dynamically
+    current_path = Path.cwd()
+    while current_path != current_path.parent:
+        hh_dir = current_path / 'hh'
+        if hh_dir.exists() and hh_dir.is_dir():
+            project_name = current_path.name
+            break
+        current_path = current_path.parent
+    else:
+        project_name = Path.cwd().name
+    
+    users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
+    
+    dest = Path(f'/srv/{project_name}')
+    if dest.exists():
+        log(f"Removing old deployment: {dest}")
+        shutil.rmtree(dest)
+    for user in users:
+        user_home = Path(f'/home/{user}')
+        gateway_script = user_home / 'gateway.py'
+        if gateway_script.exists():
+            log(f"Removing gateway.py for {user}")
+            gateway_script.unlink()
+        hh_script = user_home / 'hh'
+        if hh_script.exists():
+            log(f"Removing hh script for {user}")
+            hh_script.unlink()
+
+
+
+
+def deploy_context_folders(source: Path, dest: Path) -> None:
+    """Deploy context folders and files for agent visibility."""
+    trace_in()
+    try:
+        log("Deploying context folders and files")
+        
+        # Deploy whitelisted context items (folders and files) with blacklist filtering
+        for item in CONTEXT_WHITELIST:
+            source_item = source / item
+            if source_item.exists():
+                dest_item = dest / 'context' / item
+                if source_item.is_dir():
+                    # Handle directories
+                    log(f"Deploying context folder: {item} -> context/{item}")
+                    if dest_item.exists():
+                        shutil.rmtree(dest_item)
+                    shutil.copytree(source_item, dest_item, ignore=should_ignore_context_path)
+                elif source_item.is_file():
+                    # Handle files
+                    log(f"Deploying context file: {item} -> context/{item}")
+                    dest_item.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source_item, dest_item)
+                else:
+                    log(f"Context item is neither file nor directory: {item}")
+            else:
+                log(f"Context item not found: {item}")
+        
+        log("Context deployment complete")
+    except Exception as e:
+        warn(f"Context deployment failed: {str(e)}")
+        raise
+    finally:
+        trace_out()
+
+def should_ignore_context_path(directory: str, files: List[str]) -> List[str]:
+    """Determine which files/folders to ignore for context deployment."""
+    ignored = []
+    
+    for item in files:
+        item_path = Path(directory) / item
+        
+        # Check if any part of the path matches blacklist
+        for blacklist_pattern in CONTEXT_BLACKLIST:
+            if matches_blacklist_pattern(item_path, blacklist_pattern):
+                ignored.append(item)
+                break
+    
+    return ignored
+
+def matches_blacklist_pattern(path: Path, pattern: str) -> bool:
+    """Check if a path matches a blacklist pattern."""
+    # Convert pattern to Path for comparison
+    pattern_path = Path(pattern)
+    
+    # Check if any part of the path matches
+    for part in path.parts:
+        if part == pattern_path.name or part == pattern_path.stem:
+            return True
+    
+    # Check if the full path contains the pattern
+    if pattern in str(path):
+        return True
+    
+    # Check for wildcard patterns
+    if '*' in pattern:
+        import fnmatch
+        if fnmatch.fnmatch(str(path), pattern):
+            return True
+    
+    return False
+
+def setup_deployment_ownership_and_permissions(project_name: str) -> None:
+    """Set ownership and permissions for deployed code (copied from init.py)."""
+    trace_in()
+    try:
+        # Set ownership of /srv/{project_name} to project highest level user with deploy group AFTER deployment
+        srv_project = Path(f'/srv/{project_name}')
+        if srv_project.exists():
+            try:
+                project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+                project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+                deploy_group_name = f"{project_name}_deploy"
+                subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(srv_project)], check=True)
+                
+                # Set secure permissions: directories 750, files 640
+                subprocess.run(['find', str(srv_project), '-type', 'd', '-exec', 'chmod', '750', '{}', ';'], check=True)
+                subprocess.run(['find', str(srv_project), '-type', 'f', '-exec', 'chmod', '640', '{}', ';'], check=True)
+                
+                # Fix git directory permissions: owner can write, group can read and write
+                git_dir = srv_project / 'git'
+                if git_dir.exists():
+                    subprocess.run(['chown', '-R', f'{project_highest_uid}:{project_name}', str(git_dir)], check=True)
+                    subprocess.run(['find', str(git_dir), '-type', 'd', '-exec', 'chmod', '770', '{}', ';'], check=True)
+                    subprocess.run(['find', str(git_dir), '-type', 'f', '-exec', 'chmod', '660', '{}', ';'], check=True)
+                    log(f"Set git directory permissions: {project_highest_user}:{project_name} (owner:rw, group:rw)")
+                
+                log(f"Set ownership and permissions: {project_highest_user}:{deploy_group_name} (owner:rw, group:r)")
+            except Exception as e:
+                warn(f"Failed to set ownership and permissions: {str(e)}")
+    except Exception as e:
+        warn(f"Failed to setup deployment ownership and permissions: {str(e)}")
+    finally:
+        trace_out()

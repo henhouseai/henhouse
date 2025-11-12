@@ -1,0 +1,312 @@
+/* site.css - Dark theme styling */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    line-height: 1.6;
+    color: #d4d4d4;
+    background: #0d1117;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Global link styling - subdued blue theme */
+a {
+    color: #79c0ff;
+    text-decoration: none;
+}
+a:hover {
+    color: #a5d6ff;
+    text-decoration: underline;
+}
+a:visited {
+    color: #79c0ff;
+}
+
+.container {
+    max-width: 100%;
+    width: 100%;
+    margin: 0 auto;
+    background: #161b22;
+    padding: 40px;
+    border-radius: 10px;
+    border: 1px solid #30363d;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+h1 {
+    color: #58a6ff;
+    margin-bottom: 10px;
+    font-size: 2.5em;
+}
+
+.subtitle {
+    color: #79c0ff;
+    font-size: 1.2em;
+    margin-bottom: 30px;
+}
+
+.status {
+    background: #1e1e1e;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 30px;
+    border-left: 4px solid #58a6ff;
+}
+
+.status h2 {
+    color: #58a6ff;
+    margin-bottom: 10px;
+    font-size: 1.5em;
+}
+
+.status p {
+    margin-bottom: 10px;
+    color: #d4d4d4;
+}
+
+.checkmark {
+    color: #3fb950;
+    font-weight: bold;
+}
+
+.links {
+    margin-top: 30px;
+}
+
+.links h2 {
+    color: #58a6ff;
+    margin-bottom: 15px;
+}
+
+.links ul {
+    list-style: none;
+}
+
+.links li {
+    margin-bottom: 10px;
+}
+
+.links a {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #21262d;
+    color: #58a6ff;
+    text-decoration: none;
+    border-radius: 5px;
+    border: 1px solid #30363d;
+    transition: all 0.3s ease;
+}
+
+.links a:hover {
+    background: #30363d;
+    border-color: #58a6ff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(88, 166, 255, 0.2);
+}
+
+.footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid #30363d;
+    text-align: center;
+    color: #8b949e;
+}
+
+.success {
+    color: #3fb950;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+/* Path breadcrumb links - terminal dark theme */
+ul.path {
+    padding: 5px 0;
+    border: 0;
+    margin: 0 auto;
+    list-style-type: none;
+    text-align: center;
+}
+ul.path li {
+    display: inline;
+    margin: 7px 2px;
+    white-space: nowrap;
+}
+ul.path li a {
+    color: #d4d4d4;
+    background-color: #21262d;
+    padding: 3px 6px;
+    border: 1px solid #45584b;
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    font-size: 12pt;
+    text-decoration: none;
+}
+ul.path li a:hover {
+    border: 1px solid #56d364;
+    color: #56d364;
+    background-color: #30363d;
+    text-decoration: none;
+}
+ul.path li a:active {
+    border: 1px solid #56d364;
+    color: #79c0ff;
+    background-color: #161b22;
+    text-decoration: none;
+}
+
+/* Content Holder and Wrapper styles */
+#contentHolder {
+    position: relative;
+    top: 0;
+    left: 0;
+    width: auto;
+    border: 0;
+    margin: 0;
+    clear: both;
+}
+
+div.contentWrapperHeader {
+    clear: left;
+    width: auto;
+    padding: 16px 4px 4px 4px;
+    border: 0;
+    margin: 3px;
+    background-color: #0d1117;
+    color: #d4d4d4;
+    text-align: left;
+    font-size: 24pt;
+    font-weight: bold;
+}
+
+div.contentWrapper {
+    width: auto;
+    border: 0;
+    border-radius: 10px;
+    -moz-border-radius: 10px;
+    -webkit-border-radius: 10px;
+    margin: 3px;
+    padding: 1px;
+    margin-bottom: 20px;
+    background-color: #45584b;
+    text-align: left;
+}
+
+div.contentWrapper div.contentWrapperHeader {
+    background-color: #161b22;
+    color: #d4d4d4;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+    border-width: 1px;
+    border-color: #45584b;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+}
+
+div.error {
+    background-color: #1f2329;
+    border-color: #f85149 !important;
+}
+div.hidden {
+    background-color: #1f2329;
+    border-color: #8b949e !important;
+}
+div.private {
+    background-color: #1f2329;
+    border-color: #a371f7 !important;
+}
+
+div.content {
+    clear: left;
+    width: auto;
+    padding: 5px;
+    border: 1px solid #45584b;
+    border-radius: 10px;
+    -moz-border-radius: 10px;
+    -webkit-border-radius: 10px;
+    margin: 3px;
+    background-color: #0d1117;
+    color: #d4d4d4;
+    text-align: left;
+}
+
+div.paddedContent {
+    width: auto;
+    padding: 10px;
+}
+
+div.contentHeader {
+    clear: left;
+    width: auto;
+    padding: 8px 4px 0 4px;
+    border: 0;
+    margin: 3px;
+    background-color: #45584b;
+    color: #d4d4d4;
+    text-align: left;
+    font-size: 16pt;
+    font-weight: bold;
+}
+
+div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+
+div.errorContentWrapper,
+div.errorContentWrapper div.contentHeader {
+    background-color: #1f2329;
+    border-color: #f85149 !important;
+}
+
+div.contentHeader a:not(:first-child) {
+    padding: 0;
+    border: 0;
+    margin: 0 4px;
+    color: #79c0ff;
+    font-size: 10pt;
+    font-weight: normal;
+}
+
+div.contentHeader a:link,
+div.contentHeader a:visited {
+    text-decoration: none;
+    color: #79c0ff;
+}
+
+div.contentHeader a:hover,
+div.contentHeader a:active {
+    text-decoration: underline;
+    color: #58a6ff;
+}
+
