@@ -70,6 +70,7 @@ def uninstall() -> bool:
 
     # Step 1: Remove users with safety checks
     removed_users = []
+    removed_project_users = []  # Track which project users were actually removed
     if not is_error():
         for user in users_to_remove:
             try:
@@ -90,6 +91,9 @@ def uninstall() -> bool:
                             log(f"Removing leftover home directory for non-existent user: {user}")
                             shutil.rmtree(user_home)
                             removed_users.append(f"{user} (home directory only)")
+                            # Track if this was a project user (not an additional user)
+                            if user in project_users:
+                                removed_project_users.append(user)
                         else:
                             warn(f"Skipping deletion of leftover home directory for {user} - failed safety checks")
                     else:
@@ -112,6 +116,9 @@ def uninstall() -> bool:
                     subprocess.run(['userdel', '-r', user], check=True, capture_output=True)
                     log(f"Removed user: {user}")
                     removed_users.append(user)
+                    # Track if this was a project user (not an additional user)
+                    if user in project_users:
+                        removed_project_users.append(user)
                 else:
                     warn(f"Skipping deletion of user {user} - failed safety checks")
                     debug(f"User {user} validation failed - see detailed debug info above")
@@ -153,9 +160,15 @@ def uninstall() -> bool:
                     warn(f"Failed to remove project owner {project_owner} from group {project_name}: {e.stderr.decode()}")
 
     # Step 4: Clean up human user (project owner) home directory
-    if not is_error():
+    # Only do this if we actually removed at least one project user (safety check)
+    # This prevents accidentally deleting scripts from other projects on a second uninstall run
+    if not is_error() and removed_project_users:
+        log(f"Removed {len(removed_project_users)} project user(s) - proceeding with human/root script cleanup")
         cleanup_human_user_home(project_name, project_path, hen_script_name, gateway_script_name)
         cleanup_root_user_scripts(project_name, project_path, hen_script_name, gateway_script_name)
+    elif not is_error() and not removed_project_users:
+        log("No project users were removed - skipping human/root script cleanup for safety")
+        warn("Skipping human/root script cleanup - no project users were found/removed. This prevents accidental deletion of scripts from other projects.")
 
     # Step 5: Remove users from .htpasswd files
     if not is_error():
