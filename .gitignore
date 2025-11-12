@@ -38,3 +38,9 @@ Thumbs.db
 *.tsv
 page-classes.json
 tp-decorators.json
+config-registry.json
+
+# Project folders
+features/
+docs/
+core/

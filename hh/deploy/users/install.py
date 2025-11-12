@@ -264,6 +264,9 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
         
         # Initial commit
         subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=str(project_path), check=True)
+        
+        # Rename branch to project_name (regardless of what git init created)
+        subprocess.run(['git', 'branch', '-m', project_name], cwd=str(project_path), check=True)
     
     # Add the bare repo as remote (remove existing if it exists)
     try:
