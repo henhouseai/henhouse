@@ -336,6 +336,10 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
     subprocess.run(['git', 'push', 'origin', project_name], cwd=str(project_path), check=True)
     log(f"Pushed project code to {bare_repo} ({project_name} branch)")
     
+    # Set HEAD in bare repository to point to the actual branch
+    subprocess.run(['git', 'symbolic-ref', 'HEAD', f'refs/heads/{project_name}'], cwd=str(bare_repo), check=True)
+    log(f"Set bare repository HEAD to {project_name} branch")
+    
     # Fix ownership of entire project folder after all operations
     if project_owner:
         try:
