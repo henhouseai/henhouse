@@ -24,4 +24,18 @@ def populate_site_links() -> None:
     gateway.response.add_site_link('home', 28, 'about')
     gateway.response.add_site_link('home', 27, 'INFOGRAPHICS')
     gateway.response.add_site_link('home', 564, 'MCP REQUESTS')
+    
+    # Create "about" group with header link
+    gateway.response.add_site_link_group('about', 28, 'ABOUT')
+    
+    # Add links to "about" group
+    gateway.response.add_site_link('about', 35, 'pages')
+    gateway.response.add_site_link('about', 49, 'flask daemons')
+    
+    # Create "source code" group with header link
+    gateway.response.add_site_link_group('source code', 234, 'SOURCE CODE')
+    
+    # Add links to "source code" group
+    gateway.response.add_site_link('source code', 535, 'context')
+    gateway.response.add_site_link('source code', 235, 'hh')
 

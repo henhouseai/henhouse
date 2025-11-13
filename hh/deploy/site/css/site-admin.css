@@ -182,3 +182,39 @@ div.contentHeader a:active {
     color: #f0883e;
 }
 
+/* Menu group colors */
+ul.menuGroup {
+    background-color: #ffffff;
+    border-color: #000000;
+}
+
+ul.menuGroup li {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+ul.menuGroup li.header {
+    background-color: #d29922;
+    color: #ffffff;
+}
+
+ul.siteLinks li.header {
+    background-color: #6b8ab6;
+}
+
+ul.applicationActions li.header {
+    background-color: #639a67;
+}
+
+ul.userInfo li.header {
+    background-color: #c87e7e;
+}
+
+ul.menuGroup li a {
+    color: #000000;
+}
+
+ul.menuGroup li.header a {
+    color: #ffffff;
+}
+
