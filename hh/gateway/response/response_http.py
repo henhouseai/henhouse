@@ -21,6 +21,9 @@ class ResponseHTTP(Response):
     
     def get_output(self) -> str:
         """Return HTTP output - wraps body content in full HTML document."""
+        # Populate menu content based on tier level
+        self._populate_menu_content()
+        
         # Get body content from output buffer
         body_content = "\n".join(self.output_buffer) if self.output_buffer else ""
         
@@ -169,9 +172,10 @@ class ResponseHTTP(Response):
     def _render_body(self, *, title: str, body_content: str) -> str:
         path_html = self.path or ""
         admin = bool(self.admin)
-        user_info_html = self.user_info_html or ""
-        site_links_html = self.site_links_html or ""
-        application_action_links_html = self.application_action_links_html or ""
+        # Render menu content from collected data
+        user_info_html = self._render_user_info()
+        site_links_html = self._render_site_links()
+        application_action_links_html = self._render_application_action_links()
         user_action_links_html = self.user_action_links_html or ""
         content_wrapper_class = self.content_wrapper_class or ""
 
@@ -208,5 +212,133 @@ class ResponseHTTP(Response):
             menu_html=menu_html,
             content_holder_html=content_holder_html,
             footer_html=footer_html,
+        )
+    
+    # ---- Menu content population ----
+    
+    def _populate_menu_content(self) -> None:
+        """Populate menu content (site links, app actions, user info) based on tier level."""
+        # Always populate site links
+        try:
+            from hh.deploy.conf.site_links import populate_site_links
+            populate_site_links()
+        except Exception:
+            pass  # If site_links.py doesn't exist or fails, continue
+        
+        # Only populate app actions and user info for tier > 1 (verified, admin, root)
+        if self.user_tier_level > 1:
+            # Set admin flag for menu rendering
+            self.admin = True
+            
+            # Populate application action links
+            try:
+                from hh.deploy.conf.application_actions import populate_application_action_links
+                populate_application_action_links()
+            except Exception:
+                pass
+            
+            # Populate user info
+            try:
+                from hh.deploy.conf.user_info import populate_user_info
+                populate_user_info()
+            except Exception:
+                pass
+    
+    # ---- Menu content builders ----
+    
+    def add_site_link(self, link: str) -> None:
+        """Add a site link. Empty string creates a new menu group."""
+        if not hasattr(self, '_site_links'):
+            self._site_links: List[str] = []
+        self._site_links.append(link)
+    
+    def add_application_action_link(self, header: str, action_id: str, label: str) -> None:
+        """Add an application action link. Header creates a new group if different from previous."""
+        if not hasattr(self, '_application_actions'):
+            self._application_actions: List[tuple] = []
+        self._application_actions.append((header, action_id, label))
+    
+    def set_user_info(self, username: str) -> None:
+        """Set user info for display."""
+        self._user_info_username = username
+    
+    def _render_site_links(self) -> str:
+        """Render site links HTML with grouping."""
+        if not hasattr(self, '_site_links') or not self._site_links:
+            return ""
+        
+        groups: List[List[str]] = []
+        current_group: List[str] = []
+        
+        for link in self._site_links:
+            if link == '':
+                # Empty string creates new group
+                if current_group:
+                    groups.append(current_group)
+                    current_group = []
+            else:
+                current_group.append(link)
+        
+        # Add final group if not empty
+        if current_group:
+            groups.append(current_group)
+        
+        if not groups:
+            return ""
+        
+        html_parts: List[str] = []
+        for group in groups:
+            if not group:
+                continue
+            html_parts.append('<ul class="siteLinks menuGroup">')
+            # First item is header
+            html_parts.append(f'    <li class="header">{group[0]}</li>')
+            # Remaining items are regular links
+            for link in group[1:]:
+                html_parts.append(f'    <li>{link}</li>')
+            html_parts.append('</ul>')
+        
+        return "\n".join(html_parts)
+    
+    def _render_application_action_links(self) -> str:
+        """Render application action links HTML with grouping by header."""
+        if not hasattr(self, '_application_actions') or not self._application_actions:
+            return ""
+        
+        groups: dict[str, List[tuple]] = {}
+        current_header = None
+        
+        for header, action_id, label in self._application_actions:
+            if header != current_header:
+                current_header = header
+                if header not in groups:
+                    groups[header] = []
+            groups[header].append((action_id, label))
+        
+        if not groups:
+            return ""
+        
+        html_parts: List[str] = []
+        for header, actions in groups.items():
+            html_parts.append('<ul class="applicationActions menuGroup">')
+            html_parts.append(f'    <li class="header">{header}</li>')
+            for action_id, label in actions:
+                html_parts.append(f'    <li><a id="{action_id}">{label}</a></li>')
+            html_parts.append('</ul>')
+        
+        return "\n".join(html_parts)
+    
+    def _render_user_info(self) -> str:
+        """Render user info HTML."""
+        if not hasattr(self, '_user_info_username'):
+            return ""
+        
+        username = self._user_info_username
+        return (
+            '<ul class="userInfo menuGroup">\n'
+            '    <li class="header">LOGIN</li>\n'
+            f'    <li>"{username}"</li>\n'
+            '    <li>Quit browser to logout</li>\n'
+            '</ul>'
         )
 
