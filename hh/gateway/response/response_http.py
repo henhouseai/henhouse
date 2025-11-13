@@ -264,11 +264,22 @@ class ResponseHTTP(Response):
             # Add to existing group
             self._site_link_groups[group_name].append((page_id, link_text))
     
-    def add_application_action_link(self, header: str, action_id: str, label: str) -> None:
-        """Add an application action link. Header creates a new group if different from previous."""
-        if not hasattr(self, '_application_actions'):
-            self._application_actions: List[tuple] = []
-        self._application_actions.append((header, action_id, label))
+    def add_application_action_group(self, group_name: str, header_text: str) -> None:
+        """Create a new application action group with header text."""
+        if not hasattr(self, '_application_action_groups'):
+            self._application_action_groups: dict[str, List[tuple[str, str]]] = {}
+        # First item in group is header (empty action_id marks it as header)
+        self._application_action_groups[group_name] = [('', header_text)]
+    
+    def add_application_action_link(self, group_name: str, action_id: str, label: str) -> None:
+        """Add an application action link to an existing group."""
+        if not hasattr(self, '_application_action_groups'):
+            self._application_action_groups: dict[str, List[tuple[str, str]]] = {}
+        if group_name not in self._application_action_groups:
+            # Group doesn't exist, create it (first item becomes header with empty action_id)
+            self._application_action_groups[group_name] = [('', group_name)]
+        # Add to existing group
+        self._application_action_groups[group_name].append((action_id, label))
     
     def set_user_info(self, username: str) -> None:
         """Set user info for display."""
@@ -295,28 +306,20 @@ class ResponseHTTP(Response):
         return "\n".join(html_parts)
     
     def _render_application_action_links(self) -> str:
-        """Render application action links HTML with grouping by header."""
-        if not hasattr(self, '_application_actions') or not self._application_actions:
-            return ""
-        
-        groups: dict[str, List[tuple]] = {}
-        current_header = None
-        
-        for header, action_id, label in self._application_actions:
-            if header != current_header:
-                current_header = header
-                if header not in groups:
-                    groups[header] = []
-            groups[header].append((action_id, label))
-        
-        if not groups:
+        """Render application action links HTML with grouping."""
+        if not hasattr(self, '_application_action_groups') or not self._application_action_groups:
             return ""
         
         html_parts: List[str] = []
-        for header, actions in groups.items():
+        for group_name, actions in self._application_action_groups.items():
+            if not actions:
+                continue
             html_parts.append('<ul class="applicationActions menuGroup">')
-            html_parts.append(f'    <li class="header">{header}</li>')
-            for action_id, label in actions:
+            # First item is header (empty action_id marks it as header)
+            header_action_id, header_text = actions[0]
+            html_parts.append(f'    <li class="header">{header_text}</li>')
+            # Remaining items are action links (with IDs, no hrefs)
+            for action_id, label in actions[1:]:
                 html_parts.append(f'    <li><a id="{action_id}">{label}</a></li>')
             html_parts.append('</ul>')
         
