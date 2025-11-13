@@ -20,7 +20,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 def auto_scan_user_keys(project_owner: str) -> List[str]:
     """Auto-scan user's SSH keys from their home directory."""

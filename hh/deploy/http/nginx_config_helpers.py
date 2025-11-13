@@ -1,6 +1,6 @@
 """Common Nginx configuration helpers for HTTP and HTTPS deployments."""
 from typing import List
-from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 def get_security_headers() -> List[str]:
     """Return standard security headers for all server blocks."""

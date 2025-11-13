@@ -27,7 +27,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 @register_action('uninstall')
 @register_command('uninstall')

@@ -26,7 +26,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.users.access import auto_scan_user_keys, generate_ssh_keys, add_user_key
 from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, setup_user_convenience_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner
 from hh.deploy.utils import detect_project_context

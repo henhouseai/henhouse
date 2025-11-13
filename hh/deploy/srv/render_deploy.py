@@ -7,7 +7,7 @@ from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import get_data
-from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None

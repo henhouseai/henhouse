@@ -28,7 +28,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-from hh.deploy.users.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.conf.context_whitelist import CONTEXT_WHITELIST
 from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
 from hh.deploy.conf.js_whitelist import JS_WHITELIST
