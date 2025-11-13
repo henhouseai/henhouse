@@ -5,13 +5,17 @@ from typing import List
 
 # JavaScript files that are always included on every page
 JS_ALWAYS_INCLUDE: List[str] = [
-    'hh/deploy/site/js/site.js',
+    'hh/deploy/site/js/seed.js',
+    'hh/deploy/site/js/rpc-client.js',
+    'hh/deploy/site/js/app.js',
 ]
 
 # Full whitelist of all JS files that can be included via gateway.add_js_link()
 JS_WHITELIST: List[str] = [
     # JavaScript files from hh/deploy/site folder
-    'hh/deploy/site/js/site.js',
+    'hh/deploy/site/js/seed.js',
+    'hh/deploy/site/js/rpc-client.js',
+    'hh/deploy/site/js/app.js',
     # Infographic JavaScript files
     'hh/deploy/site/infographic/infographic-json.js',
     'hh/deploy/site/infographic/infographic-glossary-json.js',

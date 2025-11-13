@@ -24,4 +24,8 @@ def populate_application_action_links(page_id: int = None) -> None:
     gateway.response.add_application_action_link('test', 'test_one', 'test one')
     gateway.response.add_application_action_link('test', 'test_two', 'test two')
     gateway.response.add_application_action_link('test', 'test_three', 'test three')
+    gateway.response.add_application_action_link('test', 'test_four', 'test four')
+    gateway.response.add_application_action_link('test', 'test_five', 'test five')
+    gateway.response.add_application_action_link('test', 'test_six', 'test six')
+    gateway.response.add_application_action_link('test', 'test_seven', 'test seven')
 

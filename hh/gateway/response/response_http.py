@@ -63,27 +63,25 @@ class ResponseHTTP(Response):
             css_links.append(f'    <link rel="stylesheet" href="{css_path}">')
         
         # Always-include JS files (site.js)
+        # TypeScript compiled files are ES6 modules, legacy files are regular scripts
+        module_files = {'seed.js', 'rpc-client.js', 'app.js'}
         js_scripts = []
         for js_path in JS_ALWAYS_INCLUDE:
             # Extract filename from path like 'hh/gateway/deploy/site/js/site.js'
             filename = os.path.basename(js_path)
-            js_scripts.append(f'    <script src="/site/js/{filename}"></script>')
+            if filename in module_files:
+                js_scripts.append(f'    <script type="module" src="/site/js/{filename}"></script>')
+            else:
+                js_scripts.append(f'    <script src="/site/js/{filename}"></script>')
         
         # Add custom JS links (added by decorators/modules via gateway.add_js_link())
         for js_path in self.header_js_links:
             js_scripts.append(f'    <script src="{js_path}"></script>')
         
-        # Build minimal bootstrap to seed client-side JS into window.hh
-        # Take whatever is in seed_data and merge it directly into window.hh (no schema assumptions)
+        # Build seed data as JSON script tag for TypeScript client
         seed = self.seed_data or {}
         seed_json = json.dumps(seed)
-        hh_init_js = (
-            "    <script>(function(){"
-            "var s=" + seed_json + ";"
-            "window.hh=Object.assign({}, window.hh||{}, s && typeof s==='object' ? s : {});"
-            "})();</script>"
-        )
-        bootstrap_script = hh_init_js
+        seed_script = f'    <script type="application/json" id="hh-seed-data">{seed_json}</script>'
 
         # Build full HTML document
         css_section = "\n".join(css_links) if css_links else ""
@@ -97,7 +95,7 @@ class ResponseHTTP(Response):
 <head>
     <title>{title}</title>
 {css_section}
-{bootstrap_script}
+{seed_script}
 {js_section}
 </head>
 <body>
