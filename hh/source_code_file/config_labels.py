@@ -13,6 +13,7 @@ from hh.render.config.config_registry import register_label
 @register_label('source_code_file_html',            'HTML Source Code File:',      '🌐')
 @register_label('source_code_file_ini',            'INI Source Code File:',      '📋')
 @register_label('source_code_file_powershell',    'PowerShell Source Code File:', '⚡')
+@register_label('source_code_file_json',          'JSON Source Code File:',      '📦')
 def _register_config():
     pass
 
