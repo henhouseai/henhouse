@@ -10,5 +10,8 @@ CONTEXT_BLACKLIST: List[str] = [
     'node_modules',        # Node modules
     '.env',                # Environment files
     '*.log',                # Log files
-	'*.json',				# JSON files
+    '*-reg.json',          # Registry cache JSON files
+    '*.cycle.json',        # Cycle cache JSON files
+    'cache.json',          # Cache JSON files
+    '*.cache.json',        # Cache JSON files
 ]
