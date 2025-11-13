@@ -41,6 +41,8 @@ class Response:
         self.user_action_links_html: str = ""
         self.content_wrapper_class: str = ""
         self.content_wrapper_header: str = ""
+        # User tier level (0 = unknown, 1 = guest, 2 = verified, 3 = admin, 4 = root)
+        self.user_tier_level: int = 0
         log("Response initialized with empty buffer")
         trace_out()
     
@@ -194,6 +196,30 @@ class Response:
         log(f"Retrieved action response: {type(result)}")
         trace_out()
         return result
+    
+    # ---- User tier level helpers ----
+    
+    def set_user_tier_level(self, level: int) -> None:
+        """Set the user tier level (0 = unknown, 1 = guest, 2 = verified, 3 = admin, 4 = root)."""
+        trace_in()
+        if not isinstance(level, int) or level < 0:
+            warn(f"set_user_tier_level called with invalid argument: {level}")
+            trace_out()
+            return
+        # Only set if tier level is currently 0 (unknown) - allow setting only once
+        if self.user_tier_level != 0:
+            trace_out()
+            return
+        self.user_tier_level = level
+        tier_names = {0: 'unknown', 1: 'guest', 2: 'verified', 3: 'admin', 4: 'root'}
+        tier_name = tier_names.get(level, 'unknown')
+        debug(f"User tier level detected: {level} ({tier_name})")
+        log(f"Set user tier level: {level}")
+        trace_out()
+    
+    def get_user_tier_level(self) -> int:
+        """Return current user tier level (0 = unknown, 1 = guest, 2 = verified, 3 = admin, 4 = root)."""
+        return self.user_tier_level
     
     def get_output(self) -> str:
         if self.output_buffer:

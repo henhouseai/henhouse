@@ -1,0 +1,184 @@
+/* site-guest.css - Dark theme color scheme (public/guest tier) */
+
+/* Color theme variables */
+body {
+    color: #d4d4d4;
+    background: #0d1117;
+}
+
+/* Global link styling - subdued blue theme */
+a {
+    color: #79c0ff;
+    text-decoration: none;
+}
+a:hover {
+    color: #a5d6ff;
+    text-decoration: underline;
+}
+a:visited {
+    color: #79c0ff;
+}
+
+.container {
+    background: #161b22;
+    border: 1px solid #30363d;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+h1 {
+    color: #58a6ff;
+}
+
+.subtitle {
+    color: #79c0ff;
+}
+
+.status {
+    background: #1e1e1e;
+    border-left: 4px solid #58a6ff;
+}
+
+.status h2 {
+    color: #58a6ff;
+}
+
+.status p {
+    color: #d4d4d4;
+}
+
+.checkmark {
+    color: #3fb950;
+}
+
+.links h2 {
+    color: #58a6ff;
+}
+
+.links a {
+    background: #21262d;
+    color: #58a6ff;
+    border: 1px solid #30363d;
+}
+
+.links a:hover {
+    background: #30363d;
+    border-color: #58a6ff;
+    box-shadow: 0 5px 15px rgba(88, 166, 255, 0.2);
+}
+
+.footer {
+    border-top: 2px solid #30363d;
+    color: #8b949e;
+}
+
+.success {
+    color: #3fb950;
+}
+
+/* Path breadcrumb links - terminal dark theme */
+ul.path li a {
+    color: #d4d4d4;
+    background-color: #21262d;
+    border: 1px solid #45584b;
+}
+
+ul.path li a:hover {
+    border: 1px solid #56d364;
+    color: #56d364;
+    background-color: #30363d;
+}
+
+ul.path li a:active {
+    border: 1px solid #56d364;
+    color: #79c0ff;
+    background-color: #161b22;
+}
+
+/* Content Holder and Wrapper styles */
+div.contentWrapperHeader {
+    background-color: #0d1117;
+    color: #d4d4d4;
+}
+
+div.contentWrapper {
+    background-color: #45584b;
+}
+
+div.contentWrapper div.contentWrapperHeader {
+    background-color: #161b22;
+    color: #d4d4d4;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+    border-color: #45584b;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+}
+
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapperHeader,
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper {
+    background-color: #0d1117;
+}
+
+div.error {
+    background-color: #1f2329;
+    border-color: #f85149 !important;
+}
+div.hidden {
+    background-color: #1f2329;
+    border-color: #8b949e !important;
+}
+div.private {
+    background-color: #1f2329;
+    border-color: #a371f7 !important;
+}
+
+div.content {
+    border: 1px solid #45584b;
+    background-color: #0d1117;
+    color: #d4d4d4;
+}
+
+div.contentHeader {
+    background-color: #45584b;
+    color: #d4d4d4;
+}
+
+div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.contentHeader {
+    background-color: #0d1117;
+}
+
+div.errorContentWrapper,
+div.errorContentWrapper div.contentHeader {
+    background-color: #1f2329;
+    border-color: #f85149 !important;
+}
+
+div.contentHeader a:not(:first-child) {
+    color: #79c0ff;
+}
+
+div.contentHeader a:link,
+div.contentHeader a:visited {
+    color: #79c0ff;
+}
+
+div.contentHeader a:hover,
+div.contentHeader a:active {
+    color: #58a6ff;
+}
+

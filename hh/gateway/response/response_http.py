@@ -44,6 +44,17 @@ class ResponseHTTP(Response):
             filename = os.path.basename(css_path)
             css_links.append(f'    <link rel="stylesheet" href="/site/css/{filename}">')
         
+        # Add tier-specific color theme CSS based on user tier level
+        tier_level = self.user_tier_level
+        tier_css_map = {
+            1: 'site-guest.css',    # guest
+            2: 'site-verified.css', # verified
+            3: 'site-admin.css',    # admin
+            4: 'site-root.css',     # root
+        }
+        tier_css = tier_css_map.get(tier_level, 'site-guest.css')  # Default to guest for unknown (0)
+        css_links.append(f'    <link rel="stylesheet" href="/site/css/{tier_css}">')
+        
         # Add custom CSS links (added by decorators/modules via gateway.add_css_link())
         for css_path in self.header_css_links:
             css_links.append(f'    <link rel="stylesheet" href="{css_path}">')

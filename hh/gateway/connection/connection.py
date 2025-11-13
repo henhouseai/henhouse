@@ -2,11 +2,13 @@ import configparser
 import json
 import os
 import pymysql
+import getpass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union, TypedDict
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.deploy.utils import detect_project_context
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -41,34 +43,7 @@ def load_dsn() -> Optional[Dict[str, str]]:
     trace_in()
     config = configparser.ConfigParser()
     
-    # Check if we're in deployed mode (IPC context)
-    tier = os.environ.get('HH_TIER')
-    if tier:
-        # Deployed mode: use tier-based DSN from secrets directory
-        project_name, _ = detect_project_context()
-        if project_name:
-            secrets_path = f'/srv/{project_name}/secrets/dsn_{tier}.cnf'
-            if os.path.exists(secrets_path):
-                config.read(secrets_path)
-                dsn = {
-                    'host': config.get('client', 'host', fallback='localhost'),
-                    'user': config.get('client', 'user', fallback='root'),
-                    'password': config.get('client', 'password', fallback=''),
-                    'database': config.get('client', 'database', fallback=project_name),
-                }
-                log(f"DSN loaded from secrets: {secrets_path}, tier={tier}, host={dsn['host']}, database={dsn['database']}")
-                trace_out()
-                return dsn
-            else:
-                warn(f"Secrets DSN file not found: {secrets_path}")
-                trace_out()
-                return None
-        else:
-            warn("Could not detect project name for tier-based DSN")
-            trace_out()
-            return None
-    
-    # Dev mode: fall back to user's home directory config
+    # Load DSN from user's home directory config
     project_name, _ = detect_project_context()
     path = os.path.expanduser(f'~/.{project_name}.cnf')
     if os.path.exists(path):
@@ -79,13 +54,58 @@ def load_dsn() -> Optional[Dict[str, str]]:
             'password': config.get('client', 'password', fallback=''),
             'database': config.get('client', 'database', fallback=project_name),
         }
-        log(f"DSN loaded from dev config: {path}, host={dsn['host']}, database={dsn['database']}")
+        log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
+        
+        # Detect user tier level from DSN username and set in response
+        _detect_and_set_user_tier_level(project_name, dsn['user'])
+        
         trace_out()
         return dsn
     else:
         warn(f"Configuration file not found: {path}")
         trace_out()
         return None
+
+def _detect_and_set_user_tier_level(project_name: str, username: str) -> None:
+    """Detect user tier level from DSN username and set it in Gateway response."""
+    trace_in()
+    tier_level = 0  # Default to unknown
+    try:
+        # Use username from DSN config file
+        if not username:
+            log("DSN username is empty, cannot detect tier")
+        else:
+            # Check if username matches pattern: {project_name}_{tier}
+            expected_prefix = f"{project_name}_"
+            if not username.startswith(expected_prefix):
+                log(f"Username {username} does not match expected pattern {expected_prefix}*")
+            else:
+                # Extract tier suffix
+                tier_suffix = username[len(expected_prefix):]
+                if not tier_suffix:
+                    log(f"Username {username} has no tier suffix")
+                else:
+                    # Look up tier in HENHOUSE_TIERS list
+                    try:
+                        tier_index = HENHOUSE_TIERS.index(tier_suffix)
+                        # Convert 0-based index to 1-based level (index 0 → level 1, etc.)
+                        tier_level = tier_index + 1
+                        log(f"Detected tier: {tier_suffix} (index {tier_index} → level {tier_level})")
+                    except ValueError:
+                        log(f"Tier suffix '{tier_suffix}' not found in HENHOUSE_TIERS")
+        
+    except Exception as e:
+        warn(f"Failed to detect user tier level: {e}")
+    finally:
+        # Always set tier level (0 if detection failed, or detected level if successful)
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        if gateway and gateway.response:
+            gateway.response.set_user_tier_level(tier_level)
+            log(f"Set user tier level {tier_level} in response")
+        else:
+            log("Gateway or response not available for setting tier level")
+        trace_out()
 
 def get_connection(dict_cursor: bool = True):
     trace_in()
