@@ -100,6 +100,61 @@ h1 {
     margin-bottom: 20px;
 }
 
+/* Wrapper and Header */
+#wrapper {
+    width: 98%;
+    min-width: 995px;
+    margin: 10px auto;
+    text-align: left;
+}
+
+#header {
+    width: auto;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/* Menu */
+#menu {
+    width: auto;
+    text-align: left;
+    padding: 4px;
+    clear: both;
+}
+
+ul.menuGroup {
+    margin: 7px 5px 7px;
+    padding: 0 0 5px;
+    border: 1px solid;
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    width: 125px;
+    float: left;
+    text-align: center;
+    list-style-type: none;
+}
+
+ul.menuGroup li {
+    padding: 1px;
+    border: 0;
+    margin: 3px 10px;
+    text-align: center;
+    font-size: 10pt;
+}
+
+ul.menuGroup li.header {
+    padding: 5px 1px;
+    margin: 0;
+    font-weight: bold;
+}
+
+ul.menuGroup li a {
+    font-size: 10pt;
+}
+
 /* Path breadcrumb links */
 ul.path {
     padding: 5px 0;
