@@ -149,6 +149,9 @@ ul.menuGroup li.header {
     padding: 5px 1px;
     margin: 0;
     font-weight: bold;
+    border-radius: 5px 5px 0 0;
+    -moz-border-radius: 5px 5px 0 0;
+    -webkit-border-radius: 5px 5px 0 0;
 }
 
 ul.menuGroup li a {
