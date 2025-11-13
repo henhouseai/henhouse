@@ -246,11 +246,23 @@ class ResponseHTTP(Response):
     
     # ---- Menu content builders ----
     
-    def add_site_link(self, link: str) -> None:
-        """Add a site link. Empty string creates a new menu group."""
-        if not hasattr(self, '_site_links'):
-            self._site_links: List[str] = []
-        self._site_links.append(link)
+    def add_site_link_group(self, group_name: str, page_id: int, link_text: str) -> None:
+        """Create a new site link group with header link."""
+        if not hasattr(self, '_site_link_groups'):
+            self._site_link_groups: dict[str, List[tuple[int, str]]] = {}
+        # First link in group is the header
+        self._site_link_groups[group_name] = [(page_id, link_text)]
+    
+    def add_site_link(self, group_name: str, page_id: int, link_text: str) -> None:
+        """Add a site link to an existing group."""
+        if not hasattr(self, '_site_link_groups'):
+            self._site_link_groups: dict[str, List[tuple[int, str]]] = {}
+        if group_name not in self._site_link_groups:
+            # Group doesn't exist, create it (first link becomes header)
+            self._site_link_groups[group_name] = [(page_id, link_text)]
+        else:
+            # Add to existing group
+            self._site_link_groups[group_name].append((page_id, link_text))
     
     def add_application_action_link(self, header: str, action_id: str, label: str) -> None:
         """Add an application action link. Header creates a new group if different from previous."""
@@ -264,38 +276,20 @@ class ResponseHTTP(Response):
     
     def _render_site_links(self) -> str:
         """Render site links HTML with grouping."""
-        if not hasattr(self, '_site_links') or not self._site_links:
-            return ""
-        
-        groups: List[List[str]] = []
-        current_group: List[str] = []
-        
-        for link in self._site_links:
-            if link == '':
-                # Empty string creates new group
-                if current_group:
-                    groups.append(current_group)
-                    current_group = []
-            else:
-                current_group.append(link)
-        
-        # Add final group if not empty
-        if current_group:
-            groups.append(current_group)
-        
-        if not groups:
+        if not hasattr(self, '_site_link_groups') or not self._site_link_groups:
             return ""
         
         html_parts: List[str] = []
-        for group in groups:
-            if not group:
+        for group_name, links in self._site_link_groups.items():
+            if not links:
                 continue
             html_parts.append('<ul class="siteLinks menuGroup">')
-            # First item is header
-            html_parts.append(f'    <li class="header">{group[0]}</li>')
-            # Remaining items are regular links
-            for link in group[1:]:
-                html_parts.append(f'    <li>{link}</li>')
+            # First link is header
+            header_page_id, header_text = links[0]
+            html_parts.append(f'    <li class="header"><a href="{header_page_id}">{header_text}</a></li>')
+            # Remaining links are regular items
+            for page_id, link_text in links[1:]:
+                html_parts.append(f'    <li><a href="{page_id}">{link_text}</a></li>')
             html_parts.append('</ul>')
         
         return "\n".join(html_parts)
