@@ -16,6 +16,7 @@ JS_WHITELIST: List[str] = [
     'hh/deploy/site/js/seed.js',
     'hh/deploy/site/js/rpc-client.js',
     'hh/deploy/site/js/app.js',
+    'hh/deploy/site/js/page-manager.js',
     # Overlay system JavaScript files (deployed flat to site/js/)
     'hh/deploy/site/js/overlay-manager.js',
     'hh/deploy/site/js/overlay.js',
