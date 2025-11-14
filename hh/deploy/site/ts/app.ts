@@ -241,8 +241,6 @@ class ActionHandlers {
     this.attachHandler('style_test_eight', () => this.handleStyleTestEight());
     
     // CRUD handlers
-    this.attachHandler('modifyName', () => this.handleModifyName());
-    this.attachHandler('editPageText', () => this.handleEditPageText());
     this.attachHandler('pageOptions', () => this.handlePageOptions());
   }
 
@@ -686,9 +684,9 @@ class ActionHandlers {
   }
 
   /**
-   * Handle modifyName: Edit page name
+   * Handle modify_name: Edit page name
    */
-  private async handleModifyName(): Promise<void> {
+  private async modify_name(): Promise<void> {
     const pageId = this.seedData.page?.id;
     if (!pageId) {
       alert('No page ID found in seed data');
@@ -732,14 +730,14 @@ class ActionHandlers {
         }
       }, 100);
     } catch (error) {
-      this.rpc.showError('modifyName', error);
+      this.rpc.showError('modify_name', error);
     }
   }
 
   /**
-   * Handle editPageText: Edit page text content
+   * Handle modify_text: Edit page text content
    */
-  private async handleEditPageText(): Promise<void> {
+  private async modify_text(): Promise<void> {
     const pageId = this.seedData.page?.id;
     if (!pageId) {
       alert('No page ID found in seed data');
@@ -798,7 +796,7 @@ class ActionHandlers {
       }, 100);
     } catch (error) {
       overlay.setState({ isLoading: false, error: error instanceof Error ? error.message : 'Failed to load page text' });
-      this.rpc.showError('editPageText', error);
+      this.rpc.showError('modify_text', error);
     }
   }
 
