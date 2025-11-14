@@ -24,7 +24,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     },
     tiers=[7, 8],
     requires_approval=False,
-    crud_type='read'
+    crud_type='read',
+    app_action_group='page_crud',
+    app_action_label='Source Code File Dummy (Page CRUD)'
 )
 @register_mcp_tool(
     tool_name='source_code_file_dummy_extra',
@@ -38,7 +40,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     },
     tiers=[7, 8],
     requires_approval=False,
-    crud_type='read'
+    crud_type='read',
+    app_action_group='extra',
+    app_action_label='Source Code File Dummy (Extra)'
 )
 @register_mcp_tool(
     tool_name='source_code_file_dummy_extra_two',
@@ -52,7 +56,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     },
     tiers=[7, 8],
     requires_approval=False,
-    crud_type='read'
+    crud_type='read',
+    app_action_group='extra_two',
+    app_action_label='Source Code File Dummy (Extra Two)'
 )
 def _source_code_file_tools_registration():
     """Registration placeholder for all source code file-related MCP tools."""

@@ -41,7 +41,9 @@ def register_mcp_tool(
     tiers: List[int] = None,
     requires_approval: bool = False,
     crud_type: str = 'read',
-    display_color: Optional[str] = None
+    display_color: Optional[str] = None,
+    app_action_group: Optional[str] = None,
+    app_action_label: Optional[str] = None
 ) -> Callable:
     """
     Decorator to register an MCP tool.
@@ -86,6 +88,8 @@ def register_mcp_tool(
             'requires_approval': requires_approval,
             'crud_type': crud_type,
             'display_color': display_color,
+            'app_action_group': app_action_group,
+            'app_action_label': app_action_label,
             'module': func.__module__,
             'function': func.__name__
         }
@@ -338,7 +342,6 @@ class MCPWhitelist:
                         'description': tool_config['description'],
                         'label': tool_config.get('app_action_label', tool_name),
                         'group': tool_config.get('app_action_group', 'default'),
-                        'icon': tool_config.get('app_action_icon'),
                         'requires_fields': tool_config.get('requires_fields', [])
                     })
         

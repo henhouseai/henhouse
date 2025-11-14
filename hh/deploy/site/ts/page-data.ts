@@ -60,7 +60,6 @@ export interface AppAction {
   description: string;
   label: string;
   group: string;
-  icon?: string;
   requires_fields?: string[];
 }
 

@@ -8,7 +8,6 @@ export class RPCClient {
      * MCP responses have structure: { content: [{ type: "text", text: "<JSON_STRING>" }] }
      */
     extractMCPData(result) {
-        // Handle MCP envelope structure
         if (result && result.content && Array.isArray(result.content) && result.content.length > 0) {
             const contentItem = result.content[0];
             if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
@@ -20,17 +19,7 @@ export class RPCClient {
                 }
             }
         }
-        // Handle case where result is a JSON string (not wrapped in envelope)
-        if (typeof result === 'string') {
-            try {
-                return JSON.parse(result);
-            }
-            catch (e) {
-                // If parsing fails, return as-is
-                return result;
-            }
-        }
-        // Return result as-is (for already-parsed data)
+        // Fallback: return result as-is (for non-MCP responses or already-parsed data)
         return result;
     }
     /**

@@ -397,7 +397,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     },
     tiers=[7, 8],
     requires_approval=False,
-    crud_type='read'
+    crud_type='read',
+    app_action_group='page_crud',
+    app_action_label='Page Dummy 1'
 )
 @register_mcp_tool(
     tool_name='page_dummy_2',
@@ -411,7 +413,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     },
     tiers=[7, 8],
     requires_approval=False,
-    crud_type='read'
+    crud_type='read',
+    app_action_group='page_crud',
+    app_action_label='Page Dummy 2'
 )
 @register_mcp_tool(
     tool_name='extra_dummy',
@@ -425,7 +429,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     },
     tiers=[7, 8],
     requires_approval=False,
-    crud_type='read'
+    crud_type='read',
+    app_action_group='extra',
+    app_action_label='Extra Dummy'
 )
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""
