@@ -311,7 +311,7 @@ class ActionHandlers {
         <p>This overlay contains complex nested HTML structures.</p>
         <div style="border: 1px solid #ccc; padding: 10px; margin: 10px; clear: both;">
           <h3>Nested Div</h3>
-          <ul style="clear: both;">
+          <ul style="clear: both; margin-left: 20px; padding-left: 0;">
             <li>Item 1</li>
             <li>Item 2</li>
             <li>Item 3</li>
