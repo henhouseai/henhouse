@@ -68,7 +68,8 @@ class PageAjaxMixin:
             'error': None
         }
         
-        if gateway and gateway.backend in ("http", "mcp") and gateway.response:
+        # Only include available_actions for MCP backend, not HTTP (HTTP renders them server-side)
+        if gateway and gateway.backend == "mcp" and gateway.response:
             try:
                 user_tier_level = gateway.response.get_user_tier_level()
                 result['_debug']['user_tier_level'] = user_tier_level
