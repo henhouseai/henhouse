@@ -240,16 +240,15 @@ class ResponseHTTP(Response):
                 from hh.gateway.registry.mcp_whitelist import MCPWhitelist
                 app_actions = MCPWhitelist.get_app_actions(self.user_tier_level)
                 if app_actions:
+                    if not hasattr(self, '_hot_cache_action_ids'):
+                        self._hot_cache_action_ids = set()
                     for action in app_actions:
                         group_name = action.get('group', 'default')
                         action_id = action.get('id', action.get('tool_name', ''))
                         label = action.get('label', action.get('tool_name', ''))
-                        # Add with source marker - we'll store this in a separate structure
-                        # For now, add to groups but mark as hot_cache
-                        if not hasattr(self, '_hot_cache_action_ids'):
-                            self._hot_cache_action_ids = set()
+                        # Track hot-cache action IDs
                         self._hot_cache_action_ids.add(action_id)
-                        # Add to menu groups
+                        # Add to menu groups (duplicate check happens in add_application_action_link)
                         if group_name not in self._application_action_groups:
                             # Group doesn't exist, create it with human-readable header
                             header_text = group_name.replace('_', ' ').upper()
@@ -302,8 +301,11 @@ class ResponseHTTP(Response):
         if group_name not in self._application_action_groups:
             # Group doesn't exist, create it (first item becomes header with empty action_id)
             self._application_action_groups[group_name] = [('', group_name)]
-        # Add to existing group
-        self._application_action_groups[group_name].append((action_id, label))
+        # Check for duplicates before adding (skip empty action_ids which are headers)
+        existing_action_ids = {aid for aid, _ in self._application_action_groups[group_name] if aid}
+        if action_id and action_id not in existing_action_ids:
+            # Add to existing group
+            self._application_action_groups[group_name].append((action_id, label))
     
     def set_user_info(self, username: str) -> None:
         """Set user info for display."""
