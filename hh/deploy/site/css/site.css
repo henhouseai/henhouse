@@ -319,3 +319,8 @@ div.contentHeader a:active {
     text-decoration: underline;
 }
 
+/* Textarea padding - ensure cursor is visible at line start */
+textarea {
+    padding: 8px 12px;
+}
+
