@@ -1,5 +1,49 @@
 /* overlay.css - Base layout and structure for overlay system */
-/* Colors are handled by tier-specific CSS files (overlay-colors-*.css) */
+/* Colors reference abstract color palette variables defined in tier CSS files */
+
+/* Map abstract color palette to overlay-specific properties */
+:root {
+  /* Window and container */
+  --overlay-window: var(--primary, #fff);
+  --overlay-window-border: var(--border-primary, #000);
+  --overlay-header-bg: var(--primary, #fff);
+  --overlay-header-text: var(--text-on-primary, #000);
+  --overlay-content-border: var(--border-primary, #000);
+  
+  /* Content area */
+  --overlay-content: var(--bg-content, #fff);
+  --overlay-content-text: var(--text-on-light, #000);
+  
+  /* Links and buttons */
+  --overlay-header-link: var(--link, #ccc);
+  --overlay-header-link-text: var(--text-on-light, #000);
+  --overlay-header-link-border: var(--primary, #000);
+  --overlay-header-link-hover: var(--link-hover, #ddd);
+  --overlay-header-link-active: var(--link-active, #bbb);
+  
+  /* Submit button (success semantic) */
+  --overlay-header-submit-button: var(--success, #4caf50);
+  --overlay-header-submit-button-text: var(--text-high-contrast, #fff);
+  --overlay-header-submit-button-hover: var(--success-light, #45a049);
+  --overlay-header-submit-button-active: var(--success-dark, #3d8b40);
+  
+  /* Cancel button (error semantic) */
+  --overlay-header-cancel-button: var(--error, #f44336);
+  --overlay-header-cancel-button-text: var(--text-high-contrast, #fff);
+  --overlay-header-cancel-button-hover: var(--error-light, #da190b);
+  --overlay-header-cancel-button-active: var(--error-dark, #b71c1c);
+  
+  /* Message colors */
+  --overlay-success: var(--success-bg, #e8f5e9);
+  --overlay-success-text: var(--success-text, #2e7d32);
+  --overlay-success-border: var(--success-border, #4caf50);
+  --overlay-error: var(--error-bg, #ffebee);
+  --overlay-error-text: var(--error-text, #c62828);
+  --overlay-error-border: var(--error-border, #f44336);
+  --overlay-warning: var(--warning-bg, #fff3e0);
+  --overlay-warning-text: var(--warning-text, #e65100);
+  --overlay-warning-border: var(--warning-border, #ff9800);
+}
 
 /* Overlay backdrop */
 #overlay {
