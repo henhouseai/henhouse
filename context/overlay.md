@@ -618,7 +618,44 @@ overlayManager.on('submit', async (data) => {
 
 **Deliverable**: Can show overlay with custom HTML content
 
-### Phase 3: Browser Component
+### Phase 3A: Basic CRUD Operations
+
+**Goal**: Core page editing functionality without browser dependency
+
+**Tasks:**
+1. Implement `modifyName` - Edit page name
+   - Simple text input overlay
+   - MCP integration (`modify_name` tool)
+   - Refresh path breadcrumb on success
+2. Implement `editPageText` - Edit page text content
+   - Large textarea overlay
+   - Fetch current text via MCP (`get_text` tool)
+   - Submit text via MCP (`modify_text` tool)
+   - Update page content display on success
+   - (Browser image insertion deferred to Phase 3D)
+3. Implement `pageOptions` - Edit page options
+   - Form with visibility dropdown (public/hidden/private)
+   - Display style dropdown (dig children/no digging/don't show)
+   - Linkless checkbox
+   - MCP integration (`modify_page` tool)
+
+**Deliverable**: Can edit page name, text, and options via overlay
+
+### Phase 3B: Image Upload
+
+**Goal**: Upload and process image files
+
+**Tasks:**
+1. Implement `uploadImage` - Upload image files
+   - File input form (multiple files)
+   - Process files via MCP (`process_image_upload` tool)
+   - Show progress/success messages
+   - Add uploaded images to page display
+   - Handle errors gracefully
+
+**Deliverable**: Can upload images to a page via overlay
+
+### Phase 3C: Browser Component
 
 **Goal**: Hierarchical navigation working
 
@@ -636,9 +673,63 @@ overlayManager.on('submit', async (data) => {
 
 **Deliverable**: Can navigate pages/images in browser overlay
 
+### Phase 3D: Browser-Dependent Operations
+
+**Goal**: CRUD operations that require browser component
+
+**Tasks:**
+1. Implement `addPage` - Create new child page
+   - Fetch page class choices via MCP
+   - Show class selector dropdown
+   - Name input form
+   - Use browser for target selection (if needed)
+   - MCP integration (`add_page` tool)
+2. Implement `copyPage` - Copy page to another location
+   - Use browser to select destination
+   - MCP integration (`copy_page` tool)
+3. Implement `movePage` - Move page to another location
+   - Use browser to select destination
+   - MCP integration (`move_page` tool)
+   - Refresh path breadcrumb on success
+4. Enhance `editPageText` - Add browser integration
+   - Show browser for image selection
+   - Insert image syntax (e.g., `{{{{123}}}}`) at cursor
+5. Implement `copyImages` - Copy images to another page
+   - Image selection buffer
+   - Browser for destination selection
+   - MCP integration (`copy_images` tool)
+6. Implement `moveImages` - Move images to another page
+   - Image selection buffer
+   - Browser for destination selection
+   - MCP integration (`move_images` tool)
+7. Implement `sortImages` - Sort images by drag-and-drop
+   - Browser with sortable tiles
+   - MCP integration (`set_image_rank` tool)
+
+**Deliverable**: Can create, copy, move pages and images using browser navigation
+
+### Phase 3E: Info & Display Operations
+
+**Goal**: Read-only information and simple confirmations
+
+**Tasks:**
+1. Implement `pageInfo` - Show page information
+   - Display incoming links
+   - Show child pages and images counts
+   - Read-only display with tile links
+   - MCP integration (`check_links` tool)
+2. Implement `deletePage` - Delete page with confirmation
+   - Confirmation checkbox overlay
+   - MCP integration (`delete_page` tool)
+   - Redirect to parent on success
+
+**Deliverable**: Can view page info and delete pages via overlay
+
 ### Phase 4: Form Builder
 
 **Goal**: Dynamic form generation working
+
+*Note: This phase may be deferred or integrated into Phase 3 operations as needed*
 
 **Tasks:**
 1. Create FormBuilder component
@@ -785,25 +876,62 @@ overlayManager.on('submit', async (data) => {
 
 **Goal**: Display simple HTML content in overlay
 
-- [ ] Create SimpleContent component class
-  - [ ] Props interface (SimpleContentProps)
-  - [ ] `render()` method
-  - [ ] Handle HTML string (innerHTML)
-  - [ ] Handle HTMLElement (append)
-- [ ] Integrate SimpleContent with Overlay
-  - [ ] Pass SimpleContent as content prop
-  - [ ] Render in OverlayContent
-- [ ] Test Phase 2 functionality
-  - [ ] Can show overlay with HTML string
-  - [ ] Can show overlay with HTMLElement
-  - [ ] Content renders correctly
-  - [ ] Styling applied correctly
+- [x] Create SimpleContent component class
+  - [x] Props interface (SimpleContentProps)
+  - [x] `render()` method
+  - [x] Handle HTML string (innerHTML)
+  - [x] Handle HTMLElement (append)
+- [x] Integrate SimpleContent with Overlay
+  - [x] Pass SimpleContent as content prop
+  - [x] Render in OverlayContent
+- [x] Test Phase 2 functionality
+  - [x] Can show overlay with HTML string
+  - [x] Can show overlay with HTMLElement
+  - [x] Content renders correctly
+  - [x] Styling applied correctly
 
-### Phase 3: Browser Component
+### Phase 3A: Basic CRUD Operations
+
+**Goal**: Core page editing functionality without browser dependency
+
+- [ ] Implement `modifyName` handler
+  - [ ] Create overlay with text input
+  - [ ] Pre-fill with current page name
+  - [ ] MCP integration (`modify_name` tool)
+  - [ ] Refresh path breadcrumb on success
+  - [ ] Test name modification
+- [ ] Implement `editPageText` handler
+  - [ ] Create overlay with large textarea
+  - [ ] Fetch current text via MCP (`get_text` tool)
+  - [ ] Show loading state while fetching
+  - [ ] Submit text via MCP (`modify_text` tool)
+  - [ ] Update page content display on success
+  - [ ] Test text editing
+- [ ] Implement `pageOptions` handler
+  - [ ] Fetch current options via MCP (`get_page_options` tool)
+  - [ ] Create form with visibility dropdown
+  - [ ] Create form with display style dropdown
+  - [ ] Create form with linkless checkbox
+  - [ ] Submit via MCP (`modify_page` tool)
+  - [ ] Test options modification
+
+### Phase 3B: Image Upload
+
+**Goal**: Upload and process image files
+
+- [ ] Implement `uploadImage` handler
+  - [ ] Create overlay with file input (multiple files)
+  - [ ] Process files via MCP (`process_image_upload` tool)
+  - [ ] Show progress messages for each file
+  - [ ] Show success/error messages
+  - [ ] Add uploaded images to page display
+  - [ ] Test image upload
+
+### Phase 3C: Browser Component
 
 **Goal**: Hierarchical page/image navigation working
 
-*Note: Detailed implementation will be planned after Phases 1-2 are complete and tested*
+*Note: Detailed implementation will be planned after Phases 3A-3B are complete and tested*
 
 - [ ] Create Browser component class
 - [ ] Implement browser sections (target, path, contents, images)
@@ -813,11 +941,66 @@ overlayManager.on('submit', async (data) => {
 - [ ] Add loading and error states
 - [ ] Test browser navigation
 
+### Phase 3D: Browser-Dependent Operations
+
+**Goal**: CRUD operations that require browser component
+
+- [ ] Implement `addPage` handler
+  - [ ] Fetch page class choices via MCP
+  - [ ] Show class selector dropdown
+  - [ ] Name input form
+  - [ ] Use browser for target selection (if needed)
+  - [ ] MCP integration (`add_page` tool)
+  - [ ] Test page creation
+- [ ] Implement `copyPage` handler
+  - [ ] Use browser to select destination
+  - [ ] MCP integration (`copy_page` tool)
+  - [ ] Test page copying
+- [ ] Implement `movePage` handler
+  - [ ] Use browser to select destination
+  - [ ] MCP integration (`move_page` tool)
+  - [ ] Refresh path breadcrumb on success
+  - [ ] Test page moving
+- [ ] Enhance `editPageText` with browser integration
+  - [ ] Show browser for image selection
+  - [ ] Insert image syntax at cursor position
+  - [ ] Test image insertion in text editor
+- [ ] Implement `copyImages` handler
+  - [ ] Image selection buffer UI
+  - [ ] Browser for destination selection
+  - [ ] MCP integration (`copy_images` tool)
+  - [ ] Test image copying
+- [ ] Implement `moveImages` handler
+  - [ ] Image selection buffer UI
+  - [ ] Browser for destination selection
+  - [ ] MCP integration (`move_images` tool)
+  - [ ] Test image moving
+- [ ] Implement `sortImages` handler
+  - [ ] Browser with sortable tiles (drag-and-drop)
+  - [ ] MCP integration (`set_image_rank` tool)
+  - [ ] Test image sorting
+
+### Phase 3E: Info & Display Operations
+
+**Goal**: Read-only information and simple confirmations
+
+- [ ] Implement `pageInfo` handler
+  - [ ] Fetch page info via MCP (`check_links` tool)
+  - [ ] Display incoming links with tiles
+  - [ ] Show child pages and images counts
+  - [ ] Read-only display
+  - [ ] Test page info display
+- [ ] Implement `deletePage` handler
+  - [ ] Confirmation checkbox overlay
+  - [ ] MCP integration (`delete_page` tool)
+  - [ ] Redirect to parent on success
+  - [ ] Test page deletion
+
 ### Phase 4: Form Builder
 
 **Goal**: Dynamic form generation working
 
-*Note: Detailed implementation will be planned after Phases 1-2 are complete and tested*
+*Note: This phase may be deferred or integrated into Phase 3 operations as needed. Detailed implementation will be planned after Phases 3A-3E are complete and tested*
 
 - [ ] Create FormBuilder component class
 - [ ] Implement field types (text, textarea, select, checkbox, radio, browser, link)
@@ -857,13 +1040,13 @@ overlayManager.on('submit', async (data) => {
 
 **Goal**: Full integration with existing system
 
-*Note: Detailed tasks will be determined based on Phases 1-2 implementation*
+*Note: Detailed tasks will be determined based on Phases 1-3 implementation*
 
 - [ ] Update app.ts to use new overlay system
-- [ ] Replace legacy overlay calls
+- [ ] Replace legacy overlay calls with new handlers
 - [ ] Update Python HTTP backend for action links
-- [ ] Add TypeScript handlers for action links
-- [ ] End-to-end testing
+- [ ] Add TypeScript handlers for all action links (Phases 3A-3E)
+- [ ] End-to-end testing of all CRUD operations
 - [ ] Error handling improvements
 - [ ] Loading state improvements
 - [ ] Animations/transitions
@@ -875,10 +1058,14 @@ overlayManager.on('submit', async (data) => {
 *Note: Verify/implement as needed for each phase*
 
 - [ ] Phase 1-2: No MCP tools needed (simple content only)
-- [ ] Phase 3: Verify `get_browser` MCP tool exists
+- [ ] Phase 3A: Verify `modify_name`, `get_text`, `modify_text`, `get_page_options`, `modify_page` MCP tools exist
+- [ ] Phase 3B: Verify `process_image_upload` MCP tool exists
+- [ ] Phase 3C: Verify `get_browser` MCP tool exists
+- [ ] Phase 3D: Verify `add_page`, `copy_page`, `move_page`, `copy_images`, `move_images`, `set_image_rank` MCP tools exist
+- [ ] Phase 3E: Verify `check_links`, `delete_page` MCP tools exist
 - [ ] Phase 4: Verify form-related MCP tools exist
 - [ ] Phase 5: Verify `get_image` MCP tool exists
-- [ ] Phase 6: Verify `get_text` and `modify_text` MCP tools exist
+- [ ] Phase 6: Verify `get_text` and `modify_text` MCP tools exist (may overlap with Phase 3A)
 - [ ] Add any missing MCP tools as needed
 
 ---

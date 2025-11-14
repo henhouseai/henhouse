@@ -38,6 +38,10 @@ class ActionHandlers {
         this.attachHandler('style_test_six', () => this.handleStyleTestSix());
         this.attachHandler('style_test_seven', () => this.handleStyleTestSeven());
         this.attachHandler('style_test_eight', () => this.handleStyleTestEight());
+        // CRUD handlers
+        this.attachHandler('modifyName', () => this.handleModifyName());
+        this.attachHandler('editPageText', () => this.handleEditPageText());
+        this.attachHandler('pageOptions', () => this.handlePageOptions());
     }
     /**
      * Attach a click handler to an element by ID.
@@ -446,6 +450,154 @@ class ActionHandlers {
             content: tableFormContent,
             closable: true
         });
+    }
+    /**
+     * Handle modifyName: Edit page name
+     */
+    async handleModifyName() {
+        const pageId = this.seedData.page?.id;
+        if (!pageId) {
+            alert('No page ID found in seed data');
+            return;
+        }
+        // Fetch current page data to get name
+        const pageData = await this.rpc.call('get_page', { id: String(pageId) });
+        if (!pageData || !pageData.name) {
+            alert('Failed to fetch page data');
+            return;
+        }
+        const currentName = pageData.name;
+        // Create form HTML
+        const formHtml = `
+      <div class="overlayContent">
+        <div id="nameModificationName">
+          <label>Page name:</label>
+          <input type="text" id="nameInput" value="${this.escapeHtml(currentName)}">
+        </div>
+      </div>
+    `;
+        const overlay = OverlayManager.getInstance().show({
+            header: 'Modify Page Name',
+            content: formHtml,
+            closable: true,
+            submitLabel: 'Submit',
+            cancelLabel: 'Cancel',
+            onSubmit: async () => {
+                const input = document.getElementById('nameInput');
+                if (!input) {
+                    throw new Error('Name input not found');
+                }
+                const newName = input.value.trim();
+                if (!newName) {
+                    throw new Error('Page name cannot be empty');
+                }
+                // Submit via MCP
+                const result = await this.rpc.call('modify_name', {
+                    page_id: Number(pageId),
+                    name: newName
+                });
+                if (!result) {
+                    throw new Error('Failed to modify page name');
+                }
+                return result;
+            }
+        });
+        // Focus the input after overlay is shown
+        setTimeout(() => {
+            const input = document.getElementById('nameInput');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }, 100);
+    }
+    /**
+     * Handle editPageText: Edit page text content
+     */
+    async handleEditPageText() {
+        const pageId = this.seedData.page?.id;
+        if (!pageId) {
+            alert('No page ID found in seed data');
+            return;
+        }
+        // Show loading overlay first
+        const overlay = OverlayManager.getInstance().show({
+            header: 'Text Editor',
+            content: '<div class="overlayContent">Please Wait...</div>',
+            closable: true,
+            submitLabel: 'Submit',
+            cancelLabel: 'Cancel'
+        });
+        // Set loading state
+        overlay.setState({ isLoading: true });
+        try {
+            // Fetch current page data to get text
+            const pageData = await this.rpc.call('get_page', { id: String(pageId) });
+            if (!pageData) {
+                throw new Error('Failed to fetch page data');
+            }
+            const currentText = pageData.text || '';
+            // Create textarea form
+            const formHtml = `
+        <div class="overlayContent">
+          <div id="textEditorText">
+            <textarea id="textInput" name="text" rows="20" cols="80" style="width: 100%; min-height: 400px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+          </div>
+        </div>
+      `;
+            // Update overlay content - find content element in DOM and replace it
+            const overlayAny = overlay;
+            const windowEl = overlayAny.windowEl;
+            if (windowEl) {
+                const contentEl = windowEl.querySelector('.overlayContent');
+                if (contentEl) {
+                    contentEl.innerHTML = formHtml;
+                }
+            }
+            overlay.setState({ isLoading: false });
+            // Set submit handler - need to access overlay's props
+            overlayAny.props.onSubmit = async () => {
+                const textarea = document.getElementById('textInput');
+                if (!textarea) {
+                    throw new Error('Text input not found');
+                }
+                const newText = textarea.value || '';
+                // Submit via MCP
+                const result = await this.rpc.call('modify_text', {
+                    page_id: Number(pageId),
+                    text: newText
+                });
+                if (!result) {
+                    throw new Error('Failed to modify page text');
+                }
+                return result;
+            };
+            // Focus the textarea after content is loaded
+            setTimeout(() => {
+                const textarea = document.getElementById('textInput');
+                if (textarea) {
+                    textarea.focus();
+                }
+            }, 100);
+        }
+        catch (error) {
+            overlay.setState({ isLoading: false, error: error instanceof Error ? error.message : 'Failed to load page text' });
+        }
+    }
+    /**
+     * Handle pageOptions: Edit page options
+     */
+    async handlePageOptions() {
+        // TODO: Implement pageOptions handler
+        alert('Page Options not yet implemented');
+    }
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 // Initialize on DOM ready
