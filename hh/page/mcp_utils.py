@@ -96,9 +96,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='update'
+    crud_type='update',
+    app_action_group='page',
+    app_action_label='Edit Name'
 )
 @register_mcp_tool(
     tool_name='modify_text',
@@ -112,9 +114,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'text']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='update'
+    crud_type='update',
+    app_action_group='page',
+    app_action_label='Edit Text'
 )
 @register_mcp_tool(
     tool_name='add_page',
