@@ -34,6 +34,23 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
+# App actions - tiers 7, 8 (admin app, root app)
+@register_mcp_tool(
+    tool_name='mcp_request_dummy',
+    description='MCP Request Dummy - Test app action for mcp_request group',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the MCP request page'}
+        },
+        'required': ['page_id']
+    },
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='mcp_request',
+    app_action_label='MCP Request Dummy'
+)
 def _mcp_request_tools_registration():
     """Registration placeholder for all MCP request-related MCP tools."""
     pass
