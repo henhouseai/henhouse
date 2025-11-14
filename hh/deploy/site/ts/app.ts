@@ -343,17 +343,17 @@ class ActionHandlers {
       <div>
         <h2>Complex HTML Test</h2>
         <p>This overlay contains complex nested HTML structures.</p>
-        <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+        <div style="border: 1px solid #ccc; padding: 10px; margin: 10px; clear: both;">
           <h3>Nested Div</h3>
-          <ul>
+          <ul style="clear: both;">
             <li>Item 1</li>
             <li>Item 2</li>
             <li>Item 3</li>
           </ul>
         </div>
         <form>
-          <label>Name: <input type="text" /></label>
-          <label>Email: <input type="email" /></label>
+          <label style="display: block; margin-bottom: 10px;">Name: <input type="text" /></label>
+          <label style="display: block; margin-bottom: 10px;">Email: <input type="email" /></label>
         </form>
       </div>
     `;
