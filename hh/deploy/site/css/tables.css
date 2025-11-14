@@ -6,22 +6,22 @@ div.tableViewDiv {
 	width: auto;
 	max-width: 100%;
 	display: block;
-	background-color: var(--tableview-header, #1e1e1e);
-	border: 1px solid #45584b;
+	background-color: var(--tableview-header, var(--bg-secondary, #1e1e1e));
+	border: 1px solid var(--border-subtle, #45584b);
 	border-radius: 10px;
 	overflow: hidden;
-	color: var(--tableview-header-text, #d4d4d4);
+	color: var(--tableview-header-text, var(--text-medium-contrast, #d4d4d4));
 }
 
 div.tableViewDiv a:link,
 div.tableViewDiv a:visited {
-	color: #79c0ff;
+	color: var(--link, #79c0ff);
 	text-decoration: none;
 }
 
 div.tableViewDiv a:hover,
 div.tableViewDiv a:active {
-	color: #a5d6ff;
+	color: var(--link-hover, #a5d6ff);
 	text-decoration: underline;
 }
 

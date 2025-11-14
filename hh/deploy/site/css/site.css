@@ -246,13 +246,13 @@ div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.
 }
 
 div.error {
-    border-color: #f85149 !important;
+    border-color: var(--error-border, #f85149) !important;
 }
 div.hidden {
-    border-color: #8b949e !important;
+    border-color: var(--text-low-contrast, #8b949e) !important;
 }
 div.private {
-    border-color: #a371f7 !important;
+    border-color: var(--info-border, #a371f7) !important;
 }
 
 div.content {
@@ -298,7 +298,7 @@ div.contentWrapper div.contentWrapper div.contentWrapper div.contentWrapper div.
 
 div.errorContentWrapper,
 div.errorContentWrapper div.contentHeader {
-    border-color: #f85149 !important;
+    border-color: var(--error-border, #f85149) !important;
 }
 
 div.contentHeader a:not(:first-child) {
