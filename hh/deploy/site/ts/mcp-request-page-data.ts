@@ -3,19 +3,38 @@
  * Dynamic fields are automatically discovered by base class.
  */
 
-import { PageData, GetPageResponse } from './page-data.js';
+import { PageData, GetPageResponse, FieldMapping } from './page-data.js';
 
 export class MCPRequestPageData extends PageData {
   constructor(data: GetPageResponse) {
     super(data);
   }
 
-  // Override MCP tool mapping if needed for specific field names
-  protected getMCPToolName(fieldName: string): string {
-    if (fieldName === 'input_request' || fieldName === 'output_response' || fieldName === 'status') {
-      return 'modify_mcp_request';
-    }
-    return super.getMCPToolName(fieldName);
+  /**
+   * Override to provide field mappings for MCP request specific fields
+   */
+  protected getFieldMappings(): FieldMapping[] {
+    return [
+      ...super.getFieldMappings(), // Include base page mappings (name, text)
+      // MCP request specific mappings - all fields can be updated together
+      {
+        fields: ['input_request', 'output_response', 'status', 'create_request', 'read_request', 
+                 'update_request', 'delete_request', 'create_executed', 'read_executed', 
+                 'update_executed', 'delete_executed'],
+        mcpTool: 'modify_mcp_request',
+        priority: 1, // Group operation - lower priority than individual setters
+        buildParams: (fields, values, pageId) => {
+          const params: any = { page_id: pageId };
+          // Only include fields that are actually being changed
+          fields.forEach(field => {
+            if (values[field] !== undefined) {
+              params[field] = values[field];
+            }
+          });
+          return params;
+        }
+      }
+    ];
   }
 }
 

@@ -80,6 +80,18 @@ export interface FieldRegistry {
   };
 }
 
+/**
+ * FieldMapping defines how form fields map to MCP tools.
+ * Multiple fields can map to the same MCP tool (grouped operations).
+ * Priority: lower number = higher priority (prefer exact matches, then smaller groups)
+ */
+export interface FieldMapping {
+  fields: string[];           // Field names that this mapping covers
+  mcpTool: string;            // MCP tool name to call
+  priority: number;           // Lower = higher priority (0 = exact match, 1 = small group, 2 = larger group)
+  buildParams: (fields: string[], values: { [fieldName: string]: any }, pageId: number) => any; // Function to build MCP params
+}
+
 export class PageData {
   protected data: GetPageResponse;
   protected fieldRegistry: FieldRegistry = {};
@@ -254,7 +266,95 @@ export class PageData {
   }
 
   /**
-   * Submit changes - automatically determines which MCP calls to make
+   * Get field-to-MCP mappings for this page class.
+   * Derived classes should override this to provide their specific mappings.
+   * Base class provides mappings for common page fields.
+   */
+  protected getFieldMappings(): FieldMapping[] {
+    return [
+      // Individual field setters (highest priority - exact matches)
+      {
+        fields: ['name'],
+        mcpTool: 'modify_name',
+        priority: 0,
+        buildParams: (fields, values, pageId) => ({
+          page_id: pageId,
+          name: values['name']
+        })
+      },
+      {
+        fields: ['text'],
+        mcpTool: 'modify_text',
+        priority: 0,
+        buildParams: (fields, values, pageId) => ({
+          page_id: pageId,
+          text: values['text']
+        })
+      }
+      // Derived classes can add more mappings here
+    ];
+  }
+
+  /**
+   * Select optimal MCP calls based on changed fields.
+   * Algorithm: Weighted Set Cover with Exact Match Preference
+   * - Prefer exact matches (priority 0)
+   * - Prefer smaller groups over larger ones
+   * - Avoid setting fields that don't need to be set
+   */
+  protected selectOptimalMappings(changedFields: string[]): Array<{ mapping: FieldMapping; fields: string[] }> {
+    const allMappings = this.getFieldMappings();
+    const selected: Array<{ mapping: FieldMapping; fields: string[] }> = [];
+    const covered = new Set<string>();
+    
+    // Sort mappings by priority (lower = better), then by size (smaller = better)
+    const sortedMappings = [...allMappings].sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return a.fields.length - b.fields.length;
+    });
+    
+    // Greedy selection: pick mappings that cover the most uncovered fields
+    while (covered.size < changedFields.length) {
+      let bestMapping: FieldMapping | null = null;
+      let bestFields: string[] = [];
+      let bestScore = -1;
+      
+      for (const mapping of sortedMappings) {
+        // Find which fields from this mapping are in changedFields and not yet covered
+        const uncoveredFields = mapping.fields.filter(f => 
+          changedFields.includes(f) && !covered.has(f)
+        );
+        
+        if (uncoveredFields.length === 0) continue;
+        
+        // Score: prefer exact matches (all fields in mapping are changed and uncovered)
+        const isExactMatch = uncoveredFields.length === mapping.fields.length && 
+                            mapping.fields.every(f => changedFields.includes(f));
+        const score = isExactMatch ? 1000 - mapping.priority : uncoveredFields.length - mapping.priority;
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestMapping = mapping;
+          bestFields = uncoveredFields;
+        }
+      }
+      
+      if (!bestMapping) {
+        // No mapping found for remaining fields - this shouldn't happen if mappings are complete
+        const uncovered = changedFields.filter(f => !covered.has(f));
+        console.warn(`No mapping found for fields: ${uncovered.join(', ')}`);
+        break;
+      }
+      
+      selected.push({ mapping: bestMapping, fields: bestFields });
+      bestFields.forEach(f => covered.add(f));
+    }
+    
+    return selected;
+  }
+
+  /**
+   * Submit changes - automatically determines which MCP calls to make using optimal mapping algorithm
    */
   async submitChanges(rpc: any): Promise<any> {
     const changedFields = this.detectChangedFields();
@@ -266,22 +366,25 @@ export class PageData {
       return { success: true, message: 'No changes detected' };
     }
 
-    // Execute all updates in parallel
-    const promises = editableFields.map(async (fieldName) => {
-      const currentValues = this.extractFormValues();
-      const value = currentValues[fieldName];
-      
-      // Map field name to MCP tool name
-      const toolName = this.getMCPToolName(fieldName);
-      const params = this.buildMCPParams(fieldName, value);
+    // Select optimal MCP calls
+    const optimalMappings = this.selectOptimalMappings(editableFields);
+    const currentValues = this.extractFormValues();
+    
+    // Execute all MCP calls in parallel
+    const promises = optimalMappings.map(async ({ mapping, fields }) => {
+      const params = mapping.buildParams(fields, currentValues, this.id);
       
       try {
-        const result = await rpc.call(toolName, params);
-        // Update registry with new value
-        this.fieldRegistry[fieldName].originalValue = value;
-        return { field: fieldName, success: true, result };
+        const result = await rpc.call(mapping.mcpTool, params);
+        // Update registry with new values for all fields in this mapping
+        fields.forEach(fieldName => {
+          if (this.fieldRegistry[fieldName]) {
+            this.fieldRegistry[fieldName].originalValue = currentValues[fieldName];
+          }
+        });
+        return { mapping: mapping.mcpTool, fields, success: true, result };
       } catch (error) {
-        return { field: fieldName, success: false, error };
+        return { mapping: mapping.mcpTool, fields, success: false, error };
       }
     });
 
@@ -289,54 +392,46 @@ export class PageData {
     
     const errors = results.filter(r => !r.success);
     if (errors.length > 0) {
-      const errorFields = errors.map(e => e.field).join(', ');
-      throw new Error(`Failed to update fields: ${errorFields}`);
+      const errorDetails = errors.map(e => `${e.mapping}(${e.fields.join(', ')})`).join(', ');
+      throw new Error(`Failed to update: ${errorDetails}`);
     }
 
-    return { success: true, updated: editableFields, results };
+    return { success: true, updated: editableFields, operations: results };
   }
 
   /**
-   * Map field names to MCP tool names
+   * Map field names to MCP tool names (legacy method - kept for backward compatibility)
+   * New code should use getFieldMappings() instead
    */
   protected getMCPToolName(fieldName: string): string {
-    // Special cases for base page fields
-    const toolMap: { [key: string]: string } = {
-      'name': 'modify_name',
-      'text': 'modify_text',
-      'visibility': 'modify_page'
-    };
-    
-    if (toolMap[fieldName]) {
-      return toolMap[fieldName];
+    const mappings = this.getFieldMappings();
+    // Find first mapping that includes this field
+    for (const mapping of mappings) {
+      if (mapping.fields.includes(fieldName)) {
+        return mapping.mcpTool;
+      }
     }
-    
-    // For dynamic fields, try modify_<field_name> convention
-    // This will need to be adjusted based on actual MCP tool naming
+    // Fallback to modify_<field_name> convention
     return `modify_${fieldName}`;
   }
 
   /**
-   * Build MCP parameters for a field update
+   * Build MCP parameters for a field update (legacy method - kept for backward compatibility)
+   * New code should use FieldMapping.buildParams instead
    */
   protected buildMCPParams(fieldName: string, value: any): any {
-    const baseParams: any = {
-      page_id: this.id
-    };
-    
-    // Special handling for known base fields
-    if (fieldName === 'name') {
-      baseParams.name = value;
-    } else if (fieldName === 'text') {
-      baseParams.text = value;
-    } else if (fieldName === 'visibility') {
-      baseParams.visibility = value;
-    } else {
-      // Generic handling for dynamic fields
-      baseParams[fieldName] = value;
+    const mappings = this.getFieldMappings();
+    // Find first mapping that includes this field
+    for (const mapping of mappings) {
+      if (mapping.fields.includes(fieldName)) {
+        return mapping.buildParams([fieldName], { [fieldName]: value }, this.id);
+      }
     }
-    
-    return baseParams;
+    // Fallback
+    return {
+      page_id: this.id,
+      [fieldName]: value
+    };
   }
 
   /**

@@ -3,18 +3,39 @@
  * Dynamic fields (file_path, language) are automatically discovered by base class.
  */
 
-import { PageData, GetPageResponse } from './page-data.js';
+import { PageData, GetPageResponse, FieldMapping } from './page-data.js';
 
 export class SourceCodeFilePageData extends PageData {
   constructor(data: GetPageResponse) {
     super(data);
   }
 
-  // Override MCP tool mapping if needed for specific field names
-  protected getMCPToolName(fieldName: string): string {
-    if (fieldName === 'file_path') return 'modify_path';
-    if (fieldName === 'language') return 'modify_language';
-    return super.getMCPToolName(fieldName);
+  /**
+   * Override to provide field mappings for source code file specific fields
+   */
+  protected getFieldMappings(): FieldMapping[] {
+    return [
+      ...super.getFieldMappings(), // Include base page mappings (name, text)
+      // Source code file specific mappings
+      {
+        fields: ['file_path'],
+        mcpTool: 'modify_path',
+        priority: 0,
+        buildParams: (fields, values, pageId) => ({
+          page_id: pageId,
+          path: values['file_path']
+        })
+      },
+      {
+        fields: ['language'],
+        mcpTool: 'modify_language',
+        priority: 0,
+        buildParams: (fields, values, pageId) => ({
+          page_id: pageId,
+          language: values['language']
+        })
+      }
+    ];
   }
 }
 

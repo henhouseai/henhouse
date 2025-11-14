@@ -54,6 +54,21 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read'
 )
 @register_mcp_tool(
+    tool_name='get_text',
+    description='Get processed/parsed text for a page. Returns HTTP-rendered text processed through TextProcessor with final_decorator=\'http\'.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page to get processed text for'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'}
+        },
+        'required': ['page_id']
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
     tool_name='show_image',
     description='Show image details by ID. Returns complete image data including usage, instances, and metadata.',
     inputSchema={
@@ -133,9 +148,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='create'
+    crud_type='create',
+    app_action_group='pages',
+    app_action_label='Add Page'
 )
 @register_mcp_tool(
     tool_name='delete_page',
@@ -149,9 +166,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'confirm']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='delete'
+    crud_type='delete',
+    app_action_group='pages',
+    app_action_label='Delete Page'
 )
 @register_mcp_tool(
     tool_name='copy_page',
@@ -170,9 +189,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='create'
+    crud_type='create',
+    app_action_group='pages',
+    app_action_label='Copy Page'
 )
 @register_mcp_tool(
     tool_name='move_page',
@@ -187,9 +208,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='update'
+    crud_type='update',
+    app_action_group='pages',
+    app_action_label='Move Page'
 )
 @register_mcp_tool(
     tool_name='add_image',
@@ -205,9 +228,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page', 'file']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='create'
+    crud_type='create',
+    app_action_group='images_add',
+    app_action_label='Add Image'
 )
 @register_mcp_tool(
     tool_name='add_images',
@@ -223,9 +248,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page', 'folder']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='create'
+    crud_type='create',
+    app_action_group='images_add',
+    app_action_label='Add Images'
 )
 @register_mcp_tool(
     tool_name='copy_image',
@@ -240,9 +267,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page', 'image_id']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='create'
+    crud_type='create',
+    app_action_group='images_organize',
+    app_action_label='Copy Image'
 )
 @register_mcp_tool(
     tool_name='copy_images',
@@ -257,9 +286,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page', 'image_id']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='create'
+    crud_type='create',
+    app_action_group='images_organize',
+    app_action_label='Copy Images'
 )
 @register_mcp_tool(
     tool_name='move_image',
@@ -279,9 +310,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['source_page', 'image_id', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='update'
+    crud_type='update',
+    app_action_group='images_organize',
+    app_action_label='Move Image'
 )
 @register_mcp_tool(
     tool_name='move_images',
@@ -300,9 +333,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='update'
+    crud_type='update',
+    app_action_group='images_organize',
+    app_action_label='Move Images'
 )
 @register_mcp_tool(
     tool_name='remove_image',
@@ -316,9 +351,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'image_id']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='delete'
+    crud_type='delete',
+    app_action_group='images_organize',
+    app_action_label='Remove Image'
 )
 @register_mcp_tool(
     tool_name='set_image_rank',
@@ -335,9 +372,11 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'image_id', 'target_rank']
     },
-    tiers=[3, 4],
+    tiers=[3, 4, 7, 8],
     requires_approval=False,
-    crud_type='update'
+    crud_type='update',
+    app_action_group='images_organize',
+    app_action_label='Set Image Rank'
 )
 @register_mcp_tool(
     tool_name='modify_caption',
@@ -388,8 +427,6 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
-# App actions - tiers 7, 8 (admin app, root app)
-# modify_name and modify_text above are registered with tiers [3, 4, 7, 8] and app_action_group='page'
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""
     pass

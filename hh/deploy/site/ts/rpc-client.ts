@@ -19,8 +19,37 @@ export interface RPCResponse {
   error?: {
     code: number;
     message: string;
-    data?: any;
+    data?: {
+      errors?: Array<{
+        type: string;
+        content: string;
+        timestamp?: string;
+      }>;
+    };
   };
+}
+
+/**
+ * Custom error class that can hold multiple error messages
+ */
+export class RPCError extends Error {
+  public errors: Array<{ type: string; content: string }>;
+  public code: number;
+
+  constructor(message: string, code: number, errors: Array<{ type: string; content: string }> = []) {
+    super(message);
+    this.name = 'RPCError';
+    this.code = code;
+    this.errors = errors;
+    
+    // If we have multiple errors, format them nicely
+    if (errors.length > 1) {
+      const errorMessages = errors.map((err, idx) => 
+        `${idx + 1}. ${err.type}: ${err.content}`
+      ).join('\n');
+      this.message = `${message}\n\nAdditional errors:\n${errorMessages}`;
+    }
+  }
 }
 
 export class RPCClient {
@@ -70,7 +99,29 @@ export class RPCClient {
       const data: RPCResponse = await response.json();
 
       if (data.error) {
-        throw new Error(`RPC error: ${data.error.message}`);
+        // Extract all errors from error.data.errors if available
+        const allErrors: Array<{ type: string; content: string }> = [];
+        if (data.error.data?.errors && Array.isArray(data.error.data.errors)) {
+          for (const err of data.error.data.errors) {
+            if (typeof err.content === 'string') {
+              allErrors.push({
+                type: err.type || 'error',
+                content: err.content
+              });
+            }
+          }
+        }
+        
+        // If we have multiple errors, use RPCError to format them nicely
+        if (allErrors.length > 1) {
+          throw new RPCError(`RPC error: ${data.error.message}`, data.error.code, allErrors);
+        } else if (allErrors.length === 1) {
+          // Single error - use the detailed error content if available
+          throw new RPCError(`RPC error: ${allErrors[0].type}: ${allErrors[0].content}`, data.error.code, allErrors);
+        } else {
+          // Fallback to message only
+          throw new RPCError(`RPC error: ${data.error.message}`, data.error.code);
+        }
       }
 
       return data.result;

@@ -7,12 +7,31 @@ export class SourceCodeFilePageData extends PageData {
     constructor(data) {
         super(data);
     }
-    // Override MCP tool mapping if needed for specific field names
-    getMCPToolName(fieldName) {
-        if (fieldName === 'file_path')
-            return 'modify_path';
-        if (fieldName === 'language')
-            return 'modify_language';
-        return super.getMCPToolName(fieldName);
+    /**
+     * Override to provide field mappings for source code file specific fields
+     */
+    getFieldMappings() {
+        return [
+            ...super.getFieldMappings(), // Include base page mappings (name, text)
+            // Source code file specific mappings
+            {
+                fields: ['file_path'],
+                mcpTool: 'modify_path',
+                priority: 0,
+                buildParams: (fields, values, pageId) => ({
+                    page_id: pageId,
+                    path: values['file_path']
+                })
+            },
+            {
+                fields: ['language'],
+                mcpTool: 'modify_language',
+                priority: 0,
+                buildParams: (fields, values, pageId) => ({
+                    page_id: pageId,
+                    language: values['language']
+                })
+            }
+        ];
     }
 }
