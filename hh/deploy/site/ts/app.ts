@@ -92,10 +92,10 @@ class ActionHandlers {
         groupUl.className = 'applicationActions menuGroup';
         groupUl.setAttribute('data-group', groupName);
         
-        // Create header
+        // Create header with human-readable name (convert snake_case to spaces)
         const headerLi = document.createElement('li');
         headerLi.className = 'header';
-        headerLi.textContent = groupName.toUpperCase();
+        headerLi.textContent = groupName.replace(/_/g, ' ').toUpperCase();
         groupUl.appendChild(headerLi);
         
         // Append to menu container

@@ -398,7 +398,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     tiers=[7, 8],
     requires_approval=False,
     crud_type='read',
-    app_action_group='page_crud',
+    app_action_group='crud',
     app_action_label='Page Dummy 1'
 )
 @register_mcp_tool(
@@ -414,7 +414,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     tiers=[7, 8],
     requires_approval=False,
     crud_type='read',
-    app_action_group='page_crud',
+    app_action_group='crud',
     app_action_label='Page Dummy 2'
 )
 @register_mcp_tool(

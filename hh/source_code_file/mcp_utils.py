@@ -25,7 +25,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     tiers=[7, 8],
     requires_approval=False,
     crud_type='read',
-    app_action_group='page_crud',
+    app_action_group='crud',
     app_action_label='Source Code File Dummy (Page CRUD)'
 )
 @register_mcp_tool(
