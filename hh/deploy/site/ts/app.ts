@@ -148,6 +148,7 @@ class ActionHandlers {
    */
   private updateHotCacheActions(newHotCacheActions: AppAction[]): void {
     const newActionIds = new Set(newHotCacheActions.map(action => action.id));
+    const groupsToCheck = new Set<string>();
     
     // Remove hot-cache actions that are no longer in the new list
     for (const oldActionId of this.hotCacheActionIds) {
@@ -157,7 +158,30 @@ class ActionHandlers {
         if (element) {
           const li = element.closest('li');
           if (li) {
+            const groupUl = li.closest('ul.applicationActions.menuGroup');
+            if (groupUl) {
+              const groupName = groupUl.getAttribute('data-group');
+              if (groupName) {
+                groupsToCheck.add(groupName);
+              }
+            }
             li.remove();
+          }
+        }
+      }
+    }
+    
+    // Check and remove empty groups (only header, no action items)
+    const menuContainer = document.getElementById('menu');
+    if (menuContainer) {
+      for (const groupName of groupsToCheck) {
+        const groupUl = menuContainer.querySelector(`ul.applicationActions.menuGroup[data-group="${groupName}"]`) as HTMLUListElement;
+        if (groupUl) {
+          // Count non-header children (action items)
+          const actionItems = groupUl.querySelectorAll('li:not(.header)');
+          if (actionItems.length === 0) {
+            // Group is empty (only header), remove it
+            groupUl.remove();
           }
         }
       }
