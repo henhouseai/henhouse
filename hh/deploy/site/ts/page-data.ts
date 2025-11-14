@@ -348,6 +348,89 @@ export class PageData {
   }
 
   /**
+   * Process operations incrementally, updating overlay as each completes.
+   * Returns final result with all operations.
+   */
+  protected async processOperationsIncrementally(
+    rpc: any,
+    optimalMappings: Array<{ mapping: any; fields: string[] }>,
+    currentValues: { [fieldName: string]: any },
+    pageId: number
+  ): Promise<any> {
+    const overlayManager = OverlayManager.getInstance();
+    const overlay = overlayManager.getTopOverlay();
+    
+    const allOperations: any[] = [];
+    let allSucceeded = true;
+    
+    // Process each operation individually (not in parallel)
+    for (const { mapping, fields } of optimalMappings) {
+      const params = mapping.buildParams(fields, currentValues, pageId);
+      
+      try {
+        const rawResult = await rpc.call(mapping.mcpTool, params);
+        const result = rpc.extractMCPData(rawResult);
+        
+        // Clear fields from registry after successful update
+        PageManager.getInstance()['clearFields'](fields);
+        
+        // Update internal PageData
+        fields.forEach((fieldName: string) => {
+          if (fieldName in currentValues) {
+            this.updateFieldValue(fieldName, currentValues[fieldName]);
+          }
+        });
+        
+        const operation = {
+          mapping: mapping.mcpTool,
+          fields,
+          success: true,
+          result,
+          message: `Successfully updated ${fields.join(', ')}`
+        };
+        
+        allOperations.push(operation);
+        
+        // Add success message to overlay immediately
+        if (overlay) {
+          const currentMessages = (overlay as any)['state'].messages || [];
+          overlay.setState({
+            messages: [...currentMessages, { type: 'success' as const, text: operation.message }]
+          });
+        }
+      } catch (error) {
+        allSucceeded = false;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const operation = {
+          mapping: mapping.mcpTool,
+          fields,
+          success: false,
+          error,
+          message: `Failed to update ${fields.join(', ')}: ${errorMessage}`
+        };
+        
+        allOperations.push(operation);
+        
+        // Add error message to overlay immediately
+        if (overlay) {
+          const currentMessages = (overlay as any)['state'].messages || [];
+          overlay.setState({
+            messages: [...currentMessages, { type: 'error' as const, text: operation.message }]
+          });
+        }
+      }
+    }
+    
+    return {
+      success: allSucceeded,
+      noChanges: false,
+      operations: allOperations,
+      successes: allOperations.filter((op: any) => op.success),
+      errors: allOperations.filter((op: any) => !op.success)
+    };
+  }
+
+  /**
    * Handler for modify_name: Edit page name
    */
   async modify_name(rpc: any): Promise<void> {
@@ -386,22 +469,22 @@ export class PageData {
           pageManager.clearFieldRegistry();
         },
         onSubmit: async () => {
-          const result = await pageManager.submitChanges(rpc);
+          // Process operations incrementally
+          const changedFields = pageManager['detectChangedFields']();
+          const editableFields = changedFields.filter((field: string) => field !== 'class');
           
-          if (result.noChanges) {
-            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          if (editableFields.length === 0) {
+            return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
           }
           
-          const messages: string[] = [];
-          if (result.operations && result.operations.length > 0) {
-            result.operations.forEach((op: any) => {
-              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-            });
-          } else {
-            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+          const currentValues = pageManager['extractFormValues']();
+          
+          if (!pageId) {
+            throw new Error('No page ID available');
           }
           
-          const combinedMessage = messages.join('\n');
+          const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
           const allSucceeded = result.success && result.errors.length === 0;
           
           if (allSucceeded) {
@@ -454,9 +537,10 @@ export class PageData {
               }
             }
             
-            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+            return { ...result, _autoFade: true };
           } else {
-            throw new Error(combinedMessage);
+            // Don't throw - errors are already shown in overlay
+            return { ...result };
           }
         }
       });
@@ -512,22 +596,22 @@ export class PageData {
           pageManager.clearFieldRegistry();
         },
         onSubmit: async () => {
-          const result = await pageManager.submitChanges(rpc);
+          // Process operations incrementally
+          const changedFields = pageManager['detectChangedFields']();
+          const editableFields = changedFields.filter((field: string) => field !== 'class');
           
-          if (result.noChanges) {
-            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          if (editableFields.length === 0) {
+            return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
           }
           
-          const messages: string[] = [];
-          if (result.operations && result.operations.length > 0) {
-            result.operations.forEach((op: any) => {
-              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-            });
-          } else {
-            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+          const currentValues = pageManager['extractFormValues']();
+          
+          if (!pageId) {
+            throw new Error('No page ID available');
           }
           
-          const combinedMessage = messages.join('\n');
+          const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
           const allSucceeded = result.success && result.errors.length === 0;
           
           if (allSucceeded) {
@@ -549,9 +633,10 @@ export class PageData {
               }
             }
             
-            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+            return { ...result, _autoFade: true };
           } else {
-            throw new Error(combinedMessage);
+            // Don't throw - errors are already shown in overlay
+            return { ...result };
           }
         }
       });
@@ -721,22 +806,22 @@ export class PageData {
           pageManager.clearFieldRegistry();
         },
         onSubmit: async () => {
-          const result = await pageManager.submitChanges(rpc);
+          // Process operations incrementally
+          const changedFields = pageManager['detectChangedFields']();
+          const editableFields = changedFields.filter((field: string) => field !== 'class');
           
-          if (result.noChanges) {
-            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          if (editableFields.length === 0) {
+            return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
           }
           
-          const messages: string[] = [];
-          if (result.operations && result.operations.length > 0) {
-            result.operations.forEach((op: any) => {
-              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-            });
-          } else {
-            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+          const currentValues = pageManager['extractFormValues']();
+          
+          if (!pageId) {
+            throw new Error('No page ID available');
           }
           
-          const combinedMessage = messages.join('\n');
+          const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
           const allSucceeded = result.success && result.errors.length === 0;
           
           if (allSucceeded) {
@@ -784,9 +869,10 @@ export class PageData {
               }
             }
             
-            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+            return { ...result, _autoFade: true };
           } else {
-            throw new Error(combinedMessage);
+            // Don't throw - errors are already shown in overlay
+            return { ...result };
           }
         }
       });

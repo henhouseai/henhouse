@@ -14,6 +14,7 @@ export interface OverlayState {
   isLoading: boolean;
   error: string | null;
   success: string | null;
+  messages: Array<{ type: 'success' | 'error'; text: string }>; // Array of messages in order received
   zIndex: number;
 }
 
@@ -37,6 +38,7 @@ export class Overlay {
       isLoading: false,
       error: null,
       success: null,
+      messages: [],
       zIndex: zIndex
     };
 
@@ -208,20 +210,32 @@ export class Overlay {
     const existingMessages = this.windowEl.querySelectorAll('.overlaySuccess, .overlayError, .overlayWarning');
     existingMessages.forEach(msg => msg.remove());
 
-    // Add error message if present
-    if (this.state.error) {
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'overlayError';
-      errorDiv.textContent = this.state.error;
-      this.headerEl.insertAdjacentElement('afterend', errorDiv);
-    }
+    // Add messages in order (from messages array, or fallback to error/success for backward compatibility)
+    if (this.state.messages && this.state.messages.length > 0) {
+      // Insert messages after header, in order
+      let insertAfter = this.headerEl;
+      for (const msg of this.state.messages) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = msg.type === 'success' ? 'overlaySuccess' : 'overlayError';
+        msgDiv.textContent = msg.text;
+        insertAfter.insertAdjacentElement('afterend', msgDiv);
+        insertAfter = msgDiv;
+      }
+    } else {
+      // Backward compatibility: single error or success message
+      if (this.state.error) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'overlayError';
+        errorDiv.textContent = this.state.error;
+        this.headerEl.insertAdjacentElement('afterend', errorDiv);
+      }
 
-    // Add success message if present
-    if (this.state.success) {
-      const successDiv = document.createElement('div');
-      successDiv.className = 'overlaySuccess';
-      successDiv.textContent = this.state.success;
-      this.headerEl.insertAdjacentElement('afterend', successDiv);
+      if (this.state.success) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'overlaySuccess';
+        successDiv.textContent = this.state.success;
+        this.headerEl.insertAdjacentElement('afterend', successDiv);
+      }
     }
   }
 

@@ -118,22 +118,22 @@ export class SourceCodeFilePageData extends PageData {
           pageManager.clearFieldRegistry();
         },
         onSubmit: async () => {
-          const result = await pageManager.submitChanges(rpc);
-
-          if (result.noChanges) {
-            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          // Process operations incrementally
+          const changedFields = pageManager['detectChangedFields']();
+          const editableFields = changedFields.filter((field: string) => field !== 'class');
+          
+          if (editableFields.length === 0) {
+            return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
           }
-
-          const messages: string[] = [];
-          if (result.operations && result.operations.length > 0) {
-            result.operations.forEach((op: any) => {
-              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-            });
-          } else {
-            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          
+          const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+          const currentValues = pageManager['extractFormValues']();
+          
+          if (!pageId) {
+            throw new Error('No page ID available');
           }
-
-          const combinedMessage = messages.join('\n');
+          
+          const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
           const allSucceeded = result.success && result.errors.length === 0;
 
           if (allSucceeded) {
@@ -179,9 +179,10 @@ export class SourceCodeFilePageData extends PageData {
               }
             }
 
-            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+            return { ...result, _autoFade: true };
           } else {
-            throw new Error(combinedMessage);
+            // Don't throw - errors are already shown in overlay
+            return { ...result };
           }
         }
       });

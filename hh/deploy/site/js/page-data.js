@@ -222,6 +222,73 @@ export class PageData {
         return div.innerHTML;
     }
     /**
+     * Process operations incrementally, updating overlay as each completes.
+     * Returns final result with all operations.
+     */
+    async processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId) {
+        const overlayManager = OverlayManager.getInstance();
+        const overlay = overlayManager.getTopOverlay();
+        const allOperations = [];
+        let allSucceeded = true;
+        // Process each operation individually (not in parallel)
+        for (const { mapping, fields } of optimalMappings) {
+            const params = mapping.buildParams(fields, currentValues, pageId);
+            try {
+                const rawResult = await rpc.call(mapping.mcpTool, params);
+                const result = rpc.extractMCPData(rawResult);
+                // Clear fields from registry after successful update
+                PageManager.getInstance()['clearFields'](fields);
+                // Update internal PageData
+                fields.forEach((fieldName) => {
+                    if (fieldName in currentValues) {
+                        this.updateFieldValue(fieldName, currentValues[fieldName]);
+                    }
+                });
+                const operation = {
+                    mapping: mapping.mcpTool,
+                    fields,
+                    success: true,
+                    result,
+                    message: `Successfully updated ${fields.join(', ')}`
+                };
+                allOperations.push(operation);
+                // Add success message to overlay immediately
+                if (overlay) {
+                    const currentMessages = overlay['state'].messages || [];
+                    overlay.setState({
+                        messages: [...currentMessages, { type: 'success', text: operation.message }]
+                    });
+                }
+            }
+            catch (error) {
+                allSucceeded = false;
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                const operation = {
+                    mapping: mapping.mcpTool,
+                    fields,
+                    success: false,
+                    error,
+                    message: `Failed to update ${fields.join(', ')}: ${errorMessage}`
+                };
+                allOperations.push(operation);
+                // Add error message to overlay immediately
+                if (overlay) {
+                    const currentMessages = overlay['state'].messages || [];
+                    overlay.setState({
+                        messages: [...currentMessages, { type: 'error', text: operation.message }]
+                    });
+                }
+            }
+        }
+        return {
+            success: allSucceeded,
+            noChanges: false,
+            operations: allOperations,
+            successes: allOperations.filter((op) => op.success),
+            errors: allOperations.filter((op) => !op.success)
+        };
+    }
+    /**
      * Handler for modify_name: Edit page name
      */
     async modify_name(rpc) {
@@ -256,20 +323,18 @@ export class PageData {
                     pageManager.clearFieldRegistry();
                 },
                 onSubmit: async () => {
-                    const result = await pageManager.submitChanges(rpc);
-                    if (result.noChanges) {
-                        return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+                    // Process operations incrementally
+                    const changedFields = pageManager['detectChangedFields']();
+                    const editableFields = changedFields.filter((field) => field !== 'class');
+                    if (editableFields.length === 0) {
+                        return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
                     }
-                    const messages = [];
-                    if (result.operations && result.operations.length > 0) {
-                        result.operations.forEach((op) => {
-                            messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-                        });
+                    const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+                    const currentValues = pageManager['extractFormValues']();
+                    if (!pageId) {
+                        throw new Error('No page ID available');
                     }
-                    else {
-                        messages.push(result.message || (result.success ? 'Success' : 'Failed'));
-                    }
-                    const combinedMessage = messages.join('\n');
+                    const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
                     const allSucceeded = result.success && result.errors.length === 0;
                     if (allSucceeded) {
                         if (result.success && pageId) {
@@ -317,10 +382,11 @@ export class PageData {
                                 }
                             }
                         }
-                        return { ...result, _showMessage: combinedMessage, _autoFade: true };
+                        return { ...result, _autoFade: true };
                     }
                     else {
-                        throw new Error(combinedMessage);
+                        // Don't throw - errors are already shown in overlay
+                        return { ...result };
                     }
                 }
             });
@@ -371,20 +437,18 @@ export class PageData {
                     pageManager.clearFieldRegistry();
                 },
                 onSubmit: async () => {
-                    const result = await pageManager.submitChanges(rpc);
-                    if (result.noChanges) {
-                        return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+                    // Process operations incrementally
+                    const changedFields = pageManager['detectChangedFields']();
+                    const editableFields = changedFields.filter((field) => field !== 'class');
+                    if (editableFields.length === 0) {
+                        return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
                     }
-                    const messages = [];
-                    if (result.operations && result.operations.length > 0) {
-                        result.operations.forEach((op) => {
-                            messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-                        });
+                    const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+                    const currentValues = pageManager['extractFormValues']();
+                    if (!pageId) {
+                        throw new Error('No page ID available');
                     }
-                    else {
-                        messages.push(result.message || (result.success ? 'Success' : 'Failed'));
-                    }
-                    const combinedMessage = messages.join('\n');
+                    const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
                     const allSucceeded = result.success && result.errors.length === 0;
                     if (allSucceeded) {
                         // After successful submit, fetch processed text and update DOM
@@ -404,10 +468,11 @@ export class PageData {
                                 console.error('Failed to fetch updated text:', error);
                             }
                         }
-                        return { ...result, _showMessage: combinedMessage, _autoFade: true };
+                        return { ...result, _autoFade: true };
                     }
                     else {
-                        throw new Error(combinedMessage);
+                        // Don't throw - errors are already shown in overlay
+                        return { ...result };
                     }
                 }
             });
@@ -565,20 +630,18 @@ export class PageData {
                     pageManager.clearFieldRegistry();
                 },
                 onSubmit: async () => {
-                    const result = await pageManager.submitChanges(rpc);
-                    if (result.noChanges) {
-                        return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+                    // Process operations incrementally
+                    const changedFields = pageManager['detectChangedFields']();
+                    const editableFields = changedFields.filter((field) => field !== 'class');
+                    if (editableFields.length === 0) {
+                        return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
                     }
-                    const messages = [];
-                    if (result.operations && result.operations.length > 0) {
-                        result.operations.forEach((op) => {
-                            messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
-                        });
+                    const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+                    const currentValues = pageManager['extractFormValues']();
+                    if (!pageId) {
+                        throw new Error('No page ID available');
                     }
-                    else {
-                        messages.push(result.message || (result.success ? 'Success' : 'Failed'));
-                    }
-                    const combinedMessage = messages.join('\n');
+                    const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
                     const allSucceeded = result.success && result.errors.length === 0;
                     if (allSucceeded) {
                         if (result.success && pageId) {
@@ -622,10 +685,11 @@ export class PageData {
                                 }
                             }
                         }
-                        return { ...result, _showMessage: combinedMessage, _autoFade: true };
+                        return { ...result, _autoFade: true };
                     }
                     else {
-                        throw new Error(combinedMessage);
+                        // Don't throw - errors are already shown in overlay
+                        return { ...result };
                     }
                 }
             });
