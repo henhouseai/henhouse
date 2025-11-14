@@ -26,11 +26,11 @@ def _initialize_debug():
 _page_cache: Dict[int, Any] = {}
 
 def _load_mcp_utils_for_page_class(PageClass: type) -> None:
-    """Dynamically import mcp_utils module for a page class for MCP backend only."""
+    """Dynamically import mcp_utils module for a page class for HTTP or MCP backend."""
     trace_in()
     gateway = get_gateway()
-    if not gateway or gateway.backend != "mcp":
-        # Only load mcp_utils for MCP backend requests (HTTP gets actions dynamically via JavaScript)
+    if not gateway or gateway.backend not in ("http", "mcp"):
+        # Only load mcp_utils for HTTP or MCP backend requests
         trace_out()
         return
     
