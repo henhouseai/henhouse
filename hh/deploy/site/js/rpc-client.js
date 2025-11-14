@@ -1,7 +1,27 @@
 /**
  * RPC Client - custom MCP wrapper for JSON-RPC calls to the backend.
  */
+import { PageDataFactory } from './page-data-factory.js';
 export class RPCClient {
+    /**
+     * Extract and parse MCP response data from the envelope.
+     * MCP responses have structure: { content: [{ type: "text", text: "<JSON_STRING>" }] }
+     */
+    extractMCPData(result) {
+        if (result && result.content && Array.isArray(result.content) && result.content.length > 0) {
+            const contentItem = result.content[0];
+            if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
+                try {
+                    return JSON.parse(contentItem.text);
+                }
+                catch (e) {
+                    throw new Error(`Failed to parse MCP response JSON: ${e}`);
+                }
+            }
+        }
+        // Fallback: return result as-is (for non-MCP responses or already-parsed data)
+        return result;
+    }
     /**
      * Make an MCP JSON-RPC call to the backend.
      */
@@ -33,6 +53,19 @@ export class RPCClient {
             console.error(`RPC call failed for ${method}:`, error);
             throw error;
         }
+    }
+    /**
+     * Get page data and return as PageData instance.
+     * This is the recommended way to fetch page data.
+     */
+    async getPage(pageId) {
+        const result = await this.call('get_page', { id: String(pageId) });
+        const parsedData = this.extractMCPData(result);
+        if (!parsedData || !parsedData.page) {
+            throw new Error('Invalid page data response: missing page object');
+        }
+        // Use factory to create appropriate derived class
+        return PageDataFactory.create(parsedData);
     }
     /**
      * Display an error message to the user.

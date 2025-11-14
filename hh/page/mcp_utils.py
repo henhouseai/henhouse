@@ -384,6 +384,49 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
+# App actions - tiers 7, 8 (admin app, root app)
+@register_mcp_tool(
+    tool_name='page_dummy_1',
+    description='Page Dummy 1 - Test app action for page_crud group',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page'}
+        },
+        'required': ['page_id']
+    },
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
+    tool_name='page_dummy_2',
+    description='Page Dummy 2 - Test app action for page_crud group',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page'}
+        },
+        'required': ['page_id']
+    },
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
+    tool_name='extra_dummy',
+    description='Extra Dummy - Test app action for extra group',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page'}
+        },
+        'required': ['page_id']
+    },
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read'
+)
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""
     pass

@@ -63,10 +63,17 @@ def register_mcp_tool(
             tier_levels = tiers
         
         # Convert tier levels to tier names (level 1 = index 0, level 2 = index 1, etc.)
+        # Handle both MCP tools (1-4) and app actions (5-8)
         tool_tiers = []
         for level in tier_levels:
             if 1 <= level <= len(HENHOUSE_TIERS):
+                # MCP tools: levels 1-4 map to tier names
                 tier_index = level - 1  # Convert 1-based level to 0-based index
+                tool_tiers.append(HENHOUSE_TIERS[tier_index])
+            elif 5 <= level <= 8:
+                # App actions: levels 5-8 map to same tier names as 1-4
+                # (5→guest, 6→verified, 7→admin, 8→root)
+                tier_index = (level - 5)  # Convert 5-8 to 0-3 index
                 tool_tiers.append(HENHOUSE_TIERS[tier_index])
             else:
                 warn(f"Invalid tier level {level} for tool {tool_name}, skipping")
@@ -74,7 +81,8 @@ def register_mcp_tool(
         _global_tool_registry[tool_name] = {
             'description': description,
             'inputSchema': inputSchema,
-            'tiers': tool_tiers,
+            'tiers': tool_tiers,  # Tier names for whitelist compatibility
+            'tier_levels': tier_levels,  # Original tier levels (1-4 for MCP, 5-8 for app actions)
             'requires_approval': requires_approval,
             'crud_type': crud_type,
             'display_color': display_color,
@@ -305,6 +313,38 @@ class MCPWhitelist:
         """Check if tool exists for tier."""
         tool = cls.get_tool(tier, tool_name)
         return tool is not None
+    
+    @classmethod
+    def get_app_actions(cls, user_tier_level: int) -> List[Dict[str, Any]]:
+        """Get app actions available for a user tier level (1-4). Returns actions with tier levels 5-8."""
+        trace_in()
+        if user_tier_level < 1 or user_tier_level > 4:
+            trace_out()
+            return []
+        
+        # App action tier level = user tier level + 4 (1→5, 2→6, 3→7, 4→8)
+        app_action_tier_level = user_tier_level + 4
+        
+        app_actions = []
+        for tool_name, tool_config in _global_tool_registry.items():
+            tier_levels = tool_config.get('tier_levels', [])
+            # Check if this tool has the app action tier level (5-8)
+            if app_action_tier_level in tier_levels:
+                # Check if any tier level is 5-8 (it's an app action)
+                if any(5 <= level <= 8 for level in tier_levels):
+                    app_actions.append({
+                        'id': tool_name,
+                        'tool_name': tool_name,
+                        'description': tool_config['description'],
+                        'label': tool_config.get('app_action_label', tool_name),
+                        'group': tool_config.get('app_action_group', 'default'),
+                        'icon': tool_config.get('app_action_icon'),
+                        'requires_fields': tool_config.get('requires_fields', [])
+                    })
+        
+        log(f"Found {len(app_actions)} app actions for tier level {user_tier_level} (app action tier {app_action_tier_level})")
+        trace_out()
+        return app_actions
 
 @register_cache_cleanup('mcp_whitelist', cache_dir='hh/gateway/registry/cache')
 def cleanup_mcp_whitelist_cache():

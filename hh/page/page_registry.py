@@ -1,9 +1,11 @@
 from __future__ import annotations
 from typing import Dict, Optional, Any
+import importlib
 from hh.gateway.connection.connection import r_query
 from hh.gateway.connection.decorators import db_read
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+from hh.gateway.gateway import get_gateway
 from hh.page.page_class_registry import get_page_class
 
 trace_in = lambda message=None: None
@@ -22,6 +24,32 @@ def _initialize_debug():
     warn = get_warn(True)
 
 _page_cache: Dict[int, Any] = {}
+
+def _load_mcp_utils_for_page_class(PageClass: type) -> None:
+    """Dynamically import mcp_utils module for a page class if HTTP backend."""
+    trace_in()
+    gateway = get_gateway()
+    if not gateway or gateway.backend != "http":
+        # Only load mcp_utils for HTTP backend requests
+        trace_out()
+        return
+    
+    try:
+        module_name = PageClass.__module__
+        # Extract base module path (e.g., 'hh.page.page' -> 'hh.page')
+        module_parts = module_name.split('.')
+        if len(module_parts) >= 2:
+            base_module = '.'.join(module_parts[:-1])
+            mcp_utils_module = f"{base_module}.mcp_utils"
+            try:
+                importlib.import_module(mcp_utils_module)
+                log(f"Loaded mcp_utils for {module_name}: {mcp_utils_module}")
+            except ImportError:
+                # mcp_utils doesn't exist for this module, that's okay
+                debug(f"No mcp_utils found for {module_name} (expected for some page classes)")
+    except Exception as e:
+        warn(f"Error loading mcp_utils for {PageClass.__name__}: {e}")
+    trace_out()
 
 @db_read
 def get_page(conn, page_id: int) -> Optional[Any]:
@@ -52,6 +80,8 @@ def get_page(conn, page_id: int) -> Optional[Any]:
             PageClass = Page
         else:
             log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
+        # Load mcp_utils for HTTP backend requests (works for both registered and base Page class)
+        _load_mcp_utils_for_page_class(PageClass)
     if not is_error():
         try:
             page_instance = PageClass(id=page_id)
@@ -89,6 +119,8 @@ def get_page_conn(conn, page_id: int) -> Optional[Any]:
             PageClass = Page
         else:
             log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
+        # Load mcp_utils for HTTP backend requests (works for both registered and base Page class)
+        _load_mcp_utils_for_page_class(PageClass)
     if not is_error():
         try:
             page_instance = PageClass(id=page_id, conn=conn)

@@ -502,64 +502,45 @@ class ActionHandlers {
       return;
     }
 
-    // Fetch current page data to get name
-    const pageData = await this.rpc.call('get_page', { id: String(pageId) });
-    if (!pageData || !pageData.name) {
-      alert('Failed to fetch page data');
-      return;
-    }
+    try {
+      // Fetch page data using new PageData system
+      const pageData = await this.rpc.getPage(pageId);
+      // Request 'name' field with 'form' context to register it for editing
+      const currentName = pageData.getField('name', 'form') || '';
 
-    const currentName = pageData.name;
-
-    // Create form HTML
-    const formHtml = `
-      <div class="overlayContent">
-        <div id="nameModificationName">
-          <label>Page name:</label>
-          <input type="text" id="nameInput" value="${this.escapeHtml(currentName)}">
+      // Create form HTML with standardized field ID
+      const formHtml = `
+        <div class="overlayContent">
+          <div>
+            <label>Page name:</label>
+            <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}">
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    const overlay = OverlayManager.getInstance().show({
-      header: 'Modify Page Name',
-      content: formHtml,
-      closable: true,
-      submitLabel: 'Submit',
-      cancelLabel: 'Cancel',
-      onSubmit: async () => {
-        const input = document.getElementById('nameInput') as HTMLInputElement;
-        if (!input) {
-          throw new Error('Name input not found');
+      const overlay = OverlayManager.getInstance().show({
+        header: 'Modify Page Name',
+        content: formHtml,
+        closable: true,
+        submitLabel: 'Submit',
+        cancelLabel: 'Cancel',
+        onSubmit: async () => {
+          // PageData handles change detection and submission automatically
+          return await pageData.submitChanges(this.rpc);
         }
+      });
 
-        const newName = input.value.trim();
-        if (!newName) {
-          throw new Error('Page name cannot be empty');
+      // Focus the input after overlay is shown
+      setTimeout(() => {
+        const input = document.getElementById('page-field-name') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
         }
-
-        // Submit via MCP
-        const result = await this.rpc.call('modify_name', {
-          page_id: Number(pageId),
-          name: newName
-        });
-
-        if (!result) {
-          throw new Error('Failed to modify page name');
-        }
-
-        return result;
-      }
-    });
-
-    // Focus the input after overlay is shown
-    setTimeout(() => {
-      const input = document.getElementById('nameInput') as HTMLInputElement;
-      if (input) {
-        input.focus();
-        input.select();
-      }
-    }, 100);
+      }, 100);
+    } catch (error) {
+      this.rpc.showError('modifyName', error);
+    }
   }
 
   /**
@@ -585,19 +566,16 @@ class ActionHandlers {
     overlay.setState({ isLoading: true });
 
     try {
-      // Fetch current page data to get text
-      const pageData = await this.rpc.call('get_page', { id: String(pageId) });
-      if (!pageData) {
-        throw new Error('Failed to fetch page data');
-      }
+      // Fetch page data using new PageData system
+      const pageData = await this.rpc.getPage(pageId);
+      // Request 'text' field with 'form' context to register it for editing
+      const currentText = pageData.getField('text', 'form') || '';
 
-      const currentText = pageData.text || '';
-
-      // Create textarea form
+      // Create textarea form with standardized field ID
       const formHtml = `
         <div class="overlayContent">
-          <div id="textEditorText">
-            <textarea id="textInput" name="text" rows="20" cols="80" style="width: 100%; min-height: 400px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+          <div>
+            <textarea id="page-field-text" name="text" rows="20" cols="80" style="width: 100%; min-height: 400px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
           </div>
         </div>
       `;
@@ -613,37 +591,21 @@ class ActionHandlers {
       }
       overlay.setState({ isLoading: false });
 
-      // Set submit handler - need to access overlay's props
+      // Set submit handler - PageData handles change detection and submission automatically
       overlayAny.props.onSubmit = async () => {
-        const textarea = document.getElementById('textInput') as HTMLTextAreaElement;
-        if (!textarea) {
-          throw new Error('Text input not found');
-        }
-
-        const newText = textarea.value || '';
-
-        // Submit via MCP
-        const result = await this.rpc.call('modify_text', {
-          page_id: Number(pageId),
-          text: newText
-        });
-
-        if (!result) {
-          throw new Error('Failed to modify page text');
-        }
-
-        return result;
+        return await pageData.submitChanges(this.rpc);
       };
 
       // Focus the textarea after content is loaded
       setTimeout(() => {
-        const textarea = document.getElementById('textInput') as HTMLTextAreaElement;
+        const textarea = document.getElementById('page-field-text') as HTMLTextAreaElement;
         if (textarea) {
           textarea.focus();
         }
       }, 100);
     } catch (error) {
       overlay.setState({ isLoading: false, error: error instanceof Error ? error.message : 'Failed to load page text' });
+      this.rpc.showError('editPageText', error);
     }
   }
 
