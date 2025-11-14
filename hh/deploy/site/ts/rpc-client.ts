@@ -57,7 +57,7 @@ export class RPCClient {
    * Extract and parse MCP response data from the envelope.
    * MCP responses have structure: { content: [{ type: "text", text: "<JSON_STRING>" }] }
    */
-  private extractMCPData(result: any): any {
+  extractMCPData(result: any): any {
     if (result && result.content && Array.isArray(result.content) && result.content.length > 0) {
       const contentItem = result.content[0];
       if (contentItem.type === 'text' && typeof contentItem.text === 'string') {

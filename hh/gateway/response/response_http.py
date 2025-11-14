@@ -193,7 +193,17 @@ class ResponseHTTP(Response):
             if upper_content_html:
                 content_divs.append(upper_content_html)
         if self.page_text:
-            wrapped_text = f'<div class="content pageText">{safe_str(self.page_text)}</div>'
+            # Get page_id from seed_data for ID attribute
+            page_id = None
+            try:
+                if self.seed_data and isinstance(self.seed_data, dict):
+                    page_obj = self.seed_data.get('page') if isinstance(self.seed_data.get('page'), dict) else None
+                    if page_obj and page_obj.get('id'):
+                        page_id = str(page_obj.get('id'))
+            except Exception:
+                pass
+            id_attr = f' id="page-text-{page_id}"' if page_id else ''
+            wrapped_text = f'<div class="content pageText"{id_attr}>{safe_str(self.page_text)}</div>'
             content_divs.append(wrapped_text)
         if self.lower_content:
             lower_content_html = "\n".join(self.lower_content)

@@ -676,7 +676,27 @@ class ActionHandlers {
                 cancelLabel: 'Cancel',
                 onSubmit: async () => {
                     // PageData handles change detection and submission automatically
-                    return await pageData.submitChanges(this.rpc);
+                    const result = await pageData.submitChanges(this.rpc);
+                    // Extract new name from result and update DOM
+                    if (result) {
+                        const parsedResult = this.rpc.extractMCPData(result);
+                        const resultPageData = parsedResult?.page || parsedResult;
+                        const newName = resultPageData?.name;
+                        if (newName && pageId) {
+                            // Update the last <a> tag in the path (header)
+                            const headerEl = document.getElementById('header');
+                            if (headerEl) {
+                                const pathUl = headerEl.querySelector('ul.path');
+                                if (pathUl) {
+                                    const lastLink = pathUl.querySelector('li:last-child a');
+                                    if (lastLink) {
+                                        lastLink.textContent = newName;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return result;
                 }
             });
             // Focus the input after overlay is shown
@@ -726,7 +746,27 @@ class ActionHandlers {
                 cancelLabel: 'Cancel',
                 onSubmit: async () => {
                     // PageData handles change detection and submission automatically
-                    return await pageData.submitChanges(this.rpc);
+                    const result = await pageData.submitChanges(this.rpc);
+                    // After successful submit, fetch processed text and update DOM
+                    if (result && pageId) {
+                        try {
+                            const getTextResult = await this.rpc.call('get_text', { page_id: pageId });
+                            const parsedTextResult = this.rpc.extractMCPData(getTextResult);
+                            const processedText = parsedTextResult?.processed_text;
+                            if (processedText) {
+                                // Update the page text div
+                                const textDiv = document.getElementById(`page-text-${pageId}`);
+                                if (textDiv) {
+                                    textDiv.innerHTML = processedText;
+                                }
+                            }
+                        }
+                        catch (error) {
+                            console.error('Failed to fetch updated text:', error);
+                            // Don't throw - the submit was successful, just couldn't update display
+                        }
+                    }
+                    return result;
                 }
             });
             // Focus the textarea after overlay is shown
