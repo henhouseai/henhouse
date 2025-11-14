@@ -229,6 +229,20 @@ export class PageData {
   }
 
   /**
+   * Update internal data with new field value after successful update
+   * This ensures the next form shows the updated value, not the old one
+   */
+  updateFieldValue(fieldName: string, newValue: any): void {
+    // Check if it's a base page field
+    if (fieldName in this.data.page) {
+      this.data.page[fieldName] = newValue;
+    } else {
+      // Otherwise, store in dynamic fields
+      this.dynamicFields[fieldName] = newValue;
+    }
+  }
+
+  /**
    * Extract field values from form DOM using standardized selectors
    */
   extractFormValues(): { [fieldName: string]: any } {
@@ -397,6 +411,12 @@ export class PageData {
       
       try {
         const result = await rpc.call(mapping.mcpTool, params);
+        // Update internal data with new values (so next form shows updated data)
+        fields.forEach(fieldName => {
+          if (fieldName in currentValues) {
+            this.updateFieldValue(fieldName, currentValues[fieldName]);
+          }
+        });
         // Clear fields from registry after successful update (they're no longer "checked out")
         this.clearFields(fields);
         return { 
