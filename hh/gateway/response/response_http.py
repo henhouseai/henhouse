@@ -228,12 +228,38 @@ class ResponseHTTP(Response):
             # Set admin flag for menu rendering
             self.admin = True
             
-            # Populate application action links
+            # Populate application action links (persistent from conf file)
             try:
                 from hh.deploy.conf.application_actions import populate_application_action_links
                 populate_application_action_links()
             except Exception:
                 pass
+            
+            # Populate hot-cache app actions (dynamic from MCP whitelist)
+            try:
+                from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+                app_actions = MCPWhitelist.get_app_actions(self.user_tier_level)
+                if app_actions:
+                    for action in app_actions:
+                        group_name = action.get('group', 'default')
+                        action_id = action.get('id', action.get('tool_name', ''))
+                        label = action.get('label', action.get('tool_name', ''))
+                        # Add with source marker - we'll store this in a separate structure
+                        # For now, add to groups but mark as hot_cache
+                        if not hasattr(self, '_hot_cache_action_ids'):
+                            self._hot_cache_action_ids = set()
+                        self._hot_cache_action_ids.add(action_id)
+                        # Add to menu groups
+                        if group_name not in self._application_action_groups:
+                            # Group doesn't exist, create it with human-readable header
+                            header_text = group_name.replace('_', ' ').upper()
+                            self.add_application_action_group(group_name, header_text)
+                        self.add_application_action_link(group_name, action_id, label)
+            except Exception as e:
+                # Log error but don't fail
+                from hh.gateway.registry.debug import get_warn
+                warn = get_warn(True)
+                warn(f"Failed to populate hot-cache app actions: {e}")
             
             # Populate user info
             try:
@@ -318,7 +344,11 @@ class ResponseHTTP(Response):
             html_parts.append(f'    <li class="header">{header_text}</li>')
             # Remaining items are action links (with IDs, no hrefs)
             for action_id, label in actions[1:]:
-                html_parts.append(f'    <li><a id="{action_id}">{label}</a></li>')
+                # Mark hot-cache actions with data-source attribute
+                hot_cache_attr = ''
+                if hasattr(self, '_hot_cache_action_ids') and action_id in self._hot_cache_action_ids:
+                    hot_cache_attr = ' data-source="hot_cache"'
+                html_parts.append(f'    <li><a id="{action_id}"{hot_cache_attr}>{label}</a></li>')
             html_parts.append('</ul>')
         
         return "\n".join(html_parts)

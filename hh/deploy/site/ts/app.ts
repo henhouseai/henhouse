@@ -11,6 +11,7 @@ import { AppAction } from './page-data.js';
 class ActionHandlers {
   private rpc: RPCClient;
   private seedData: SeedData;
+  private hotCacheActionIds: Set<string> = new Set(); // Track hot-cache loaded action IDs
 
   constructor() {
     this.rpc = new RPCClient();
@@ -28,6 +29,9 @@ class ActionHandlers {
     }
 
     try {
+      // Initialize hot-cache action tracking from server-rendered elements
+      this.initializeHotCacheActionsFromDOM();
+      
       // Fetch page data
       const pageData = await this.rpc.getPage(pageId);
       
@@ -40,19 +44,38 @@ class ActionHandlers {
       const availableActions = rawData.available_actions;
       
       if (availableActions && availableActions.length > 0) {
-        // Group actions by group name
-        const actionsByGroup = this.groupActionsByGroup(availableActions);
+        // Separate hot-cache actions from persistent ones
+        const hotCacheActions = availableActions.filter(action => action.source === 'hot_cache');
+        const persistentActions = availableActions.filter(action => !action.source || action.source !== 'hot_cache');
         
-        // Modify DOM menus
-        this.addAppActionsToMenu(actionsByGroup);
+        // Update hot-cache actions: remove old ones not in new list, add new ones
+        this.updateHotCacheActions(hotCacheActions);
         
-        // Attach handlers for new actions
-        this.attachAppActionHandlers(availableActions);
+        // Process persistent actions (only add, never remove - they're server-rendered)
+        if (persistentActions.length > 0) {
+          const persistentByGroup = this.groupActionsByGroup(persistentActions);
+          this.addAppActionsToMenu(persistentByGroup);
+          this.attachAppActionHandlers(persistentActions);
+        }
       }
     } catch (error) {
       console.error('Failed to load page and setup actions:', error);
       this.rpc.showError('loadPageAndSetupActions', error);
     }
+  }
+
+  /**
+   * Initialize hot-cache action tracking from server-rendered DOM elements.
+   */
+  private initializeHotCacheActionsFromDOM(): void {
+    // Find all server-rendered hot-cache actions
+    const hotCacheElements = document.querySelectorAll('a[data-source="hot_cache"]');
+    Array.from(hotCacheElements).forEach((element) => {
+      const actionId = element.id;
+      if (actionId) {
+        this.hotCacheActionIds.add(actionId);
+      }
+    });
   }
 
   /**
@@ -117,6 +140,37 @@ class ActionHandlers {
         li.appendChild(a);
         groupUl.appendChild(li);
       }
+    }
+  }
+
+  /**
+   * Update hot-cache actions: remove old ones not in new list, add new ones.
+   */
+  private updateHotCacheActions(newHotCacheActions: AppAction[]): void {
+    const newActionIds = new Set(newHotCacheActions.map(action => action.id));
+    
+    // Remove hot-cache actions that are no longer in the new list
+    for (const oldActionId of this.hotCacheActionIds) {
+      if (!newActionIds.has(oldActionId)) {
+        // Remove from DOM
+        const element = document.getElementById(oldActionId);
+        if (element) {
+          const li = element.closest('li');
+          if (li) {
+            li.remove();
+          }
+        }
+      }
+    }
+    
+    // Update tracked set
+    this.hotCacheActionIds = new Set(newActionIds);
+    
+    // Add new hot-cache actions
+    if (newHotCacheActions.length > 0) {
+      const hotCacheByGroup = this.groupActionsByGroup(newHotCacheActions);
+      this.addAppActionsToMenu(hotCacheByGroup);
+      this.attachAppActionHandlers(newHotCacheActions);
     }
   }
 

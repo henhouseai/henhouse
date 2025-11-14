@@ -7,6 +7,7 @@ import { OverlayManager } from './overlay-manager.js';
 import { PageManager } from './page-manager.js';
 class ActionHandlers {
     constructor() {
+        this.hotCacheActionIds = new Set(); // Track hot-cache loaded action IDs
         this.rpc = new RPCClient();
         this.seedData = getSeedData();
     }
@@ -20,6 +21,8 @@ class ActionHandlers {
             return;
         }
         try {
+            // Initialize hot-cache action tracking from server-rendered elements
+            this.initializeHotCacheActionsFromDOM();
             // Fetch page data
             const pageData = await this.rpc.getPage(pageId);
             // Store in PageManager
@@ -29,18 +32,36 @@ class ActionHandlers {
             const rawData = pageData.getRawData();
             const availableActions = rawData.available_actions;
             if (availableActions && availableActions.length > 0) {
-                // Group actions by group name
-                const actionsByGroup = this.groupActionsByGroup(availableActions);
-                // Modify DOM menus
-                this.addAppActionsToMenu(actionsByGroup);
-                // Attach handlers for new actions
-                this.attachAppActionHandlers(availableActions);
+                // Separate hot-cache actions from persistent ones
+                const hotCacheActions = availableActions.filter(action => action.source === 'hot_cache');
+                const persistentActions = availableActions.filter(action => !action.source || action.source !== 'hot_cache');
+                // Update hot-cache actions: remove old ones not in new list, add new ones
+                this.updateHotCacheActions(hotCacheActions);
+                // Process persistent actions (only add, never remove - they're server-rendered)
+                if (persistentActions.length > 0) {
+                    const persistentByGroup = this.groupActionsByGroup(persistentActions);
+                    this.addAppActionsToMenu(persistentByGroup);
+                    this.attachAppActionHandlers(persistentActions);
+                }
             }
         }
         catch (error) {
             console.error('Failed to load page and setup actions:', error);
             this.rpc.showError('loadPageAndSetupActions', error);
         }
+    }
+    /**
+     * Initialize hot-cache action tracking from server-rendered DOM elements.
+     */
+    initializeHotCacheActionsFromDOM() {
+        // Find all server-rendered hot-cache actions
+        const hotCacheElements = document.querySelectorAll('a[data-source="hot_cache"]');
+        Array.from(hotCacheElements).forEach((element) => {
+            const actionId = element.id;
+            if (actionId) {
+                this.hotCacheActionIds.add(actionId);
+            }
+        });
     }
     /**
      * Group app actions by their group field.
@@ -95,6 +116,33 @@ class ActionHandlers {
                 li.appendChild(a);
                 groupUl.appendChild(li);
             }
+        }
+    }
+    /**
+     * Update hot-cache actions: remove old ones not in new list, add new ones.
+     */
+    updateHotCacheActions(newHotCacheActions) {
+        const newActionIds = new Set(newHotCacheActions.map(action => action.id));
+        // Remove hot-cache actions that are no longer in the new list
+        for (const oldActionId of this.hotCacheActionIds) {
+            if (!newActionIds.has(oldActionId)) {
+                // Remove from DOM
+                const element = document.getElementById(oldActionId);
+                if (element) {
+                    const li = element.closest('li');
+                    if (li) {
+                        li.remove();
+                    }
+                }
+            }
+        }
+        // Update tracked set
+        this.hotCacheActionIds = new Set(newActionIds);
+        // Add new hot-cache actions
+        if (newHotCacheActions.length > 0) {
+            const hotCacheByGroup = this.groupActionsByGroup(newHotCacheActions);
+            this.addAppActionsToMenu(hotCacheByGroup);
+            this.attachAppActionHandlers(newHotCacheActions);
         }
     }
     /**

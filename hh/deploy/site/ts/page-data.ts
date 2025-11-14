@@ -60,6 +60,7 @@ export interface AppAction {
   description: string;
   label: string;
   group: string;
+  source?: string; // 'hot_cache' or 'persistent'
   requires_fields?: string[];
 }
 

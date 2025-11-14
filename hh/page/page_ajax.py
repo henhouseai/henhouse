@@ -85,6 +85,9 @@ class PageAjaxMixin:
                 result['_debug']['app_actions_result'] = app_actions if app_actions else []
                 
                 if app_actions:
+                    # Add source field to mark these as hot_cache
+                    for action in app_actions:
+                        action['source'] = 'hot_cache'
                     result['available_actions'] = app_actions
                     log(f"Added {len(app_actions)} app actions to get_page response")
             except Exception as e:
