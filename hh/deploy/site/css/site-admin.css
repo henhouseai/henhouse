@@ -248,8 +248,9 @@ ul.menuGroup li.header a {
     --bg-content: #ffffff;
     
     /* Border Colors - Prominence Levels */
-    --border-primary: #a0751a;
-    --border-subtle: #30363d;
+    /* Borders are slightly darker/more saturated versions of backgrounds for subtle distinction */
+    --border-primary: #b0882e;
+    --border-subtle: #3a2a1a;
     --border-prominent: #d29922;
     
     /* Link Colors */
@@ -290,5 +291,20 @@ ul.menuGroup li.header a {
     --info-bg: #e3f2fd;
     --info-text: #1565c0;
     --info-border: #58a6ff;
+    
+    /* Syntax Highlighting Colors - High contrast palette for code */
+    /* These colors are chosen to contrast well with each other while fitting the theme */
+    --syntax-keyword: #ff7b72;        /* Red-orange for keywords (high contrast) */
+    --syntax-string: #ffa657;        /* Orange for strings (matches link) */
+    --syntax-comment: #8b949e;        /* Muted gray for comments */
+    --syntax-number: #ffb366;        /* Light orange for numbers */
+    --syntax-function: #ffa657;       /* Orange for functions */
+    --syntax-class: #ffb366;          /* Light orange for classes */
+    --syntax-constant: #ff7b72;       /* Red-orange for constants */
+    --syntax-operator: #ff7b72;       /* Red-orange for operators */
+    --syntax-variable: #ffa657;       /* Orange for variables */
+    --syntax-type: #ffb366;           /* Light orange for types */
+    --syntax-error: #f85149;           /* Bright red for errors */
+    --syntax-success: #3fb950;        /* Green for success/inserted */
 }
 
