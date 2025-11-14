@@ -55,9 +55,13 @@ def get_tier() -> str:
     """Get current tier from environment or Flask app context."""
     # Try to get from environment (set by Flask app)
     tier = os.getenv('USER_TIER', 'guest')
+    print(f"[MCP_CLIENT] get_tier(): os.getenv('USER_TIER')={os.getenv('USER_TIER')}, defaulting to 'guest'", file=sys.stderr)
+    print(f"[MCP_CLIENT] get_tier(): tier before validation={tier}", file=sys.stderr)
     # Validate tier
     if tier not in HENHOUSE_TIERS:
+        print(f"[MCP_CLIENT] get_tier(): tier '{tier}' not in HENHOUSE_TIERS={HENHOUSE_TIERS}, defaulting to 'guest'", file=sys.stderr)
         tier = 'guest'
+    print(f"[MCP_CLIENT] get_tier(): returning tier={tier}", file=sys.stderr)
     return tier
 
 def handle_tools_list(request_id) -> dict:
