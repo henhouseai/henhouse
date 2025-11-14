@@ -651,8 +651,12 @@ class ActionHandlers {
             return;
         }
         try {
-            // Fetch page data using new PageData system
-            const pageData = await this.rpc.getPage(pageId);
+            // Get page data from PageManager (already loaded, no network call needed)
+            const pageManager = PageManager.getInstance();
+            const pageData = pageManager.getPageData();
+            if (!pageData) {
+                throw new Error('Page data not found in PageManager');
+            }
             // Request 'name' field with 'form' context to register it for editing
             const currentName = pageData.getField('name', 'form') || '';
             // Create form HTML with standardized field ID
@@ -697,19 +701,13 @@ class ActionHandlers {
             alert('No page ID found in seed data');
             return;
         }
-        // Show loading overlay first
-        const overlay = OverlayManager.getInstance().show({
-            header: 'Text Editor',
-            content: '<div class="overlayContent">Please Wait...</div>',
-            closable: true,
-            submitLabel: 'Submit',
-            cancelLabel: 'Cancel'
-        });
-        // Set loading state
-        overlay.setState({ isLoading: true });
         try {
-            // Fetch page data using new PageData system
-            const pageData = await this.rpc.getPage(pageId);
+            // Get page data from PageManager (already loaded, no network call needed)
+            const pageManager = PageManager.getInstance();
+            const pageData = pageManager.getPageData();
+            if (!pageData) {
+                throw new Error('Page data not found in PageManager');
+            }
             // Request 'text' field with 'form' context to register it for editing
             const currentText = pageData.getField('text', 'form') || '';
             // Create textarea form with standardized field ID
@@ -720,21 +718,18 @@ class ActionHandlers {
           </div>
         </div>
       `;
-            // Update overlay content - find content element in DOM and replace it
-            const overlayAny = overlay;
-            const windowEl = overlayAny.windowEl;
-            if (windowEl) {
-                const contentEl = windowEl.querySelector('.overlayContent');
-                if (contentEl) {
-                    contentEl.innerHTML = formHtml;
+            const overlay = OverlayManager.getInstance().show({
+                header: 'Text Editor',
+                content: formHtml,
+                closable: true,
+                submitLabel: 'Submit',
+                cancelLabel: 'Cancel',
+                onSubmit: async () => {
+                    // PageData handles change detection and submission automatically
+                    return await pageData.submitChanges(this.rpc);
                 }
-            }
-            overlay.setState({ isLoading: false });
-            // Set submit handler - PageData handles change detection and submission automatically
-            overlayAny.props.onSubmit = async () => {
-                return await pageData.submitChanges(this.rpc);
-            };
-            // Focus the textarea after content is loaded
+            });
+            // Focus the textarea after overlay is shown
             setTimeout(() => {
                 const textarea = document.getElementById('page-field-text');
                 if (textarea) {
@@ -743,7 +738,6 @@ class ActionHandlers {
             }, 100);
         }
         catch (error) {
-            overlay.setState({ isLoading: false, error: error instanceof Error ? error.message : 'Failed to load page text' });
             this.rpc.showError('modify_text', error);
         }
     }
