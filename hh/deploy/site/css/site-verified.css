@@ -220,7 +220,7 @@ ul.menuGroup li.header a {
 
 /* Overlay color variables - green theme */
 :root {
-    --overlay-window: #ffffff;
+    --overlay-window: #238636;
     --overlay-window-border: #238636;
     --overlay-header-bg: #238636;
     --overlay-header-text: #ffffff;
