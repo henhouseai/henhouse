@@ -37,4 +37,8 @@ def populate_application_action_links(page_id: int = None) -> None:
     gateway.response.add_application_action_link('overlay', 'overlay_test_two', 'Overlay with HTML')
     gateway.response.add_application_action_link('overlay', 'overlay_test_three', 'Overlay with Submit')
     gateway.response.add_application_action_link('overlay', 'overlay_test_four', 'Overlay Multiple')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_five', 'Focus Trap Test')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_six', 'Backdrop Click Test')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_seven', 'Textarea Enter Test')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_eight', 'Close All Test')
 

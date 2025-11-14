@@ -25,6 +25,10 @@ class ActionHandlers {
         this.attachHandler('overlay_test_two', () => this.handleOverlayTestTwo());
         this.attachHandler('overlay_test_three', () => this.handleOverlayTestThree());
         this.attachHandler('overlay_test_four', () => this.handleOverlayTestFour());
+        this.attachHandler('overlay_test_five', () => this.handleOverlayTestFive());
+        this.attachHandler('overlay_test_six', () => this.handleOverlayTestSix());
+        this.attachHandler('overlay_test_seven', () => this.handleOverlayTestSeven());
+        this.attachHandler('overlay_test_eight', () => this.handleOverlayTestEight());
     }
     /**
      * Attach a click handler to an element by ID.
@@ -176,6 +180,93 @@ class ActionHandlers {
                 return { success: true };
             }
         });
+    }
+    /**
+     * Handle overlay_test_five: Focus trap test
+     */
+    async handleOverlayTestFive() {
+        const manager = OverlayManager.getInstance();
+        const htmlContent = `
+      <div>
+        <p>Focus Trap Test: Press Tab to cycle through focusable elements.</p>
+        <p>Focus should stay trapped inside the overlay.</p>
+        <input type="text" placeholder="First input" />
+        <button>Button 1</button>
+        <input type="text" placeholder="Second input" />
+        <button>Button 2</button>
+        <a href="#">Link</a>
+      </div>
+    `;
+        manager.show({
+            header: 'Focus Trap Test',
+            content: htmlContent,
+            closable: true
+        });
+    }
+    /**
+     * Handle overlay_test_six: Backdrop click test
+     */
+    async handleOverlayTestSix() {
+        const manager = OverlayManager.getInstance();
+        manager.show({
+            header: 'Backdrop Click Test',
+            content: 'Click the dark backdrop behind this overlay. It should close the overlay.',
+            closable: true
+        });
+    }
+    /**
+     * Handle overlay_test_seven: Textarea Enter test
+     */
+    async handleOverlayTestSeven() {
+        const manager = OverlayManager.getInstance();
+        const htmlContent = `
+      <div>
+        <p>Textarea Enter Test: Press Enter in the textarea below. It should NOT trigger submit.</p>
+        <p>Press Enter outside the textarea to trigger submit.</p>
+        <textarea rows="4" placeholder="Type here and press Enter - should NOT submit"></textarea>
+        <input type="text" placeholder="Press Enter here - SHOULD submit" />
+      </div>
+    `;
+        manager.show({
+            header: 'Textarea Enter Test',
+            content: htmlContent,
+            closable: true,
+            onSubmit: async () => {
+                alert('Submit triggered! (Enter was pressed outside textarea)');
+                return { success: true };
+            }
+        });
+    }
+    /**
+     * Handle overlay_test_eight: Close all test
+     */
+    async handleOverlayTestEight() {
+        const manager = OverlayManager.getInstance();
+        // Show multiple overlays
+        manager.show({
+            header: 'Overlay 1',
+            content: 'This is overlay 1. We will open 2 more overlays, then close all at once.',
+            closable: true
+        });
+        setTimeout(() => {
+            manager.show({
+                header: 'Overlay 2',
+                content: 'This is overlay 2.',
+                closable: true
+            });
+        }, 500);
+        setTimeout(() => {
+            manager.show({
+                header: 'Overlay 3',
+                content: 'This is overlay 3. Click Submit to close all overlays at once.',
+                closable: true,
+                onSubmit: async () => {
+                    manager.closeAll();
+                    alert('All overlays closed!');
+                    return { success: true };
+                }
+            });
+        }, 1000);
     }
 }
 // Initialize on DOM ready
