@@ -50,7 +50,7 @@ class PageAjaxMixin:
             'children_by_class': children_by_class,
         }
         
-        # Add available app actions if HTTP backend
+        # Add available app actions if HTTP or MCP backend
         gateway = get_gateway()
         
         # Debug information
@@ -58,6 +58,7 @@ class PageAjaxMixin:
             'gateway_exists': gateway is not None,
             'backend': gateway.backend if gateway else None,
             'backend_is_http': gateway.backend == "http" if gateway else False,
+            'backend_is_mcp': gateway.backend == "mcp" if gateway else False,
             'response_exists': gateway.response is not None if gateway else False,
             'user_tier_level': gateway.response.get_user_tier_level() if (gateway and gateway.response) else None,
             'mcp_utils_loaded': False,  # Will be set below
@@ -67,7 +68,7 @@ class PageAjaxMixin:
             'error': None
         }
         
-        if gateway and gateway.backend == "http" and gateway.response:
+        if gateway and gateway.backend in ("http", "mcp") and gateway.response:
             try:
                 user_tier_level = gateway.response.get_user_tier_level()
                 result['_debug']['user_tier_level'] = user_tier_level
