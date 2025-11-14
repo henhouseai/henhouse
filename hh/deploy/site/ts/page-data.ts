@@ -97,6 +97,16 @@ export class PageData {
   protected fieldRegistry: FieldRegistry = {};
   protected dynamicFields: { [key: string]: any } = {};
   
+  // Read-only fields that can be accessed but not edited
+  protected readonly readOnlyFields: Set<string> = new Set([
+    'id',
+    'class',
+    'link',
+    'last_modified',
+    'username',
+    'path'
+  ]);
+  
   // Base page fields that are always present
   private static readonly BASE_PAGE_FIELDS = [
     'id', 'name', 'link', 'parent', 'class', 'visibility', 'text',
@@ -145,10 +155,22 @@ export class PageData {
         return nameValue;
       
       case 'class':
-        // Read-only field
+        // Read-only field - return value but don't register for editing
         return this.data.page.class;
       
       default:
+        // Check if it's a read-only field
+        if (this.readOnlyFields.has(fieldName)) {
+          // Return value from page data or dynamic fields, but don't register for editing
+          if (fieldName in this.data.page) {
+            return this.data.page[fieldName];
+          }
+          if (fieldName in this.dynamicFields) {
+            return this.dynamicFields[fieldName];
+          }
+          return null;
+        }
+        
         // Check if it's a base page field
         if (fieldName in this.data.page) {
           const value = this.data.page[fieldName];

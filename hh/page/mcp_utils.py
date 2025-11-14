@@ -136,6 +136,20 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Edit Text'
 )
 @register_mcp_tool(
+    tool_name='combo',
+    description='Test form with name and text editable, plus read-only fields displayed. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='page',
+    app_action_label='Combo'
+)
+@register_mcp_tool(
     tool_name='add_page',
     description='Create a new page under a target parent page. Requires admin/panel tier access with database write permissions.',
     inputSchema={

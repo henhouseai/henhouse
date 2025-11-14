@@ -879,6 +879,252 @@ class ActionHandlers {
         }
     }
     /**
+     * Handle delete_page: Delete a page with confirmation
+     */
+    async delete_page() {
+        const pageId = this.seedData.page?.id;
+        if (!pageId) {
+            alert('No page ID found in seed data');
+            return;
+        }
+        try {
+            // Get page data from PageManager
+            const pageManager = PageManager.getInstance();
+            const pageData = pageManager.getPageData();
+            if (!pageData) {
+                throw new Error('Page data not found in PageManager');
+            }
+            const pageName = pageData.getField('name') || `Page ${pageId}`;
+            const pageClass = pageData.getField('class') || 'page';
+            // Create form HTML with confirmation checkbox
+            const formHtml = `
+        <div class="overlayContent">
+          <div style="margin-bottom: 20px;">
+            <p><strong>Warning:</strong> This will permanently delete the page and all its children.</p>
+            <p>Page: <strong>${this.escapeHtml(pageName)}</strong> (ID: ${pageId}, Class: ${this.escapeHtml(pageClass)})</p>
+          </div>
+          <div>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="page-delete-confirm" style="width: auto;">
+              <span>I confirm that I want to delete this page</span>
+            </label>
+          </div>
+        </div>
+      `;
+            const overlay = OverlayManager.getInstance().show({
+                header: 'Delete Page',
+                content: formHtml,
+                closable: true,
+                submitLabel: 'Delete',
+                cancelLabel: 'Cancel',
+                onCancel: () => {
+                    // Clear any field checkouts when overlay is closed
+                    pageData.clearFieldRegistry();
+                },
+                onUnmount: () => {
+                    // Clear any field checkouts when overlay is unmounted
+                    pageData.clearFieldRegistry();
+                },
+                onSubmit: async () => {
+                    // Check if confirmation checkbox is checked
+                    const confirmCheckbox = document.getElementById('page-delete-confirm');
+                    if (!confirmCheckbox || !confirmCheckbox.checked) {
+                        throw new Error('You must confirm deletion by checking the confirmation box');
+                    }
+                    // Call delete_page MCP tool
+                    try {
+                        const result = await this.rpc.call('delete_page', {
+                            page_id: pageId,
+                            confirm: true
+                        });
+                        const parsedResult = this.rpc.extractMCPData(result);
+                        // Return success - overlay will auto-fade
+                        return {
+                            success: true,
+                            _showMessage: `Page "${this.escapeHtml(pageName)}" has been deleted successfully.`,
+                            _autoFade: true
+                        };
+                    }
+                    catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : String(error);
+                        throw new Error(`Failed to delete page: ${errorMessage}`);
+                    }
+                }
+            });
+            // Focus the checkbox after overlay is shown
+            setTimeout(() => {
+                const checkbox = document.getElementById('page-delete-confirm');
+                if (checkbox) {
+                    checkbox.focus();
+                }
+            }, 100);
+        }
+        catch (error) {
+            this.rpc.showError('delete_page', error);
+        }
+    }
+    /**
+     * Handle combo: Test form with name/text editable and read-only fields displayed
+     */
+    async combo() {
+        const pageId = this.seedData.page?.id;
+        if (!pageId) {
+            alert('No page ID found in seed data');
+            return;
+        }
+        try {
+            // Get page data from PageManager
+            const pageManager = PageManager.getInstance();
+            const pageData = pageManager.getPageData();
+            if (!pageData) {
+                throw new Error('Page data not found in PageManager');
+            }
+            // Get editable fields
+            const currentName = pageData.getField('name', 'form') || '';
+            const currentText = pageData.getField('text', 'form') || '';
+            // Get read-only fields (these should NOT be registered for editing)
+            const pageIdValue = pageData.getField('id') || '';
+            const pageClass = pageData.getField('class') || '';
+            const pageLink = pageData.getField('link') || '';
+            const lastModified = pageData.getField('last_modified') || '';
+            const username = pageData.getField('username') || '';
+            const path = pageData.getField('path') || [];
+            const pathStr = Array.isArray(path) ? path.map((p) => p.name).filter(Boolean).join(' / ') : '';
+            // Create form HTML with editable and read-only fields
+            const formHtml = `
+        <div class="overlayContent">
+          <div style="margin-bottom: 20px;">
+            <h3 style="margin-bottom: 10px;">Editable Fields:</h3>
+            <div style="margin-bottom: 15px;">
+              <label>Page name:</label>
+              <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" style="width: 100%;">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label>Page text:</label>
+              <textarea id="page-field-text" name="text" rows="10" cols="80" style="width: 100%; min-height: 200px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+            </div>
+          </div>
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
+            <h3 style="margin-bottom: 10px;">Read-Only Fields (for display only):</h3>
+            <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 10px;">
+              <div><strong>ID:</strong></div>
+              <div>${this.escapeHtml(String(pageIdValue))}</div>
+              <div><strong>Class:</strong></div>
+              <div>${this.escapeHtml(pageClass)}</div>
+              <div><strong>Link:</strong></div>
+              <div>${this.escapeHtml(pageLink)}</div>
+              <div><strong>Last Modified:</strong></div>
+              <div>${this.escapeHtml(lastModified)}</div>
+              <div><strong>Username:</strong></div>
+              <div>${this.escapeHtml(username)}</div>
+              <div><strong>Path:</strong></div>
+              <div>${this.escapeHtml(pathStr)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+            const overlay = OverlayManager.getInstance().show({
+                header: 'Combo Test Form',
+                content: formHtml,
+                closable: true,
+                submitLabel: 'Submit',
+                cancelLabel: 'Cancel',
+                onCancel: () => {
+                    // Clear field checkouts when overlay is closed
+                    pageData.clearFieldRegistry();
+                },
+                onUnmount: () => {
+                    // Clear field checkouts when overlay is unmounted
+                    pageData.clearFieldRegistry();
+                },
+                onSubmit: async () => {
+                    // PageData handles change detection and submission automatically
+                    // This will only submit name and text (read-only fields won't be in registry)
+                    const result = await pageData.submitChanges(this.rpc);
+                    // Handle "no changes" case
+                    if (result.noChanges) {
+                        return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+                    }
+                    // Build detailed success/error messages
+                    const messages = [];
+                    if (result.operations && result.operations.length > 0) {
+                        result.operations.forEach((op) => {
+                            messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
+                        });
+                    }
+                    else {
+                        messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+                    }
+                    const combinedMessage = messages.join('\n');
+                    const allSucceeded = result.success && result.errors.length === 0;
+                    if (allSucceeded) {
+                        // Update DOM if needed (similar to modify_name and modify_text)
+                        if (result.success && pageId) {
+                            // Find name update operation
+                            const nameOp = result.operations?.find((op) => op.fields?.includes('name'));
+                            if (nameOp && nameOp.success && nameOp.result) {
+                                const parsedResult = this.rpc.extractMCPData(nameOp.result);
+                                const resultPageData = parsedResult?.page || parsedResult;
+                                const newName = resultPageData?.name;
+                                if (newName) {
+                                    // Update breadcrumb
+                                    const headerEl = document.getElementById('header');
+                                    if (headerEl) {
+                                        const pathUl = headerEl.querySelector('ul.path');
+                                        if (pathUl) {
+                                            const listItems = pathUl.querySelectorAll('li');
+                                            if (listItems.length > 0) {
+                                                const lastLi = listItems[listItems.length - 1];
+                                                const lastLink = lastLi.querySelector('a');
+                                                if (lastLink) {
+                                                    lastLink.textContent = newName;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // Find text update operation
+                            const textOp = result.operations?.find((op) => op.fields?.includes('text'));
+                            if (textOp && textOp.success) {
+                                try {
+                                    const getTextResult = await this.rpc.call('get_text', { page_id: pageId });
+                                    const parsedTextResult = this.rpc.extractMCPData(getTextResult);
+                                    const processedText = parsedTextResult?.processed_text;
+                                    if (processedText) {
+                                        const textDiv = document.getElementById(`page-text-${pageId}`);
+                                        if (textDiv) {
+                                            textDiv.innerHTML = processedText;
+                                        }
+                                    }
+                                }
+                                catch (error) {
+                                    console.error('Failed to fetch updated text:', error);
+                                }
+                            }
+                        }
+                        return { ...result, _showMessage: combinedMessage, _autoFade: true };
+                    }
+                    else {
+                        // Some failed - throw error so overlay shows error and doesn't fade
+                        throw new Error(combinedMessage);
+                    }
+                }
+            });
+            // Focus the name input after overlay is shown
+            setTimeout(() => {
+                const input = document.getElementById('page-field-name');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }, 100);
+        }
+        catch (error) {
+            this.rpc.showError('combo', error);
+        }
+    }
+    /**
      * Handle pageOptions: Edit page options
      */
     async handlePageOptions() {
