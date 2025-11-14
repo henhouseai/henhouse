@@ -22,8 +22,6 @@ if SCRIPT_NAME.endswith('.py'):
 else:
     TIER_SUFFIX = 'guest'  # Default fallback
 
-logging.info(f"Flask app initialized: SCRIPT_NAME={SCRIPT_NAME}, TIER_SUFFIX={TIER_SUFFIX}")
-
 # Determine project name from /srv path or environment
 if os.path.exists('/srv'):
     # Try to detect from cwd
@@ -53,6 +51,9 @@ if LOG_FILE:
         level=logging.INFO,
         format='%(asctime)s %(levelname)s %(message)s'
     )
+
+# Log initialization after logging is configured
+logging.info(f"Flask app initialized: SCRIPT_NAME={SCRIPT_NAME}, TIER_SUFFIX={TIER_SUFFIX}")
 
 GATEWAY_MAX_CONCURRENCY = int(os.getenv('GATEWAY_MAX_CONCURRENCY', '4'))
 _gateway_semaphore = threading.Semaphore(GATEWAY_MAX_CONCURRENCY)
