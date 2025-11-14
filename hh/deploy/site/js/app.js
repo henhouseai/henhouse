@@ -674,6 +674,14 @@ class ActionHandlers {
                 closable: true,
                 submitLabel: 'Submit',
                 cancelLabel: 'Cancel',
+                onCancel: () => {
+                    // Clear all field checkouts when overlay is closed without submitting
+                    pageData.clearFieldRegistry();
+                },
+                onUnmount: () => {
+                    // Clear all field checkouts when overlay is unmounted
+                    pageData.clearFieldRegistry();
+                },
                 onSubmit: async () => {
                     // PageData handles change detection and submission automatically
                     const result = await pageData.submitChanges(this.rpc);
@@ -791,6 +799,14 @@ class ActionHandlers {
                 closable: true,
                 submitLabel: 'Submit',
                 cancelLabel: 'Cancel',
+                onCancel: () => {
+                    // Clear all field checkouts when overlay is closed without submitting
+                    pageData.clearFieldRegistry();
+                },
+                onUnmount: () => {
+                    // Clear all field checkouts when overlay is unmounted
+                    pageData.clearFieldRegistry();
+                },
                 onSubmit: async () => {
                     // PageData handles change detection and submission automatically
                     const result = await pageData.submitChanges(this.rpc);

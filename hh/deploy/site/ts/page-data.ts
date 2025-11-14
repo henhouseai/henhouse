@@ -213,6 +213,22 @@ export class PageData {
   }
 
   /**
+   * Clear specific fields from the registry (after successful update or form close)
+   */
+  clearFields(fieldNames: string[]): void {
+    for (const fieldName of fieldNames) {
+      delete this.fieldRegistry[fieldName];
+    }
+  }
+
+  /**
+   * Clear all fields from the registry (when form is closed without submitting)
+   */
+  clearFieldRegistry(): void {
+    this.fieldRegistry = {};
+  }
+
+  /**
    * Extract field values from form DOM using standardized selectors
    */
   extractFormValues(): { [fieldName: string]: any } {
@@ -381,12 +397,8 @@ export class PageData {
       
       try {
         const result = await rpc.call(mapping.mcpTool, params);
-        // Update registry with new values for all fields in this mapping (mark as successful)
-        fields.forEach(fieldName => {
-          if (this.fieldRegistry[fieldName]) {
-            this.fieldRegistry[fieldName].originalValue = currentValues[fieldName];
-          }
-        });
+        // Clear fields from registry after successful update (they're no longer "checked out")
+        this.clearFields(fields);
         return { 
           mapping: mapping.mcpTool, 
           fields, 
