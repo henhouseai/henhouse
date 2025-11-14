@@ -178,7 +178,7 @@ export class PageData {
             return String(value);
         if (fieldType === 'checkbox')
             return String(Boolean(value));
-        return String(value).trim();
+        return String(value);
     }
     /**
      * Get field-to-MCP mappings for this page class.

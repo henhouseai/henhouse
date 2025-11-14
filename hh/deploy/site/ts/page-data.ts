@@ -292,7 +292,7 @@ export class PageData {
     if (value === null || value === undefined) return '';
     if (fieldType === 'number') return String(value);
     if (fieldType === 'checkbox') return String(Boolean(value));
-    return String(value).trim();
+    return String(value);
   }
 
   /**
