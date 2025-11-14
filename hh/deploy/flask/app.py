@@ -238,7 +238,6 @@ def mcp_handler(path: str = ""):
                 json_input = json.dumps(mcp_request)
                 env = os.environ.copy()
                 env['USER_TIER'] = TIER_SUFFIX
-                logging.info(f"MCP request: setting USER_TIER={TIER_SUFFIX} (from SCRIPT_NAME={SCRIPT_NAME})")
                 result = subprocess.run(
                     cmd,
                     input=json_input,
@@ -248,10 +247,6 @@ def mcp_handler(path: str = ""):
                     cwd=str(PROJECT_ROOT),
                     env=env
                 )
-                
-                # Log stderr output from mcp_client for debugging
-                if result.stderr:
-                    logging.info(f"MCP client stderr: {result.stderr}")
             finally:
                 _gateway_semaphore.release()
             
