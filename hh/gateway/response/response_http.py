@@ -312,7 +312,7 @@ class ResponseHTTP(Response):
         for group_name, actions in self._application_action_groups.items():
             if not actions:
                 continue
-            html_parts.append('<ul class="applicationActions menuGroup">')
+            html_parts.append(f'<ul class="applicationActions menuGroup" data-group="{group_name}">')
             # First item is header (empty action_id marks it as header)
             header_action_id, header_text = actions[0]
             html_parts.append(f'    <li class="header">{header_text}</li>')

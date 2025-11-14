@@ -5,6 +5,8 @@
 import { getSeedData, SeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
 import { OverlayManager } from './overlay-manager.js';
+import { PageManager } from './page-manager.js';
+import { AppAction } from './page-data.js';
 
 class ActionHandlers {
   private rpc: RPCClient;
@@ -13,6 +15,143 @@ class ActionHandlers {
   constructor() {
     this.rpc = new RPCClient();
     this.seedData = getSeedData();
+  }
+
+  /**
+   * Load page data and set up app actions from get_page response.
+   */
+  async loadPageAndSetupActions(): Promise<void> {
+    const pageId = this.seedData.page?.id;
+    if (!pageId) {
+      console.warn('No page ID found in seed data, skipping page load');
+      return;
+    }
+
+    try {
+      // Fetch page data
+      const pageData = await this.rpc.getPage(pageId);
+      
+      // Store in PageManager
+      const pageManager = PageManager.getInstance();
+      pageManager.setPageData(pageData);
+      
+      // Get available actions from page data
+      const rawData = pageData.getRawData();
+      const availableActions = rawData.available_actions;
+      
+      if (availableActions && availableActions.length > 0) {
+        // Group actions by group name
+        const actionsByGroup = this.groupActionsByGroup(availableActions);
+        
+        // Modify DOM menus
+        this.addAppActionsToMenu(actionsByGroup);
+        
+        // Attach handlers for new actions
+        this.attachAppActionHandlers(availableActions);
+      }
+    } catch (error) {
+      console.error('Failed to load page and setup actions:', error);
+      this.rpc.showError('loadPageAndSetupActions', error);
+    }
+  }
+
+  /**
+   * Group app actions by their group field.
+   */
+  private groupActionsByGroup(actions: AppAction[]): Map<string, AppAction[]> {
+    const grouped = new Map<string, AppAction[]>();
+    
+    for (const action of actions) {
+      const groupName = action.group || 'default';
+      if (!grouped.has(groupName)) {
+        grouped.set(groupName, []);
+      }
+      grouped.get(groupName)!.push(action);
+    }
+    
+    return grouped;
+  }
+
+  /**
+   * Add app actions to the menu DOM.
+   */
+  private addAppActionsToMenu(actionsByGroup: Map<string, AppAction[]>): void {
+    const menuContainer = document.getElementById('menu');
+    if (!menuContainer) {
+      console.warn('Menu container not found');
+      return;
+    }
+
+    for (const [groupName, actions] of actionsByGroup.entries()) {
+      // Try to find existing group by data-group attribute
+      let groupUl = menuContainer.querySelector(`ul.applicationActions.menuGroup[data-group="${groupName}"]`) as HTMLUListElement;
+      
+      if (!groupUl) {
+        // Group doesn't exist, create it
+        groupUl = document.createElement('ul');
+        groupUl.className = 'applicationActions menuGroup';
+        groupUl.setAttribute('data-group', groupName);
+        
+        // Create header
+        const headerLi = document.createElement('li');
+        headerLi.className = 'header';
+        headerLi.textContent = groupName.toUpperCase();
+        groupUl.appendChild(headerLi);
+        
+        // Append to menu container
+        menuContainer.appendChild(groupUl);
+      }
+      
+      // Add actions to group (check for duplicates first)
+      for (const action of actions) {
+        // Check if action already exists in this group
+        const existingLink = groupUl.querySelector(`a#${action.id}`);
+        if (existingLink) {
+          continue; // Skip if already exists
+        }
+        
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.id = action.id;
+        a.textContent = action.label || action.tool_name;
+        li.appendChild(a);
+        groupUl.appendChild(li);
+      }
+    }
+  }
+
+  /**
+   * Attach handlers for app actions using exact id as method name.
+   */
+  private attachAppActionHandlers(actions: AppAction[]): void {
+    for (const action of actions) {
+      const element = document.getElementById(action.id);
+      if (!element) {
+        console.warn(`App action element not found: ${action.id}`);
+        continue;
+      }
+
+      // Check if handler already attached
+      if (element.hasAttribute('data-handler-attached')) {
+        continue;
+      }
+
+      // Look for handler method with exact id name
+      const handlerMethod = (this as any)[action.id];
+      if (typeof handlerMethod === 'function') {
+        element.addEventListener('click', async (e) => {
+          e.preventDefault();
+          try {
+            await handlerMethod.call(this);
+          } catch (error) {
+            this.rpc.showError(action.id, error);
+          }
+        });
+        element.setAttribute('data-handler-attached', 'true');
+      } else {
+        console.warn(`Handler method not found for app action: ${action.id}`);
+      }
+    }
   }
 
   /**
@@ -628,8 +767,11 @@ class ActionHandlers {
 }
 
 // Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const handlers = new ActionHandlers();
   handlers.init();
+  
+  // Load page data and populate app actions
+  await handlers.loadPageAndSetupActions();
 });
 
