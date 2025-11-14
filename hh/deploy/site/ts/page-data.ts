@@ -1,6 +1,10 @@
 /**
- * PageData - Base class for managing page data with form field registry and smart submission.
+ * PageData - Base class for managing page data.
+ * Pure data model - business logic is in PageManager.
  */
+
+import { PageManager } from './page-manager.js';
+import { OverlayManager } from './overlay-manager.js';
 
 export interface PageInfo {
   id: number;
@@ -94,7 +98,6 @@ export interface FieldMapping {
 
 export class PageData {
   protected data: GetPageResponse;
-  protected fieldRegistry: FieldRegistry = {};
   protected dynamicFields: { [key: string]: any } = {};
   
   // Read-only fields that can be accessed but not edited
@@ -116,6 +119,9 @@ export class PageData {
   constructor(data: GetPageResponse) {
     this.data = data;
     this.discoverDynamicFields();
+    // Register field mappings with PageManager
+    const pageManager = PageManager.getInstance();
+    pageManager.registerFieldMappings(this.getFieldMappings());
   }
 
   /**
@@ -142,7 +148,7 @@ export class PageData {
         // Special text processing - return raw text for now
         const textValue = this.data.page.text;
         if (context === 'form') {
-          this.registerField('text', textValue, 'textarea');
+          PageManager.getInstance().registerField('text', textValue, 'textarea');
         }
         return textValue;
       
@@ -150,7 +156,7 @@ export class PageData {
         // Special breadcrumb/display handling
         const nameValue = this.data.page.name;
         if (context === 'form') {
-          this.registerField('name', nameValue, 'text');
+          PageManager.getInstance().registerField('name', nameValue, 'text');
         }
         return nameValue;
       
@@ -177,7 +183,7 @@ export class PageData {
           if (context === 'form') {
             // Auto-detect field type for base fields
             const fieldType = this.detectFieldType(fieldName, value);
-            this.registerField(fieldName, value, fieldType);
+            PageManager.getInstance().registerField(fieldName, value, fieldType);
           }
           return value;
         }
@@ -188,7 +194,7 @@ export class PageData {
           if (context === 'form') {
             // Auto-detect field type for dynamic fields
             const fieldType = this.detectFieldType(fieldName, value);
-            this.registerField(fieldName, value, fieldType);
+            PageManager.getInstance().registerField(fieldName, value, fieldType);
           }
           return value;
         }
@@ -209,48 +215,6 @@ export class PageData {
   }
 
   /**
-   * Register a field in the registry
-   */
-  protected registerField(fieldName: string, originalValue: any, fieldType: 'text' | 'textarea' | 'select' | 'checkbox' | 'number' | 'custom'): void {
-    this.fieldRegistry[fieldName] = {
-      originalValue,
-      extracted: true,
-      fieldType,
-      domSelector: `#page-field-${fieldName}`
-    };
-  }
-
-  /**
-   * Get list of registered field names
-   */
-  getRegisteredFields(): string[] {
-    return Object.keys(this.fieldRegistry);
-  }
-
-  /**
-   * Check if a field is registered
-   */
-  isFieldRegistered(fieldName: string): boolean {
-    return fieldName in this.fieldRegistry;
-  }
-
-  /**
-   * Clear specific fields from the registry (after successful update or form close)
-   */
-  clearFields(fieldNames: string[]): void {
-    for (const fieldName of fieldNames) {
-      delete this.fieldRegistry[fieldName];
-    }
-  }
-
-  /**
-   * Clear all fields from the registry (when form is closed without submitting)
-   */
-  clearFieldRegistry(): void {
-    this.fieldRegistry = {};
-  }
-
-  /**
    * Update internal data with new field value after successful update
    * This ensures the next form shows the updated value, not the old one
    */
@@ -262,59 +226,6 @@ export class PageData {
       // Otherwise, store in dynamic fields
       this.dynamicFields[fieldName] = newValue;
     }
-  }
-
-  /**
-   * Extract field values from form DOM using standardized selectors
-   */
-  extractFormValues(): { [fieldName: string]: any } {
-    const values: { [fieldName: string]: any } = {};
-    
-    for (const [fieldName, registry] of Object.entries(this.fieldRegistry)) {
-      const element = document.querySelector(registry.domSelector || `#page-field-${fieldName}`) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-      
-      if (element) {
-        if (registry.fieldType === 'checkbox') {
-          values[fieldName] = (element as HTMLInputElement).checked;
-        } else if (registry.fieldType === 'number') {
-          values[fieldName] = parseInt((element as HTMLInputElement).value) || 0;
-        } else {
-          values[fieldName] = element.value;
-        }
-      }
-    }
-    
-    return values;
-  }
-
-  /**
-   * Detect which fields have changed from original values
-   */
-  detectChangedFields(): string[] {
-    const currentValues = this.extractFormValues();
-    const changed: string[] = [];
-    
-    for (const [fieldName, registry] of Object.entries(this.fieldRegistry)) {
-      const currentValue = currentValues[fieldName];
-      const originalValue = registry.originalValue;
-      
-      // Normalize for comparison
-      const normalizedCurrent = this.normalizeValue(currentValue, registry.fieldType);
-      const normalizedOriginal = this.normalizeValue(originalValue, registry.fieldType);
-      
-      if (normalizedCurrent !== normalizedOriginal) {
-        changed.push(fieldName);
-      }
-    }
-    
-    return changed;
-  }
-
-  private normalizeValue(value: any, fieldType: string): string {
-    if (value === null || value === undefined) return '';
-    if (fieldType === 'number') return String(value);
-    if (fieldType === 'checkbox') return String(Boolean(value));
-    return String(value);
   }
 
   /**
@@ -347,171 +258,6 @@ export class PageData {
     ];
   }
 
-  /**
-   * Select optimal MCP calls based on changed fields.
-   * Algorithm: Weighted Set Cover with Exact Match Preference
-   * - Prefer exact matches (priority 0)
-   * - Prefer smaller groups over larger ones
-   * - Avoid setting fields that don't need to be set
-   */
-  protected selectOptimalMappings(changedFields: string[]): Array<{ mapping: FieldMapping; fields: string[] }> {
-    const allMappings = this.getFieldMappings();
-    const selected: Array<{ mapping: FieldMapping; fields: string[] }> = [];
-    const covered = new Set<string>();
-    
-    // Sort mappings by priority (lower = better), then by size (smaller = better)
-    const sortedMappings = [...allMappings].sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
-      return a.fields.length - b.fields.length;
-    });
-    
-    // Greedy selection: pick mappings that cover the most uncovered fields
-    while (covered.size < changedFields.length) {
-      let bestMapping: FieldMapping | null = null;
-      let bestFields: string[] = [];
-      let bestScore = -1;
-      
-      for (const mapping of sortedMappings) {
-        // Find which fields from this mapping are in changedFields and not yet covered
-        const uncoveredFields = mapping.fields.filter(f => 
-          changedFields.includes(f) && !covered.has(f)
-        );
-        
-        if (uncoveredFields.length === 0) continue;
-        
-        // Score: prefer exact matches (all fields in mapping are changed and uncovered)
-        const isExactMatch = uncoveredFields.length === mapping.fields.length && 
-                            mapping.fields.every(f => changedFields.includes(f));
-        const score = isExactMatch ? 1000 - mapping.priority : uncoveredFields.length - mapping.priority;
-        
-        if (score > bestScore) {
-          bestScore = score;
-          bestMapping = mapping;
-          bestFields = uncoveredFields;
-        }
-      }
-      
-      if (!bestMapping) {
-        // No mapping found for remaining fields - this shouldn't happen if mappings are complete
-        const uncovered = changedFields.filter(f => !covered.has(f));
-        console.warn(`No mapping found for fields: ${uncovered.join(', ')}`);
-        break;
-      }
-      
-      selected.push({ mapping: bestMapping, fields: bestFields });
-      bestFields.forEach(f => covered.add(f));
-    }
-    
-    return selected;
-  }
-
-  /**
-   * Submit changes - automatically determines which MCP calls to make using optimal mapping algorithm
-   * Returns detailed results for each operation
-   */
-  async submitChanges(rpc: any): Promise<any> {
-    const changedFields = this.detectChangedFields();
-    
-    // Filter out read-only fields like 'class'
-    const editableFields = changedFields.filter(field => field !== 'class');
-    
-    if (editableFields.length === 0) {
-      return { 
-        success: true, 
-        noChanges: true,
-        message: 'No changes made' 
-      };
-    }
-
-    // Select optimal MCP calls
-    const optimalMappings = this.selectOptimalMappings(editableFields);
-      const currentValues = this.extractFormValues();
-    
-    // Execute all MCP calls in parallel
-    const promises = optimalMappings.map(async ({ mapping, fields }) => {
-      const params = mapping.buildParams(fields, currentValues, this.id);
-      
-      try {
-        const result = await rpc.call(mapping.mcpTool, params);
-        // Update internal data with new values (so next form shows updated data)
-        fields.forEach(fieldName => {
-          if (fieldName in currentValues) {
-            this.updateFieldValue(fieldName, currentValues[fieldName]);
-          }
-        });
-        // Clear fields from registry after successful update (they're no longer "checked out")
-        this.clearFields(fields);
-        return { 
-          mapping: mapping.mcpTool, 
-          fields, 
-          success: true, 
-          result,
-          message: `Successfully updated ${fields.join(', ')}`
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return { 
-          mapping: mapping.mcpTool, 
-          fields, 
-          success: false, 
-          error,
-          message: `Failed to update ${fields.join(', ')}: ${errorMessage}`
-        };
-      }
-    });
-
-    const results = await Promise.all(promises);
-    
-    const successes = results.filter(r => r.success);
-    const errors = results.filter(r => !r.success);
-    const allSucceeded = errors.length === 0;
-    
-    return {
-      success: allSucceeded,
-      noChanges: false,
-      operations: results,
-      successes: successes,
-      errors: errors,
-      message: allSucceeded 
-        ? `Successfully updated all fields`
-        : `${successes.length} succeeded, ${errors.length} failed`
-    };
-  }
-
-  /**
-   * Map field names to MCP tool names (legacy method - kept for backward compatibility)
-   * New code should use getFieldMappings() instead
-   */
-  protected getMCPToolName(fieldName: string): string {
-    const mappings = this.getFieldMappings();
-    // Find first mapping that includes this field
-    for (const mapping of mappings) {
-      if (mapping.fields.includes(fieldName)) {
-        return mapping.mcpTool;
-    }
-    }
-    // Fallback to modify_<field_name> convention
-    return `modify_${fieldName}`;
-  }
-
-  /**
-   * Build MCP parameters for a field update (legacy method - kept for backward compatibility)
-   * New code should use FieldMapping.buildParams instead
-   */
-  protected buildMCPParams(fieldName: string, value: any): any {
-    const mappings = this.getFieldMappings();
-    // Find first mapping that includes this field
-    for (const mapping of mappings) {
-      if (mapping.fields.includes(fieldName)) {
-        return mapping.buildParams([fieldName], { [fieldName]: value }, this.id);
-      }
-    }
-    // Fallback
-    return {
-      page_id: this.id,
-      [fieldName]: value
-    };
-  }
 
   /**
    * Get page ID (convenience method)
@@ -579,6 +325,476 @@ export class PageData {
 
   getPageData(): PageInfo {
     return this.data.page;
+  }
+
+  // ===== Handler Methods =====
+  // These are UI handlers for page-specific CRUD operations
+  // They accept RPC client as parameter and use PageManager for business logic
+
+  /**
+   * Escape HTML to prevent XSS
+   */
+  protected escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * Handler for modify_name: Edit page name
+   */
+  async modify_name(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const pageManager = PageManager.getInstance();
+      
+      // Request 'name' field with 'form' context to register it for editing
+      const currentName = this.getField('name', 'form') || '';
+
+      // Create form HTML with standardized field ID
+      const formHtml = `
+        <div class="overlayContent">
+          <div>
+            <label>Page name:</label>
+            <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}">
+          </div>
+        </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Modify Page Name',
+        content: formHtml,
+        closable: true,
+        submitLabel: 'Submit',
+        cancelLabel: 'Cancel',
+        onCancel: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onUnmount: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onSubmit: async () => {
+          const result = await pageManager.submitChanges(rpc);
+          
+          if (result.noChanges) {
+            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          }
+          
+          const messages: string[] = [];
+          if (result.operations && result.operations.length > 0) {
+            result.operations.forEach((op: any) => {
+              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
+            });
+          } else {
+            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          }
+          
+          const combinedMessage = messages.join('\n');
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          if (allSucceeded) {
+            if (result.success && pageId) {
+              const nameOp = result.operations?.find((op: any) => op.fields?.includes('name'));
+              if (nameOp && nameOp.success && nameOp.result) {
+                const parsedResult = rpc.extractMCPData(nameOp.result);
+                const resultPageData = parsedResult?.page || parsedResult;
+                const newName = resultPageData?.name;
+                const newRawText = resultPageData?.text;
+                
+                if (newName) {
+                  this.updateFieldValue('name', newName);
+                  if (newRawText !== undefined) {
+                    this.updateFieldValue('text', newRawText);
+                  }
+                  
+                  // Update breadcrumb DOM
+                  const headerEl = document.getElementById('header');
+                  if (headerEl) {
+                    const pathUl = headerEl.querySelector('ul.path') as HTMLUListElement | null;
+                    if (pathUl) {
+                      const listItems = pathUl.querySelectorAll('li');
+                      if (listItems.length > 0) {
+                        const lastLi = listItems[listItems.length - 1];
+                        const lastLink = lastLi.querySelector('a') as HTMLAnchorElement | null;
+                        if (lastLink) {
+                          lastLink.textContent = newName;
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Update page text in case it contains a link to itself
+                  try {
+                    const getTextResult = await rpc.call('get_text', { page_id: pageId });
+                    const parsedTextResult = rpc.extractMCPData(getTextResult);
+                    const processedText = parsedTextResult?.processed_text;
+                    
+                    if (processedText) {
+                      const textDiv = document.getElementById(`page-text-${pageId}`) as HTMLDivElement | null;
+                      if (textDiv) {
+                        textDiv.innerHTML = processedText;
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Failed to fetch updated text after name change:', error);
+                  }
+                }
+              }
+            }
+            
+            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+          } else {
+            throw new Error(combinedMessage);
+          }
+        }
+      });
+
+      // Focus the input after overlay is shown
+      setTimeout(() => {
+        const input = document.getElementById('page-field-name') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('modify_name', error);
+    }
+  }
+
+  /**
+   * Handler for modify_text: Edit page text content
+   */
+  async modify_text(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const pageManager = PageManager.getInstance();
+      
+      // Request 'text' field with 'form' context to register it for editing
+      const currentText = this.getField('text', 'form') || '';
+
+      // Create textarea form with standardized field ID
+      const formHtml = `
+        <div class="overlayContent">
+          <div>
+            <textarea id="page-field-text" name="text" rows="20" cols="80" style="width: 100%; min-height: 400px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+          </div>
+        </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Text Editor',
+        content: formHtml,
+        closable: true,
+        submitLabel: 'Submit',
+        cancelLabel: 'Cancel',
+        onCancel: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onUnmount: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onSubmit: async () => {
+          const result = await pageManager.submitChanges(rpc);
+          
+          if (result.noChanges) {
+            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          }
+          
+          const messages: string[] = [];
+          if (result.operations && result.operations.length > 0) {
+            result.operations.forEach((op: any) => {
+              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
+            });
+          } else {
+            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          }
+          
+          const combinedMessage = messages.join('\n');
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          if (allSucceeded) {
+            // After successful submit, fetch processed text and update DOM
+            if (result && pageId) {
+              try {
+                const getTextResult = await rpc.call('get_text', { page_id: pageId });
+                const parsedTextResult = rpc.extractMCPData(getTextResult);
+                const processedText = parsedTextResult?.processed_text;
+                
+                if (processedText) {
+                  const textDiv = document.getElementById(`page-text-${pageId}`) as HTMLDivElement | null;
+                  if (textDiv) {
+                    textDiv.innerHTML = processedText;
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to fetch updated text:', error);
+              }
+            }
+            
+            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+          } else {
+            throw new Error(combinedMessage);
+          }
+        }
+      });
+
+      // Focus the textarea after overlay is shown
+      setTimeout(() => {
+        const textarea = document.getElementById('page-field-text') as HTMLTextAreaElement;
+        if (textarea) {
+          textarea.focus();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('modify_text', error);
+    }
+  }
+
+  /**
+   * Handler for delete_page: Delete a page with confirmation
+   */
+  async delete_page(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const pageManager = PageManager.getInstance();
+      
+      const pageName = this.getField('name') || `Page ${pageId}`;
+      const pageClass = this.getField('class') || 'page';
+      
+      // Create form HTML with confirmation checkbox
+      const formHtml = `
+        <div class="overlayContent">
+          <div style="margin-bottom: 20px;">
+            <p><strong>Warning:</strong> This will permanently delete the page and all its children.</p>
+            <p>Page: <strong>${this.escapeHtml(pageName)}</strong> (ID: ${pageId}, Class: ${this.escapeHtml(pageClass)})</p>
+          </div>
+          <div>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="page-delete-confirm" style="width: auto;">
+              <span>I confirm that I want to delete this page</span>
+            </label>
+          </div>
+        </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Delete Page',
+        content: formHtml,
+        closable: true,
+        submitLabel: 'Delete',
+        cancelLabel: 'Cancel',
+        onCancel: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onUnmount: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onSubmit: async () => {
+          const confirmCheckbox = document.getElementById('page-delete-confirm') as HTMLInputElement;
+          if (!confirmCheckbox || !confirmCheckbox.checked) {
+            throw new Error('You must confirm deletion by checking the confirmation box');
+          }
+          
+          try {
+            const result = await rpc.call('delete_page', {
+              page_id: pageId,
+              confirm: true
+            });
+            
+            return {
+              success: true,
+              _showMessage: `Page "${this.escapeHtml(pageName)}" has been deleted successfully.`,
+              _autoFade: true
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to delete page: ${errorMessage}`);
+          }
+        }
+      });
+
+      // Focus the checkbox after overlay is shown
+      setTimeout(() => {
+        const checkbox = document.getElementById('page-delete-confirm') as HTMLInputElement;
+        if (checkbox) {
+          checkbox.focus();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('delete_page', error);
+    }
+  }
+
+  /**
+   * Handler for combo: Test form with name/text editable and read-only fields displayed
+   */
+  async combo(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const pageManager = PageManager.getInstance();
+      
+      // Get editable fields
+      const currentName = this.getField('name', 'form') || '';
+      const currentText = this.getField('text', 'form') || '';
+      
+      // Get read-only fields (these should NOT be registered for editing)
+      const pageIdValue = this.getField('id') || '';
+      const pageClass = this.getField('class') || '';
+      const pageLink = this.getField('link') || '';
+      const lastModified = this.getField('last_modified') || '';
+      const username = this.getField('username') || '';
+      const path = this.getField('path') || [];
+      const pathStr = Array.isArray(path) ? path.map((p: any) => p.name).filter(Boolean).join(' / ') : '';
+      
+      // Create form HTML with editable and read-only fields
+      const formHtml = `
+        <div class="overlayContent">
+          <div style="margin-bottom: 20px;">
+            <h3 style="margin-bottom: 10px;">Editable Fields:</h3>
+            <div style="margin-bottom: 15px;">
+              <label>Page name:</label>
+              <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" style="width: 100%;">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label>Page text:</label>
+              <textarea id="page-field-text" name="text" rows="10" cols="80" style="width: 100%; min-height: 200px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+            </div>
+          </div>
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
+            <h3 style="margin-bottom: 10px;">Read-Only Fields (for display only):</h3>
+            <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 10px;">
+              <div><strong>ID:</strong></div>
+              <div>${this.escapeHtml(String(pageIdValue))}</div>
+              <div><strong>Class:</strong></div>
+              <div>${this.escapeHtml(pageClass)}</div>
+              <div><strong>Link:</strong></div>
+              <div>${this.escapeHtml(pageLink)}</div>
+              <div><strong>Last Modified:</strong></div>
+              <div>${this.escapeHtml(lastModified)}</div>
+              <div><strong>Username:</strong></div>
+              <div>${this.escapeHtml(username)}</div>
+              <div><strong>Path:</strong></div>
+              <div>${this.escapeHtml(pathStr)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Combo Test Form',
+        content: formHtml,
+        closable: true,
+        submitLabel: 'Submit',
+        cancelLabel: 'Cancel',
+        onCancel: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onUnmount: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onSubmit: async () => {
+          const result = await pageManager.submitChanges(rpc);
+          
+          if (result.noChanges) {
+            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          }
+          
+          const messages: string[] = [];
+          if (result.operations && result.operations.length > 0) {
+            result.operations.forEach((op: any) => {
+              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
+            });
+          } else {
+            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          }
+          
+          const combinedMessage = messages.join('\n');
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          if (allSucceeded) {
+            if (result.success && pageId) {
+              const nameOp = result.operations?.find((op: any) => op.fields?.includes('name'));
+              if (nameOp && nameOp.success && nameOp.result) {
+                const parsedResult = rpc.extractMCPData(nameOp.result);
+                const resultPageData = parsedResult?.page || parsedResult;
+                const newName = resultPageData?.name;
+                
+                if (newName) {
+                  const headerEl = document.getElementById('header');
+                  if (headerEl) {
+                    const pathUl = headerEl.querySelector('ul.path') as HTMLUListElement | null;
+                    if (pathUl) {
+                      const listItems = pathUl.querySelectorAll('li');
+                      if (listItems.length > 0) {
+                        const lastLi = listItems[listItems.length - 1];
+                        const lastLink = lastLi.querySelector('a') as HTMLAnchorElement | null;
+                        if (lastLink) {
+                          lastLink.textContent = newName;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              const textOp = result.operations?.find((op: any) => op.fields?.includes('text'));
+              if (textOp && textOp.success) {
+                try {
+                  const getTextResult = await rpc.call('get_text', { page_id: pageId });
+                  const parsedTextResult = rpc.extractMCPData(getTextResult);
+                  const processedText = parsedTextResult?.processed_text;
+                  
+                  if (processedText) {
+                    const textDiv = document.getElementById(`page-text-${pageId}`) as HTMLDivElement | null;
+                    if (textDiv) {
+                      textDiv.innerHTML = processedText;
+                    }
+                  }
+                } catch (error) {
+                  console.error('Failed to fetch updated text:', error);
+                }
+              }
+            }
+            
+            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+          } else {
+            throw new Error(combinedMessage);
+          }
+        }
+      });
+
+      // Focus the name input after overlay is shown
+      setTimeout(() => {
+        const input = document.getElementById('page-field-name') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('combo', error);
+    }
   }
 }
 

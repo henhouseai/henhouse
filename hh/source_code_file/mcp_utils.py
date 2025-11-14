@@ -28,6 +28,20 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='source_code',
     app_action_label='Source Code File Dummy'
 )
+@register_mcp_tool(
+    tool_name='source_code_file_combo',
+    description='Edit source code file: text, file path, and language. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='source_code',
+    app_action_label='Edit Source Code File'
+)
 def _source_code_file_tools_registration():
     """Registration placeholder for all source code file-related MCP tools."""
     pass
