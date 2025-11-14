@@ -232,6 +232,7 @@ export class PageData {
    * Get field-to-MCP mappings for this page class.
    * Derived classes should override this to provide their specific mappings.
    * Base class provides mappings for common page fields.
+   * This is protected - use getFieldMappingsPublic() for external access.
    */
   protected getFieldMappings(): FieldMapping[] {
     return [
@@ -258,6 +259,12 @@ export class PageData {
     ];
   }
 
+  /**
+   * Public method to get field mappings (for PageManager access).
+   */
+  getFieldMappingsPublic(): FieldMapping[] {
+    return this.getFieldMappings();
+  }
 
   /**
    * Get page ID (convenience method)

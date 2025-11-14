@@ -20,11 +20,14 @@ export class PageManager {
     }
     /**
      * Set the current page data and clear registries.
+     * Re-registers field mappings from the page data.
      */
     setPageData(pageData) {
         this.currentPageData = pageData;
         this.fieldRegistry = {};
         this.fieldMappings = [];
+        // Re-register field mappings from the page data (they were registered in constructor, but we just cleared them)
+        this.registerFieldMappings(pageData.getFieldMappingsPublic());
     }
     /**
      * Get the current page data.
