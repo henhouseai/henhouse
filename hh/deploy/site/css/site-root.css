@@ -218,3 +218,36 @@ ul.menuGroup li.header a {
     color: #ffffff;
 }
 
+/* Overlay color variables - purple theme */
+:root {
+    --overlay-window: #ffffff;
+    --overlay-window-border: #8957e5;
+    --overlay-header-bg: #8957e5;
+    --overlay-header-text: #ffffff;
+    --overlay-header-link: #a371f7;
+    --overlay-header-link-text: #000000;
+    --overlay-header-link-border: #8957e5;
+    --overlay-header-link-hover: #bc8cff;
+    --overlay-header-link-active: #8957e5;
+    --overlay-header-submit-button: #3fb950;
+    --overlay-header-submit-button-text: #ffffff;
+    --overlay-header-submit-button-hover: #56d364;
+    --overlay-header-submit-button-active: #238636;
+    --overlay-header-cancel-button: #f85149;
+    --overlay-header-cancel-button-text: #ffffff;
+    --overlay-header-cancel-button-hover: #ff6b6b;
+    --overlay-header-cancel-button-active: #da190b;
+    --overlay-content: #ffffff;
+    --overlay-content-text: #000000;
+    --overlay-content-border: #8957e5;
+    --overlay-success: #e8f5e9;
+    --overlay-success-text: #2e7d32;
+    --overlay-success-border: #3fb950;
+    --overlay-error: #ffebee;
+    --overlay-error-text: #c62828;
+    --overlay-error-border: #f85149;
+    --overlay-warning: #fff3e0;
+    --overlay-warning-text: #e65100;
+    --overlay-warning-border: #ff9800;
+}
+

@@ -39,11 +39,12 @@
   width: auto;
   margin: 3px;
   padding: 8px 6px 0 6px;
-  background-color: var(--overlay-window, #fff);
+  background-color: var(--overlay-header-bg, var(--overlay-window, #fff));
   color: var(--overlay-header-text, #000);
   text-align: left;
   font-size: 16pt;
   font-weight: bold;
+  border-radius: 5px;
 }
 
 /* Overlay header buttons */
