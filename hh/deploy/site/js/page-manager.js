@@ -209,8 +209,11 @@ export class PageManager {
             const params = mapping.buildParams(fields, currentValues, pageId);
             console.log(`[PageManager] Calling MCP tool: ${mapping.mcpTool}`, params);
             try {
-                const result = await rpc.call(mapping.mcpTool, params);
-                console.log(`[PageManager] MCP call succeeded: ${mapping.mcpTool}`, result);
+                const rawResult = await rpc.call(mapping.mcpTool, params);
+                console.log(`[PageManager] MCP call raw result: ${mapping.mcpTool}`, rawResult);
+                // Extract MCP data from envelope (same as getPage does)
+                const result = rpc.extractMCPData(rawResult);
+                console.log(`[PageManager] MCP call extracted result: ${mapping.mcpTool}`, result);
                 // Clear fields from registry after successful update (they're no longer "checked out")
                 this.clearFields(fields);
                 // Update internal PageData with new values
