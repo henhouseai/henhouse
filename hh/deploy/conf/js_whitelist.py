@@ -17,6 +17,12 @@ JS_WHITELIST: List[str] = [
     'hh/deploy/site/js/rpc-client.js',
     'hh/deploy/site/js/app.js',
     'hh/deploy/site/js/page-manager.js',
+    'hh/deploy/site/js/page-data-factory.js',
+    'hh/deploy/site/js/page-data.js',
+    'hh/deploy/site/js/source-code-file-page-data.js',
+    'hh/deploy/site/js/mcp-request-page-data.js',
+    'hh/deploy/site/js/mcp-action-page-data.js',
+    'hh/deploy/site/js/page-data-derived.js',
     # Overlay system JavaScript files (deployed flat to site/js/)
     'hh/deploy/site/js/overlay-manager.js',
     'hh/deploy/site/js/overlay.js',
