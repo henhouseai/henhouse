@@ -41,4 +41,17 @@ def populate_application_action_links(page_id: int = None) -> None:
     gateway.response.add_application_action_link('overlay', 'overlay_test_six', 'Backdrop Click Test')
     gateway.response.add_application_action_link('overlay', 'overlay_test_seven', 'Textarea Enter Test')
     gateway.response.add_application_action_link('overlay', 'overlay_test_eight', 'Close All Test')
+    
+    # Create "style" group for styling and edge case tests
+    gateway.response.add_application_action_group('style', 'STYLE TESTS')
+    
+    # Add style test actions
+    gateway.response.add_application_action_link('style', 'style_test_one', 'Empty Content')
+    gateway.response.add_application_action_link('style', 'style_test_two', 'Long Content')
+    gateway.response.add_application_action_link('style', 'style_test_three', 'Complex HTML')
+    gateway.response.add_application_action_link('style', 'style_test_four', 'Error Message')
+    gateway.response.add_application_action_link('style', 'style_test_five', 'Success Message')
+    gateway.response.add_application_action_link('style', 'style_test_six', 'Loading State')
+    gateway.response.add_application_action_link('style', 'style_test_seven', 'Special Characters')
+    gateway.response.add_application_action_link('style', 'style_test_eight', 'Table/Form Content')
 

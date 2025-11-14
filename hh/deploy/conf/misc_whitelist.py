@@ -10,6 +10,7 @@ MISC_WHITELIST: List[str] = [
     'hh/deploy/site/favicon-32x32.png',
     'hh/deploy/site/apple-touch-icon.png',
     'hh/deploy/site/android-chrome-512x512.png',
-    'hh/deploy/site/site.webmanifest'
+    'hh/deploy/site/site.webmanifest',
+    'hh/deploy/site/ajaxloading.gif'
 ]
 

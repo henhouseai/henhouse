@@ -25,6 +25,8 @@ export class Overlay {
   private header: OverlayHeader;
   private content: OverlayContent;
   private container: HTMLElement | null = null;
+  private windowEl: HTMLElement | null = null;
+  private headerEl: HTMLElement | null = null;
   private previousFocus: HTMLElement | null = null;
 
   constructor(options: OverlayOptions, zIndex: number) {
@@ -94,9 +96,11 @@ export class Overlay {
     const windowEl = this.window.render();
     windowEl.style.zIndex = String(this.state.zIndex + 1);
     this.container.appendChild(windowEl);
+    this.windowEl = windowEl;
 
     const headerEl = this.header.render();
     windowEl.appendChild(headerEl);
+    this.headerEl = headerEl;
 
     const contentEl = this.content.render();
     windowEl.appendChild(contentEl);
@@ -152,7 +156,69 @@ export class Overlay {
    */
   setState(updates: Partial<OverlayState>): void {
     this.state = { ...this.state, ...updates };
-    // State updates would trigger re-renders in a more sophisticated implementation
+    this.updateUI();
+  }
+
+  /**
+   * Update UI based on current state.
+   */
+  private updateUI(): void {
+    if (!this.windowEl || !this.headerEl) return;
+
+    // Update submit button visibility based on loading state
+    const submitBtn = this.headerEl.querySelector('#submitOverlayWindow');
+    const loadingImg = this.headerEl.querySelector('img.ajaxloading');
+
+    if (this.state.isLoading) {
+      // Hide submit button, show loading spinner
+      if (submitBtn) {
+        submitBtn.remove();
+      }
+      if (!loadingImg) {
+        const img = document.createElement('img');
+        img.src = '/site/ajaxloading.gif';
+        img.className = 'ajaxloading';
+        img.alt = 'Loading...';
+        this.headerEl.appendChild(img);
+      }
+    } else {
+      // Show submit button, hide loading spinner
+      if (loadingImg) {
+        loadingImg.remove();
+      }
+      if (!submitBtn && this.props.onSubmit) {
+        const newSubmitBtn = document.createElement('a');
+        newSubmitBtn.id = 'submitOverlayWindow';
+        newSubmitBtn.className = 'submitButton';
+        newSubmitBtn.textContent = this.props.submitLabel || 'Submit';
+        newSubmitBtn.href = '#';
+        newSubmitBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.handleSubmit();
+        });
+        this.headerEl.appendChild(newSubmitBtn);
+      }
+    }
+
+    // Remove existing messages
+    const existingMessages = this.windowEl.querySelectorAll('.overlaySuccess, .overlayError, .overlayWarning');
+    existingMessages.forEach(msg => msg.remove());
+
+    // Add error message if present
+    if (this.state.error) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'overlayError';
+      errorDiv.textContent = this.state.error;
+      this.headerEl.insertAdjacentElement('afterend', errorDiv);
+    }
+
+    // Add success message if present
+    if (this.state.success) {
+      const successDiv = document.createElement('div');
+      successDiv.className = 'overlaySuccess';
+      successDiv.textContent = this.state.success;
+      this.headerEl.insertAdjacentElement('afterend', successDiv);
+    }
   }
 
   /**

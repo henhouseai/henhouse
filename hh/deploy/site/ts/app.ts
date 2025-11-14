@@ -36,6 +36,16 @@ class ActionHandlers {
     this.attachHandler('overlay_test_six', () => this.handleOverlayTestSix());
     this.attachHandler('overlay_test_seven', () => this.handleOverlayTestSeven());
     this.attachHandler('overlay_test_eight', () => this.handleOverlayTestEight());
+    
+    // Style test handlers
+    this.attachHandler('style_test_one', () => this.handleStyleTestOne());
+    this.attachHandler('style_test_two', () => this.handleStyleTestTwo());
+    this.attachHandler('style_test_three', () => this.handleStyleTestThree());
+    this.attachHandler('style_test_four', () => this.handleStyleTestFour());
+    this.attachHandler('style_test_five', () => this.handleStyleTestFive());
+    this.attachHandler('style_test_six', () => this.handleStyleTestSix());
+    this.attachHandler('style_test_seven', () => this.handleStyleTestSeven());
+    this.attachHandler('style_test_eight', () => this.handleStyleTestEight());
   }
 
   /**
@@ -295,6 +305,186 @@ class ActionHandlers {
         }
       });
     }, 1000);
+  }
+
+  /**
+   * Handle style_test_one: Empty content test
+   */
+  private async handleStyleTestOne(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    manager.show({
+      header: 'Empty Content Test',
+      content: '', // Empty string
+      closable: true
+    });
+  }
+
+  /**
+   * Handle style_test_two: Long content test
+   */
+  private async handleStyleTestTwo(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    const longContent = Array(50).fill(0).map((_, i) => 
+      `<p>This is paragraph ${i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>`
+    ).join('');
+    manager.show({
+      header: 'Long Content Test',
+      content: `<div>${longContent}</div>`,
+      closable: true
+    });
+  }
+
+  /**
+   * Handle style_test_three: Complex HTML test
+   */
+  private async handleStyleTestThree(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    const complexHTML = `
+      <div>
+        <h2>Complex HTML Test</h2>
+        <p>This overlay contains complex nested HTML structures.</p>
+        <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+          <h3>Nested Div</h3>
+          <ul>
+            <li>Item 1</li>
+            <li>Item 2</li>
+            <li>Item 3</li>
+          </ul>
+        </div>
+        <form>
+          <label>Name: <input type="text" /></label>
+          <label>Email: <input type="email" /></label>
+        </form>
+      </div>
+    `;
+    manager.show({
+      header: 'Complex HTML Test',
+      content: complexHTML,
+      closable: true
+    });
+  }
+
+  /**
+   * Handle style_test_four: Error message test
+   */
+  private async handleStyleTestFour(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    manager.show({
+      header: 'Error Message Test',
+      content: 'Click Submit to trigger an error message. The submit button should disappear, show loading, then reappear with an error message.',
+      closable: true,
+      onSubmit: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        throw new Error('This is a test error message. The submit button should reappear after this error.');
+      }
+    });
+  }
+
+  /**
+   * Handle style_test_five: Success message test
+   */
+  private async handleStyleTestFive(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    manager.show({
+      header: 'Success Message Test',
+      content: 'Click Submit to trigger a success message. The submit button should disappear, show loading, then show a success message.',
+      closable: true,
+      onSubmit: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return { success: true };
+      }
+    });
+  }
+
+  /**
+   * Handle style_test_six: Loading state test
+   */
+  private async handleStyleTestSix(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    manager.show({
+      header: 'Loading State Test',
+      content: 'Click Submit to see the loading spinner. It will take 3 seconds to complete.',
+      closable: true,
+      onSubmit: async () => {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return { success: true };
+      }
+    });
+  }
+
+  /**
+   * Handle style_test_seven: Special characters test
+   */
+  private async handleStyleTestSeven(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    const specialContent = `
+      <div>
+        <p>Special Characters Test:</p>
+        <ul>
+          <li>Less than: &lt;</li>
+          <li>Greater than: &gt;</li>
+          <li>Ampersand: &amp;</li>
+          <li>Quotes: "double" and 'single'</li>
+          <li>HTML tags as text: &lt;div&gt;&lt;/div&gt;</li>
+        </ul>
+      </div>
+    `;
+    manager.show({
+      header: 'Special Characters Test',
+      content: specialContent,
+      closable: true
+    });
+  }
+
+  /**
+   * Handle style_test_eight: Table/Form content test
+   */
+  private async handleStyleTestEight(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    const tableFormContent = `
+      <div>
+        <h3>Table Content</h3>
+        <table border="1" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Column 1</th>
+              <th>Column 2</th>
+              <th>Column 3</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Row 1, Cell 1</td>
+              <td>Row 1, Cell 2</td>
+              <td>Row 1, Cell 3</td>
+            </tr>
+            <tr>
+              <td>Row 2, Cell 1</td>
+              <td>Row 2, Cell 2</td>
+              <td>Row 2, Cell 3</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>Form Content</h3>
+        <form>
+          <label>Text Input: <input type="text" placeholder="Enter text" /></label><br/>
+          <label>Textarea: <textarea rows="3" placeholder="Enter multiline text"></textarea></label><br/>
+          <label>Select: 
+            <select>
+              <option>Option 1</option>
+              <option>Option 2</option>
+              <option>Option 3</option>
+            </select>
+          </label><br/>
+          <label>Checkbox: <input type="checkbox" /> Check me</label><br/>
+        </form>
+      </div>
+    `;
+    manager.show({
+      header: 'Table/Form Content Test',
+      content: tableFormContent,
+      closable: true
+    });
   }
 }
 

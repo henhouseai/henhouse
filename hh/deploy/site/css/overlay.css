@@ -187,3 +187,12 @@
   float: left;
 }
 
+/* Loading spinner */
+#overlayWindow img.ajaxloading {
+  position: relative;
+  top: -3px;
+  margin-left: 10px;
+  width: 16px;
+  height: 16px;
+}
+
