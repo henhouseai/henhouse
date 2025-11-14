@@ -35,9 +35,13 @@ export class OverlayManager {
     close(overlay) {
         const index = this.overlays.indexOf(overlay);
         if (index !== -1) {
-            overlay.unmount();
+            // Fast fade for manual close
+            overlay.closeWithFade(200);
             this.overlays.splice(index, 1);
-            this.updateGlobalHandlers();
+            // Update handlers after fade completes
+            setTimeout(() => {
+                this.updateGlobalHandlers();
+            }, 200);
         }
     }
     /**
@@ -45,9 +49,12 @@ export class OverlayManager {
      */
     closeAll() {
         const overlays = [...this.overlays];
-        overlays.forEach(overlay => overlay.unmount());
+        overlays.forEach(overlay => overlay.closeWithFade(200));
         this.overlays = [];
-        this.updateGlobalHandlers();
+        // Update handlers after fade completes
+        setTimeout(() => {
+            this.updateGlobalHandlers();
+        }, 200);
     }
     /**
      * Get the topmost overlay (highest z-index).

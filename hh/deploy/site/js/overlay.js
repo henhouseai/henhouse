@@ -12,6 +12,7 @@ export class Overlay {
         this.windowEl = null;
         this.headerEl = null;
         this.previousFocus = null;
+        this.isClosing = false;
         this.props = { ...options };
         this.state = {
             isVisible: false,
@@ -61,6 +62,7 @@ export class Overlay {
         // Create container
         this.container = document.createElement('div');
         this.container.className = 'overlay-container';
+        this.container.style.opacity = '1'; // Start fully visible
         document.body.appendChild(this.container);
         // Render components
         const backdropEl = this.backdrop.render();
@@ -91,6 +93,7 @@ export class Overlay {
         if (!this.container) {
             return; // Already unmounted
         }
+        this.isClosing = true;
         // Call onUnmount callback
         if (this.props.onUnmount) {
             this.props.onUnmount();
@@ -196,7 +199,24 @@ export class Overlay {
         }
     }
     /**
-     * Remove the overlay completely.
+     * Close the overlay with a fade-out animation.
+     * @param fadeDurationMs Duration of the fade-out in milliseconds (default: 200ms for fast fade)
+     */
+    closeWithFade(fadeDurationMs = 200) {
+        if (!this.container || this.isClosing) {
+            return; // Already closed or closing
+        }
+        this.isClosing = true;
+        // Set transition for fade-out
+        this.container.style.transition = `opacity ${fadeDurationMs}ms ease-out`;
+        this.container.style.opacity = '0';
+        // Remove from DOM after fade completes
+        setTimeout(() => {
+            this.unmount();
+        }, fadeDurationMs);
+    }
+    /**
+     * Remove the overlay completely (immediate, no fade).
      */
     remove() {
         this.unmount();
@@ -212,7 +232,10 @@ export class Overlay {
         try {
             const result = await this.props.onSubmit();
             this.setState({ isLoading: false, success: 'Success!' });
-            // Could auto-close here or wait for user action
+            // Auto-close after success: wait 1-2 seconds, then slow fade out
+            setTimeout(() => {
+                this.closeWithFade(1500); // 1.5 second slow fade
+            }, 1500); // 1.5 second delay before fade starts
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -229,7 +252,8 @@ export class Overlay {
         if (this.props.onCancel) {
             this.props.onCancel();
         }
-        this.remove();
+        // Fast fade for manual close
+        this.closeWithFade(200);
     }
     /**
      * Trap focus within the overlay window.
