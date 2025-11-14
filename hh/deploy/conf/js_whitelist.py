@@ -16,14 +16,13 @@ JS_WHITELIST: List[str] = [
     'hh/deploy/site/js/seed.js',
     'hh/deploy/site/js/rpc-client.js',
     'hh/deploy/site/js/app.js',
-    # Overlay system JavaScript files
-    'hh/deploy/site/js/overlay/index.js',
-    'hh/deploy/site/js/overlay/overlay-manager.js',
-    'hh/deploy/site/js/overlay/overlay.js',
-    'hh/deploy/site/js/overlay/overlay-backdrop.js',
-    'hh/deploy/site/js/overlay/overlay-window.js',
-    'hh/deploy/site/js/overlay/overlay-header.js',
-    'hh/deploy/site/js/overlay/overlay-content.js',
+    # Overlay system JavaScript files (deployed flat to site/js/)
+    'hh/deploy/site/js/overlay-manager.js',
+    'hh/deploy/site/js/overlay.js',
+    'hh/deploy/site/js/overlay-backdrop.js',
+    'hh/deploy/site/js/overlay-window.js',
+    'hh/deploy/site/js/overlay-header.js',
+    'hh/deploy/site/js/overlay-content.js',
     # Infographic JavaScript files
     'hh/deploy/site/infographic/infographic-json.js',
     'hh/deploy/site/infographic/infographic-glossary-json.js',

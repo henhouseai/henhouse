@@ -4,7 +4,7 @@
 
 import { getSeedData, SeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
-import { OverlayManager } from './overlay/index.js';
+import { OverlayManager } from './overlay-manager.js';
 
 class ActionHandlers {
   private rpc: RPCClient;

@@ -3,7 +3,7 @@
  */
 import { getSeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
-import { OverlayManager } from './overlay/index.js';
+import { OverlayManager } from './overlay-manager.js';
 class ActionHandlers {
     constructor() {
         this.rpc = new RPCClient();

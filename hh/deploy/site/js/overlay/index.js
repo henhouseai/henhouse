@@ -1,7 +1,7 @@
 /**
  * Overlay system public API exports.
  */
-export { OverlayManager } from './overlay-manager.js';
+export { OverlayManager, OverlayOptions } from './overlay-manager.js';
 export { Overlay } from './overlay.js';
 export { OverlayBackdrop } from './overlay-backdrop.js';
 export { OverlayWindow } from './overlay-window.js';
