@@ -15,13 +15,6 @@ from flask import Flask, send_from_directory, request
 import tempfile
 import uuid
 
-# Determine tier from script name (app_guest.py → "guest", etc.)
-SCRIPT_NAME = Path(sys.argv[0]).name
-if SCRIPT_NAME.endswith('.py'):
-    TIER_SUFFIX = SCRIPT_NAME.replace('app_', '').replace('.py', '')
-else:
-    TIER_SUFFIX = 'guest'  # Default fallback
-
 # Determine project name from /srv path or environment
 if os.path.exists('/srv'):
     # Try to detect from cwd
@@ -32,6 +25,18 @@ if os.path.exists('/srv'):
         PROJECT_NAME = os.getenv('PROJECT_NAME', 'henhouse')
 else:
     PROJECT_NAME = os.getenv('PROJECT_NAME', 'henhouse')
+
+# Determine tier from script name ({project}_root.py → "root", etc.)
+SCRIPT_NAME = Path(sys.argv[0]).name
+if SCRIPT_NAME.endswith('.py'):
+    script_base = SCRIPT_NAME.replace('.py', '')
+    # Extract tier from {project}_{tier} format
+    if script_base.startswith(f'{PROJECT_NAME}_'):
+        TIER_SUFFIX = script_base.replace(f'{PROJECT_NAME}_', '')
+    else:
+        TIER_SUFFIX = ''  # Default fallback (should always match pattern in practice)
+else:
+    TIER_SUFFIX = ''  # Default fallback (should always match pattern in practice)
 
 # Setup paths
 PROJECT_ROOT = Path(f'/srv/{PROJECT_NAME}')
