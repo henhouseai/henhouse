@@ -142,25 +142,43 @@ The system uses three distinct MCP server tiers, each exposing different tools w
 
 ### Whitelist System Enhancement
 
-The MCP whitelist system (`hh/deploy/conf/mcp_whitelist.py`) needs enhancement to support:
+**Status**: ✅ **IMPLEMENTED**
 
-**Per-Tool Configuration**:
-- `tiers`: Array of tiers that expose this tool (e.g., `["guest", "admin", "root"]`)
-- `requires_approval`: Boolean indicating if tool requires approval queue (admin tier only)
-- `crud_type`: String indicating operation type: `"create"`, `"read"`, `"update"`, `"delete"` (for color coding)
-- `display_color`: Optional color code for approval interface display
+The MCP whitelist system has been refactored to a decorator-based, lazy-loading system:
 
-**Example Structure**:
+**Implementation**:
+- **Core System**: `hh/gateway/registry/mcp_whitelist.py` - `MCPWhitelist` class with lazy loading
+- **Registration Files**: Module-specific `mcp_utils.py` files using `@register_mcp_tool` decorators
+- **Tier-Specific Caches**: `hh/gateway/registry/cache/mcp-whitelist-{tier}.json` for each tier
+- **Tier Levels**: Uses numeric levels `[1, 2, 3, 4]` (1=guest, 2=verified, 3=admin, 4=root) instead of tier names
+
+**Per-Tool Configuration** (via decorator):
+- `tiers`: List of tier levels (e.g., `[1, 2, 3, 4]` for all tiers, `[3, 4]` for admin/root only)
+- `requires_approval`: Boolean indicating if tool requires approval queue (for future transaction system)
+- `crud_type`: String indicating operation type: `"create"`, `"read"`, `"update"`, `"delete"`
+- `display_color`: Optional color code for approval interface display (for future transaction system)
+
+**Example Registration**:
 ```python
-"add_page": {
-    "description": "Create a new page...",
-    "inputSchema": {...},
-    "tiers": ["admin", "root"],
-    "requires_approval": True,  # Only applies to admin tier
-    "crud_type": "create",
-    "display_color": "green"
-}
+@register_mcp_tool(
+    tool_name='add_page',
+    description='Create a new page...',
+    inputSchema={...},
+    tiers=[3, 4],  # Admin and root only
+    requires_approval=False,  # Currently not used, reserved for future
+    crud_type='create',
+    display_color=None  # Currently not used, reserved for future
+)
+def _page_tools_registration():
+    """Registration placeholder for page-related MCP tools."""
+    pass
 ```
+
+**Cache Behavior**:
+- Cold cache files store only `description` and `inputSchema` (no tier metadata in JSON)
+- Cache files auto-rebuild on miss (when tool requested but not found)
+- All tier caches rebuilt together when any tier has a miss
+- Hot cache (in-memory) persists across rebuilds to match other registry systems
 
 ---
 

@@ -13,11 +13,11 @@ This document covers the Henhouse-specific implementation of the MCP (Model Cont
 ## Agent Quick Reference
 
 - **MCP Backend**: Registered as backend type in Gateway alongside `parser`, `http`, `action`
-- **Tool Whitelist**: `hh/deploy/conf/mcp_whitelist.py` - single source of truth
+- **Tool Whitelist**: Decorator-based system with tier-specific caches - tools registered via `@register_mcp_tool` decorators in module-specific `mcp_utils.py` files
 - **Response Format**: `success_payload()` creates `{"content": [{"type": "text", "text": {...dict...}}]}`, ResponseMCP serializes inner dict to JSON string
 - **Config File**: `~/.{project_name}.cnf` (same format/location as database config)
 - **HTTP Endpoint**: `https://panel.{domain}/mcp` (subdomain access)
-- **Redeployment**: Whitelist changes require Flask server restart and MCP client restart
+- **Redeployment**: Whitelist changes auto-discovered on cache miss; cache files in `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
 
 ## Agent Training Notes
 
@@ -81,11 +81,12 @@ JSON-RPC 2.0 Response
 **File**: `hh/deploy/flask/mcp_client.py`
 
 Handles MCP protocol methods and routes to Gateway:
-- Validates tool name against `MCP_TOOLS_WHITELIST`
-- Validates arguments against tool's `inputSchema`
+- Validates tool name against tier-specific whitelist via `MCPWhitelist.get_tool(tier, tool_name)`
+- Validates arguments against tool's `inputSchema` via `MCPWhitelist.validate_tool(tier, tool_name, args)`
 - Builds `argv` array: `[tool_name, --arg1, value1, ...]`
 - Calls `gateway.dispatch(argv, "mcp")`
 - Sets `request_id` via `gateway.response.set_request_id()`
+- Tier determined from `USER_TIER` environment variable (set by Flask app)
 
 ### MCP Wrapper Script
 **File**: `mcp_wrapper.py` (project root)
@@ -102,7 +103,8 @@ Bridges stdio MCP to HTTP endpoint:
 **File**: `hh/gateway/registry/mcp.py`
 
 Auto-generates backend handler wrappers:
-- Reads `MCP_TOOLS_WHITELIST` from `mcp_whitelist.py`
+- Loads tier-specific whitelists from `MCPWhitelist._load_tier_whitelist(tier)` for all tiers
+- Collects all unique tool names across all tier whitelists
 - Uses `exec()` to generate wrapper functions with `@register_mcp('tool_name')` decorators
 - Wrappers verify `action_response` exists and return success
 - Functions registered in global `mcps` dictionary for registry discovery
@@ -116,14 +118,26 @@ Formats Gateway responses as JSON-RPC 2.0:
 - Wraps in JSON-RPC 2.0 format with `request_id`
 - Formats Gateway errors as JSON-RPC error responses
 
-### MCP Tools Whitelist
-**File**: `hh/deploy/conf/mcp_whitelist.py`
+### MCP Tools Whitelist System
+**Core File**: `hh/gateway/registry/mcp_whitelist.py`
 
-Single source of truth for available tools:
-- `MCP_TOOLS_WHITELIST` dictionary defines all tools
-- Each entry has `description` and `inputSchema` (JSON Schema)
-- Used by `mcp_client.py` for validation and `tools/list`
+Decorator-based lazy-loading whitelist system:
+- Tools registered via `@register_mcp_tool` decorators in module-specific `mcp_utils.py` files
+- Registration files located in: `hh/gateway/registry/mcp_utils.py`, `hh/page/mcp_utils.py`, `hh/agents/mcp_utils.py`, `hh/mcp_request/mcp_utils.py`, `hh/mcp_action_request/mcp_utils.py`
+- Tier-specific whitelists: Each tier (guest, verified, admin, root) has separate cache file
+- Cache files: `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
+- Lazy loading: Cache files loaded on demand; rebuilt on cache miss by scanning decorators
+- Used by `mcp_client.py` for validation and `tools/list` via `MCPWhitelist` class
 - Used by `mcp.py` for auto-generating wrappers
+
+**Decorator Parameters**:
+- `tool_name`: Name of the MCP tool
+- `description`: Tool description
+- `inputSchema`: JSON Schema for tool arguments
+- `tiers`: List of tier levels `[1, 2, 3, 4]` (1=guest, 2=verified, 3=admin, 4=root). Default: all tiers
+- `requires_approval`: Whether tool requires approval queue (for future transaction system)
+- `crud_type`: Operation type ('create', 'read', 'update', 'delete')
+- `display_color`: Optional color for approval interface (for future transaction system)
 
 ---
 
@@ -138,7 +152,7 @@ MCP is registered as a backend type in `hh/gateway/registry/backend.py`:
 
 ### Command Execution Flow
 
-1. **MCP Client** receives tool call, validates against whitelist
+1. **MCP Client** receives tool call, validates against tier-specific whitelist
 2. **Argument Conversion**: MCP arguments → `--key value` format
 3. **Gateway Dispatch**: `gateway.dispatch([tool_name, --arg1, val1, ...], "mcp")`
 4. **Action Handler**: Standard Gateway action executes, sets `action_response` via `success_payload()`
@@ -212,41 +226,61 @@ Both `mcp_wrapper.py` and database connection use same detection:
 
 ### Adding a Tool to Whitelist
 
-1. **Edit Whitelist**: Add entry to `MCP_TOOLS_WHITELIST` in `hh/deploy/conf/mcp_whitelist.py`:
+1. **Create or Edit Registration File**: Add `@register_mcp_tool` decorator to appropriate `mcp_utils.py` file:
+   - `hh/gateway/registry/mcp_utils.py` - For registry lister tools
+   - `hh/page/mcp_utils.py` - For page-related tools
+   - `hh/agents/mcp_utils.py` - For agent-related tools
+   - `hh/mcp_request/mcp_utils.py` - For MCP request tools
+   - `hh/mcp_action_request/mcp_utils.py` - For MCP action request tools
+   - Or create new `mcp_utils.py` in appropriate module folder
+
+2. **Register Tool**: Use decorator on a placeholder function:
    ```python
-   "new_tool": {
-       "description": "Tool description",
-       "inputSchema": {
-           "type": "object",
-           "properties": {
-               "arg1": {
-                   "type": "string",
-                   "description": "Argument description"
+   from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+
+   @register_mcp_tool(
+       tool_name='new_tool',
+       description='Tool description',
+       inputSchema={
+           'type': 'object',
+           'properties': {
+               'arg1': {
+                   'type': 'string',
+                   'description': 'Argument description'
                }
            },
-           "required": ["arg1"]
-       }
-   }
+           'required': ['arg1']
+       },
+       tiers=[1, 2, 3, 4],  # Or specific tiers like [3, 4] for admin/root only
+       requires_approval=False,
+       crud_type='read'
+   )
+   def _tool_registration():
+       """Registration placeholder for new_tool."""
+       pass
    ```
 
-2. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
+3. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
 
-3. **Redeployment Required**:
-   - Restart Flask server (reloads whitelist)
-   - Restart MCP client (discovers new tool)
+4. **Cache Rebuild**: 
+   - Cache files auto-rebuild on next cache miss (when tool is requested but not in cache)
+   - Or manually clear cache to force rebuild: Delete `hh/gateway/registry/cache/mcp-whitelist-*.json` files
+   - No Flask server restart needed (cache files are checked on each request)
    - MCP registry auto-generates wrapper on next import (no code changes needed)
 
 ### Tool Requirements
 
 For a tool to work through MCP:
-- Must be in `MCP_TOOLS_WHITELIST`
+- Must be registered with `@register_mcp_tool` decorator in an `mcp_utils.py` file
+- Must be available for the requesting tier (tier levels: 1=guest, 2=verified, 3=admin, 4=root)
 - Must have action handler registered with `@register_action` and `@register_command`
 - Must use `success_payload()` for response data (creates proper structure)
 - Should follow standard Gateway patterns (error handling, tracing)
 
 ### Schema Validation
 
-The `inputSchema` in whitelist is used by `mcp_client.py` for validation:
+The `inputSchema` in whitelist is used by `MCPWhitelist.validate_tool()` for validation:
+- Validates tool exists for the requesting tier
 - Validates required fields are present
 - Validates field types (string, integer, boolean, array, object)
 - Allows extra fields (Gateway handles additional validation)

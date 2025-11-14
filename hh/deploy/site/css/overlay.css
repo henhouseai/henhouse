@@ -1,0 +1,189 @@
+/* overlay.css - Base layout and structure for overlay system */
+/* Colors are handled by tier-specific CSS files (overlay-colors-*.css) */
+
+/* Overlay backdrop */
+#overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background-color: #000;
+  z-index: 110;
+}
+
+/* Overlay window container */
+#overlayWindow {
+  position: fixed;
+  top: 10%;
+  left: 5%;
+  width: 90%;
+  max-width: 90%;
+  max-height: 90%;
+  margin: 0;
+  border: 2px solid var(--overlay-window-border, #000);
+  border-radius: 10px;
+  padding: 4px;
+  background-color: var(--overlay-window, #fff);
+  z-index: 112;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+/* Overlay header */
+#overlayWindow div.overlayHeader {
+  width: auto;
+  margin: 3px;
+  padding: 8px 6px 0 6px;
+  background-color: var(--overlay-window, #fff);
+  color: var(--overlay-header-text, #000);
+  text-align: left;
+  font-size: 16pt;
+  font-weight: bold;
+}
+
+/* Overlay header buttons */
+#overlayWindow div.overlayHeader a {
+  position: relative;
+  top: -3px;
+  margin-left: 10px;
+  border: 1px solid var(--overlay-header-link-border, #000);
+  border-radius: 5px;
+  padding: 2px 5px;
+  background-color: var(--overlay-header-link, #ccc);
+  color: var(--overlay-header-link-text, #000);
+  font-size: 10pt;
+  font-weight: normal;
+  text-decoration: none;
+}
+
+#overlayWindow div.overlayHeader a:hover {
+  background-color: var(--overlay-header-link-hover, #ddd);
+}
+
+#overlayWindow div.overlayHeader a:active {
+  background-color: var(--overlay-header-link-active, #bbb);
+}
+
+#overlayWindow div.overlayHeader a.submitButton {
+  background-color: var(--overlay-header-submit-button, #4caf50);
+  color: var(--overlay-header-submit-button-text, #fff);
+}
+
+#overlayWindow div.overlayHeader a.submitButton:hover {
+  background-color: var(--overlay-header-submit-button-hover, #45a049);
+}
+
+#overlayWindow div.overlayHeader a.submitButton:active {
+  background-color: var(--overlay-header-submit-button-active, #3d8b40);
+}
+
+#overlayWindow div.overlayHeader a.cancelButton {
+  background-color: var(--overlay-header-cancel-button, #f44336);
+  color: var(--overlay-header-cancel-button-text, #fff);
+}
+
+#overlayWindow div.overlayHeader a.cancelButton:hover {
+  background-color: var(--overlay-header-cancel-button-hover, #da190b);
+}
+
+#overlayWindow div.overlayHeader a.cancelButton:active {
+  background-color: var(--overlay-header-cancel-button-active, #b71c1c);
+}
+
+/* Overlay content area */
+#overlayWindow div.overlayContent {
+  width: auto;
+  padding: 4px;
+  border: 1px solid var(--overlay-content-border, #000);
+  border-radius: 5px;
+  margin: 3px;
+  background-color: var(--overlay-content, #fff);
+  color: var(--overlay-content-text, #000);
+  text-align: left;
+}
+
+/* Success, warning, and error messages */
+#overlayWindow div.overlaySuccess,
+#overlayWindow div.overlayWarning,
+#overlayWindow div.overlayError {
+  width: auto;
+  padding: 4px;
+  border: 1px solid;
+  border-radius: 5px;
+  margin: 3px;
+  font-weight: bold;
+  text-align: center;
+  clear: both;
+}
+
+#overlayWindow div.overlaySuccess {
+  border-color: var(--overlay-success-border, #4caf50);
+  background-color: var(--overlay-success, #e8f5e9);
+  color: var(--overlay-success-text, #2e7d32);
+}
+
+#overlayWindow div.overlayWarning {
+  border-color: var(--overlay-warning-border, #ff9800);
+  background-color: var(--overlay-warning, #fff3e0);
+  color: var(--overlay-warning-text, #e65100);
+}
+
+#overlayWindow div.overlayError {
+  border-color: var(--overlay-error-border, #f44336);
+  background-color: var(--overlay-error, #ffebee);
+  color: var(--overlay-error-text, #c62828);
+}
+
+/* Input fields */
+#overlayWindow input {
+  margin: 5px 10px;
+  padding: 2px;
+  border: 1px solid var(--overlay-content-text, #000);
+  width: 600px;
+}
+
+#overlayWindow input.checkbox {
+  width: auto;
+  border: 0;
+}
+
+#overlayWindow label {
+  margin: 5px 10px;
+  padding: 3px;
+}
+
+/* Browser component (for future phases) */
+#overlayWindow div.browser {
+  display: none;
+}
+
+#overlayWindow div.browser div.targetTile {
+  float: left;
+  margin: 5px;
+}
+
+#overlayWindow div#browserTarget div.targetInfo div.targetName {
+  font-size: 16pt;
+  font-weight: bold;
+}
+
+#overlayWindow ul.overlayTileList {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+  clear: both;
+  position: relative;
+}
+
+#overlayWindow ul.overlayTileList li {
+  margin: 3px 2px;
+  padding: 0;
+  display: inline;
+  float: left;
+}
+

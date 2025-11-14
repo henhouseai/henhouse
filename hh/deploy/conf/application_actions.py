@@ -28,4 +28,13 @@ def populate_application_action_links(page_id: int = None) -> None:
     gateway.response.add_application_action_link('test', 'test_five', 'test five')
     gateway.response.add_application_action_link('test', 'test_six', 'test six')
     gateway.response.add_application_action_link('test', 'test_seven', 'test seven')
+    
+    # Create "overlay" group for overlay system testing
+    gateway.response.add_application_action_group('overlay', 'OVERLAY TESTS')
+    
+    # Add overlay test actions
+    gateway.response.add_application_action_link('overlay', 'overlay_test_one', 'Simple Overlay')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_two', 'Overlay with HTML')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_three', 'Overlay with Submit')
+    gateway.response.add_application_action_link('overlay', 'overlay_test_four', 'Overlay Multiple')
 

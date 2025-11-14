@@ -4,6 +4,7 @@
 
 import { getSeedData, SeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
+import { OverlayManager } from './overlay/index.js';
 
 class ActionHandlers {
   private rpc: RPCClient;
@@ -25,6 +26,12 @@ class ActionHandlers {
     this.attachHandler('test_five', () => this.handleHttpList());
     this.attachHandler('test_six', () => this.handleParserList());
     this.attachHandler('test_seven', () => this.handleMcpList());
+    
+    // Overlay test handlers
+    this.attachHandler('overlay_test_one', () => this.handleOverlayTestOne());
+    this.attachHandler('overlay_test_two', () => this.handleOverlayTestTwo());
+    this.attachHandler('overlay_test_three', () => this.handleOverlayTestThree());
+    this.attachHandler('overlay_test_four', () => this.handleOverlayTestFour());
   }
 
   /**
@@ -107,6 +114,89 @@ class ActionHandlers {
   private async handleMcpList(): Promise<void> {
     const result = await this.rpc.call('mcp_list', {});
     alert(`mcp_list result:\n${JSON.stringify(result, null, 2)}`);
+  }
+
+  /**
+   * Handle overlay_test_one: Simple overlay with text content
+   */
+  private async handleOverlayTestOne(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    manager.show({
+      header: 'Simple Overlay Test',
+      content: 'This is a simple overlay with just text content. Click Cancel or press ESC to close.',
+      closable: true
+    });
+  }
+
+  /**
+   * Handle overlay_test_two: Overlay with HTML content
+   */
+  private async handleOverlayTestTwo(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    const htmlContent = `
+      <div>
+        <h3>HTML Content Test</h3>
+        <p>This overlay contains <strong>HTML</strong> content with formatting.</p>
+        <ul>
+          <li>Item 1</li>
+          <li>Item 2</li>
+          <li>Item 3</li>
+        </ul>
+      </div>
+    `;
+    manager.show({
+      header: 'HTML Overlay Test',
+      content: htmlContent,
+      closable: true
+    });
+  }
+
+  /**
+   * Handle overlay_test_three: Overlay with submit handler
+   */
+  private async handleOverlayTestThree(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    manager.show({
+      header: 'Submit Overlay Test',
+      content: 'This overlay has a submit button. Click Submit to see it in action.',
+      closable: true,
+      onSubmit: async () => {
+        // Simulate async operation
+        await new Promise(resolve => setTimeout(resolve, 500));
+        alert('Submit handler executed!');
+        return { success: true };
+      },
+      onCancel: () => {
+        console.log('Overlay cancelled');
+      }
+    });
+  }
+
+  /**
+   * Handle overlay_test_four: Multiple overlays stacked
+   */
+  private async handleOverlayTestFour(): Promise<void> {
+    const manager = OverlayManager.getInstance();
+    
+    // Show first overlay
+    manager.show({
+      header: 'First Overlay',
+      content: 'This is the first overlay. Click Submit to open a second overlay on top.',
+      closable: true,
+      onSubmit: async () => {
+        // Show second overlay on top
+        manager.show({
+          header: 'Second Overlay',
+          content: 'This is a second overlay stacked on top of the first. Notice the z-index stacking.',
+          closable: true,
+          onSubmit: async () => {
+            alert('Second overlay submitted!');
+            return { success: true };
+          }
+        });
+        return { success: true };
+      }
+    });
   }
 }
 

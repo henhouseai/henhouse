@@ -9,6 +9,7 @@ CSS_ALWAYS_INCLUDE: List[str] = [
     'hh/deploy/site/css/ansi-colors.css',
     'hh/deploy/site/css/tables.css',
     'hh/deploy/site/css/pygments.css',
+    'hh/deploy/site/css/overlay.css',
 ]
 
 # Full whitelist of all CSS files that can be included via gateway.add_css_link()
@@ -22,6 +23,7 @@ CSS_WHITELIST: List[str] = [
     'hh/deploy/site/css/ansi-colors.css',
     'hh/deploy/site/css/tables.css',
     'hh/deploy/site/css/pygments.css',
+    'hh/deploy/site/css/overlay.css',
     # Infographic CSS files
     'hh/deploy/site/infographic/infographic-viewer.css'
 ]
