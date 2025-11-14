@@ -104,9 +104,8 @@ class ResponseMCP(Response):
         # If we have action response, use that as the main result
         if self.action_response:
             # action_response always has content structure from success_payload()
-            # Serialize content[0].text (dict) to JSON string for MCP
+            # Keep text as dict for now - will stringify in post-processing
             response_data = dict(self.action_response)
-            response_data["content"][0]["text"] = json.dumps(response_data["content"][0]["text"], default=str)
         # Otherwise, if we have output buffer, use that
         elif self.output_buffer:
             # Join output buffer - might be JSON strings or text
@@ -136,7 +135,23 @@ class ResponseMCP(Response):
         else:
             jsonrpc_response["id"] = None
         
+        # Serialize everything as objects first
         result = json.dumps(jsonrpc_response, indent=2, default=str)
+        
+        # Post-process: if we have MCP content structure, stringify the text field
+        if (self.action_response and 
+            "content" in response_data and 
+            isinstance(response_data["content"], list) and 
+            len(response_data["content"]) > 0 and
+            response_data["content"][0].get("type") == "text" and
+            "text" in response_data["content"][0] and
+            isinstance(response_data["content"][0]["text"], dict)):
+            # Parse the serialized response
+            parsed = json.loads(result)
+            # Stringify the text field
+            parsed["result"]["content"][0]["text"] = json.dumps(response_data["content"][0]["text"], default=str)
+            # Re-serialize
+            result = json.dumps(parsed, indent=2, default=str)
         log(f"MCP success response generated: {len(result)} characters")
         trace_out()
         return result
