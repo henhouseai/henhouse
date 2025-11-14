@@ -185,6 +185,7 @@ export class PageManager {
      */
     async submitChanges(rpc) {
         const changedFields = this.detectChangedFields();
+        console.log('[PageManager] Changed fields detected:', changedFields);
         // Filter out read-only fields like 'class'
         const editableFields = changedFields.filter(field => field !== 'class');
         if (editableFields.length === 0) {
@@ -196,7 +197,9 @@ export class PageManager {
         }
         // Select optimal MCP calls
         const optimalMappings = this.selectOptimalMappings(editableFields);
+        console.log('[PageManager] Optimal mappings selected:', optimalMappings);
         const currentValues = this.extractFormValues();
+        console.log('[PageManager] Current form values:', currentValues);
         const pageId = this.currentPageData?.id;
         if (!pageId) {
             throw new Error('No page ID available');
@@ -204,8 +207,10 @@ export class PageManager {
         // Execute all MCP calls in parallel
         const promises = optimalMappings.map(async ({ mapping, fields }) => {
             const params = mapping.buildParams(fields, currentValues, pageId);
+            console.log(`[PageManager] Calling MCP tool: ${mapping.mcpTool}`, params);
             try {
                 const result = await rpc.call(mapping.mcpTool, params);
+                console.log(`[PageManager] MCP call succeeded: ${mapping.mcpTool}`, result);
                 // Clear fields from registry after successful update (they're no longer "checked out")
                 this.clearFields(fields);
                 // Update internal PageData with new values
@@ -223,6 +228,7 @@ export class PageManager {
                 };
             }
             catch (error) {
+                console.error(`[PageManager] MCP call failed: ${mapping.mcpTool}`, error);
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 return {
                     mapping: mapping.mcpTool,
