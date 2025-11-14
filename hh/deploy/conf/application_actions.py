@@ -55,11 +55,4 @@ def populate_application_action_links(page_id: int = None) -> None:
     gateway.response.add_application_action_link('style', 'style_test_seven', 'Special Characters')
     gateway.response.add_application_action_link('style', 'style_test_eight', 'Table/Form Content')
     
-    # Create "crud" group for page CRUD operations
-    gateway.response.add_application_action_group('crud', 'PAGE CRUD')
-    
-    # Add CRUD actions
-    gateway.response.add_application_action_link('crud', 'modifyName', 'Edit Name')
-    gateway.response.add_application_action_link('crud', 'editPageText', 'Edit Text')
-    gateway.response.add_application_action_link('crud', 'pageOptions', 'Page Options')
 
