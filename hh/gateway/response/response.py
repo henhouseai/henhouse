@@ -1,6 +1,8 @@
 from __future__ import annotations
+import os
 from typing import List, Optional
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -42,7 +44,19 @@ class Response:
         self.content_wrapper_class: str = ""
         self.content_wrapper_header: str = ""
         # User tier level (0 = unknown, 1 = guest, 2 = verified, 3 = admin, 4 = root)
-        self.user_tier_level: int = 0
+        # Check USER_TIER environment variable (set by Flask for MCP requests)
+        user_tier = os.getenv('USER_TIER')
+        if user_tier and user_tier in HENHOUSE_TIERS:
+            try:
+                tier_index = HENHOUSE_TIERS.index(user_tier)
+                # Convert 0-based index to 1-based level (index 0 → level 1, etc.)
+                self.user_tier_level = tier_index + 1
+                log(f"Detected user tier from USER_TIER env: {user_tier} (level {self.user_tier_level})")
+            except ValueError:
+                self.user_tier_level = 0
+                log(f"USER_TIER env var '{user_tier}' not found in HENHOUSE_TIERS")
+        else:
+            self.user_tier_level = 0
         log("Response initialized with empty buffer")
         trace_out()
     

@@ -226,15 +226,18 @@ def mcp_handler(path: str = ""):
                 }), 503, {'Content-Type': 'application/json'}
             
             try:
-                # Pass JSON-RPC request via stdin
+                # Pass JSON-RPC request via stdin and tier via environment
                 json_input = json.dumps(mcp_request)
+                env = os.environ.copy()
+                env['USER_TIER'] = TIER_SUFFIX
                 result = subprocess.run(
                     cmd,
                     input=json_input,
                     capture_output=True,
                     text=True,
                     timeout=10,
-                    cwd=str(PROJECT_ROOT)
+                    cwd=str(PROJECT_ROOT),
+                    env=env
                 )
             finally:
                 _gateway_semaphore.release()

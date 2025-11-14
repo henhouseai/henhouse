@@ -11,7 +11,8 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error
 from hh.gateway.registry.registry import register_mcp
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.deploy.conf.mcp_whitelist import MCP_TOOLS_WHITELIST
+from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -49,8 +50,17 @@ def _mcp_wrapper_template(tool_name: str) -> bool:
 
 # Dynamically generate wrapper functions with @register_mcp decorators using exec
 # This exec block will be discovered by the registry system when this module is imported
+# Get all tools from all tiers to generate wrappers
 _wrapper_code = ""
-for tool_name in MCP_TOOLS_WHITELIST.keys():
+all_tools = set()
+for tier in HENHOUSE_TIERS:
+    try:
+        tier_whitelist = MCPWhitelist._load_tier_whitelist(tier)
+        all_tools.update(tier_whitelist.keys())
+    except Exception as e:
+        warn(f"Error loading {tier} whitelist for wrapper generation: {e}")
+
+for tool_name in all_tools:
     # Convert tool_name to valid Python function name (replace hyphens with underscores)
     func_name = tool_name.replace('-', '_')
     _wrapper_code += f"""

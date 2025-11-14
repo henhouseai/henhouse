@@ -6,13 +6,15 @@ Implements core MCP protocol methods and routes tool execution to Gateway.
 """
 from __future__ import annotations
 import sys
+import os
 import json
 
 # MCP Protocol Version
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
-# Import MCP Tools Whitelist from centralized location
-from hh.deploy.conf.mcp_whitelist import MCP_TOOLS_WHITELIST
+# Import MCP Whitelist class
+from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 def get_server_info():
     """Get server information for MCP responses."""
@@ -21,43 +23,7 @@ def get_server_info():
         "version": "1.0.0"
     }
 
-def validate_arguments(arguments: dict, schema: dict) -> tuple[bool, str]:
-    """Validate arguments against JSON Schema.
-    Returns (is_valid, error_message).
-    """
-    if not isinstance(arguments, dict):
-        return False, "Arguments must be an object"
-    
-    # Check required fields
-    required = schema.get("required", [])
-    for field in required:
-        if field not in arguments:
-            return False, f"Missing required field: {field}"
-    
-    # Check types for provided fields
-    properties = schema.get("properties", {})
-    for key, value in arguments.items():
-        if key not in properties:
-            # Allow extra fields for now (Gateway will handle validation)
-            continue
-        
-        prop_schema = properties[key]
-        expected_type = prop_schema.get("type")
-        
-        if expected_type == "string" and not isinstance(value, str):
-            return False, f"Field '{key}' must be a string"
-        elif expected_type == "integer" and not isinstance(value, int):
-            return False, f"Field '{key}' must be an integer"
-        elif expected_type == "number" and not isinstance(value, (int, float)):
-            return False, f"Field '{key}' must be a number"
-        elif expected_type == "boolean" and not isinstance(value, bool):
-            return False, f"Field '{key}' must be a boolean"
-        elif expected_type == "array" and not isinstance(value, list):
-            return False, f"Field '{key}' must be an array"
-        elif expected_type == "object" and not isinstance(value, dict):
-            return False, f"Field '{key}' must be an object"
-    
-    return True, ""
+# validate_arguments removed - now handled by MCPWhitelist.validate_tool()
 
 def handle_initialize(params: dict, request_id) -> dict:
     """Handle MCP initialize request."""
@@ -85,17 +51,19 @@ def handle_initialize(params: dict, request_id) -> dict:
         }
     }
 
+def get_tier() -> str:
+    """Get current tier from environment or Flask app context."""
+    # Try to get from environment (set by Flask app)
+    tier = os.getenv('USER_TIER', 'guest')
+    # Validate tier
+    if tier not in HENHOUSE_TIERS:
+        tier = 'guest'
+    return tier
+
 def handle_tools_list(request_id) -> dict:
     """Handle MCP tools/list request."""
-    tools = []
-    
-    for tool_name, tool_config in MCP_TOOLS_WHITELIST.items():
-        tool = {
-            "name": tool_name,
-            "description": tool_config["description"],
-            "inputSchema": tool_config["inputSchema"]
-        }
-        tools.append(tool)
+    tier = get_tier()
+    tools = MCPWhitelist.list_tools(tier)
     
     return {
         "jsonrpc": "2.0",
@@ -129,6 +97,7 @@ def handle_tools_call(params: dict, request_id) -> dict:
     """Handle MCP tools/call request - validate and route to Gateway."""
     tool_name = params.get("name")
     tool_arguments = params.get("arguments", {})
+    tier = get_tier()
     
     if not tool_name:
         return {
@@ -141,22 +110,8 @@ def handle_tools_call(params: dict, request_id) -> dict:
             }
         }
     
-    # Check if tool is in whitelist
-    if tool_name not in MCP_TOOLS_WHITELIST:
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {
-                "code": -32601,
-                "message": "Method not found",
-                "data": f"Tool '{tool_name}' is not available"
-            }
-        }
-    
-    # Validate arguments against schema
-    tool_config = MCP_TOOLS_WHITELIST[tool_name]
-    schema = tool_config["inputSchema"]
-    is_valid, error_msg = validate_arguments(tool_arguments, schema)
+    # Check if tool exists for this tier and validate arguments
+    is_valid, error_msg = MCPWhitelist.validate_tool(tier, tool_name, tool_arguments)
     
     if not is_valid:
         return {

@@ -1,0 +1,136 @@
+{
+  "help": {
+    "description": "Get help documentation for a topic and optional section. Returns help content in JSON format.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "description": "The help topic to retrieve (defaults to 'help' if not provided)"
+        },
+        "section": {
+          "type": "string",
+          "description": "Optional specific section within the topic"
+        }
+      },
+      "required": []
+    }
+  },
+  "show_image": {
+    "description": "Show image details by ID. Returns complete image data including usage, instances, and metadata.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "The ID of the image to show"
+        },
+        "json": {
+          "type": "boolean",
+          "description": "If true, returns JSON format output (optional)"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  "count_pages": {
+    "description": "Count the total number of pages and images in the database.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "show_page": {
+    "description": "Show page with full details by ID, name, or link. Returns complete page data including hierarchy and content.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "The ID of the page to show"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name/link of the page to show (alternative to id)"
+        },
+        "link": {
+          "type": "string",
+          "description": "The link of the page to show (alternative to id or name)"
+        }
+      },
+      "required": []
+    }
+  },
+  "get_page": {
+    "description": "Get page data by ID, name, or link. Returns JSON-friendly page data including children, images, and metadata.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "The ID of the page to retrieve"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name/link of the page to retrieve (alternative to id)"
+        },
+        "link": {
+          "type": "string",
+          "description": "The link of the page to retrieve (alternative to id or name)"
+        }
+      },
+      "required": []
+    }
+  },
+  "mcp_list": {
+    "description": "List available MCP backends",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "parser_list": {
+    "description": "List available parser backends",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "http_list": {
+    "description": "List available HTTP backends",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "backend_list": {
+    "description": "List available backend handlers",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "action_list": {
+    "description": "List available action handlers",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "command_list": {
+    "description": "List available commands",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  }
+}
