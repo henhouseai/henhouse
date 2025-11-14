@@ -749,28 +749,77 @@ class ActionHandlers {
           // PageData handles change detection and submission automatically
           const result = await pageData.submitChanges(this.rpc);
           
-          // Extract new name from result and update DOM
-          if (result) {
-            const parsedResult = this.rpc.extractMCPData(result);
-            const resultPageData = parsedResult?.page || parsedResult;
-            const newName = resultPageData?.name;
-            
-            if (newName && pageId) {
-              // Update the last <a> tag in the path (header)
-              const headerEl = document.getElementById('header');
-              if (headerEl) {
-                const pathUl = headerEl.querySelector('ul.path');
-                if (pathUl) {
-                  const lastLink = pathUl.querySelector('li:last-child a');
-                  if (lastLink) {
-                    lastLink.textContent = newName;
+          // Handle "no changes" case - return special marker so overlay knows to show message and fade
+          if (result.noChanges) {
+            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
+          }
+          
+          // Build detailed success/error messages for each operation
+          const messages: string[] = [];
+          if (result.operations && result.operations.length > 0) {
+            result.operations.forEach((op: any) => {
+              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
+            });
+          } else {
+            // Fallback to general message
+            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          }
+          
+          const combinedMessage = messages.join('\n');
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          // Return result with message info - overlay will handle display
+          if (allSucceeded) {
+            // Extract new name from result and update DOM
+            if (result.success && pageId) {
+              // Find the name update operation result
+              const nameOp = result.operations?.find((op: any) => op.fields?.includes('name'));
+              if (nameOp && nameOp.success && nameOp.result) {
+                const parsedResult = this.rpc.extractMCPData(nameOp.result);
+                const resultPageData = parsedResult?.page || parsedResult;
+                const newName = resultPageData?.name;
+                
+                if (newName) {
+                  // Update the last <a> tag in the path (header)
+                  const headerEl = document.getElementById('header');
+                  if (headerEl) {
+                    const pathUl = headerEl.querySelector('ul.path') as HTMLUListElement | null;
+                    if (pathUl) {
+                      const listItems = pathUl.querySelectorAll('li');
+                      if (listItems.length > 0) {
+                        const lastLi = listItems[listItems.length - 1];
+                        const lastLink = lastLi.querySelector('a') as HTMLAnchorElement | null;
+                        if (lastLink) {
+                          lastLink.textContent = newName;
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Also update page text in case it contains a link to itself
+                  try {
+                    const getTextResult = await this.rpc.call('get_text', { page_id: pageId });
+                    const parsedTextResult = this.rpc.extractMCPData(getTextResult);
+                    const processedText = parsedTextResult?.processed_text;
+                    
+                    if (processedText) {
+                      const textDiv = document.getElementById(`page-text-${pageId}`) as HTMLDivElement | null;
+                      if (textDiv) {
+                        textDiv.innerHTML = processedText;
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Failed to fetch updated text after name change:', error);
                   }
                 }
               }
             }
+            
+            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+          } else {
+            // Some failed - throw error so overlay shows error and doesn't fade
+            throw new Error(combinedMessage);
           }
-          
-          return result;
         }
       });
 
@@ -828,27 +877,55 @@ class ActionHandlers {
           // PageData handles change detection and submission automatically
           const result = await pageData.submitChanges(this.rpc);
           
-          // After successful submit, fetch processed text and update DOM
-          if (result && pageId) {
-            try {
-              const getTextResult = await this.rpc.call('get_text', { page_id: pageId });
-              const parsedTextResult = this.rpc.extractMCPData(getTextResult);
-              const processedText = parsedTextResult?.processed_text;
-              
-              if (processedText) {
-                // Update the page text div
-                const textDiv = document.getElementById(`page-text-${pageId}`);
-                if (textDiv) {
-                  textDiv.innerHTML = processedText;
-                }
-              }
-            } catch (error) {
-              console.error('Failed to fetch updated text:', error);
-              // Don't throw - the submit was successful, just couldn't update display
-            }
+          // Handle "no changes" case - return special marker so overlay knows to show message and fade
+          if (result.noChanges) {
+            return { ...result, _showMessage: result.message || 'No changes made', _autoFade: true };
           }
           
-          return result;
+          // Build detailed success/error messages for each operation
+          const messages: string[] = [];
+          if (result.operations && result.operations.length > 0) {
+            result.operations.forEach((op: any) => {
+              messages.push(op.message || `${op.mapping}: ${op.success ? 'Success' : 'Failed'}`);
+            });
+          } else {
+            // Fallback to general message
+            messages.push(result.message || (result.success ? 'Success' : 'Failed'));
+          }
+          
+          const combinedMessage = messages.join('\n');
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          // Return result with message info - overlay will handle display
+          if (allSucceeded) {
+            // After successful submit, fetch processed text and update DOM
+            if (result.success && pageId) {
+              // Find the text update operation result
+              const textOp = result.operations?.find((op: any) => op.fields?.includes('text'));
+              if (textOp && textOp.success) {
+                try {
+                  const getTextResult = await this.rpc.call('get_text', { page_id: pageId });
+                  const parsedTextResult = this.rpc.extractMCPData(getTextResult);
+                  const processedText = parsedTextResult?.processed_text;
+                  
+                  if (processedText) {
+                    const textDiv = document.getElementById(`page-text-${pageId}`) as HTMLDivElement | null;
+                    if (textDiv) {
+                      textDiv.innerHTML = processedText;
+                    }
+                  }
+                } catch (error) {
+                  console.error('Failed to fetch updated text:', error);
+                  // Don't throw - the submit was successful, just couldn't update display
+                }
+              }
+            }
+            
+            return { ...result, _showMessage: combinedMessage, _autoFade: true };
+          } else {
+            // Some failed - throw error so overlay shows error and doesn't fade
+            throw new Error(combinedMessage);
+          }
         }
       });
 

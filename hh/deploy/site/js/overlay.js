@@ -228,14 +228,27 @@ export class Overlay {
         if (!this.props.onSubmit) {
             return;
         }
-        this.setState({ isLoading: true, error: null });
+        this.setState({ isLoading: true, error: null, success: null });
         try {
             const result = await this.props.onSubmit();
-            this.setState({ isLoading: false, success: 'Success!' });
+            // Check if result has custom message and auto-fade flag
+            const showMessage = result?._showMessage;
+            const autoFade = result?._autoFade === true;
+            if (showMessage) {
+                // Use custom message from onSubmit handler
+                this.setState({ isLoading: false, success: showMessage });
+            }
+            else {
+                // Default success message
+                this.setState({ isLoading: false, success: 'Success!' });
+            }
             // Auto-close after success: wait 1-2 seconds, then slow fade out
-            setTimeout(() => {
-                this.closeWithFade(1500); // 1.5 second slow fade
-            }, 1500); // 1.5 second delay before fade starts
+            // Only auto-close if explicitly requested (autoFade flag) or if we have success
+            if (autoFade || (this.state.success && !this.state.error)) {
+                setTimeout(() => {
+                    this.closeWithFade(1500); // 1.5 second slow fade
+                }, 1500); // 1.5 second delay before fade starts
+            }
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);

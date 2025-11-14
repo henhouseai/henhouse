@@ -355,6 +355,7 @@ export class PageData {
 
   /**
    * Submit changes - automatically determines which MCP calls to make using optimal mapping algorithm
+   * Returns detailed results for each operation
    */
   async submitChanges(rpc: any): Promise<any> {
     const changedFields = this.detectChangedFields();
@@ -363,12 +364,16 @@ export class PageData {
     const editableFields = changedFields.filter(field => field !== 'class');
     
     if (editableFields.length === 0) {
-      return { success: true, message: 'No changes detected' };
+      return { 
+        success: true, 
+        noChanges: true,
+        message: 'No changes made' 
+      };
     }
 
     // Select optimal MCP calls
     const optimalMappings = this.selectOptimalMappings(editableFields);
-    const currentValues = this.extractFormValues();
+      const currentValues = this.extractFormValues();
     
     // Execute all MCP calls in parallel
     const promises = optimalMappings.map(async ({ mapping, fields }) => {
@@ -376,27 +381,47 @@ export class PageData {
       
       try {
         const result = await rpc.call(mapping.mcpTool, params);
-        // Update registry with new values for all fields in this mapping
+        // Update registry with new values for all fields in this mapping (mark as successful)
         fields.forEach(fieldName => {
           if (this.fieldRegistry[fieldName]) {
             this.fieldRegistry[fieldName].originalValue = currentValues[fieldName];
           }
         });
-        return { mapping: mapping.mcpTool, fields, success: true, result };
+        return { 
+          mapping: mapping.mcpTool, 
+          fields, 
+          success: true, 
+          result,
+          message: `Successfully updated ${fields.join(', ')}`
+        };
       } catch (error) {
-        return { mapping: mapping.mcpTool, fields, success: false, error };
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return { 
+          mapping: mapping.mcpTool, 
+          fields, 
+          success: false, 
+          error,
+          message: `Failed to update ${fields.join(', ')}: ${errorMessage}`
+        };
       }
     });
 
     const results = await Promise.all(promises);
     
+    const successes = results.filter(r => r.success);
     const errors = results.filter(r => !r.success);
-    if (errors.length > 0) {
-      const errorDetails = errors.map(e => `${e.mapping}(${e.fields.join(', ')})`).join(', ');
-      throw new Error(`Failed to update: ${errorDetails}`);
-    }
-
-    return { success: true, updated: editableFields, operations: results };
+    const allSucceeded = errors.length === 0;
+    
+    return {
+      success: allSucceeded,
+      noChanges: false,
+      operations: results,
+      successes: successes,
+      errors: errors,
+      message: allSucceeded 
+        ? `Successfully updated all fields`
+        : `${successes.length} succeeded, ${errors.length} failed`
+    };
   }
 
   /**
@@ -409,7 +434,7 @@ export class PageData {
     for (const mapping of mappings) {
       if (mapping.fields.includes(fieldName)) {
         return mapping.mcpTool;
-      }
+    }
     }
     // Fallback to modify_<field_name> convention
     return `modify_${fieldName}`;
