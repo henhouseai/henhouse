@@ -308,3 +308,8 @@ ul.menuGroup li.header a {
     --syntax-success: #3fb950;        /* Green for success/inserted */
 }
 
+/* Textarea padding - ensure cursor is visible at line start */
+textarea {
+    padding: 8px 12px;
+}
+

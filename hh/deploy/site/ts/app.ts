@@ -786,8 +786,17 @@ class ActionHandlers {
                 const parsedResult = this.rpc.extractMCPData(nameOp.result);
                 const resultPageData = parsedResult?.page || parsedResult;
                 const newName = resultPageData?.name;
+                const newRawText = resultPageData?.text; // Raw text from get_page response
                 
                 if (newName) {
+                  // Update internal PageData with new name (already done by submitChanges, but ensure it's set)
+                  pageData.updateFieldValue('name', newName);
+                  
+                  // Update internal PageData with new raw text (in case self-referential link changed)
+                  if (newRawText !== undefined) {
+                    pageData.updateFieldValue('text', newRawText);
+                  }
+                  
                   // Update the last <a> tag in the path (header)
                   const headerEl = document.getElementById('header');
                   if (headerEl) {
