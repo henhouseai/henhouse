@@ -330,7 +330,8 @@ class MCPWhitelist:
         app_action_tier_level = user_tier_level + 4
         
         app_actions = []
-        for tool_name, tool_config in _global_tool_registry.items():
+        # Iterate in reverse order to match file definition order
+        for tool_name, tool_config in reversed(list(_global_tool_registry.items())):
             tier_levels = tool_config.get('tier_levels', [])
             # Check if this tool has the app action tier level (5-8)
             if app_action_tier_level in tier_levels:
