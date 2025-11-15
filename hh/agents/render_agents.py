@@ -218,7 +218,6 @@ def agent_list() -> bool:
     trace_out()
     return True
 
-@register_http('agent_tree')
 @register_parser('agent_tree')
 def agent_tree() -> bool:
     trace_in()

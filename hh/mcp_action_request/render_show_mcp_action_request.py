@@ -29,7 +29,6 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_http('modify_mcp_action_request')
 @register_parser('modify_mcp_action_request')
 def show_mcp_action_request() -> bool:
     return show_page()

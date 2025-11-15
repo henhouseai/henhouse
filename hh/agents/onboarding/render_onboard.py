@@ -152,7 +152,6 @@ def _render_onboard_parser() -> bool:
     trace_out()
     return True
 
-@register_http('onboard')
 @register_parser('onboard')
 def onboard() -> bool:
     return _render_onboard_parser()

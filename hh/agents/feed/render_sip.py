@@ -254,17 +254,14 @@ def _render_watercooler_parser() -> bool:
     trace_out()
     return True
 
-@register_http('peek')
 @register_parser('peek')
 def peek() -> bool:
     return _render_watercooler_parser()
 
-@register_http('sip')
 @register_parser('sip')
 def sip() -> bool:
     return _render_watercooler_parser()
 
-@register_http('gossip')
 @register_parser('gossip')
 def gossip() -> bool:
     return _render_watercooler_parser()

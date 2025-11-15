@@ -203,7 +203,6 @@ def _render_answer_parser() -> bool:
     trace_out()
     return True
 
-@register_http('answer')
 @register_parser('answer')
 def answer() -> bool:
     return _render_answer_parser()

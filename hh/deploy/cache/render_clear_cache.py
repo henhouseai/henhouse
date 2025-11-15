@@ -101,7 +101,6 @@ def render_clear_cache_section(source_data: dict, lines: List[str]) -> bool:
     trace_out()
     return True
 
-@register_http('clear_cache')
 @register_parser('clear_cache')
 def clear_cache() -> bool:
     trace_in()

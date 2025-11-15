@@ -333,10 +333,10 @@ class ResponseHTTP(Response):
             html_parts.append('<ul class="siteLinks menuGroup">')
             # First link is header
             header_page_id, header_text = links[0]
-            html_parts.append(f'    <li class="header"><a href="/show-page?id={header_page_id}">{header_text}</a></li>')
+            html_parts.append(f'    <li class="header"><a href="/{header_page_id}">{header_text}</a></li>')
             # Remaining links are regular items
             for page_id, link_text in links[1:]:
-                html_parts.append(f'    <li><a href="/show-page?id={page_id}">{link_text}</a></li>')
+                html_parts.append(f'    <li><a href="/{page_id}">{link_text}</a></li>')
             html_parts.append('</ul>')
         
         return "\n".join(html_parts)

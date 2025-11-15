@@ -24,7 +24,6 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_http('gulp')
 @register_parser('gulp')
 def gulp(data: Dict[str, Union[str, int, List[str], Dict[str, Union[str, int, List[Dict[str, Union[str, int]]]]]]]) -> bool:
     trace_in()

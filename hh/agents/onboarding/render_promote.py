@@ -178,7 +178,6 @@ def _render_promote_parser() -> bool:
     trace_out()
     return True
 
-@register_http('promote')
 @register_parser('promote')
 def promote() -> bool:
     return _render_promote_parser()

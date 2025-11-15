@@ -42,7 +42,7 @@ def render_path_section(page_data: Dict[str, Any]) -> None:
             page_id = path_item.get('id')
             if page_id is not None:
                 name = path_item.get('name') or path_item.get('title') or f"Page {page_id}"
-                link_href = f"show-page?id={page_id}"
+                link_href = f"{page_id}"
                 path_items.append(f'<li><a href="{link_href}">{safe_str(name)}</a></li>')
         if path_items:
             path_html = f'<ul class="path">{"".join(path_items)}</ul>'
@@ -580,31 +580,18 @@ def render_text_section(page_data: Dict[str, Union[str, int]]) -> None:
 
 @register_http('show_page')
 @register_parser('show_page')
-@register_http('add_page')
 @register_parser('add_page')
-@register_http('add_image')
 @register_parser('add_image')
-@register_http('add_images')
 @register_parser('add_images')
-@register_http('modify_name')
 @register_parser('modify_name')
-@register_http('modify_text')
 @register_parser('modify_text')
-@register_http('move_page')
 @register_parser('move_page')
-@register_http('copy_page')
 @register_parser('copy_page')
-@register_http('remove_image')
 @register_parser('remove_image')
-@register_http('set_image_rank')
 @register_parser('set_image_rank')
-@register_http('copy_image')
 @register_parser('copy_image')
-@register_http('copy_images')
 @register_parser('copy_images')
-@register_http('move_image')
 @register_parser('move_image')
-@register_http('move_images')
 @register_parser('move_images')
 def show_page() -> bool:
     trace_in()

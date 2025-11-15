@@ -289,15 +289,15 @@ export class PageData {
         };
     }
     /**
-     * Get the URL for a page using the show-page?id= format.
+     * Get the URL for a page using the numeric path format.
      * @param pageId The page ID, or null/undefined for root
-     * @returns The page URL (e.g., "/show-page?id=1" or "/" for root)
+     * @returns The page URL (e.g., "/1" or "/" for root)
      */
     getPageUrl(pageId) {
         if (!pageId) {
             return '/';
         }
-        return `/show-page?id=${pageId}`;
+        return `/${pageId}`;
     }
     /**
      * Helper method to update the page text div in the DOM.

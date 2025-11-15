@@ -61,7 +61,6 @@ def render_delete_section(source_data: Dict[str, Union[str, int]], lines: List[s
     trace_out()
 
 
-@register_http('delete_page')
 @register_parser('delete_page')
 def delete_page() -> bool:
     trace_in()

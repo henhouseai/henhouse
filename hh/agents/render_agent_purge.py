@@ -114,7 +114,6 @@ def render_operations_section(source_data: Dict[str, Union[str, int, list]], lin
     return True
 
 
-@register_http('agent_purge')
 @register_parser('agent_purge')
 def agent_purge() -> bool:
     trace_in()

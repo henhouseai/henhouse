@@ -86,7 +86,6 @@ def render_allowed_classes_section(source_data: Dict[str, Union[str, int, List]]
     trace_out()
 
 
-@register_http('get_add_page_class_info')
 @register_parser('get_add_page_class_info')
 def get_add_page_class_info() -> bool:
     trace_in()

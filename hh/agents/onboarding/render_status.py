@@ -332,7 +332,6 @@ def _render_status_parser() -> bool:
     return True
 
 
-@register_http('status')
 @register_parser('status')
 def status() -> bool:
     """Parse and format status output"""

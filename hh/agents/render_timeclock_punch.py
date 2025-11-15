@@ -124,12 +124,10 @@ def _render_punch_parser(operation: str) -> bool:
     trace_out()
     return True
 
-@register_http('punch_in')
 @register_parser('punch_in')
 def punch_in() -> bool:
     return _render_punch_parser("in")
 
-@register_http('punch_out')
 @register_parser('punch_out')
 def punch_out() -> bool:
     return _render_punch_parser("out")

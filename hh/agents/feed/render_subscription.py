@@ -109,82 +109,66 @@ def render_subscription_parser() -> bool:
     trace_out()
     return True
 
-@register_http('subscribe_agent')
 @register_parser('subscribe_agent')
 def subscribe_agent() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_ask')
 @register_parser('subscribe_ask')
 def subscribe_ask() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_docket')
 @register_parser('subscribe_docket')
 def subscribe_docket() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_keyword')
 @register_parser('subscribe_keyword')
 def subscribe_keyword() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_operator')
 @register_parser('subscribe_operator')
 def subscribe_operator() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_sidecar')
 @register_parser('subscribe_sidecar')
 def subscribe_sidecar() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_step')
 @register_parser('subscribe_step')
 def subscribe_step() -> bool:
     return render_subscription_parser()
 
-@register_http('subscribe_task')
 @register_parser('subscribe_task')
 def subscribe_task() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_agent')
 @register_parser('unsubscribe_agent')
 def unsubscribe_agent() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_ask')
 @register_parser('unsubscribe_ask')
 def unsubscribe_ask() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_docket')
 @register_parser('unsubscribe_docket')
 def unsubscribe_docket() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_keyword')
 @register_parser('unsubscribe_keyword')
 def unsubscribe_keyword() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_operator')
 @register_parser('unsubscribe_operator')
 def unsubscribe_operator() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_sidecar')
 @register_parser('unsubscribe_sidecar')
 def unsubscribe_sidecar() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_step')
 @register_parser('unsubscribe_step')
 def unsubscribe_step() -> bool:
     return render_subscription_parser()
 
-@register_http('unsubscribe_task')
 @register_parser('unsubscribe_task')
 def unsubscribe_task() -> bool:
     return render_subscription_parser()
