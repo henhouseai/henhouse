@@ -30,6 +30,7 @@ JS_WHITELIST: List[str] = [
     'hh/deploy/site/js/overlay-window.js',
     'hh/deploy/site/js/overlay-header.js',
     'hh/deploy/site/js/overlay-content.js',
+    'hh/deploy/site/js/test.js',
     # Infographic JavaScript files
     'hh/deploy/site/infographic/infographic-json.js',
     'hh/deploy/site/infographic/infographic-glossary-json.js',
