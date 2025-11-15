@@ -160,19 +160,31 @@ def _rebuild_all_tier_whitelists() -> Dict[str, Dict[str, Dict[str, Any]]]:
     for tier in HENHOUSE_TIERS:
         all_tier_whitelists[tier] = {}
     
-    # Filter tools for each tier
+    # Filter tools for each tier - only process MCP tools (tiers 1-4)
     for tool_name, tool_config in _global_tool_registry.items():
+        tier_levels = tool_config.get('tier_levels', [])
+        
+        # Only process tools that have MCP tier levels (1-4)
+        mcp_tier_levels = [level for level in tier_levels if 1 <= level <= 4]
+        if not mcp_tier_levels:
+            # This tool is app-action-only (tiers 5-8 only), skip adding to MCP whitelist
+            continue
+        
         # Build MCP format entry (only description and inputSchema - no tier metadata)
         mcp_entry = {
             'description': tool_config['description'],
             'inputSchema': tool_config['inputSchema']
         }
         
-        # Add to whitelists for each tier that has access
-        for tier in tool_config.get('tiers', []):
-            if tier in all_tier_whitelists:
-                all_tier_whitelists[tier][tool_name] = mcp_entry
-                log(f"Added tool '{tool_name}' to {tier} whitelist")
+        # Add to whitelists only for MCP tier levels (1-4)
+        # Convert tier levels 1-4 to tier names
+        for tier_level in mcp_tier_levels:
+            tier_index = tier_level - 1  # Convert 1-based level to 0-based index
+            if 0 <= tier_index < len(HENHOUSE_TIERS):
+                tier_name = HENHOUSE_TIERS[tier_index]
+                if tier_name in all_tier_whitelists:
+                    all_tier_whitelists[tier_name][tool_name] = mcp_entry
+                    log(f"Added tool '{tool_name}' to {tier_name} whitelist")
     
     trace_out()
     return all_tier_whitelists

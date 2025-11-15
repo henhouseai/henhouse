@@ -256,11 +256,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page', 'image_id']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='create',
-    app_action_group='images_organize',
-    app_action_label='Copy Image'
+    crud_type='create'
 )
 @register_mcp_tool(
     tool_name='copy_images',
@@ -275,11 +273,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['target_page', 'image_id']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='create',
-    app_action_group='images_organize',
-    app_action_label='Copy Images'
+    crud_type='create'
 )
 @register_mcp_tool(
     tool_name='move_image',
@@ -299,11 +295,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['source_page', 'image_id', 'target_page']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='update',
-    app_action_group='images_organize',
-    app_action_label='Move Image'
+    crud_type='update'
 )
 @register_mcp_tool(
     tool_name='move_images',
@@ -322,11 +316,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='update',
-    app_action_group='images_organize',
-    app_action_label='Move Images'
+    crud_type='update'
 )
 @register_mcp_tool(
     tool_name='remove_image',
@@ -340,11 +332,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'image_id']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='delete',
-    app_action_group='images_organize',
-    app_action_label='Remove Image'
+    crud_type='delete'
 )
 @register_mcp_tool(
     tool_name='set_image_rank',
@@ -361,11 +351,79 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'image_id', 'target_rank']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='update',
-    app_action_group='images_organize',
-    app_action_label='Set Image Rank'
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='upload_images',
+    description='Upload images to a page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='images',
+    app_action_label='Upload Images'
+)
+@register_mcp_tool(
+    tool_name='copy_images_app',
+    description='Copy images to a target page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='images',
+    app_action_label='Copy'
+)
+@register_mcp_tool(
+    tool_name='move_images_app',
+    description='Move images from a source page to a target page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='images',
+    app_action_label='Move'
+)
+@register_mcp_tool(
+    tool_name='delete_images_app',
+    description='Delete images from a page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='images',
+    app_action_label='Delete'
+)
+@register_mcp_tool(
+    tool_name='sort_images_app',
+    description='Sort/reorder images on a page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='images',
+    app_action_label='Sort'
 )
 @register_mcp_tool(
     tool_name='modify_caption',
