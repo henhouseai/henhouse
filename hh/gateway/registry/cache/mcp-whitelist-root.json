@@ -1,4 +1,951 @@
 {
+  "answer": {
+    "description": "Process an agent's answer to a training question and queue the next training message. Either answer text or ack_read flag must be provided.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent submitting the answer"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "answer": {
+          "type": "string",
+          "description": "The answer text to the training question (alternative to ack_read)"
+        },
+        "ack_read": {
+          "type": "boolean",
+          "description": "Acknowledge that the document was read without providing an answer (alternative to answer)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts"
+      ]
+    }
+  },
+  "promote": {
+    "description": "Promote an agent to a new role and queue role-specific training. Agent must be inactive (will be punched out if active).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to promote"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "role": {
+          "type": "string",
+          "description": "The new role to promote the agent to"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "role"
+      ]
+    }
+  },
+  "onboard": {
+    "description": "Create a new training agent and begin onboarding process. Automatically creates agent with 'apprentice' role and queues first training message.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "unsubscribe_operator": {
+    "description": "Unsubscribe an agent from receiving messages from an operator. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "operator_id": {
+          "type": "integer",
+          "description": "The ID of the operator to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "operator_id"
+      ]
+    }
+  },
+  "unsubscribe_docket": {
+    "description": "Unsubscribe an agent from receiving messages related to a specific work docket. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "docket_id": {
+          "type": "integer",
+          "description": "The ID of the work docket to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "docket_id"
+      ]
+    }
+  },
+  "unsubscribe_keyword": {
+    "description": "Unsubscribe an agent from receiving messages related to a specific keyword. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "keyword_id": {
+          "type": "integer",
+          "description": "The ID of the keyword to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "keyword_id"
+      ]
+    }
+  },
+  "unsubscribe_sidecar": {
+    "description": "Unsubscribe an agent from receiving messages related to a specific sidecar file. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "sidecar_file_id": {
+          "type": "integer",
+          "description": "The ID of the sidecar file to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "sidecar_file_id"
+      ]
+    }
+  },
+  "unsubscribe_step": {
+    "description": "Unsubscribe an agent from receiving messages related to a specific step. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "step_id": {
+          "type": "integer",
+          "description": "The ID of the step to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "step_id"
+      ]
+    }
+  },
+  "unsubscribe_task": {
+    "description": "Unsubscribe an agent from receiving messages related to a specific task. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "task_id": {
+          "type": "integer",
+          "description": "The ID of the task to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "task_id"
+      ]
+    }
+  },
+  "unsubscribe_ask": {
+    "description": "Unsubscribe an agent from receiving messages related to a specific ask. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "ask_id": {
+          "type": "integer",
+          "description": "The ID of the ask to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "ask_id"
+      ]
+    }
+  },
+  "unsubscribe_agent": {
+    "description": "Unsubscribe an agent from receiving messages from another agent. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to remove the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "target_agent_id": {
+          "type": "integer",
+          "description": "The ID of the target agent to unsubscribe from"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "target_agent_id"
+      ]
+    }
+  },
+  "subscribe_operator": {
+    "description": "Subscribe an agent to receive messages from an operator. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "operator_id": {
+          "type": "integer",
+          "description": "The ID of the operator to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "operator_id"
+      ]
+    }
+  },
+  "subscribe_docket": {
+    "description": "Subscribe an agent to receive messages related to a specific work docket. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "docket_id": {
+          "type": "integer",
+          "description": "The ID of the work docket to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "docket_id"
+      ]
+    }
+  },
+  "subscribe_keyword": {
+    "description": "Subscribe an agent to receive messages related to a specific keyword. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "keyword_id": {
+          "type": "integer",
+          "description": "The ID of the keyword to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "keyword_id"
+      ]
+    }
+  },
+  "subscribe_sidecar": {
+    "description": "Subscribe an agent to receive messages related to a specific sidecar file. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "sidecar_file_id": {
+          "type": "integer",
+          "description": "The ID of the sidecar file to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "sidecar_file_id"
+      ]
+    }
+  },
+  "subscribe_step": {
+    "description": "Subscribe an agent to receive messages related to a specific step. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "step_id": {
+          "type": "integer",
+          "description": "The ID of the step to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "step_id"
+      ]
+    }
+  },
+  "subscribe_task": {
+    "description": "Subscribe an agent to receive messages related to a specific task. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "task_id": {
+          "type": "integer",
+          "description": "The ID of the task to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "task_id"
+      ]
+    }
+  },
+  "subscribe_ask": {
+    "description": "Subscribe an agent to receive messages related to a specific ask. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "ask_id": {
+          "type": "integer",
+          "description": "The ID of the ask to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "ask_id"
+      ]
+    }
+  },
+  "subscribe_agent": {
+    "description": "Subscribe an agent to receive messages from another agent. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to create the subscription for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        },
+        "target_agent_id": {
+          "type": "integer",
+          "description": "The ID of the target agent to subscribe to"
+        },
+        "all_back_data": {
+          "type": "boolean",
+          "description": "Include all historical data in the subscription (optional)"
+        },
+        "since_timestamp": {
+          "type": "string",
+          "description": "Include data since this timestamp (optional)"
+        },
+        "new_only": {
+          "type": "boolean",
+          "description": "Only include new data going forward (optional)"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts",
+        "target_agent_id"
+      ]
+    }
+  },
+  "sip": {
+    "description": "Consume and remove queued messages for an agent. Messages are removed from queues after being retrieved.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent whose messages to consume"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation (optional)"
+        },
+        "channels": {
+          "type": "string",
+          "description": "Comma-separated list of channels to consume (defaults to all channels if not provided). Valid channels: docket, ask, task, step, sidecar, keyword, agent, operator, dm"
+        }
+      },
+      "required": [
+        "agent_id"
+      ]
+    }
+  },
+  "gulp": {
+    "description": "Export queued messages for an agent to a file. Messages are removed from queues after export.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent whose messages to export"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation (optional)"
+        },
+        "channels": {
+          "type": "string",
+          "description": "Comma-separated list of channels to export (defaults to all channels if not provided). Valid channels: docket, ask, task, step, sidecar, keyword, agent, operator, dm"
+        },
+        "output_file": {
+          "type": "string",
+          "description": "Optional output file path. If not provided, a default filename is generated based on agent name."
+        }
+      },
+      "required": [
+        "agent_id"
+      ]
+    }
+  },
+  "gossip": {
+    "description": "Send a message from one agent to another. Creates a watercooler message and queues it for the target agent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent sending the message"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation (optional)"
+        },
+        "message": {
+          "type": "string",
+          "description": "The message content to send"
+        },
+        "to_agent_id": {
+          "type": "integer",
+          "description": "The ID of the target agent (alternative to to_full_name)"
+        },
+        "to_full_name": {
+          "type": "string",
+          "description": "The full name of the target agent (alternative to to_agent_id)"
+        },
+        "meta_json": {
+          "type": "string",
+          "description": "Optional JSON metadata to attach to the message"
+        }
+      },
+      "required": [
+        "agent_id",
+        "message"
+      ]
+    }
+  },
+  "punch_out": {
+    "description": "Punch out an agent to end a work session. Sets agent status to inactive.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to punch out"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts"
+      ]
+    }
+  },
+  "punch_in": {
+    "description": "Punch in an agent to start a work session. Creates or updates agent profile and sets status to active.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to punch in"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts"
+      ]
+    }
+  },
+  "agent_purge": {
+    "description": "Archive active agents (excluding operators) and clean up related data. Requires confirmation flag for safety. Use dry-run to preview changes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "confirm": {
+          "type": "boolean",
+          "description": "Confirmation flag required for purge operation. Must be set to true to proceed."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview what would be affected without making changes"
+        }
+      },
+      "required": [
+        "confirm"
+      ]
+    }
+  },
+  "status": {
+    "description": "Get comprehensive status for an agent including training progress, answers, and current state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to get status for"
+        },
+        "badge_ts": {
+          "type": "string",
+          "description": "The badge timestamp for agent identity validation"
+        }
+      },
+      "required": [
+        "agent_id",
+        "badge_ts"
+      ]
+    }
+  },
+  "peek": {
+    "description": "View queued messages without removing them from queues. Can filter by agent and channels.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "Optional agent ID to filter messages. If not provided, shows messages for all agents."
+        },
+        "channels": {
+          "type": "string",
+          "description": "Comma-separated list of channels to view (defaults to all channels if not provided). Valid channels: docket, ask, task, step, sidecar, keyword, agent, operator, dm"
+        },
+        "deep": {
+          "type": "boolean",
+          "description": "Enable deep mode for additional message details"
+        }
+      },
+      "required": []
+    }
+  },
+  "agent_tree": {
+    "description": "Get detailed information about a specific agent including basic profile data, work docket assignment, and optional deep mode for comprehensive activity logs, subscriptions, linked items, and runtime state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "description": "The ID of the agent to retrieve information for"
+        },
+        "deep": {
+          "type": "boolean",
+          "description": "Enable deep mode for comprehensive additional data including activity logs, subscriptions, and relationship data"
+        }
+      },
+      "required": [
+        "agent_id"
+      ]
+    }
+  },
+  "agent_list": {
+    "description": "List available agents with optional filtering by role, status, ask/task/step, and other criteria.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "Filter agents by role"
+        },
+        "status": {
+          "type": "string",
+          "description": "Filter agents by status (defaults to 'active' if not provided)"
+        },
+        "ask_id": {
+          "type": "integer",
+          "description": "Filter agents that have activity related to a specific ask"
+        },
+        "task_id": {
+          "type": "integer",
+          "description": "Filter agents that have activity related to a specific task"
+        },
+        "step_id": {
+          "type": "integer",
+          "description": "Filter agents that have activity related to a specific step"
+        },
+        "deep": {
+          "type": "boolean",
+          "description": "Enable deep mode for additional details"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Limit the number of results returned"
+        }
+      },
+      "required": []
+    }
+  },
+  "mcp_action_request_dummy": {
+    "description": "MCP Action Request Dummy - Test app action for mcp_action_request group",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the MCP action request page"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  "modify_mcp_action_request": {
+    "description": "Modify an MCP action request. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the MCP action request page to modify"
+        },
+        "id": {
+          "type": "integer",
+          "description": "Alternative parameter name for page_id (use either page_id or id)"
+        },
+        "tool_name": {
+          "type": "string",
+          "description": "The tool name for the MCP action request"
+        },
+        "arguments": {
+          "type": "string",
+          "description": "JSON string for the arguments"
+        },
+        "extraction_spec": {
+          "type": "string",
+          "description": "JSON string for the extraction spec"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the MCP action request"
+        },
+        "result": {
+          "type": "string",
+          "description": "JSON string for the result"
+        },
+        "is_create": {
+          "type": "boolean",
+          "description": "Whether this is a create operation"
+        },
+        "is_read": {
+          "type": "boolean",
+          "description": "Whether this is a read operation"
+        },
+        "is_update": {
+          "type": "boolean",
+          "description": "Whether this is an update operation"
+        },
+        "is_delete": {
+          "type": "boolean",
+          "description": "Whether this is a delete operation"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  "mcp_request_dummy": {
+    "description": "MCP Request Dummy - Test app action for mcp_request group",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the MCP request page"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  "modify_mcp_request": {
+    "description": "Modify an MCP request. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the MCP request page to modify"
+        },
+        "id": {
+          "type": "integer",
+          "description": "Alternative parameter name for page_id (use either page_id or id)"
+        },
+        "input_request": {
+          "type": "string",
+          "description": "JSON string for the input request"
+        },
+        "output_response": {
+          "type": "string",
+          "description": "JSON string for the output response"
+        },
+        "create_request": {
+          "type": "integer",
+          "description": "Create request count"
+        },
+        "read_request": {
+          "type": "integer",
+          "description": "Read request count"
+        },
+        "update_request": {
+          "type": "integer",
+          "description": "Update request count"
+        },
+        "delete_request": {
+          "type": "integer",
+          "description": "Delete request count"
+        },
+        "create_executed": {
+          "type": "integer",
+          "description": "Create executed count"
+        },
+        "read_executed": {
+          "type": "integer",
+          "description": "Read executed count"
+        },
+        "update_executed": {
+          "type": "integer",
+          "description": "Update executed count"
+        },
+        "delete_executed": {
+          "type": "integer",
+          "description": "Delete executed count"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the MCP request"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
   "modify_language": {
     "description": "Modify the programming language of a source code file page. Requires admin/panel tier access with database write permissions.",
     "inputSchema": {
@@ -472,6 +1419,14 @@
       ]
     }
   },
+  "combo": {
+    "description": "Test form with name and text editable, plus read-only fields displayed. App action only - no MCP call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
   "modify_text": {
     "description": "Modify the text content of a page. Requires admin/panel tier access with database write permissions.",
     "inputSchema": {
@@ -555,6 +1510,44 @@
       ]
     }
   },
+  "get_add_page_class_info": {
+    "description": "Get allowed child page classes for a parent page. Returns list of page classes that can be created as children, including whether they allow null names, duplicate names, and auto-link names.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the parent page"
+        },
+        "id": {
+          "type": "integer",
+          "description": "Alternative parameter name for page_id (use either page_id or id)"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  "get_text": {
+    "description": "Get processed/parsed text for a page. Returns HTTP-rendered text processed through TextProcessor with final_decorator='http'.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the page to get processed text for"
+        },
+        "id": {
+          "type": "integer",
+          "description": "Alternative parameter name for page_id (use either page_id or id)"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
   "count_pages": {
     "description": "Count the total number of pages and images in the database.",
     "inputSchema": {
@@ -603,6 +1596,29 @@
         }
       },
       "required": []
+    }
+  },
+  "source_code_file_combo": {
+    "description": "Edit source code file: text, file path, and language. App action only - no MCP call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "source_code_file_dummy": {
+    "description": "Source Code File Dummy - Test app action for source_code group",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "integer",
+          "description": "The ID of the source code file page"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
     }
   },
   "mcp_list": {

@@ -64,15 +64,6 @@ class McpRequestContentMixin:
             [parent_id]
         )
 
-    @classmethod
-    def allow_null_names(cls) -> bool:
-        return True
-
-    @classmethod
-    def auto_link_name(cls) -> bool:
-        """Override: mcp_request pages do not auto-link names."""
-        return False
-
     def get_display_name(self) -> str:
         """
         Override to return status-based display name when name is None.

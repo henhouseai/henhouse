@@ -6,6 +6,7 @@ from hh.page.page import Page
 from hh.page.page_class_registry import register_page_class
 from hh.page.page import _create_wrapper_methods
 from hh.source_code_file.source_code_file_content import SourceCodeFileContentMixin
+from hh.source_code_file.source_code_file_validation import SourceCodeFileValidationMixin
 from hh.source_code_file.source_code_file_method_registry import get_source_code_file_method_registry
 
 trace_in = lambda message=None: None
@@ -71,7 +72,7 @@ def _create_source_code_file_wrapper_methods(cls):
 @register_page_class('source_code_file')
 @_create_wrapper_methods
 @_create_source_code_file_wrapper_methods
-class SourceCodeFile(SourceCodeFileContentMixin, Page):
+class SourceCodeFile(SourceCodeFileValidationMixin, SourceCodeFileContentMixin, Page):
     """
     A derived Page class for source code files.
     Extends Page with file path and language information.

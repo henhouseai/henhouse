@@ -59,5 +59,7 @@ from hh.render.config.config_registry import register_label
 @register_label('count_pages',                        'Count Pages',               '📄')
 @register_label('modify_name',                        'Modify Name',               '✏️')
 @register_label('modify_text',                        'Modify Text',               '📝')
+@register_label('table_class_header',                 'Allowed Child Classes:',     '📋')
+@register_label('table_class',                        'Class:',                    '📄')
 def _register_config():
     pass

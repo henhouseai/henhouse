@@ -183,7 +183,20 @@ def get_page_class(class_name: str) -> Optional[Type]:
 
 def get_all_page_classes() -> Dict[str, Type]:
     trace_in()
-    discover_page_classes()
+    # Get cold cache data (contains all registered classes)
+    class_data = discover_page_classes()
+    # Import all modules from cold cache to populate hot cache
+    for class_name, class_info in class_data.items():
+        if class_info.get("load_status") == "success" and class_name not in _page_class_registry:
+            # Module not in hot cache yet - import it
+            module_path = class_info.get("module")
+            if module_path:
+                try:
+                    importlib.import_module(module_path)
+                    log(f"Imported module {module_path} for class {class_name}")
+                except Exception as e:
+                    warn(f"Failed to import module {module_path} for class {class_name}: {e}")
+    # Now return all classes from hot cache
     result = {k: v for k, v in _page_class_registry.items() if v is not None}
     log(f"Retrieved {len(result)} page classes")
     trace_out()

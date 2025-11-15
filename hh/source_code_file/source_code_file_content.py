@@ -41,16 +41,6 @@ def _register_source_code_file_content_methods():
 
 class SourceCodeFileContentMixin:
     
-    @classmethod
-    def allow_null_names(cls) -> bool:
-        """Override: source_code_file pages allow null names."""
-        return True
-    
-    @classmethod
-    def auto_link_name(cls) -> bool:
-        """Override: source_code_file pages do not auto-link names."""
-        return False
-    
     def get_display_name(self) -> str:
         """
         Override to return filename from file_path when name is None.

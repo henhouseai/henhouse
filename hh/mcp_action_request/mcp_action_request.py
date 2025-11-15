@@ -15,6 +15,9 @@ from hh.page.page_class_registry import register_page_class
 from hh.mcp_action_request.mcp_action_request_content import (
     McpActionRequestContentMixin,
 )
+from hh.mcp_action_request.mcp_action_request_validation import (
+    McpActionRequestValidationMixin,
+)
 from hh.mcp_action_request.mcp_action_request_method_registry import (
     get_mcp_action_request_method_registry,
 )
@@ -85,7 +88,7 @@ def _create_mcp_action_request_wrapper_methods(cls):
 @register_page_class('mcp_action')
 @_create_wrapper_methods
 @_create_mcp_action_request_wrapper_methods
-class McpActionRequest(McpActionRequestContentMixin, Page):
+class McpActionRequest(McpActionRequestValidationMixin, McpActionRequestContentMixin, Page):
     def __init__(self, id: int, conn: DatabaseConnection = None):
         self.tool_name = None
         self.arguments = None

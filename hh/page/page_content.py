@@ -37,6 +37,7 @@ def _register_content_methods():
         'add_page': {'mixin_method': '_add_page', 'decorator': 'write'},
         'get_page_data': {'mixin_method': '_get_page_data', 'decorator': 'read'},
         'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
+        'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
     }
 
 
@@ -348,6 +349,46 @@ class PageContentMixin:
         trace_out()
         return new_page_id
 
+    def _get_allowed_child_classes(self) -> List[Dict[str, Any]]:
+        """Get list of page classes that are allowed as children of this page."""
+        trace_in()
+        from hh.page.page_class_registry import get_all_page_classes, get_page_class
+        
+        allowed_classes = []
+        
+        # Get all registered page classes
+        all_classes = get_all_page_classes()
+        log(f"Checking {len(all_classes)} page classes for compatibility with parent page {self.id} (class={self.class_name})")
+        
+        # Check each class
+        for class_name, PageClass in all_classes.items():
+            if PageClass is None:
+                continue
+            
+            # Check both conditions (same as _add_page does)
+            # 1. Parent can contain this class
+            parent_allows = self.allow_class_inside(class_name)
+            # 2. Child class can be inside parent
+            child_allows = PageClass.allow_inside_of(self.class_name)
+            
+            if parent_allows and child_allows:
+                # Both checks passed - this class is allowed
+                allow_null = PageClass.allow_null_names()
+                allow_duplicate = PageClass.allow_duplicate_names()
+                auto_link = PageClass.auto_link_name()
+                allowed_classes.append({
+                    'class_name': class_name,
+                    'allow_null_names': allow_null,
+                    'allow_duplicate_names': allow_duplicate,
+                    'auto_link_name': auto_link
+                })
+                log(f"Class '{class_name}' is allowed (allow_null_names={allow_null}, allow_duplicate_names={allow_duplicate}, auto_link_name={auto_link})")
+            else:
+                log(f"Class '{class_name}' is not allowed (parent_allows={parent_allows}, child_allows={child_allows})")
+        
+        log(f"Found {len(allowed_classes)} allowed child classes for page {self.id}")
+        trace_out()
+        return allowed_classes
 
     def _get_page_data(self) -> Dict[str, Any]:
         trace_in()

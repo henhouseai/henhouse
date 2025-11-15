@@ -13,6 +13,7 @@ from hh.gateway.registry.debug import (
 from hh.page.page import Page, _create_wrapper_methods
 from hh.page.page_class_registry import register_page_class
 from hh.mcp_request.mcp_request_content import McpRequestContentMixin
+from hh.mcp_request.mcp_request_validation import McpRequestValidationMixin
 from hh.mcp_request.mcp_request_method_registry import get_mcp_request_method_registry
 
 
@@ -81,7 +82,7 @@ def _create_mcp_request_wrapper_methods(cls):
 @register_page_class('mcp_request')
 @_create_wrapper_methods
 @_create_mcp_request_wrapper_methods
-class McpRequest(McpRequestContentMixin, Page):
+class McpRequest(McpRequestValidationMixin, McpRequestContentMixin, Page):
     def __init__(self, id: int, conn: DatabaseConnection = None):
         self.input_request = None
         self.output_response = None

@@ -69,6 +69,21 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read'
 )
 @register_mcp_tool(
+    tool_name='get_add_page_class_info',
+    description='Get allowed child page classes for a parent page. Returns list of page classes that can be created as children, including whether they allow null names, duplicate names, and auto-link names.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the parent page'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'}
+        },
+        'required': ['page_id']
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
     tool_name='show_image',
     description='Show image details by ID. Returns complete image data including usage, instances, and metadata.',
     inputSchema={

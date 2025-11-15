@@ -68,11 +68,6 @@ class McpActionRequestContentMixin:
             [parent_id]
         )
 
-    @classmethod
-    def auto_link_name(cls) -> bool:
-        """Override: mcp_action_request pages do not auto-link names."""
-        return False
-
     def get_display_name(self) -> str:
         """
         Override to return tool-based display name when name is None.
