@@ -222,7 +222,6 @@ for backend_type in BACKEND_TYPES:
     list_name = f"{backend_type}_list"
     parser_name = f"parse_{backend_type}_list"
     exec(f"""
-@register_http('{list_name}')
 @register_parser('{list_name}')
 def {parser_name}() -> bool:
     trace_in()

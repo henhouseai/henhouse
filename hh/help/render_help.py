@@ -164,7 +164,6 @@ def _render_regular_help(lines: List[str], topic: str, sections: Dict[str, Any])
     log(f"Rendered regular help table with {table_data.num_rows()} rows")
     trace_out()
 
-@register_http('help')
 @register_parser('help')
 def help() -> bool:
     trace_in()

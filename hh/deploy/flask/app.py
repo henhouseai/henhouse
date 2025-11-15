@@ -331,41 +331,43 @@ def dynamic_handler(path):
     """Route all requests through Gateway."""
     try:
         # Parse path and query string into command arguments
+        # HTTP backend now only supports show-page command
         raw_argv = []
         
-        # Special handling for numeric paths (e.g., /1, /123) or root path
-        is_numeric_path = False
-        page_id = None
+        # Always inject "show-page" as the command
+        raw_argv.append("show-page")
         
-        # Treat empty path as "1" (root)
+        # Treat empty path as "1" (root/homepage)
         if not path:
             path = "1"
         
-        # Check if path is just a number
-        if path.isdigit():
-            is_numeric_path = True
-            page_id = path
-            # Inject "show-page" as the first command
-            raw_argv.append("show-page")
-            # Add --id with the page number
-            raw_argv.extend(['--id', page_id])
-        else:
-            # Normal path handling: split into parts
-            if path:
-                # Split path into parts (e.g., "page/123" → ["page", "123"])
-                path_parts = path.split('/')[:50]
-                safe_parts = [p[:128] for p in path_parts if p]
-                raw_argv.extend(safe_parts)
+        # Determine what to skip from query params based on path type
+        skip_params = []
         
-        # Add query parameters as arguments
+        # Check if path is numeric (just digits)
+        if path.isdigit():
+            # Numeric path: use as page ID
+            raw_argv.extend(['--id', path])
+            # Skip id and page_id from query string (path takes precedence)
+            skip_params = ['id', 'page_id']
+        else:
+            # Non-numeric path: treat entire path (including slashes) as page name
+            # Convert multi-segment paths like "Bob/Sally/Wendy" into single name string
+            page_name = path  # Keep entire path as one string, including slashes
+            raw_argv.extend(['--name', page_name])
+            # Skip id, page_id, link, and name from query string (path takes precedence)
+            skip_params = ['id', 'page_id', 'link', 'name']
+        
+        # Add query parameters as arguments (excluding those we skip)
         added = 0
         for key, value in request.args.items():
             if added >= 100:
                 break
             if value is not None:
                 k = str(key)[:64]
-                # Skip id and page_id if we already have a numeric path (path takes precedence)
-                if is_numeric_path and k.lower() in ['id', 'page_id']:
+                k_lower = k.lower()
+                # Skip parameters that conflict with path-based arguments
+                if k_lower in skip_params:
                     continue
                 v = str(value)[:512]
                 raw_argv.extend([f'--{k}', v])

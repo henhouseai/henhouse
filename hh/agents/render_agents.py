@@ -172,7 +172,6 @@ def render_agent_rows(agents: List[Dict[str, Union[str, int]]], lines: List[str]
         break_section(lines)
     trace_out()
 
-@register_http('agent_list')
 @register_parser('agent_list')
 def agent_list() -> bool:
     trace_in()

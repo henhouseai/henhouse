@@ -201,7 +201,6 @@ def render_section(source_data: CommandListData, lines: List[str]) -> bool:
     trace_out()
     return True
 
-@register_http('command_list')
 @register_parser('command_list')
 def command_list() -> bool:
     trace_in()
@@ -250,7 +249,6 @@ def command_list() -> bool:
         trace_out()
         return False
 
-@register_http('backend_list')
 @register_parser('backend_list')
 def parse_backend_list() -> bool:
     trace_in()

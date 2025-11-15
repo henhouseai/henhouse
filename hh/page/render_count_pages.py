@@ -67,7 +67,6 @@ def render_summary_section(source_data: Dict[str, Union[str, int]], lines: List[
     trace_out()
 
 
-@register_http('count_pages')
 @register_parser('count_pages')
 def count_pages() -> bool:
     trace_in()
