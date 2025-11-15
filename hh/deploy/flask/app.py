@@ -333,12 +333,29 @@ def dynamic_handler(path):
         # Parse path and query string into command arguments
         raw_argv = []
         
-        # Add path components as arguments
-        if path:
-            # Split path into parts (e.g., "page/123" → ["page", "123"])
-            path_parts = path.split('/')[:50]
-            safe_parts = [p[:128] for p in path_parts if p]
-            raw_argv.extend(safe_parts)
+        # Special handling for numeric paths (e.g., /1, /123) or root path
+        is_numeric_path = False
+        page_id = None
+        
+        # Treat empty path as "1" (root)
+        if not path:
+            path = "1"
+        
+        # Check if path is just a number
+        if path.isdigit():
+            is_numeric_path = True
+            page_id = path
+            # Inject "show-page" as the first command
+            raw_argv.append("show-page")
+            # Add --id with the page number
+            raw_argv.extend(['--id', page_id])
+        else:
+            # Normal path handling: split into parts
+            if path:
+                # Split path into parts (e.g., "page/123" → ["page", "123"])
+                path_parts = path.split('/')[:50]
+                safe_parts = [p[:128] for p in path_parts if p]
+                raw_argv.extend(safe_parts)
         
         # Add query parameters as arguments
         added = 0
@@ -347,6 +364,9 @@ def dynamic_handler(path):
                 break
             if value is not None:
                 k = str(key)[:64]
+                # Skip id and page_id if we already have a numeric path (path takes precedence)
+                if is_numeric_path and k.lower() in ['id', 'page_id']:
+                    continue
                 v = str(value)[:512]
                 raw_argv.extend([f'--{k}', v])
                 added += 1
