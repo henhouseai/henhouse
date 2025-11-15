@@ -189,9 +189,9 @@
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
-  width: 100%;
+  width: calc(100% - 20px);
   box-sizing: border-box;
-  max-width: 100%;
+  max-width: calc(100% - 20px);
 }
 
 #overlayWindow input.checkbox {
@@ -232,18 +232,18 @@
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
-  width: 100%;
+  width: calc(100% - 20px);
   box-sizing: border-box;
-  max-width: 100%;
+  max-width: calc(100% - 20px);
 }
 
 #overlayWindow .overlay-form-textarea {
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
-  width: 100%;
+  width: calc(100% - 20px);
   box-sizing: border-box;
-  max-width: 100%;
+  max-width: calc(100% - 20px);
   min-height: 400px;
   font-family: monospace;
 }
@@ -252,9 +252,9 @@
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
-  width: 100%;
+  width: calc(100% - 20px);
   box-sizing: border-box;
-  max-width: 100%;
+  max-width: calc(100% - 20px);
 }
 
 #overlayWindow .overlay-form-checkbox {
