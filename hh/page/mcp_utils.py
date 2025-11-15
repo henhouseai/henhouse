@@ -129,7 +129,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     tiers=[3, 4, 7, 8],
     requires_approval=False,
     crud_type='update',
-    app_action_group='page',
+    app_action_group='pages',
     app_action_label='Edit Name'
 )
 @register_mcp_tool(
@@ -147,22 +147,8 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     tiers=[3, 4, 7, 8],
     requires_approval=False,
     crud_type='update',
-    app_action_group='page',
+    app_action_group='pages',
     app_action_label='Edit Text'
-)
-@register_mcp_tool(
-    tool_name='combo',
-    description='Test form with name and text editable, plus read-only fields displayed. App action only - no MCP call.',
-    inputSchema={
-        'type': 'object',
-        'properties': {},
-        'required': []
-    },
-    tiers=[7, 8],  # App action only - no MCP tiers
-    requires_approval=False,
-    crud_type='read',  # Mark as read since it's not a real MCP tool
-    app_action_group='page',
-    app_action_label='Combo'
 )
 @register_mcp_tool(
     tool_name='add_page',
@@ -202,6 +188,25 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Delete Page'
 )
 @register_mcp_tool(
+    tool_name='move_page',
+    description='Move a page to a different parent page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'source_page': {'type': 'integer', 'description': 'The ID of the page to move'},
+            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
+            'target_page': {'type': 'integer', 'description': 'The ID of the new parent page'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'}
+        },
+        'required': ['source_page', 'target_page']
+    },
+    tiers=[3, 4, 7, 8],
+    requires_approval=False,
+    crud_type='update',
+    app_action_group='pages',
+    app_action_label='Move Page'
+)
+@register_mcp_tool(
     tool_name='copy_page',
     description='Copy a page (and optionally its children recursively) to a target parent page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -225,63 +230,18 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Copy Page'
 )
 @register_mcp_tool(
-    tool_name='move_page',
-    description='Move a page to a different parent page. Requires admin/panel tier access with database write permissions.',
+    tool_name='combo',
+    description='Test form with name and text editable, plus read-only fields displayed. App action only - no MCP call.',
     inputSchema={
         'type': 'object',
-        'properties': {
-            'source_page': {'type': 'integer', 'description': 'The ID of the page to move'},
-            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
-            'target_page': {'type': 'integer', 'description': 'The ID of the new parent page'},
-            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'}
-        },
-        'required': ['source_page', 'target_page']
+        'properties': {},
+        'required': []
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[7, 8],  # App action only - no MCP tiers
     requires_approval=False,
-    crud_type='update',
+    crud_type='read',  # Mark as read since it's not a real MCP tool
     app_action_group='pages',
-    app_action_label='Move Page'
-)
-@register_mcp_tool(
-    tool_name='add_image',
-    description='Add a single image to a page. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'target_page': {'type': 'integer', 'description': 'The ID of the page to add the image to'},
-            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
-            'file': {'type': 'string', 'description': 'Path to the image file to add'},
-            'caption': {'type': 'string', 'description': 'Caption for the image (optional, defaults to filename without extension)'}
-        },
-        'required': ['target_page', 'file']
-    },
-    tiers=[3, 4, 7, 8],
-    requires_approval=False,
-    crud_type='create',
-    app_action_group='images_add',
-    app_action_label='Add Image'
-)
-@register_mcp_tool(
-    tool_name='add_images',
-    description='Add multiple images from a folder to a page. Scans folder for valid image files and adds them all. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'target_page': {'type': 'integer', 'description': 'The ID of the page to add images to'},
-            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
-            'folder': {'type': 'string', 'description': 'Path to the folder containing image files to add'},
-            'caption': {'type': 'string', 'description': 'Caption to use for all images (optional, defaults to individual filenames)'}
-        },
-        'required': ['target_page', 'folder']
-    },
-    tiers=[3, 4, 7, 8],
-    requires_approval=False,
-    crud_type='create',
-    app_action_group='images_add',
-    app_action_label='Add Images'
+    app_action_label='Combo'
 )
 @register_mcp_tool(
     tool_name='copy_image',
