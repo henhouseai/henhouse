@@ -62,24 +62,24 @@ export class SourceCodeFilePageData extends PageData {
             // Create form HTML with editable and read-only fields
             const formHtml = `
         <div class="overlayContent">
-          <div style="margin-bottom: 20px;">
-            <h3 style="margin-bottom: 10px;">Editable Fields:</h3>
-            <div style="margin-bottom: 15px;">
+          <div class="overlay-form-section">
+            <h3 class="overlay-section-title">Editable Fields:</h3>
+            <div class="overlay-form-group">
               <label>File path:</label>
-              <input type="text" id="page-field-file_path" value="${this.escapeHtml(currentFilePath)}" style="width: 100%;">
+              <input type="text" id="page-field-file_path" value="${this.escapeHtml(currentFilePath)}" class="overlay-form-input">
             </div>
-            <div style="margin-bottom: 15px;">
+            <div class="overlay-form-group">
               <label>Language:</label>
-              <input type="text" id="page-field-language" value="${this.escapeHtml(currentLanguage)}" style="width: 100%;">
+              <input type="text" id="page-field-language" value="${this.escapeHtml(currentLanguage)}" class="overlay-form-input">
             </div>
-            <div style="margin-bottom: 15px;">
+            <div class="overlay-form-group">
               <label>Page text:</label>
-              <textarea id="page-field-text" name="text" rows="20" cols="80" style="width: 100%; min-height: 400px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+              <textarea id="page-field-text" name="text" rows="20" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
             </div>
           </div>
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
-            <h3 style="margin-bottom: 10px;">Read-Only Fields (for display only):</h3>
-            <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 10px;">
+          <div class="overlay-form-divider">
+            <h3 class="overlay-section-title">Read-Only Fields (for display only):</h3>
+            <div class="overlay-form-grid">
               <div><strong>ID:</strong></div>
               <div>${this.escapeHtml(String(pageIdValue))}</div>
               <div><strong>Class:</strong></div>

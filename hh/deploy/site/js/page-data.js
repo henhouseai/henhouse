@@ -304,9 +304,9 @@ export class PageData {
             // Create form HTML with standardized field ID
             const formHtml = `
         <div class="overlayContent">
-          <div>
+          <div class="overlay-form-group">
             <label>Page name:</label>
-            <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}">
+            <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" class="overlay-form-input">
           </div>
         </div>
       `;
@@ -419,8 +419,8 @@ export class PageData {
             // Create textarea form with standardized field ID
             const formHtml = `
         <div class="overlayContent">
-          <div>
-            <textarea id="page-field-text" name="text" rows="20" cols="80" style="width: 100%; min-height: 400px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+          <div class="overlay-form-group">
+            <textarea id="page-field-text" name="text" rows="20" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
           </div>
         </div>
       `;
@@ -504,13 +504,13 @@ export class PageData {
             // Create form HTML with confirmation checkbox
             const formHtml = `
         <div class="overlayContent">
-          <div style="margin-bottom: 20px;">
+          <div class="overlay-warning-text">
             <p><strong>Warning:</strong> This will permanently delete the page and all its children.</p>
             <p>Page: <strong>${this.escapeHtml(pageName)}</strong> (ID: ${pageId}, Class: ${this.escapeHtml(pageClass)})</p>
           </div>
-          <div>
-            <label style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="page-delete-confirm" style="width: auto;">
+          <div class="overlay-form-group">
+            <label class="overlay-label-inline">
+              <input type="checkbox" id="page-delete-confirm" class="overlay-form-checkbox">
               <span>I confirm that I want to delete this page</span>
             </label>
           </div>
@@ -587,20 +587,20 @@ export class PageData {
             // Create form HTML with editable and read-only fields
             const formHtml = `
         <div class="overlayContent">
-          <div style="margin-bottom: 20px;">
-            <h3 style="margin-bottom: 10px;">Editable Fields:</h3>
-            <div style="margin-bottom: 15px;">
+          <div class="overlay-form-section">
+            <h3 class="overlay-section-title">Editable Fields:</h3>
+            <div class="overlay-form-group">
               <label>Page name:</label>
-              <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" style="width: 100%;">
+              <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" class="overlay-form-input">
             </div>
-            <div style="margin-bottom: 15px;">
+            <div class="overlay-form-group">
               <label>Page text:</label>
-              <textarea id="page-field-text" name="text" rows="10" cols="80" style="width: 100%; min-height: 200px; font-family: monospace;">${this.escapeHtml(currentText)}</textarea>
+              <textarea id="page-field-text" name="text" rows="10" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
             </div>
           </div>
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
-            <h3 style="margin-bottom: 10px;">Read-Only Fields (for display only):</h3>
-            <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 10px;">
+          <div class="overlay-form-divider">
+            <h3 class="overlay-section-title">Read-Only Fields (for display only):</h3>
+            <div class="overlay-form-grid">
               <div><strong>ID:</strong></div>
               <div>${this.escapeHtml(String(pageIdValue))}</div>
               <div><strong>Class:</strong></div>
@@ -742,15 +742,15 @@ export class PageData {
             }
             const formHtml = `
         <div class="overlayContent">
-          <div style="margin-bottom: 15px;">
+          <div class="overlay-form-group">
             <label>Page class:</label>
-            <select id="add-page-class" style="width: 100%;" ${allowedClasses.length === 1 ? 'disabled' : ''}>
+            <select id="add-page-class" class="overlay-form-select">
               ${classSelectOptions}
             </select>
           </div>
-          <div style="margin-bottom: 15px;">
+          <div class="overlay-form-group">
             <label>Page name:</label>
-            <input type="text" id="add-page-name" value="" style="width: 100%;" placeholder="${selectedClassAllowNull ? 'Optional' : 'Required'}">
+            <input type="text" id="add-page-name" value="" class="overlay-form-input" placeholder="${selectedClassAllowNull ? 'Optional' : 'Required'}">
           </div>
         </div>
       `;

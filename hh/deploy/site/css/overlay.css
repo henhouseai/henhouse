@@ -202,6 +202,96 @@
   padding: 3px;
 }
 
+/* Form structure classes */
+#overlayWindow .overlay-form-group {
+  margin-bottom: 15px;
+}
+
+#overlayWindow .overlay-form-section {
+  margin-bottom: 20px;
+}
+
+#overlayWindow .overlay-form-divider {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--overlay-content-border, #ccc);
+}
+
+#overlayWindow .overlay-section-title {
+  margin-bottom: 10px;
+}
+
+#overlayWindow .overlay-warning-text {
+  margin-bottom: 20px;
+}
+
+/* Form field classes */
+#overlayWindow .overlay-form-input {
+  margin: 5px 10px;
+  padding: 2px;
+  border: 1px solid var(--overlay-content-text, #000);
+  width: 600px;
+}
+
+#overlayWindow .overlay-form-textarea {
+  margin: 5px 10px;
+  padding: 2px;
+  border: 1px solid var(--overlay-content-text, #000);
+  width: 600px;
+  min-height: 400px;
+  font-family: monospace;
+}
+
+#overlayWindow .overlay-form-select {
+  margin: 5px 10px;
+  padding: 2px;
+  border: 1px solid var(--overlay-content-text, #000);
+  width: 600px;
+}
+
+#overlayWindow .overlay-form-checkbox {
+  width: auto;
+  border: 0;
+}
+
+/* Layout pattern classes */
+#overlayWindow .overlay-form-grid {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+#overlayWindow .overlay-label-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Test content classes */
+#overlayWindow .overlay-test-nested {
+  border: 1px solid var(--overlay-content-border, #ccc);
+  padding: 10px;
+  margin: 10px;
+  clear: both;
+}
+
+#overlayWindow .overlay-test-list {
+  clear: both;
+  margin-left: 20px;
+  padding-left: 0;
+}
+
+#overlayWindow .overlay-test-label-block {
+  display: block;
+  margin-bottom: 10px;
+}
+
+#overlayWindow .overlay-test-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
 /* Browser component (for future phases) */
 #overlayWindow div.browser {
   display: none;
