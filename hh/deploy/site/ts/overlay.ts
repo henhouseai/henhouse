@@ -303,6 +303,7 @@ export class Overlay {
       // Check if result has custom message and auto-fade flag
       const showMessage = (result as any)?._showMessage;
       const autoFade = (result as any)?._autoFade === true;
+      const redirectAfterFade = (result as any)?._redirectAfterFade;
       
       if (showMessage) {
         // Use custom message from onSubmit handler
@@ -317,6 +318,12 @@ export class Overlay {
       if (autoFade || (this.state.success && !this.state.error)) {
         setTimeout(() => {
           this.closeWithFade(1500); // 1.5 second slow fade
+          // If redirect is requested, do it after fade completes
+          if (redirectAfterFade) {
+            setTimeout(() => {
+              window.location.href = redirectAfterFade;
+            }, 1500); // Wait for fade to complete
+          }
         }, 1500); // 1.5 second delay before fade starts
       }
     } catch (error) {

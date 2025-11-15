@@ -289,6 +289,38 @@ export class PageData {
         };
     }
     /**
+     * Helper method to update the page text div in the DOM.
+     * Creates the div if it doesn't exist, updates it if text exists, or removes it if text is empty.
+     */
+    updatePageTextDiv(pageId, processedText) {
+        let textDiv = document.getElementById(`page-text-${pageId}`);
+        if (processedText && processedText.trim()) {
+            // Text exists - create div if it doesn't exist, then update it
+            if (!textDiv) {
+                // Find content wrapper or main content area to insert the text div
+                const contentWrapper = document.querySelector('.contentWrapper') || document.querySelector('main') || document.body;
+                textDiv = document.createElement('div');
+                textDiv.id = `page-text-${pageId}`;
+                textDiv.className = 'content pageText';
+                // Insert after upper_content if it exists, otherwise at the start of content
+                const upperContent = contentWrapper.querySelector('.upper_content') || contentWrapper.querySelector('[class*="upper"]');
+                if (upperContent && upperContent.nextSibling) {
+                    contentWrapper.insertBefore(textDiv, upperContent.nextSibling);
+                }
+                else {
+                    contentWrapper.insertBefore(textDiv, contentWrapper.firstChild);
+                }
+            }
+            textDiv.innerHTML = processedText;
+        }
+        else {
+            // Text is empty - delete the div if it exists
+            if (textDiv) {
+                textDiv.remove();
+            }
+        }
+    }
+    /**
      * Handler for modify_name: Edit page name
      */
     async modify_name(rpc) {
@@ -369,12 +401,7 @@ export class PageData {
                                         const getTextResult = await rpc.call('get_text', { page_id: pageId });
                                         const parsedTextResult = rpc.extractMCPData(getTextResult);
                                         const processedText = parsedTextResult?.processed_text;
-                                        if (processedText) {
-                                            const textDiv = document.getElementById(`page-text-${pageId}`);
-                                            if (textDiv) {
-                                                textDiv.innerHTML = processedText;
-                                            }
-                                        }
+                                        this.updatePageTextDiv(pageId, processedText);
                                     }
                                     catch (error) {
                                         console.error('Failed to fetch updated text after name change:', error);
@@ -457,12 +484,7 @@ export class PageData {
                                 const getTextResult = await rpc.call('get_text', { page_id: pageId });
                                 const parsedTextResult = rpc.extractMCPData(getTextResult);
                                 const processedText = parsedTextResult?.processed_text;
-                                if (processedText) {
-                                    const textDiv = document.getElementById(`page-text-${pageId}`);
-                                    if (textDiv) {
-                                        textDiv.innerHTML = processedText;
-                                    }
-                                }
+                                this.updatePageTextDiv(pageId, processedText);
                             }
                             catch (error) {
                                 console.error('Failed to fetch updated text:', error);
@@ -538,10 +560,33 @@ export class PageData {
                             page_id: pageId,
                             confirm: true
                         });
+                        // Get parent page for redirect
+                        const parentId = this.getField('parent');
+                        const path = this.getField('path') || [];
+                        let redirectUrl = '';
+                        if (Array.isArray(path) && path.length > 1) {
+                            // Get parent from path (second-to-last item)
+                            const parentPathItem = path[path.length - 2];
+                            if (parentPathItem?.link) {
+                                redirectUrl = `/${parentPathItem.link}`;
+                            }
+                            else if (parentPathItem?.id) {
+                                redirectUrl = `/?id=${parentPathItem.id}`;
+                            }
+                        }
+                        else if (parentId) {
+                            // Fallback to parent ID
+                            redirectUrl = `/?id=${parentId}`;
+                        }
+                        else {
+                            // Fallback to root
+                            redirectUrl = '/';
+                        }
                         return {
                             success: true,
                             _showMessage: `Page "${this.escapeHtml(pageName)}" has been deleted successfully.`,
-                            _autoFade: true
+                            _autoFade: true,
+                            _redirectAfterFade: redirectUrl
                         };
                     }
                     catch (error) {
@@ -673,12 +718,7 @@ export class PageData {
                                     const getTextResult = await rpc.call('get_text', { page_id: pageId });
                                     const parsedTextResult = rpc.extractMCPData(getTextResult);
                                     const processedText = parsedTextResult?.processed_text;
-                                    if (processedText) {
-                                        const textDiv = document.getElementById(`page-text-${pageId}`);
-                                        if (textDiv) {
-                                            textDiv.innerHTML = processedText;
-                                        }
-                                    }
+                                    this.updatePageTextDiv(pageId, processedText);
                                 }
                                 catch (error) {
                                     console.error('Failed to fetch updated text:', error);
@@ -794,10 +834,21 @@ export class PageData {
                         const result = await rpc.call('add_page', params);
                         const parsedResult = rpc.extractMCPData(result);
                         const newPageName = parsedResult?.page?.name || nameValue || selectedClassValue;
+                        const newPageId = parsedResult?.page?.id;
+                        const newPageLink = parsedResult?.page?.link;
+                        // Determine redirect URL - prefer link, fallback to ID
+                        let redirectUrl = '';
+                        if (newPageLink) {
+                            redirectUrl = `/${newPageLink}`;
+                        }
+                        else if (newPageId) {
+                            redirectUrl = `/?id=${newPageId}`;
+                        }
                         return {
                             success: true,
                             _showMessage: `Page "${this.escapeHtml(newPageName)}" has been created successfully.`,
-                            _autoFade: true
+                            _autoFade: true,
+                            _redirectAfterFade: redirectUrl
                         };
                     }
                     catch (error) {

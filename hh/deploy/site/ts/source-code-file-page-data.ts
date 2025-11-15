@@ -145,13 +145,7 @@ export class SourceCodeFilePageData extends PageData {
                   const getTextResult = await rpc.call('get_text', { page_id: pageId });
                   const parsedTextResult = rpc.extractMCPData(getTextResult);
                   const processedText = parsedTextResult?.processed_text;
-
-                  if (processedText) {
-                    const textDiv = document.getElementById(`page-text-${pageId}`) as HTMLDivElement | null;
-                    if (textDiv) {
-                      textDiv.innerHTML = processedText;
-                    }
-                  }
+                  this.updatePageTextDiv(pageId, processedText);
                 } catch (error) {
                   console.error('Failed to fetch updated text:', error);
                 }
