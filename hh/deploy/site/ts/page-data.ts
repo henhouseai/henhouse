@@ -431,6 +431,18 @@ export class PageData {
   }
 
   /**
+   * Get the URL for a page using the show-page?id= format.
+   * @param pageId The page ID, or null/undefined for root
+   * @returns The page URL (e.g., "/show-page?id=1" or "/" for root)
+   */
+  protected getPageUrl(pageId: number | null | undefined): string {
+    if (!pageId) {
+      return '/';
+    }
+    return `/show-page?id=${pageId}`;
+  }
+
+  /**
    * Helper method to update the page text div in the DOM.
    * Creates the div if it doesn't exist, updates it if text exists, or removes it if text is empty.
    */
@@ -738,17 +750,10 @@ export class PageData {
             if (Array.isArray(path) && path.length > 1) {
               // Get parent from path (second-to-last item)
               const parentPathItem = path[path.length - 2];
-              if (parentPathItem?.link) {
-                redirectUrl = `/${parentPathItem.link}`;
-              } else if (parentPathItem?.id) {
-                redirectUrl = `/?id=${parentPathItem.id}`;
-              }
-            } else if (parentId) {
-              // Fallback to parent ID
-              redirectUrl = `/?id=${parentId}`;
+              redirectUrl = this.getPageUrl(parentPathItem?.id);
             } else {
-              // Fallback to root
-              redirectUrl = '/';
+              // Fallback to parent ID or root
+              redirectUrl = this.getPageUrl(parentId);
             }
             
             return {
@@ -1036,15 +1041,9 @@ export class PageData {
             
             const newPageName = parsedResult?.page?.name || nameValue || selectedClassValue;
             const newPageId = parsedResult?.page?.id;
-            const newPageLink = parsedResult?.page?.link;
             
-            // Determine redirect URL - prefer link, fallback to ID
-            let redirectUrl = '';
-            if (newPageLink) {
-              redirectUrl = `/${newPageLink}`;
-            } else if (newPageId) {
-              redirectUrl = `/?id=${newPageId}`;
-            }
+            // Determine redirect URL using standard format
+            const redirectUrl = this.getPageUrl(newPageId);
             
             return {
               success: true,
