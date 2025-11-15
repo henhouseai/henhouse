@@ -889,5 +889,151 @@ export class PageData {
       rpc.showError('combo', error);
     }
   }
+
+  /**
+   * Handler for add_page: Create a new child page
+   */
+  async add_page(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      // Step 1: Get allowed child classes
+      const classInfoResult = await rpc.call('get_add_page_class_info', { page_id: pageId });
+      const classInfo = rpc.extractMCPData(classInfoResult);
+      
+      if (!classInfo || !classInfo.allowed_classes || classInfo.allowed_classes.length === 0) {
+        throw new Error('No allowed child classes found for this page');
+      }
+
+      const allowedClasses = classInfo.allowed_classes as Array<{
+        class_name: string;
+        allow_null_names: boolean;
+        allow_duplicate_names: boolean;
+        auto_link_name: boolean;
+      }>;
+
+      // Step 2: Build form HTML with class selector and name input
+      let classSelectOptions = '';
+      let selectedClass = '';
+      let selectedClassAllowNull = true;
+
+      if (allowedClasses.length === 1) {
+        // Auto-select if only one option
+        selectedClass = allowedClasses[0].class_name;
+        selectedClassAllowNull = allowedClasses[0].allow_null_names;
+        classSelectOptions = `<option value="${this.escapeHtml(selectedClass)}" selected>${this.escapeHtml(selectedClass)}</option>`;
+      } else {
+        // Multiple options - show dropdown
+        classSelectOptions = '<option value="">-- Select a class --</option>';
+        for (const classOption of allowedClasses) {
+          classSelectOptions += `<option value="${this.escapeHtml(classOption.class_name)}" data-allow-null="${classOption.allow_null_names}">${this.escapeHtml(classOption.class_name)}</option>`;
+        }
+      }
+
+      const formHtml = `
+        <div class="overlayContent">
+          <div style="margin-bottom: 15px;">
+            <label>Page class:</label>
+            <select id="add-page-class" style="width: 100%;" ${allowedClasses.length === 1 ? 'disabled' : ''}>
+              ${classSelectOptions}
+            </select>
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label>Page name:</label>
+            <input type="text" id="add-page-name" value="" style="width: 100%;" placeholder="${selectedClassAllowNull ? 'Optional' : 'Required'}">
+          </div>
+        </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Add New Page',
+        content: formHtml,
+        closable: true,
+        submitLabel: 'Add Page',
+        cancelLabel: 'Cancel',
+        onSubmit: async () => {
+          const classSelect = document.getElementById('add-page-class') as HTMLSelectElement;
+          const nameInput = document.getElementById('add-page-name') as HTMLInputElement;
+          
+          if (!classSelect || !nameInput) {
+            throw new Error('Form elements not found');
+          }
+
+          const selectedClassValue = classSelect.value;
+          const nameValue = nameInput.value.trim();
+
+          // Validate class selection
+          if (!selectedClassValue) {
+            throw new Error('Please select a page class');
+          }
+
+          // Find the selected class info to check allow_null_names
+          const selectedClassInfo = allowedClasses.find(c => c.class_name === selectedClassValue);
+          if (!selectedClassInfo) {
+            throw new Error('Invalid class selection');
+          }
+
+          // Validate name based on allow_null_names
+          if (!selectedClassInfo.allow_null_names && !nameValue) {
+            throw new Error('A name is required for this page class');
+          }
+
+          // Build params for add_page MCP call
+          const params: any = {
+            target_page: pageId,
+            class: selectedClassValue
+          };
+
+          // Only include name if provided (even if allow_null_names is true, user might want to specify)
+          if (nameValue) {
+            params.name = nameValue;
+          }
+
+          try {
+            const result = await rpc.call('add_page', params);
+            const parsedResult = rpc.extractMCPData(result);
+            
+            const newPageName = parsedResult?.page?.name || nameValue || selectedClassValue;
+            
+            return {
+              success: true,
+              _showMessage: `Page "${this.escapeHtml(newPageName)}" has been created successfully.`,
+              _autoFade: true
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to create page: ${errorMessage}`);
+          }
+        }
+      });
+
+      // Set up class change handler to update name placeholder
+      setTimeout(() => {
+        const classSelect = document.getElementById('add-page-class') as HTMLSelectElement;
+        const nameInput = document.getElementById('add-page-name') as HTMLInputElement;
+        
+        if (classSelect && nameInput && allowedClasses.length > 1) {
+          classSelect.addEventListener('change', () => {
+            const selectedOption = classSelect.options[classSelect.selectedIndex];
+            const allowNull = selectedOption.getAttribute('data-allow-null') === 'true';
+            nameInput.placeholder = allowNull ? 'Optional' : 'Required';
+          });
+        }
+
+        // Focus the appropriate field
+        if (allowedClasses.length > 1 && classSelect) {
+          classSelect.focus();
+        } else if (nameInput) {
+          nameInput.focus();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('add_page', error);
+    }
+  }
 }
 
