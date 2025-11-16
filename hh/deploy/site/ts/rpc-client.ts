@@ -136,7 +136,9 @@ export class RPCClient {
    * This is the recommended way to fetch page data.
    */
   async getPage(pageId: number | string): Promise<PageData> {
-    const result = await this.call('get_page', { id: String(pageId) });
+    // Convert to number for schema validation (schema expects integer)
+    const id = typeof pageId === 'string' ? parseInt(pageId, 10) : pageId;
+    const result = await this.call('get_page', { id });
     const parsedData = this.extractMCPData(result) as GetPageResponse;
     
     if (!parsedData || !parsedData.page) {
