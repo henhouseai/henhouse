@@ -7,6 +7,7 @@ import { OverlayWindow } from './overlay-window.js';
 import { OverlayHeader } from './overlay-header.js';
 import { OverlayContent } from './overlay-content.js';
 import { OverlayDebugTable } from './overlay-debug-table.js';
+import { OverlayDebugOptions } from './overlay-debug-options.js';
 export class Overlay {
     constructor(options, zIndex) {
         this.container = null;
@@ -14,6 +15,7 @@ export class Overlay {
         this.headerEl = null;
         this.previousFocus = null;
         this.isClosing = false;
+        this.debugOptions = null;
         this.props = { ...options };
         this.state = {
             isVisible: false,
@@ -79,6 +81,10 @@ export class Overlay {
         this.headerEl = headerEl;
         const contentEl = this.content.render();
         windowEl.appendChild(contentEl);
+        // Automatically add debug options component to every overlay
+        this.debugOptions = new OverlayDebugOptions();
+        const debugEl = this.debugOptions.render();
+        contentEl.appendChild(debugEl);
         // Show overlay
         this.setState({ isVisible: true });
         // Focus management
@@ -331,6 +337,15 @@ export class Overlay {
         }
         // Fast fade for manual close
         this.closeWithFade(200);
+    }
+    /**
+     * Get current debug options from the debug options component.
+     */
+    getDebugOptions() {
+        if (!this.debugOptions) {
+            return null;
+        }
+        return this.debugOptions.getOptions();
     }
     /**
      * Show debug table in the overlay content area.

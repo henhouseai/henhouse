@@ -2,6 +2,7 @@
  * RPC Client - custom MCP wrapper for JSON-RPC calls to the backend.
  */
 import { PageDataFactory } from './page-data-factory.js';
+import { OverlayManager } from './overlay-manager.js';
 /**
  * Custom error class that can hold multiple error messages
  */
@@ -53,10 +54,37 @@ export class RPCClient {
     /**
      * Make an MCP JSON-RPC call to the backend.
      * @param method - The tool name to call
-     * @param params - Parameters to pass (can include debug options)
+     * @param params - Parameters to pass (debug options will be automatically added if set in overlay)
      * @returns Object with data and optional debug info
      */
     async call(method, params = {}) {
+        // Check current overlay for debug options and merge them into params
+        const overlayManager = OverlayManager.getInstance();
+        const topOverlay = overlayManager.getTopOverlay();
+        if (topOverlay) {
+            const debugOptions = topOverlay.getDebugOptions();
+            if (debugOptions) {
+                // Merge debug options into params (don't overwrite existing params)
+                if (debugOptions.debug) {
+                    params.debug = 1;
+                }
+                if (debugOptions.log) {
+                    params.log = 1;
+                }
+                if (debugOptions.white) {
+                    params.white = debugOptions.white;
+                }
+                if (debugOptions.gray) {
+                    params.gray = debugOptions.gray;
+                }
+                if (debugOptions.black) {
+                    params.black = debugOptions.black;
+                }
+                if (debugOptions.debugLimit) {
+                    params['debug-limit'] = debugOptions.debugLimit;
+                }
+            }
+        }
         // Use tools/call structure: method is the tool name, params go in arguments
         const payload = {
             jsonrpc: '2.0',

@@ -5,6 +5,7 @@
 import { PageData, GetPageResponse } from './page-data.js';
 import { PageDataFactory } from './page-data-factory.js';
 import { DebugData } from './overlay-debug-table.js';
+import { OverlayManager } from './overlay-manager.js';
 
 export interface RPCRequest {
   jsonrpc: string;
@@ -67,8 +68,8 @@ export class RPCClient {
     if (result && result.content && Array.isArray(result.content)) {
       // Parse all content items
       for (const contentItem of result.content) {
-        if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
-          try {
+      if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
+        try {
             const parsed = JSON.parse(contentItem.text);
             // Check if this is debug data (has "entries" array)
             if (parsed && Array.isArray(parsed.entries)) {
@@ -77,12 +78,12 @@ export class RPCClient {
               // First non-debug content item is the main data
               response.data = parsed;
             }
-          } catch (e) {
+        } catch (e) {
             // If parsing fails, skip this content item
             console.warn('Failed to parse MCP content item:', e);
-          }
         }
       }
+    }
     }
     
     // Fallback: if no data extracted, return result as-is
@@ -96,10 +97,38 @@ export class RPCClient {
   /**
    * Make an MCP JSON-RPC call to the backend.
    * @param method - The tool name to call
-   * @param params - Parameters to pass (can include debug options)
+   * @param params - Parameters to pass (debug options will be automatically added if set in overlay)
    * @returns Object with data and optional debug info
    */
   async call(method: string, params: any = {}): Promise<RPCCallResult> {
+    // Check current overlay for debug options and merge them into params
+    const overlayManager = OverlayManager.getInstance();
+    const topOverlay = overlayManager.getTopOverlay();
+    if (topOverlay) {
+      const debugOptions = topOverlay.getDebugOptions();
+      if (debugOptions) {
+        // Merge debug options into params (don't overwrite existing params)
+        if (debugOptions.debug) {
+          params.debug = 1;
+        }
+        if (debugOptions.log) {
+          params.log = 1;
+        }
+        if (debugOptions.white) {
+          params.white = debugOptions.white;
+        }
+        if (debugOptions.gray) {
+          params.gray = debugOptions.gray;
+        }
+        if (debugOptions.black) {
+          params.black = debugOptions.black;
+        }
+        if (debugOptions.debugLimit) {
+          params['debug-limit'] = debugOptions.debugLimit;
+        }
+      }
+    }
+    
     // Use tools/call structure: method is the tool name, params go in arguments
     const payload: RPCRequest = {
       jsonrpc: '2.0',
