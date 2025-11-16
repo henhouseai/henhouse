@@ -230,12 +230,18 @@ export class PageData {
         const overlay = overlayManager.getTopOverlay();
         const allOperations = [];
         let allSucceeded = true;
+        let collectedDebug = undefined;
         // Process each operation individually (not in parallel)
         for (const { mapping, fields } of optimalMappings) {
             const params = mapping.buildParams(fields, currentValues, pageId);
             try {
                 const rawResult = await rpc.call(mapping.mcpTool, params);
-                const result = rpc.extractMCPData(rawResult);
+                // rawResult is already RPCCallResult with data and debug
+                const result = rawResult.data;
+                // Collect debug data (use first non-empty debug found)
+                if (rawResult.debug && !collectedDebug) {
+                    collectedDebug = rawResult.debug;
+                }
                 // Clear fields from registry after successful update
                 PageManager.getInstance()['clearFields'](fields);
                 // Update internal PageData
@@ -263,6 +269,13 @@ export class PageData {
             catch (error) {
                 allSucceeded = false;
                 const errorMessage = error instanceof Error ? error.message : String(error);
+                // Check for debug data in error (from RPCError)
+                if (error && typeof error === 'object' && 'debug' in error) {
+                    const errorDebug = error.debug;
+                    if (errorDebug && !collectedDebug) {
+                        collectedDebug = errorDebug;
+                    }
+                }
                 const operation = {
                     mapping: mapping.mcpTool,
                     fields,
@@ -285,7 +298,8 @@ export class PageData {
             noChanges: false,
             operations: allOperations,
             successes: allOperations.filter((op) => op.success),
-            errors: allOperations.filter((op) => !op.success)
+            errors: allOperations.filter((op) => !op.success),
+            debug: collectedDebug
         };
     }
     /**
@@ -381,8 +395,8 @@ export class PageData {
                         if (result.success && pageId) {
                             const nameOp = result.operations?.find((op) => op.fields?.includes('name'));
                             if (nameOp && nameOp.success && nameOp.result) {
-                                const parsedResult = rpc.extractMCPData(nameOp.result);
-                                const resultPageData = parsedResult?.page || parsedResult;
+                                // nameOp.result is already the extracted data
+                                const resultPageData = nameOp.result?.page || nameOp.result;
                                 const newName = resultPageData?.name;
                                 const newRawText = resultPageData?.text;
                                 if (newName) {
@@ -408,8 +422,7 @@ export class PageData {
                                     // Update page text in case it contains a link to itself
                                     try {
                                         const getTextResult = await rpc.call('get_text', { page_id: pageId });
-                                        const parsedTextResult = rpc.extractMCPData(getTextResult);
-                                        const processedText = parsedTextResult?.processed_text;
+                                        const processedText = getTextResult.data?.processed_text;
                                         this.updatePageTextDiv(pageId, processedText);
                                     }
                                     catch (error) {
@@ -418,7 +431,7 @@ export class PageData {
                                 }
                             }
                         }
-                        return { ...result, _autoFade: true };
+                        return { ...result, _autoFade: true, debug: result.debug };
                     }
                     else {
                         // Don't throw - errors are already shown in overlay
@@ -489,19 +502,18 @@ export class PageData {
                         if (result && pageId) {
                             try {
                                 const getTextResult = await rpc.call('get_text', { page_id: pageId });
-                                const parsedTextResult = rpc.extractMCPData(getTextResult);
-                                const processedText = parsedTextResult?.processed_text;
+                                const processedText = getTextResult.data?.processed_text;
                                 this.updatePageTextDiv(pageId, processedText);
                             }
                             catch (error) {
                                 console.error('Failed to fetch updated text:', error);
                             }
                         }
-                        return { ...result, _autoFade: true };
+                        return { ...result, _autoFade: true, debug: result.debug };
                     }
                     else {
                         // Don't throw - errors are already shown in overlay
-                        return { ...result };
+                        return { ...result, debug: result.debug };
                     }
                 }
             });
@@ -579,6 +591,7 @@ export class PageData {
                             redirectUrl = this.getPageUrl(parentId);
                         }
                         return {
+                            debug: result.debug,
                             success: true,
                             _showMessage: `Page "${this.escapeHtml(pageName)}" has been deleted successfully.`,
                             _autoFade: true,
@@ -686,8 +699,8 @@ export class PageData {
                         if (result.success && pageId) {
                             const nameOp = result.operations?.find((op) => op.fields?.includes('name'));
                             if (nameOp && nameOp.success && nameOp.result) {
-                                const parsedResult = rpc.extractMCPData(nameOp.result);
-                                const resultPageData = parsedResult?.page || parsedResult;
+                                // nameOp.result is already the extracted data
+                                const resultPageData = nameOp.result?.page || nameOp.result;
                                 const newName = resultPageData?.name;
                                 if (newName) {
                                     const headerEl = document.getElementById('header');
@@ -710,8 +723,7 @@ export class PageData {
                             if (textOp && textOp.success) {
                                 try {
                                     const getTextResult = await rpc.call('get_text', { page_id: pageId });
-                                    const parsedTextResult = rpc.extractMCPData(getTextResult);
-                                    const processedText = parsedTextResult?.processed_text;
+                                    const processedText = getTextResult.data?.processed_text;
                                     this.updatePageTextDiv(pageId, processedText);
                                 }
                                 catch (error) {
@@ -719,11 +731,11 @@ export class PageData {
                                 }
                             }
                         }
-                        return { ...result, _autoFade: true };
+                        return { ...result, _autoFade: true, debug: result.debug };
                     }
                     else {
                         // Don't throw - errors are already shown in overlay
-                        return { ...result };
+                        return { ...result, debug: result.debug };
                     }
                 }
             });
@@ -752,7 +764,7 @@ export class PageData {
         try {
             // Step 1: Get allowed child classes
             const classInfoResult = await rpc.call('get_add_page_class_info', { page_id: pageId });
-            const classInfo = rpc.extractMCPData(classInfoResult);
+            const classInfo = classInfoResult.data;
             if (!classInfo || !classInfo.allowed_classes || classInfo.allowed_classes.length === 0) {
                 throw new Error('No allowed child classes found for this page');
             }
@@ -824,16 +836,16 @@ export class PageData {
                     }
                     try {
                         const result = await rpc.call('add_page', params);
-                        const parsedResult = rpc.extractMCPData(result);
-                        const newPageName = parsedResult?.page?.name || nameValue || selectedClassValue;
-                        const newPageId = parsedResult?.page?.id;
+                        const newPageName = result.data?.page?.name || nameValue || selectedClassValue;
+                        const newPageId = result.data?.page?.id;
                         // Determine redirect URL using standard format
                         const redirectUrl = this.getPageUrl(newPageId);
                         return {
                             success: true,
                             _showMessage: `Page "${this.escapeHtml(newPageName)}" has been created successfully.`,
                             _autoFade: true,
-                            _redirectAfterFade: redirectUrl
+                            _redirectAfterFade: redirectUrl,
+                            debug: result.debug
                         };
                     }
                     catch (error) {
