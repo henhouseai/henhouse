@@ -298,19 +298,29 @@ class MCPWhitelist:
                 trace_out()
                 return False, f"Missing required field: {field}"
         
-        # Type checking
+        # Type checking with automatic coercion
         properties = schema.get('properties', {})
         for key, value in args.items():
             if key not in properties:
                 continue  # Allow extra fields
             prop_schema = properties[key]
             expected_type = prop_schema.get('type')
-            if expected_type == 'string' and not isinstance(value, str):
+            
+            # Try automatic type coercion for common cases
+            if expected_type == 'integer' and not isinstance(value, int):
+                # Try to coerce string numbers to integers
+                if isinstance(value, str) and value.isdigit():
+                    args[key] = int(value)
+                    value = args[key]  # Update value for remaining checks
+                elif isinstance(value, str) and (value.startswith('-') and value[1:].isdigit()):
+                    args[key] = int(value)
+                    value = args[key]
+                elif not isinstance(value, int):
+                    trace_out()
+                    return False, f"Field '{key}' must be an integer"
+            elif expected_type == 'string' and not isinstance(value, str):
                 trace_out()
                 return False, f"Field '{key}' must be a string"
-            elif expected_type == 'integer' and not isinstance(value, int):
-                trace_out()
-                return False, f"Field '{key}' must be an integer"
             elif expected_type == 'boolean' and not isinstance(value, bool):
                 trace_out()
                 return False, f"Field '{key}' must be a boolean"

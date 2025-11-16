@@ -56,7 +56,7 @@ export class UploadHandler {
   async handle(): Promise<void> {
     const overlayManager = OverlayManager.getInstance();
     
-    // Get current page ID
+    // Get current page ID (backend will auto-convert string to int if needed)
     const pageId = this.seedData.page?.id;
     if (!pageId) {
       this.rpc.showError('Upload', new Error('No page ID available'));
