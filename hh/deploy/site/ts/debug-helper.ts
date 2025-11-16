@@ -33,26 +33,30 @@ export function handleRPCResponseWithDebug(
 
   // Check if it's an RPCCallResult with debug
   if (rpcResult && typeof rpcResult === 'object') {
+    // Check for debug data first
     if (rpcResult.debug) {
       debugData = rpcResult.debug;
       responseData = rpcResult.data;
-      // Prefer requestInfo from result, fall back to provided method/params
-      // Always use provided method/params if requestInfo is missing or incomplete
-      if (rpcResult.requestInfo && rpcResult.requestInfo.method && rpcResult.requestInfo.params) {
+      
+      // Extract requestInfo - try multiple sources
+      if (rpcResult.requestInfo && rpcResult.requestInfo.method) {
         requestInfo = rpcResult.requestInfo;
-      } else if (method && params !== undefined) {
-        requestInfo = { method, params };
+      } else if (method) {
+        // Always use provided method/params as fallback
+        requestInfo = { method, params: params !== undefined ? params : {} };
       }
     }
     // Also check if it's an error with debug attached (RPCError)
     else if ('debug' in rpcResult && rpcResult.debug) {
       debugData = rpcResult.debug;
       responseData = rpcResult.data;
-      // Prefer requestInfo from error, fall back to provided method/params
-      if (rpcResult.requestInfo && rpcResult.requestInfo.method && rpcResult.requestInfo.params) {
+      
+      // Extract requestInfo from error - try multiple sources
+      if (rpcResult.requestInfo && rpcResult.requestInfo.method) {
         requestInfo = rpcResult.requestInfo;
-      } else if (method && params !== undefined) {
-        requestInfo = { method, params };
+      } else if (method) {
+        // Always use provided method/params as fallback
+        requestInfo = { method, params: params !== undefined ? params : {} };
       }
     }
   }
@@ -63,49 +67,57 @@ export function handleRPCResponseWithDebug(
     const debugTable = new OverlayDebugTable();
     const debugElement = debugTable.render(debugData);
 
-    // Build request info display (Box 1)
-    let requestInfoHtml = '';
+    // Create document fragment to hold three sibling overlayContent divs
+    // OverlayContent will wrap this, so we create a simple wrapper that won't add nesting
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'contents'; // Makes wrapper "transparent" - children become direct children of parent
+
+    // Box 1: Request info
     if (requestInfo) {
-      requestInfoHtml = `
-        <div class="overlayContent">
-          <div class="overlay-form-section">
-            <h3 class="overlay-section-title">Request:</h3>
-            <div class="overlay-form-group">
-              <label><strong>Tool:</strong></label>
-              <div>${escapeHtml(requestInfo.method)}</div>
-            </div>
-            <div class="overlay-form-group">
-              <label><strong>Arguments:</strong></label>
-              <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
-            </div>
+      const requestDiv = document.createElement('div');
+      requestDiv.className = 'overlayContent';
+      requestDiv.innerHTML = `
+        <div class="overlay-form-section">
+          <h3 class="overlay-section-title">Request:</h3>
+          <div class="overlay-form-group">
+            <label><strong>Tool:</strong></label>
+            <div>${escapeHtml(requestInfo.method)}</div>
+          </div>
+          <div class="overlay-form-group">
+            <label><strong>Arguments:</strong></label>
+            <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
           </div>
         </div>
       `;
+      wrapper.appendChild(requestDiv);
     }
 
-    // Build response data display (Box 2)
-    let responseInfoHtml = '';
+    // Box 2: Response data
     if (responseData !== undefined) {
-      responseInfoHtml = `
-        <div class="overlayContent">
-          <div class="overlay-form-section">
-            <h3 class="overlay-section-title">Response:</h3>
-            <div class="overlay-form-group">
-              <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
-            </div>
+      const responseDiv = document.createElement('div');
+      responseDiv.className = 'overlayContent';
+      responseDiv.innerHTML = `
+        <div class="overlay-form-section">
+          <h3 class="overlay-section-title">Response:</h3>
+          <div class="overlay-form-group">
+            <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
           </div>
         </div>
       `;
+      wrapper.appendChild(responseDiv);
     }
 
-    // Debug table (Box 3) - already wrapped in overlayContent by OverlayDebugTable
-    // Combine all three sections
-    const contentHtml = requestInfoHtml + responseInfoHtml + debugElement.outerHTML;
+    // Box 3: Debug table
+    const debugDiv = document.createElement('div');
+    debugDiv.className = 'overlayContent';
+    debugDiv.appendChild(debugElement);
+    wrapper.appendChild(debugDiv);
 
-    // Create new overlay window for debug info
+    // Create new overlay window for debug info - pass wrapper as HTMLElement
+    // OverlayContent will wrap it, but display:contents makes children appear as siblings
     overlayManager.show({
       header: 'Debug Information',
-      content: contentHtml,
+      content: wrapper,
       closable: true,
       cancelLabel: 'Close',
       showSubmit: false,
