@@ -131,6 +131,8 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         target_perms = None
         target_owner = None
         target_group = None
+        target_writable = None
+        target_accessible = None
         if target_exists:
             try:
                 stat_info = date_path.stat()
@@ -143,6 +145,21 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
                     target_group = grp.getgrgid(stat_info.st_gid).gr_name
                 except:
                     target_group = f"gid:{stat_info.st_gid}"
+                # Test if target is accessible and writable
+                try:
+                    # Try to access the directory
+                    list(date_path.iterdir())
+                    target_accessible = True
+                except Exception as access_error:
+                    target_accessible = f"False ({str(access_error)})"
+                try:
+                    # Try to create a test file inside
+                    test_file = date_path / f".write_test_{os.getpid()}"
+                    test_file.touch()
+                    test_file.unlink()
+                    target_writable = True
+                except Exception as write_error:
+                    target_writable = f"False ({str(write_error)})"
             except Exception:
                 pass
         # ===== DEBUG CODE END =====
@@ -157,7 +174,9 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         # ===== DEBUG CODE START: Build detailed error message =====
         error_details = [f"Path: {date_path}", f"Error: {str(e)}", f"Current user: {user_str}", f"Current group: {group_str}", f"Effective groups: {groups_str}"]
         if target_exists:
-            error_details.append(f"Target exists: True, perms: {target_perms}, owner: {target_owner}, group: {target_group}")
+            accessible_info = f", accessible: {target_accessible}" if target_accessible is not None else ""
+            writable_info = f", writable: {target_writable}" if target_writable is not None else ""
+            error_details.append(f"Target exists: True, perms: {target_perms}, owner: {target_owner}, group: {target_group}{accessible_info}{writable_info}")
         else:
             error_details.append(f"Target exists: False")
         if parent_exists:
