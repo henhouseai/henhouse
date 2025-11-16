@@ -45,7 +45,8 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
         }
     }
     // If we have debug data, create a debug overlay
-    if (debugData) {
+    // Only create overlay if debug data has entries (prevents empty debug overlays)
+    if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
         const overlayManager = OverlayManager.getInstance();
         const debugTable = new OverlayDebugTable();
         const debugElement = debugTable.render(debugData);

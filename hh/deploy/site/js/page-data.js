@@ -440,7 +440,8 @@ export class PageData {
                                     }
                                     // Update page text in case it contains a link to itself
                                     try {
-                                        const getTextResult = await rpc.call('get_text', { page_id: pageId });
+                                        // Don't pass debug options to get_text - it's just a data fetch
+                                        const getTextResult = await rpc.call('get_text', { page_id: pageId }, null);
                                         const processedText = getTextResult.data?.processed_text;
                                         this.updatePageTextDiv(pageId, processedText);
                                     }
@@ -520,7 +521,8 @@ export class PageData {
                         // After successful submit, fetch processed text and update DOM
                         if (result && pageId) {
                             try {
-                                const getTextResult = await rpc.call('get_text', { page_id: pageId });
+                                // Don't pass debug options to get_text - it's just a data fetch
+                                const getTextResult = await rpc.call('get_text', { page_id: pageId }, null);
                                 const processedText = getTextResult.data?.processed_text;
                                 this.updatePageTextDiv(pageId, processedText);
                             }
@@ -741,7 +743,8 @@ export class PageData {
                             const textOp = result.operations?.find((op) => op.fields?.includes('text'));
                             if (textOp && textOp.success) {
                                 try {
-                                    const getTextResult = await rpc.call('get_text', { page_id: pageId });
+                                    // Don't pass debug options to get_text - it's just a data fetch
+                                    const getTextResult = await rpc.call('get_text', { page_id: pageId }, null);
                                     const processedText = getTextResult.data?.processed_text;
                                     this.updatePageTextDiv(pageId, processedText);
                                 }
