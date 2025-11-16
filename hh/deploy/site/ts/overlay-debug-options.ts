@@ -137,8 +137,17 @@ export class OverlayDebugOptions {
   }
 
   /**
+   * Get current debug options values (reads from DOM, so must be called before hiding).
+   */
+  getOptionsBeforeHide(): DebugOptions {
+    // Read values before hiding - this preserves the state
+    return this.getOptions();
+  }
+
+  /**
    * Hide filters and uncheck boxes (for loading state).
-   * Preserves input values.
+   * Preserves input values but unchecks boxes.
+   * NOTE: Call getOptionsBeforeHide() first if you need the checkbox states!
    */
   hideForLoading(): void {
     this.debugCheckbox.checked = false;

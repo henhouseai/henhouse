@@ -33,6 +33,7 @@ export class Overlay {
   private previousFocus: HTMLElement | null = null;
   private isClosing: boolean = false;
   private debugOptions: OverlayDebugOptions | null = null;
+  private storedDebugOptions: DebugOptions | null = null; // Store debug options during loading
 
   constructor(options: OverlayOptions, zIndex: number) {
     this.props = { ...options };
@@ -200,6 +201,7 @@ export class Overlay {
         this.headerEl.appendChild(img);
       }
       // Hide debug options (filters and checkboxes) during loading
+      // Note: storedDebugOptions was already saved before setState, so getDebugOptions() will return stored state
       if (this.debugOptions) {
         this.debugOptions.hideForLoading();
       }
@@ -224,6 +226,11 @@ export class Overlay {
         if (this.debugOptions) {
           this.debugOptions.showForError();
         }
+        // Clear stored debug options since we're no longer loading
+        this.storedDebugOptions = null;
+      } else {
+        // On success, clear stored debug options
+        this.storedDebugOptions = null;
       }
     }
 
@@ -314,6 +321,12 @@ export class Overlay {
   async handleSubmit(): Promise<void> {
     if (!this.props.onSubmit) {
       return;
+    }
+
+    // Read and store debug options BEFORE hiding them (so RPC call can read the checked state)
+    // The RPC call happens inside onSubmit(), so we need to preserve the state
+    if (this.debugOptions) {
+      this.storedDebugOptions = this.debugOptions.getOptionsBeforeHide();
     }
 
     this.setState({ isLoading: true, error: null, success: null });
@@ -417,10 +430,15 @@ export class Overlay {
 
   /**
    * Get current debug options from the debug options component.
+   * During loading, returns stored state instead of reading from DOM.
    */
   getDebugOptions(): DebugOptions | null {
     if (!this.debugOptions) {
       return null;
+    }
+    // If we're loading and have stored options, return those (boxes are unchecked but we need the original state)
+    if (this.state.isLoading && this.storedDebugOptions) {
+      return this.storedDebugOptions;
     }
     return this.debugOptions.getOptions();
   }
