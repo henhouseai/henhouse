@@ -48,6 +48,7 @@ LOG_FILE = os.getenv('LOG_FILE', f'/srv/{PROJECT_NAME}/logs/flask_{PROJECT_NAME}
 # Create Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', f'{PROJECT_NAME}-{TIER_SUFFIX}-secret-key-change-in-production')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB limit for file uploads
 
 # Configure Flask's logger to write to our log file
 if LOG_FILE:

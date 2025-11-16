@@ -72,6 +72,7 @@ def get_flask_proxy_block(port: int) -> List[str]:
     return [
         f"    # Proxy all other requests to Flask app (port {port})",
         "    location / {",
+        "        client_max_body_size 50M;",
         f"        proxy_pass http://127.0.0.1:{port};",
         "        proxy_set_header Host $host;",
         "        proxy_set_header X-Real-IP $remote_addr;",
