@@ -67,16 +67,12 @@ export function handleRPCResponseWithDebug(
     const debugTable = new OverlayDebugTable();
     const debugElement = debugTable.render(debugData);
 
-    // Create document fragment to hold three sibling overlayContent divs
-    // OverlayContent will wrap this, so we create a simple wrapper that won't add nesting
-    const wrapper = document.createElement('div');
-    wrapper.style.display = 'contents'; // Makes wrapper "transparent" - children become direct children of parent
+    // Build array of content sections - OverlayContent will wrap each as sibling overlayContent divs
+    const contentArray: Array<string | HTMLElement> = [];
 
     // Box 1: Request info
     if (requestInfo) {
-      const requestDiv = document.createElement('div');
-      requestDiv.className = 'overlayContent';
-      requestDiv.innerHTML = `
+      contentArray.push(`
         <div class="overlay-form-section">
           <h3 class="overlay-section-title">Request:</h3>
           <div class="overlay-form-group">
@@ -88,36 +84,28 @@ export function handleRPCResponseWithDebug(
             <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
           </div>
         </div>
-      `;
-      wrapper.appendChild(requestDiv);
+      `);
     }
 
     // Box 2: Response data
     if (responseData !== undefined) {
-      const responseDiv = document.createElement('div');
-      responseDiv.className = 'overlayContent';
-      responseDiv.innerHTML = `
+      contentArray.push(`
         <div class="overlay-form-section">
           <h3 class="overlay-section-title">Response:</h3>
           <div class="overlay-form-group">
             <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
           </div>
         </div>
-      `;
-      wrapper.appendChild(responseDiv);
+      `);
     }
 
     // Box 3: Debug table
-    const debugDiv = document.createElement('div');
-    debugDiv.className = 'overlayContent';
-    debugDiv.appendChild(debugElement);
-    wrapper.appendChild(debugDiv);
+    contentArray.push(debugElement);
 
-    // Create new overlay window for debug info - pass wrapper as HTMLElement
-    // OverlayContent will wrap it, but display:contents makes children appear as siblings
+    // Create new overlay window for debug info - pass array so each gets wrapped as sibling
     overlayManager.show({
       header: 'Debug Information',
-      content: wrapper,
+      content: contentArray,
       closable: true,
       cancelLabel: 'Close',
       showSubmit: false,
