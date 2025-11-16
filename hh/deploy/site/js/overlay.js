@@ -153,7 +153,7 @@ export class Overlay {
             if (!submitBtn && this.props.onSubmit) {
                 const newSubmitBtn = document.createElement('a');
                 newSubmitBtn.id = 'submitOverlayWindow';
-                newSubmitBtn.className = 'submitButton';
+                newSubmitBtn.className = 'overlay-button overlay-button-submit submitButton';
                 newSubmitBtn.textContent = this.props.submitLabel || 'Submit';
                 newSubmitBtn.href = '#';
                 newSubmitBtn.addEventListener('click', (e) => {
