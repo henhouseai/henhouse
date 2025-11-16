@@ -236,6 +236,8 @@ def with_connection(
                         if is_error():
                             conn.rollback()
                             log("Transaction rolled back due to errors")
+                            trace_out()
+                            return False
                         else:
                             # Execute buffered file operations before committing DB
                             from hh.gateway.connection.connection import _execute_file_operations, _rollback_file_operations
@@ -245,12 +247,16 @@ def with_connection(
                                 _rollback_file_operations(conn)
                                 conn.rollback()
                                 log("Transaction rolled back due to file operation errors")
+                                trace_out()
+                                return False
                             elif is_error():
                                 # Check for errors after file operations
                                 warn("Errors detected after file operations, rolling back")
                                 _rollback_file_operations(conn)
                                 conn.rollback()
                                 log("Transaction rolled back due to errors after file operations")
+                                trace_out()
+                                return False
                             else:
                                 # All good, commit DB transaction
                                 conn.commit()

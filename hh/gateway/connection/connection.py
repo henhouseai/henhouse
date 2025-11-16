@@ -408,10 +408,22 @@ def _rollback_file_operations(conn) -> bool:
     
     log(f"Rolling back {len(conn._file_operations)} file operations")
     
+    # Count how many completed operations we need to rollback
+    completed_count = sum(1 for op in conn._file_operations if op.get('status') == 'completed')
+    log(f"Found {completed_count} completed operations to rollback")
+    
+    if completed_count == 0:
+        log("No completed operations to rollback")
+        trace_out()
+        return True
+    
     # Rollback in reverse order
+    rolled_back_count = 0
     for operation in reversed(conn._file_operations):
         if operation['status'] != 'completed':
             continue
+        
+        log(f"Rolling back operation: {operation['type']} from {operation['from_path']} to {operation['to_path']}")
         
         try:
             from_path = Path(operation['from_path'])
@@ -423,9 +435,14 @@ def _rollback_file_operations(conn) -> bool:
                     from_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(to_path), str(from_path))
                     log(f"Rolled back move: {to_path} -> {from_path}")
+                    operation['status'] = 'rolled_back'
+                    rolled_back_count += 1
                 else:
                     warn(f"Destination file does not exist for rollback: {to_path}")
-                operation['status'] = 'rolled_back'
+                    report_error("file_operation", f"Destination file does not exist for rollback: {to_path}")
+                    operation['status'] = 'rollback_failed'
+                    trace_out()
+                    return False
                 
             elif operation['type'] == 'delete':
                 # Move back from temp: to_path -> from_path
@@ -433,9 +450,14 @@ def _rollback_file_operations(conn) -> bool:
                     from_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(to_path), str(from_path))
                     log(f"Rolled back delete: {to_path} -> {from_path}")
+                    operation['status'] = 'rolled_back'
+                    rolled_back_count += 1
                 else:
                     warn(f"Temp file does not exist for rollback: {to_path}")
-                operation['status'] = 'rolled_back'
+                    report_error("file_operation", f"Temp file does not exist for rollback: {to_path}")
+                    operation['status'] = 'rollback_failed'
+                    trace_out()
+                    return False
                 
         except Exception as e:
             warn(f"Failed to rollback file operation {operation['type']}: {str(e)}")
@@ -444,6 +466,6 @@ def _rollback_file_operations(conn) -> bool:
             trace_out()
             return False
     
-    log("All file operations rolled back successfully")
+    log(f"All {rolled_back_count} file operations rolled back successfully")
     trace_out()
     return True
