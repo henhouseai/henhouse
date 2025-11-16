@@ -369,7 +369,6 @@ export class PageData {
     
     const allOperations: any[] = [];
     let allSucceeded = true;
-    let collectedDebug: any = undefined;
     
     // Process each operation individually (not in parallel)
     for (const { mapping, fields } of optimalMappings) {
@@ -386,11 +385,6 @@ export class PageData {
         if (rawResult.debug && Array.isArray(rawResult.debug.entries) && rawResult.debug.entries.length > 0) {
           const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
           handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
-        }
-        
-        // Collect debug data (use first non-empty debug found)
-        if (rawResult.debug && !collectedDebug) {
-          collectedDebug = rawResult.debug;
         }
         
         // Clear fields from registry after successful update
@@ -433,9 +427,6 @@ export class PageData {
             const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
             handleRPCResponseWithDebug(error, mapping.mcpTool, params);
           }
-          if (errorDebug && !collectedDebug) {
-            collectedDebug = errorDebug;
-          }
         }
         
         const operation = {
@@ -463,8 +454,8 @@ export class PageData {
       noChanges: false,
       operations: allOperations,
       successes: allOperations.filter((op: any) => op.success),
-      errors: allOperations.filter((op: any) => !op.success),
-      debug: collectedDebug
+      errors: allOperations.filter((op: any) => !op.success)
+      // Don't return collectedDebug - we already show individual debug overlays for each call
     };
   }
 

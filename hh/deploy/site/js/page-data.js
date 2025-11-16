@@ -236,7 +236,6 @@ export class PageData {
         }
         const allOperations = [];
         let allSucceeded = true;
-        let collectedDebug = undefined;
         // Process each operation individually (not in parallel)
         for (const { mapping, fields } of optimalMappings) {
             const params = mapping.buildParams(fields, currentValues, pageId);
@@ -250,10 +249,6 @@ export class PageData {
                 if (rawResult.debug && Array.isArray(rawResult.debug.entries) && rawResult.debug.entries.length > 0) {
                     const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
                     handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
-                }
-                // Collect debug data (use first non-empty debug found)
-                if (rawResult.debug && !collectedDebug) {
-                    collectedDebug = rawResult.debug;
                 }
                 // Clear fields from registry after successful update
                 PageManager.getInstance()['clearFields'](fields);
@@ -291,9 +286,6 @@ export class PageData {
                         const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
                         handleRPCResponseWithDebug(error, mapping.mcpTool, params);
                     }
-                    if (errorDebug && !collectedDebug) {
-                        collectedDebug = errorDebug;
-                    }
                 }
                 const operation = {
                     mapping: mapping.mcpTool,
@@ -317,8 +309,8 @@ export class PageData {
             noChanges: false,
             operations: allOperations,
             successes: allOperations.filter((op) => op.success),
-            errors: allOperations.filter((op) => !op.success),
-            debug: collectedDebug
+            errors: allOperations.filter((op) => !op.success)
+            // Don't return collectedDebug - we already show individual debug overlays for each call
         };
     }
     /**
