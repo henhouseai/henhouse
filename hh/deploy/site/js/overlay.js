@@ -217,12 +217,12 @@ export class Overlay {
                     this.debugOptions.show();
                     this.debugOptions.showForError();
                 }
-                // Don't clear stored debug options yet - async RPC calls might still be in progress
-                // They'll be cleared when the overlay actually closes or on next submit
+                // Clear stored debug options since we're no longer loading
+                this.storedDebugOptions = null;
             }
             else {
-                // On success, don't clear stored debug options immediately either
-                // They'll be cleared when overlay closes or on next submit
+                // On success, clear stored debug options
+                this.storedDebugOptions = null;
                 // Hide debug options when submit button is gone (success case)
                 if (this.debugOptions && !submitBtn) {
                     this.debugOptions.hide();
@@ -286,8 +286,6 @@ export class Overlay {
         if (!this.container || this.isClosing) {
             return; // Already closed or closing
         }
-        // Clear stored debug options when closing
-        this.storedDebugOptions = null;
         this.isClosing = true;
         // Set transition for fade-out
         this.container.style.transition = `opacity ${fadeDurationMs}ms ease-out`;
@@ -301,8 +299,6 @@ export class Overlay {
      * Remove the overlay completely (immediate, no fade).
      */
     remove() {
-        // Clear stored debug options when removing
-        this.storedDebugOptions = null;
         this.unmount();
     }
     /**
@@ -413,18 +409,15 @@ export class Overlay {
     /**
      * Get current debug options from the debug options component.
      * During loading, returns stored state instead of reading from DOM.
-     * Also returns stored options if they exist (even if not loading) to handle async RPC calls.
      */
     getDebugOptions() {
         if (!this.debugOptions) {
             return null;
         }
-        // If we have stored options (from a submit that's in progress), return those
-        // This handles the case where async RPC calls happen after onSubmit completes
-        if (this.storedDebugOptions) {
+        // If we're loading and have stored options, return those (boxes are unchecked but we need the original state)
+        if (this.state.isLoading && this.storedDebugOptions) {
             return this.storedDebugOptions;
         }
-        // Otherwise read from DOM
         return this.debugOptions.getOptions();
     }
     /**

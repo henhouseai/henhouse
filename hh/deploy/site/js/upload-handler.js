@@ -102,6 +102,17 @@ export class UploadHandler {
                 if (this.uploadStatuses.length === 0) {
                     return { _showMessage: 'Please select at least one file', _autoFade: false };
                 }
+                // Capture debug options from overlay before starting upload
+                const overlayManager = OverlayManager.getInstance();
+                const topOverlay = overlayManager.getTopOverlay();
+                let capturedDebugOptions = null;
+                if (topOverlay) {
+                    capturedDebugOptions = topOverlay.getDebugOptions();
+                }
+                // Store debug options in each file status
+                for (const status of this.uploadStatuses) {
+                    status.debugOptions = capturedDebugOptions;
+                }
                 // Disable choose files and upload buttons
                 if (this.chooseFilesBtn) {
                     this.chooseFilesBtn.style.pointerEvents = 'none';
@@ -126,11 +137,34 @@ export class UploadHandler {
                         if (status.uploaded && status.uploadResult && !status.processed && !status.processing) {
                             status.processing = true;
                             try {
-                                await this.rpc.call('upload_images', {
+                                // Build params with debug options from this file's stored metadata
+                                const params = {
                                     page_id: pageId,
                                     file0_path: status.uploadResult.temp_path,
                                     file0_name: status.uploadResult.original_name
-                                });
+                                };
+                                // Add debug options if they were captured for this file
+                                if (status.debugOptions) {
+                                    if (status.debugOptions.debug) {
+                                        params.debug = 1;
+                                    }
+                                    if (status.debugOptions.log) {
+                                        params.log = 1;
+                                    }
+                                    if (status.debugOptions.white) {
+                                        params.white = status.debugOptions.white;
+                                    }
+                                    if (status.debugOptions.gray) {
+                                        params.gray = status.debugOptions.gray;
+                                    }
+                                    if (status.debugOptions.black) {
+                                        params.black = status.debugOptions.black;
+                                    }
+                                    if (status.debugOptions.debugLimit) {
+                                        params['debug-limit'] = status.debugOptions.debugLimit;
+                                    }
+                                }
+                                await this.rpc.call('upload_images', params);
                                 status.processed = true;
                                 // Remove pending div and add success message
                                 this.removePendingDiv(status);
@@ -157,11 +191,10 @@ export class UploadHandler {
                     }
                 };
                 await processNext();
-                // Return success with auto-fade enabled and page refresh after fade
+                // Return success with auto-fade disabled (temporarily for debugging)
                 return {
                     _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`,
-                    _autoFade: true,
-                    _redirectAfterFade: window.location.href
+                    _autoFade: false
                 };
             },
             onCancel: () => {
@@ -263,7 +296,8 @@ export class UploadHandler {
             processing: false,
             processed: false,
             error: null,
-            div: fileDiv
+            div: fileDiv,
+            debugOptions: null // Will be set when submit is clicked
         };
         this.uploadStatuses.push(status);
     }

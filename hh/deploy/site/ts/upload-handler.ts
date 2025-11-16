@@ -5,6 +5,7 @@
 import { RPCClient } from './rpc-client.js';
 import { SeedData } from './seed.js';
 import { OverlayManager } from './overlay-manager.js';
+import { DebugOptions } from './overlay-debug-options.js';
 
 interface FileUploadStatus {
   fileId: string; // Unique ID based on file path
@@ -15,6 +16,7 @@ interface FileUploadStatus {
   processed: boolean;
   error: string | null;
   div: HTMLElement;
+  debugOptions: DebugOptions | null; // Debug options captured when submit was clicked
 }
 
 export class UploadHandler {
@@ -132,6 +134,19 @@ export class UploadHandler {
           return { _showMessage: 'Please select at least one file', _autoFade: false };
         }
         
+        // Capture debug options from overlay before starting upload
+        const overlayManager = OverlayManager.getInstance();
+        const topOverlay = overlayManager.getTopOverlay();
+        let capturedDebugOptions: DebugOptions | null = null;
+        if (topOverlay) {
+          capturedDebugOptions = topOverlay.getDebugOptions();
+        }
+        
+        // Store debug options in each file status
+        for (const status of this.uploadStatuses) {
+          status.debugOptions = capturedDebugOptions;
+        }
+        
         // Disable choose files and upload buttons
         if (this.chooseFilesBtn) {
           this.chooseFilesBtn.style.pointerEvents = 'none';
@@ -162,11 +177,36 @@ export class UploadHandler {
               status.processing = true;
               
               try {
-                await this.rpc.call('upload_images', {
+                // Build params with debug options from this file's stored metadata
+                const params: any = {
                   page_id: pageId,
                   file0_path: status.uploadResult.temp_path,
                   file0_name: status.uploadResult.original_name
-                });
+                };
+                
+                // Add debug options if they were captured for this file
+                if (status.debugOptions) {
+                  if (status.debugOptions.debug) {
+                    params.debug = 1;
+                  }
+                  if (status.debugOptions.log) {
+                    params.log = 1;
+                  }
+                  if (status.debugOptions.white) {
+                    params.white = status.debugOptions.white;
+                  }
+                  if (status.debugOptions.gray) {
+                    params.gray = status.debugOptions.gray;
+                  }
+                  if (status.debugOptions.black) {
+                    params.black = status.debugOptions.black;
+                  }
+                  if (status.debugOptions.debugLimit) {
+                    params['debug-limit'] = status.debugOptions.debugLimit;
+                  }
+                }
+                
+                await this.rpc.call('upload_images', params);
                 
                 status.processed = true;
                 // Remove pending div and add success message
@@ -194,11 +234,10 @@ export class UploadHandler {
         
         await processNext();
         
-        // Return success with auto-fade enabled and page refresh after fade
+        // Return success with auto-fade disabled (temporarily for debugging)
         return { 
           _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, 
-          _autoFade: true,
-          _redirectAfterFade: window.location.href
+          _autoFade: false
         };
       },
       onCancel: () => {
@@ -314,7 +353,8 @@ export class UploadHandler {
       processing: false,
       processed: false,
       error: null,
-      div: fileDiv
+      div: fileDiv,
+      debugOptions: null // Will be set when submit is clicked
     };
     
     this.uploadStatuses.push(status);
