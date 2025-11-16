@@ -100,6 +100,7 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         parent_perms_full = None
         parent_owner = None
         parent_group = None
+        parent_writable = None
         if parent_exists:
             try:
                 stat_info = parent_path.stat()
@@ -113,6 +114,14 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
                     parent_group = grp.getgrgid(stat_info.st_gid).gr_name
                 except:
                     parent_group = f"gid:{stat_info.st_gid}"
+                # Test if parent is actually writable
+                try:
+                    test_file = parent_path / f".write_test_{os.getpid()}"
+                    test_file.touch()
+                    test_file.unlink()
+                    parent_writable = True
+                except Exception as write_test_error:
+                    parent_writable = f"False ({str(write_test_error)})"
             except Exception:
                 pass
         # ===== DEBUG CODE END =====
@@ -128,7 +137,8 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         error_details = [f"Path: {date_path}", f"Error: {str(e)}", f"Current user: {user_str}", f"Current group: {group_str}", f"Effective groups: {groups_str}"]
         if parent_exists:
             perms_display = f"{parent_perms_full} ({parent_perms})" if parent_perms_full and parent_perms_full != f"0o{parent_perms}" else parent_perms
-            error_details.append(f"Parent: {parent_path} (exists: True, perms: {perms_display}, owner: {parent_owner}, group: {parent_group})")
+            writable_info = f", writable: {parent_writable}" if parent_writable is not None else ""
+            error_details.append(f"Parent: {parent_path} (exists: True, perms: {perms_display}, owner: {parent_owner}, group: {parent_group}{writable_info})")
         else:
             error_details.append(f"Parent: {parent_path} (exists: False)")
         
