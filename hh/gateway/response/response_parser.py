@@ -4,6 +4,7 @@ Outputs raw text with newline joining - no additional formatting.
 """
 from __future__ import annotations
 from typing import List, Optional
+import json
 from hh.gateway.response.response import Response
 
 class ResponseParser(Response):
@@ -50,7 +51,6 @@ class ResponseParser(Response):
                     parts.append(self.debug_output["text"])
                 elif "entries" in self.debug_output:
                     # MCP debug format (JSON entries) - convert to text for display
-                    import json
                     debug_text = json.dumps(self.debug_output, indent=2)
                     parts.append(debug_text)
             elif isinstance(self.debug_output, str):
