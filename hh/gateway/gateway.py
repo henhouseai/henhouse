@@ -141,32 +141,25 @@ class Gateway:
             report_error("registry", "No backend handler found.")
         
     def _configure_debug_module(self):
-        # Check for mcp flag to enable MCP debugger (for testing)
-        if self.request.get_arg("mcp"):
-            self.debug_system = "mcp"
-            set_debug_backend(self.debug_system)
-            self.get_debug_func = resolve_get_debug_for(self.debug_system)
-        # MCP backend always uses debug_mcp (even with -trace flag)
-        elif self.backend == "mcp":
-            self.debug_system = "mcp"
-            set_debug_backend(self.debug_system)
-            self.get_debug_func = resolve_get_debug_for(self.debug_system)
-            # Still enable trace flags if -trace is passed (for trace_in/trace_out capture)
-            if self.request.get_arg("trace"):
-                set_trace_flags(True, True, True)
+        # Check trace flag first (enables trace flags regardless of backend)
+        if self.request.get_arg("trace"):
+            self.debug_system = "trace"
         elif self.request.is_no("debug"):
             self.debug_system = "none"
-        elif self.request.get_arg("trace"):
-            self.debug_system = "trace"
         else:
             self.debug_system = "table"
-        if self.backend != "mcp" and not self.request.get_arg("mcp"):
+        
+        # MCP backend/flag check LAST - always uses debug_mcp
+        if self.request.get_arg("mcp") or self.backend == "mcp":
+            self.debug_system = "mcp"
+        
+        # Set debug backend and resolve function
+        set_debug_backend(self.debug_system)
+        self.get_debug_func = resolve_get_debug_for(self.debug_system)
+        if self.get_debug_func is None and self.debug_system != "none":
+            self.debug_system = "debug_safe"
             set_debug_backend(self.debug_system)
-            self.get_debug_func = resolve_get_debug_for(self.debug_system)
-            if self.get_debug_func is None and self.debug_system != "none":
-                self.debug_system = "debug_safe"
-                set_debug_backend(self.debug_system)
-                self.get_debug_func = resolve_get_debug_for("debug_safe")
+            self.get_debug_func = resolve_get_debug_for("debug_safe")
         self._apply_debug_filter_overrides()
         log("Debug module configuration completed")
     

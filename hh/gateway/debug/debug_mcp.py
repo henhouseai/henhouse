@@ -65,8 +65,8 @@ class DebugMCP(Debug):
             if base_timestamp is None:
                 base_timestamp = entry.timestamp
             
-            # Calculate delta in milliseconds (rounded)
-            delta_ms = int((entry.timestamp - base_timestamp) * 1000)
+            # Calculate delta in seconds with millisecond precision (3 decimal places)
+            delta_seconds = round((entry.timestamp - base_timestamp), 3)
             
             debug_entries.append({
                 "L": level_name,  # level
@@ -74,7 +74,7 @@ class DebugMCP(Debug):
                 "I": display_filename,  # file
                 "U": entry.function_name,  # function
                 "M": entry.message,  # message
-                "T": delta_ms  # timestamp delta in milliseconds
+                "T": delta_seconds  # timestamp delta in seconds (millisecond precision)
             })
         
         self._get_shared_store().clear_processed_data()
