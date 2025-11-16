@@ -599,6 +599,95 @@
   color: var(--text-medium-contrast, #d4d4d4);
 }
 
+/* Color classes must override row colors - use !important to ensure they win */
+#overlayWindow table.overlay-debug-table td.debug-module.red,
+#overlayWindow table.overlay-debug-table td.debug-file.red,
+#overlayWindow table.overlay-debug-table td.debug-function.red { color: #FF0000 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.orange,
+#overlayWindow table.overlay-debug-table td.debug-file.orange,
+#overlayWindow table.overlay-debug-table td.debug-function.orange { color: #FF8700 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.yellow,
+#overlayWindow table.overlay-debug-table td.debug-file.yellow,
+#overlayWindow table.overlay-debug-table td.debug-function.yellow { color: #FFFF00 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.green,
+#overlayWindow table.overlay-debug-table td.debug-file.green,
+#overlayWindow table.overlay-debug-table td.debug-function.green { color: #00FF00 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.cyan,
+#overlayWindow table.overlay-debug-table td.debug-file.cyan,
+#overlayWindow table.overlay-debug-table td.debug-function.cyan { color: #00FFFF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.blue,
+#overlayWindow table.overlay-debug-table td.debug-file.blue,
+#overlayWindow table.overlay-debug-table td.debug-function.blue { color: #0000FF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.magenta,
+#overlayWindow table.overlay-debug-table td.debug-file.magenta,
+#overlayWindow table.overlay-debug-table td.debug-function.magenta { color: #FF00FF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.gold,
+#overlayWindow table.overlay-debug-table td.debug-file.gold,
+#overlayWindow table.overlay-debug-table td.debug-function.gold { color: #FFAF00 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.white,
+#overlayWindow table.overlay-debug-table td.debug-file.white,
+#overlayWindow table.overlay-debug-table td.debug-function.white { color: #FFFFFF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.brown,
+#overlayWindow table.overlay-debug-table td.debug-file.brown,
+#overlayWindow table.overlay-debug-table td.debug-function.brown { color: #804000 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pink,
+#overlayWindow table.overlay-debug-table td.debug-file.pink,
+#overlayWindow table.overlay-debug-table td.debug-function.pink { color: #FFB8D1 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_yellow,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_yellow,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_yellow { color: #FFFFD7 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_cyan,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_cyan,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_cyan { color: #D7FFFF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_pink,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_pink,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_pink { color: #FFD7FF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_green,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_green,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_green { color: #D7FFD7 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_blue,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_blue,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_blue { color: #D7FFFF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_purple,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_purple,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_purple { color: #EBD7FF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_orange,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_orange,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_orange { color: #FFE7D7 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_red,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_red,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_red { color: #FFE7E7 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_lavender,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_lavender,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_lavender { color: #F5D7FF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_peach,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_peach,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_peach { color: #FFD1AF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_mint,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_mint,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_mint { color: #AAFFAA !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_lilac,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_lilac,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_lilac { color: #D1AAFF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_sky,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_sky,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_sky { color: #9FD7FF !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_rose,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_rose,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_rose { color: #FFE7E7 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_aqua,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_aqua,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_aqua { color: #B8E7E7 !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_coral,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_coral,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_coral { color: #FFD7AA !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_lime,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_lime,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_lime { color: #D7FFAA !important; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_violet,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_violet,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_violet { color: #D7E7AA !important; }
+
 /* Debug table cells - horizontal padding */
 #overlayWindow table.overlay-debug-table td {
   padding: 2px 8px;
@@ -620,96 +709,6 @@
 #overlayWindow table.overlay-debug-table td.debug-message {
   color: var(--text-medium-contrast, #d4d4d4);
 }
-
-/* Debug color classes - high contrast colors for debug table (not theme colors) */
-/* These use the same color definitions as ansi-colors.css but scoped to debug table */
-#overlayWindow table.overlay-debug-table td.debug-module.red,
-#overlayWindow table.overlay-debug-table td.debug-file.red,
-#overlayWindow table.overlay-debug-table td.debug-function.red { color: #FF0000; }
-#overlayWindow table.overlay-debug-table td.debug-module.orange,
-#overlayWindow table.overlay-debug-table td.debug-file.orange,
-#overlayWindow table.overlay-debug-table td.debug-function.orange { color: #FF8700; }
-#overlayWindow table.overlay-debug-table td.debug-module.yellow,
-#overlayWindow table.overlay-debug-table td.debug-file.yellow,
-#overlayWindow table.overlay-debug-table td.debug-function.yellow { color: #FFFF00; }
-#overlayWindow table.overlay-debug-table td.debug-module.green,
-#overlayWindow table.overlay-debug-table td.debug-file.green,
-#overlayWindow table.overlay-debug-table td.debug-function.green { color: #00FF00; }
-#overlayWindow table.overlay-debug-table td.debug-module.cyan,
-#overlayWindow table.overlay-debug-table td.debug-file.cyan,
-#overlayWindow table.overlay-debug-table td.debug-function.cyan { color: #00FFFF; }
-#overlayWindow table.overlay-debug-table td.debug-module.blue,
-#overlayWindow table.overlay-debug-table td.debug-file.blue,
-#overlayWindow table.overlay-debug-table td.debug-function.blue { color: #0000FF; }
-#overlayWindow table.overlay-debug-table td.debug-module.magenta,
-#overlayWindow table.overlay-debug-table td.debug-file.magenta,
-#overlayWindow table.overlay-debug-table td.debug-function.magenta { color: #FF00FF; }
-#overlayWindow table.overlay-debug-table td.debug-module.gold,
-#overlayWindow table.overlay-debug-table td.debug-file.gold,
-#overlayWindow table.overlay-debug-table td.debug-function.gold { color: #FFAF00; }
-#overlayWindow table.overlay-debug-table td.debug-module.white,
-#overlayWindow table.overlay-debug-table td.debug-file.white,
-#overlayWindow table.overlay-debug-table td.debug-function.white { color: #FFFFFF; }
-#overlayWindow table.overlay-debug-table td.debug-module.brown,
-#overlayWindow table.overlay-debug-table td.debug-file.brown,
-#overlayWindow table.overlay-debug-table td.debug-function.brown { color: #804000; }
-#overlayWindow table.overlay-debug-table td.debug-module.pink,
-#overlayWindow table.overlay-debug-table td.debug-file.pink,
-#overlayWindow table.overlay-debug-table td.debug-function.pink { color: #FFB8D1; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_yellow,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_yellow,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_yellow { color: #FFFFD7; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_cyan,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_cyan,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_cyan { color: #D7FFFF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_pink,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_pink,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_pink { color: #FFD7FF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_green,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_green,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_green { color: #D7FFD7; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_blue,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_blue,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_blue { color: #D7FFFF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_purple,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_purple,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_purple { color: #EBD7FF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_orange,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_orange,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_orange { color: #FFE7D7; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_red,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_red,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_red { color: #FFE7E7; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_lavender,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_lavender,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_lavender { color: #F5D7FF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_peach,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_peach,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_peach { color: #FFD1AF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_mint,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_mint,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_mint { color: #AAFFAA; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_lilac,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_lilac,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_lilac { color: #D1AAFF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_sky,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_sky,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_sky { color: #9FD7FF; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_rose,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_rose,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_rose { color: #FFE7E7; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_aqua,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_aqua,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_aqua { color: #B8E7E7; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_coral,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_coral,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_coral { color: #FFD7AA; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_lime,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_lime,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_lime { color: #D7FFAA; }
-#overlayWindow table.overlay-debug-table td.debug-module.pastel_violet,
-#overlayWindow table.overlay-debug-table td.debug-file.pastel_violet,
-#overlayWindow table.overlay-debug-table td.debug-function.pastel_violet { color: #D7E7AA; }
 
 /* Debug level colors */
 #overlayWindow table.overlay-debug-table td.debug-level.trace_in { color: var(--text-low-contrast, #8b949e); }
