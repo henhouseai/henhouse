@@ -52,19 +52,29 @@ class DebugMCP(Debug):
             if filtered_entry.limit_passed:
                 self.filtered_data.append(filtered_entry)
         
-        # Build JSON structure
+        # Build JSON structure with shortened keys and normalized timestamps
         debug_entries = []
+        base_timestamp = None
+        
         for entry in self.filtered_data:
             display_module = trim_document_root(entry.folder)
             display_filename = trim_document_root(entry.filename)
             level_name = {1: "trace_in", 2: "trace_out", 3: "log", 4: "debug", 5: "warn"}.get(entry.level, "unknown")
+            
+            # Set base timestamp from first entry
+            if base_timestamp is None:
+                base_timestamp = entry.timestamp
+            
+            # Calculate delta in milliseconds (rounded)
+            delta_ms = int((entry.timestamp - base_timestamp) * 1000)
+            
             debug_entries.append({
-                "level": level_name,
-                "folder": display_module,
-                "file": display_filename,
-                "function": entry.function_name,
-                "message": entry.message,
-                "timestamp": entry.timestamp
+                "L": level_name,  # level
+                "F": display_module,  # folder
+                "I": display_filename,  # file
+                "U": entry.function_name,  # function
+                "M": entry.message,  # message
+                "T": delta_ms  # timestamp delta in milliseconds
             })
         
         self._get_shared_store().clear_processed_data()
