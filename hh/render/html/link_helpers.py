@@ -9,7 +9,7 @@ def create_page_link(page_id: Union[int, str]) -> str:
 
 def create_image_link(image_id: Union[int, str]) -> str:
     """Create an image link URL for the given image ID."""
-    return f'show-image?id={image_id}'
+    return f'/img/{image_id}'
 
 
 def create_image_file_link(src_path: str) -> str:
