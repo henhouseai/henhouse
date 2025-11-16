@@ -4,7 +4,7 @@ from typing import Union
 
 def create_page_link(page_id: Union[int, str]) -> str:
     """Create a page link URL for the given page ID."""
-    return f'{page_id}'
+    return f'/{page_id}'
 
 
 def create_image_link(image_id: Union[int, str]) -> str:
