@@ -166,6 +166,8 @@ class ImageContentMixin:
     def _soft_delete_files(self) -> bool:
         trace_in()
         try:
+            # Load instances if not already loaded (this populates self.instances)
+            self._get_instances()
             # Get project context for base path
             from hh.deploy.utils import detect_project_context
             from pathlib import Path
