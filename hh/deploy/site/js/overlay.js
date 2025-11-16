@@ -332,8 +332,9 @@ export class Overlay {
                 this.setState({ isLoading: false, success: 'Success!' });
             }
             // Show debug table in separate overlay window if present
+            // Only show if debug data exists and has entries (prevents empty debug overlays)
             const requestInfo = result?.requestInfo;
-            if (debugData) {
+            if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
                 this.showDebugTable(debugData, requestInfo);
             }
             // Auto-close after success: wait 1-2 seconds, then slow fade out
@@ -377,8 +378,9 @@ export class Overlay {
                     success: null
                 });
                 // Show debug table in separate overlay window if present
+                // Only show if debug data exists and has entries (prevents empty debug overlays)
                 const requestInfo = error?.requestInfo;
-                if (debugData) {
+                if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
                     this.showDebugTable(debugData, requestInfo);
                 }
             }
@@ -386,8 +388,9 @@ export class Overlay {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 this.setState({ isLoading: false, error: errorMessage, messages: [] });
                 // Show debug table in separate overlay window if present
+                // Only show if debug data exists and has entries (prevents empty debug overlays)
                 const requestInfo = error?.requestInfo;
-                if (debugData) {
+                if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
                     this.showDebugTable(debugData, requestInfo);
                 }
             }

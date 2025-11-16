@@ -391,8 +391,9 @@ export class Overlay {
       }
       
       // Show debug table in separate overlay window if present
+      // Only show if debug data exists and has entries (prevents empty debug overlays)
       const requestInfo = (result as any)?.requestInfo;
-      if (debugData) {
+      if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
         this.showDebugTable(debugData, requestInfo);
       }
       
@@ -438,8 +439,9 @@ export class Overlay {
         });
         
         // Show debug table in separate overlay window if present
+        // Only show if debug data exists and has entries (prevents empty debug overlays)
         const requestInfo = (error as any)?.requestInfo;
-        if (debugData) {
+        if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
           this.showDebugTable(debugData, requestInfo);
         }
       } else {
@@ -447,8 +449,9 @@ export class Overlay {
         this.setState({ isLoading: false, error: errorMessage, messages: [] });
         
         // Show debug table in separate overlay window if present
+        // Only show if debug data exists and has entries (prevents empty debug overlays)
         const requestInfo = (error as any)?.requestInfo;
-        if (debugData) {
+        if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
           this.showDebugTable(debugData, requestInfo);
         }
       }
