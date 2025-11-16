@@ -102,37 +102,41 @@ export class RPCClient {
    * Make an MCP JSON-RPC call to the backend.
    * @param method - The tool name to call
    * @param params - Parameters to pass (debug options will be automatically added if set in overlay)
+   * @param debugOptions - Optional debug options to use (overrides overlay lookup)
    * @returns Object with data and optional debug info
    */
-  async call(method: string, params: any = {}): Promise<RPCCallResult> {
+  async call(method: string, params: any = {}, debugOptions?: any): Promise<RPCCallResult> {
     // Store original params before merging debug options (for request info display)
     const originalParams = { ...params };
     
-    // Check current overlay for debug options and merge them into params
-    const overlayManager = OverlayManager.getInstance();
-    const topOverlay = overlayManager.getTopOverlay();
-    if (topOverlay) {
-      const debugOptions = topOverlay.getDebugOptions();
-      if (debugOptions) {
-        // Merge debug options into params (don't overwrite existing params)
-        if (debugOptions.debug) {
-          params.debug = 1;
-        }
-        if (debugOptions.log) {
-          params.log = 1;
-        }
-        if (debugOptions.white) {
-          params.white = debugOptions.white;
-        }
-        if (debugOptions.gray) {
-          params.gray = debugOptions.gray;
-        }
-        if (debugOptions.black) {
-          params.black = debugOptions.black;
-        }
-        if (debugOptions.debugLimit) {
-          params['debug-limit'] = debugOptions.debugLimit;
-        }
+    // Use provided debugOptions, or check current overlay for debug options
+    if (!debugOptions) {
+      const overlayManager = OverlayManager.getInstance();
+      const topOverlay = overlayManager.getTopOverlay();
+      if (topOverlay) {
+        debugOptions = topOverlay.getDebugOptions();
+      }
+    }
+    
+    // Merge debug options into params (don't overwrite existing params)
+    if (debugOptions) {
+      if (debugOptions.debug) {
+        params.debug = 1;
+      }
+      if (debugOptions.log) {
+        params.log = 1;
+      }
+      if (debugOptions.white) {
+        params.white = debugOptions.white;
+      }
+      if (debugOptions.gray) {
+        params.gray = debugOptions.gray;
+      }
+      if (debugOptions.black) {
+        params.black = debugOptions.black;
+      }
+      if (debugOptions.debugLimit) {
+        params['debug-limit'] = debugOptions.debugLimit;
       }
     }
     

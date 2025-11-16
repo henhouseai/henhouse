@@ -360,6 +360,13 @@ export class PageData {
     const overlayManager = OverlayManager.getInstance();
     const overlay = overlayManager.getTopOverlay();
     
+    // Capture debug options once at the start (before any RPC calls)
+    // This ensures all calls in the loop use the same debug options
+    let capturedDebugOptions: any = null;
+    if (overlay) {
+      capturedDebugOptions = overlay.getDebugOptions();
+    }
+    
     const allOperations: any[] = [];
     let allSucceeded = true;
     let collectedDebug: any = undefined;
@@ -369,12 +376,14 @@ export class PageData {
       const params = mapping.buildParams(fields, currentValues, pageId);
       
       try {
-        const rawResult = await rpc.call(mapping.mcpTool, params);
+        // Pass captured debug options to each RPC call
+        const rawResult = await rpc.call(mapping.mcpTool, params, capturedDebugOptions);
         // rawResult is already RPCCallResult with data and debug
         const result = rawResult.data;
         
         // Handle debug data immediately - create overlay for each response with debug
-        if (rawResult.debug) {
+        // Only show debug overlay if debug data exists and has entries
+        if (rawResult.debug && Array.isArray(rawResult.debug.entries) && rawResult.debug.entries.length > 0) {
           const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
           handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
         }
@@ -419,7 +428,8 @@ export class PageData {
         if (error && typeof error === 'object' && 'debug' in error) {
           const errorDebug = (error as any).debug;
           // Handle debug data immediately - create overlay for error response with debug
-          if (errorDebug) {
+          // Only show debug overlay if debug data exists and has entries
+          if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
             const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
             handleRPCResponseWithDebug(error, mapping.mcpTool, params);
           }

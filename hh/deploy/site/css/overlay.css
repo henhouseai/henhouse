@@ -185,6 +185,7 @@
   width: auto;
   padding: 4px;
   border: 1px solid var(--overlay-content-border, #000);
+  border-bottom: none;
   border-radius: 5px;
   margin: 3px;
   background-color: var(--overlay-content, #fff);
