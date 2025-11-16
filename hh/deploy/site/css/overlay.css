@@ -149,17 +149,20 @@
   background-color: var(--overlay-header-submit-button-active, #3d8b40);
 }
 
-/* Choose Files button modifier */
-#overlayWindow div.overlayHeader a.overlay-button-choose-files {
+/* Middle button modifier (blue) */
+#overlayWindow div.overlayHeader a.overlay-button-middle,
+#overlayWindow div.overlayHeader a.middleButton {
   background-color: #2196F3;
   color: white;
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-choose-files:hover {
+#overlayWindow div.overlayHeader a.overlay-button-middle:hover,
+#overlayWindow div.overlayHeader a.middleButton:hover {
   background-color: #1976D2;
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-choose-files:active {
+#overlayWindow div.overlayHeader a.overlay-button-middle:active,
+#overlayWindow div.overlayHeader a.middleButton:active {
   background-color: #1565C0;
 }
 
