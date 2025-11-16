@@ -4,12 +4,12 @@
 import { OverlayManager } from './overlay-manager.js';
 export class UploadHandler {
     constructor(rpc, seedData) {
-        this.filesContainer = null;
         this.uploadStatuses = [];
         this.chooseFilesBtn = null;
         this.uploadBtn = null;
         this.overlay = null;
         this.placeholderDiv = null;
+        this.overlayWindow = null;
         this.rpc = rpc;
         this.seedData = seedData;
         this.fileInput = document.createElement('input');
@@ -38,17 +38,20 @@ export class UploadHandler {
             const files = e.target.files;
             if (!files || files.length === 0)
                 return;
-            // If this is the first file, replace placeholder with files container
+            // Get overlay window if not already stored
+            if (!this.overlayWindow) {
+                this.overlayWindow = document.querySelector('#overlayWindow');
+            }
+            if (!this.overlayWindow) {
+                console.error('Overlay window not found');
+                return;
+            }
+            // If this is the first file, remove placeholder
             if (this.placeholderDiv && this.placeholderDiv.parentNode) {
-                // Create new files container
-                this.filesContainer = document.createElement('div');
-                this.filesContainer.id = 'upload-files-container';
-                this.filesContainer.className = 'overlayContent';
-                // Replace placeholder with files container
-                this.placeholderDiv.parentNode.replaceChild(this.filesContainer, this.placeholderDiv);
+                this.placeholderDiv.remove();
                 this.placeholderDiv = null;
             }
-            // Add all selected files
+            // Add all selected files directly to overlayWindow
             for (let i = 0; i < files.length; i++) {
                 this.addFile(files[i]);
             }
@@ -187,9 +190,12 @@ export class UploadHandler {
         }, 100);
     }
     addFile(file) {
-        // Ensure files container exists
-        if (!this.filesContainer || !this.filesContainer.parentNode) {
-            console.error('Files container not found');
+        // Get overlay window if not already stored
+        if (!this.overlayWindow) {
+            this.overlayWindow = document.querySelector('#overlayWindow');
+        }
+        if (!this.overlayWindow) {
+            console.error('Overlay window not found');
             return;
         }
         const index = this.uploadStatuses.length;
@@ -226,7 +232,14 @@ export class UploadHandler {
         progressBar.appendChild(progressFill);
         progressContainer.appendChild(progressBar);
         fileDiv.appendChild(progressContainer);
-        this.filesContainer.appendChild(fileDiv);
+        // Add directly to overlayWindow (after header, before any existing content)
+        const headerEl = this.overlayWindow.querySelector('.overlayHeader');
+        if (headerEl && headerEl.nextSibling) {
+            this.overlayWindow.insertBefore(fileDiv, headerEl.nextSibling);
+        }
+        else {
+            this.overlayWindow.appendChild(fileDiv);
+        }
         const status = {
             index,
             file,
@@ -248,12 +261,23 @@ export class UploadHandler {
         status.div.remove();
         this.uploadStatuses.splice(statusIndex, 1);
         // If no files left, show placeholder again
-        if (this.uploadStatuses.length === 0 && this.filesContainer && this.filesContainer.parentNode) {
-            this.placeholderDiv = document.createElement('div');
-            this.placeholderDiv.className = 'overlayContent upload-placeholder';
-            this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
-            this.filesContainer.parentNode.replaceChild(this.placeholderDiv, this.filesContainer);
-            this.filesContainer = null;
+        if (this.uploadStatuses.length === 0) {
+            if (!this.overlayWindow) {
+                this.overlayWindow = document.querySelector('#overlayWindow');
+            }
+            if (this.overlayWindow) {
+                this.placeholderDiv = document.createElement('div');
+                this.placeholderDiv.className = 'overlayContent upload-placeholder';
+                this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
+                // Insert placeholder after header
+                const headerEl = this.overlayWindow.querySelector('.overlayHeader');
+                if (headerEl && headerEl.nextSibling) {
+                    this.overlayWindow.insertBefore(this.placeholderDiv, headerEl.nextSibling);
+                }
+                else {
+                    this.overlayWindow.appendChild(this.placeholderDiv);
+                }
+            }
             return;
         }
         // Re-index remaining files
