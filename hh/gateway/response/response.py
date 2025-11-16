@@ -24,6 +24,9 @@ class Response:
         trace_in()
         self.output_buffer: List[str] = []
         self.action_response: Optional[dict] = None
+        # Error and debug output storage (set by error handlers and flush_debug)
+        self.error_output: Optional[dict] = None
+        self.debug_output: Optional[dict] = None
         # header_metadata removed; seeds are used instead
         # Arbitrary client seed payload (emitted to HTML/clients by backends)
         self.seed_data: Optional[dict] = None

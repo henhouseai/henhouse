@@ -44,39 +44,14 @@ class ResponseMCP(Response):
         """Return MCP output - JSON-RPC 2.0 formatted response."""
         trace_in()
         
-        # Check for errors first
-        from hh.gateway.error.error_store import is_error, get_errors
-        has_errors = is_error()
-        
-        if has_errors:
-            # Format error response
-            all_errors = get_errors()
-            # Convert ErrorEntry objects to dicts for JSON serialization
-            errors_data = [
-                {
-                    "type": error.error_type.value,
-                    "content": error.content,
-                    "timestamp": error.timestamp
-                }
-                for error in all_errors
-            ]
+        # Check if error_output is set (indicates error mode)
+        if self.error_output and "errors" in self.error_output:
+            # Format error response using pre-set error data
+            errors_data = self.error_output["errors"]
+            error_count = len(errors_data)
             
-            # Build a more descriptive error message from the first error
-            error_message = "Internal error"
-            if errors_data:
-                first_error = errors_data[0]
-                error_content = first_error.get("content", "")
-                error_type = first_error.get("type", "")
-                
-                # Format error message with actual content
-                if isinstance(error_content, str):
-                    error_message = f"{error_type}: {error_content}" if error_content else f"{error_type} error"
-                elif isinstance(error_content, dict):
-                    # Extract useful info from dict
-                    error_str = str(error_content).replace("{", "").replace("}", "")[:200]
-                    error_message = f"{error_type}: {error_str}"
-                else:
-                    error_message = f"{error_type}: {str(error_content)[:200]}"
+            # Build generic error message
+            error_message = f"{error_count} error{'s' if error_count != 1 else ''} detected"
             
             error_response = {
                 "jsonrpc": "2.0",
@@ -88,6 +63,11 @@ class ResponseMCP(Response):
                     }
                 }
             }
+            
+            # Include debug output if available
+            if self.debug_output:
+                error_response["error"]["data"]["debug"] = self.debug_output
+            
             if self.request_id is not None:
                 error_response["id"] = self.request_id
             else:
@@ -129,6 +109,10 @@ class ResponseMCP(Response):
             "jsonrpc": "2.0",
             "result": response_data
         }
+        
+        # Include debug output if available
+        if self.debug_output:
+            jsonrpc_response["result"]["debug"] = self.debug_output
         
         if self.request_id is not None:
             jsonrpc_response["id"] = self.request_id

@@ -32,11 +32,22 @@ class ResponseParser(Response):
             if lower_content_text:
                 parts.append(lower_content_text)
         
+        # Error output if present
+        if self.error_output and "rendered" in self.error_output:
+            parts.append(self.error_output["rendered"])
+        
         # Backend response (output buffer)
         if self.output_buffer:
             backend_response = "\n".join(self.output_buffer)
             if backend_response:
                 parts.append(backend_response)
+        
+        # Debug output if present
+        if self.debug_output:
+            if isinstance(self.debug_output, dict) and "text" in self.debug_output:
+                parts.append(self.debug_output["text"])
+            elif isinstance(self.debug_output, str):
+                parts.append(self.debug_output)
         
         return "\n".join(parts)
 

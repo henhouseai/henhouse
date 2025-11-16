@@ -24,8 +24,25 @@ class ResponseHTTP(Response):
         # Populate menu content based on tier level
         self._populate_menu_content()
         
+        # Build body content from multiple sources
+        body_parts = []
+        
+        # Add error output if present
+        if self.error_output and "rendered" in self.error_output:
+            body_parts.append(self.error_output["rendered"])
+        
         # Get body content from output buffer
-        body_content = "\n".join(self.output_buffer) if self.output_buffer else ""
+        if self.output_buffer:
+            body_parts.append("\n".join(self.output_buffer))
+        
+        # Add debug output if present
+        if self.debug_output:
+            if isinstance(self.debug_output, dict) and "text" in self.debug_output:
+                body_parts.append(self.debug_output["text"])
+            elif isinstance(self.debug_output, str):
+                body_parts.append(self.debug_output)
+        
+        body_content = "\n".join(body_parts)
         
         # Generate page title: start with explicit field default, override from seeds if present
         title = self.title  # Default set by base class

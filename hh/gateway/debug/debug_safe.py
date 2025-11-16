@@ -143,6 +143,17 @@ class Debug(FilterMixin):
         function_counts = {}
         shared_data = self._get_shared_store().captured_data
         debug_print(f"debug_safe.render() - shared_data length: {len(shared_data)}")
+        
+        # Check if MCP backend
+        is_mcp_backend = False
+        try:
+            from hh.gateway.gateway import get_gateway
+            gateway = get_gateway()
+            if gateway and gateway.backend == "mcp":
+                is_mcp_backend = True
+        except Exception:
+            pass
+        
         for entry in shared_data:
             filtered_entry = DebugEntry(
                 entry.index,
@@ -171,6 +182,31 @@ class Debug(FilterMixin):
             filtered_entry.function_count = function_counts.get(function_combination, 0)
             if filtered_entry.limit_passed:
                 self.filtered_data.append(filtered_entry)
+        
+        # For MCP backend, return JSON structure instead of text
+        if is_mcp_backend:
+            debug_entries = []
+            for entry in self.filtered_data:
+                display_module = trim_document_root(entry.folder)
+                display_filename = trim_document_root(entry.filename)
+                level_name = {1: "trace_in", 2: "trace_out", 3: "log", 4: "debug", 5: "warn"}.get(entry.level, "unknown")
+                debug_entries.append({
+                    "level": level_name,
+                    "folder": display_module,
+                    "file": display_filename,
+                    "function": entry.function_name,
+                    "message": entry.message,
+                    "timestamp": entry.timestamp
+                })
+            self._get_shared_store().clear_processed_data()
+            self.clear_combinations()
+            self._module_colors.clear()
+            self._filename_colors.clear()
+            self._function_colors.clear()
+            self._module_color_index = 0
+            return {"entries": debug_entries}
+        
+        # For HTTP/Parser backends, return text as before
         table_output = self.render_table_hook()
         if not self.filtered_data:
             self._get_shared_store().clear_processed_data()

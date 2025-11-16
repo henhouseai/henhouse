@@ -150,7 +150,10 @@ def parser_error() -> bool:
             render_error_details(errors, error_type, lines)
     
     result = finalize_output(lines)
-    gateway.response.add_output(result)
+    # Set error output instead of adding to output buffer
+    gateway.response.error_output = {
+        "rendered": result
+    }
     log(f"Error parser execution completed successfully with {len(result)} characters")
     
     trace_out()
@@ -206,7 +209,10 @@ def http_error() -> bool:
             render_error_details(errors, error_type, lines)
     
     result = finalize_output(lines)
-    gateway.response.add_output(result)
+    # Set error output instead of adding to output buffer
+    gateway.response.error_output = {
+        "rendered": result
+    }
     log(f"Error parser execution completed successfully with {len(result)} characters")
     
     trace_out()
@@ -214,4 +220,37 @@ def http_error() -> bool:
 
 @register_mcp('mcp_error')
 def mcp_error() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return False
+    
+    # Only handle new error system
+    global_errors = get_errors()
+    if not global_errors:
+        log("No errors to display")
+        trace_out()
+        return True
+    
+    log(f"Processing {len(global_errors)} errors from global error store")
+    
+    # Convert ErrorEntry objects to dicts for JSON serialization (same structure as response_mcp.py)
+    errors_data = [
+        {
+            "type": error.error_type.value,
+            "content": error.content,
+            "timestamp": error.timestamp
+        }
+        for error in global_errors
+    ]
+    
+    # Set error output on response object (will be used by response_mcp.get_output())
+    gateway.response.error_output = {
+        "errors": errors_data
+    }
+    
+    log(f"MCP error handler completed successfully with {len(errors_data)} errors")
+    trace_out()
     return True
