@@ -64,9 +64,16 @@ class ResponseMCP(Response):
                 }
             }
             
-            # Include debug output if available
+            # Include debug output if available - add as content item with type "text"
             if self.debug_output:
-                error_response["error"]["data"]["debug"] = self.debug_output
+                # Add debug as a text content item in error data
+                if "content" not in error_response["error"]["data"]:
+                    error_response["error"]["data"]["content"] = []
+                debug_text = json.dumps(self.debug_output, default=str)
+                error_response["error"]["data"]["content"].append({
+                    "type": "text",
+                    "text": debug_text
+                })
             
             if self.request_id is not None:
                 error_response["id"] = self.request_id
@@ -110,9 +117,17 @@ class ResponseMCP(Response):
             "result": response_data
         }
         
-        # Include debug output if available (even if empty entries array)
+        # Include debug output if available - add as content item with type "text"
         if self.debug_output is not None:
-            jsonrpc_response["result"]["debug"] = self.debug_output
+            # Ensure content array exists
+            if "content" not in response_data:
+                response_data["content"] = []
+            # Add debug as a text content item with JSON-serialized value
+            debug_text = json.dumps(self.debug_output, default=str)
+            response_data["content"].append({
+                "type": "text",
+                "text": debug_text
+            })
         
         if self.request_id is not None:
             jsonrpc_response["id"] = self.request_id
