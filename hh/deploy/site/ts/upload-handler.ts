@@ -321,12 +321,24 @@ export class UploadHandler {
     progressContainer.appendChild(progressBar);
     fileDiv.appendChild(progressContainer);
     
-    // Add directly to overlayWindow (after header, before any existing content)
-    const headerEl = this.overlayWindow.querySelector('.overlayHeader');
-    if (headerEl && headerEl.nextSibling) {
-      this.overlayWindow.insertBefore(fileDiv, headerEl.nextSibling);
+    // Add directly to overlayWindow (after the last file item, or after header if no files exist)
+    const existingFileItems = this.overlayWindow.querySelectorAll('.upload-file-item');
+    if (existingFileItems.length > 0) {
+      // Insert after the last file item
+      const lastFileItem = existingFileItems[existingFileItems.length - 1];
+      if (lastFileItem.nextSibling) {
+        this.overlayWindow.insertBefore(fileDiv, lastFileItem.nextSibling);
+      } else {
+        this.overlayWindow.appendChild(fileDiv);
+      }
     } else {
-      this.overlayWindow.appendChild(fileDiv);
+      // No files yet, insert after header
+      const headerEl = this.overlayWindow.querySelector('.overlayHeader');
+      if (headerEl && headerEl.nextSibling) {
+        this.overlayWindow.insertBefore(fileDiv, headerEl.nextSibling);
+      } else {
+        this.overlayWindow.appendChild(fileDiv);
+      }
     }
     
     const status: FileUploadStatus = {
