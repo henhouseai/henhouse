@@ -240,10 +240,11 @@ export class UploadHandler {
         
         await processNext();
         
-        // Return success with auto-fade disabled (temporarily for debugging)
+        // Return success with auto-fade and redirect enabled
         return { 
           _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, 
-          _autoFade: false
+          _autoFade: true,
+          _redirectAfterFade: window.location.href // Refresh current page after fade
         };
       },
       onCancel: () => {
