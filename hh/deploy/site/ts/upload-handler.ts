@@ -6,13 +6,39 @@ import { RPCClient } from './rpc-client.js';
 import { SeedData } from './seed.js';
 import { OverlayManager } from './overlay-manager.js';
 
+interface FileUploadStatus {
+  index: number;
+  file: File;
+  uploaded: boolean;
+  uploadResult: { temp_path: string; original_name: string } | null;
+  processing: boolean;
+  processed: boolean;
+  error: string | null;
+  div: HTMLElement;
+}
+
 export class UploadHandler {
   private rpc: RPCClient;
   private seedData: SeedData;
+  private fileInput: HTMLInputElement;
+  private filesContainer: HTMLElement;
+  private uploadStatuses: FileUploadStatus[] = [];
+  private chooseFilesBtn: HTMLElement | null = null;
+  private uploadBtn: HTMLElement | null = null;
+  private overlay: any = null;
 
   constructor(rpc: RPCClient, seedData: SeedData) {
     this.rpc = rpc;
     this.seedData = seedData;
+    this.fileInput = document.createElement('input');
+    this.fileInput.type = 'file';
+    this.fileInput.multiple = true;
+    this.fileInput.accept = 'image/*';
+    this.fileInput.style.display = 'none';
+    
+    this.filesContainer = document.createElement('div');
+    this.filesContainer.id = 'upload-files-container';
+    this.filesContainer.style.cssText = 'padding: 20px;';
   }
 
   /**
@@ -28,197 +54,108 @@ export class UploadHandler {
       return;
     }
 
-    // Create file input element
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.multiple = true;
-    fileInput.accept = 'image/*';
-    fileInput.style.display = 'none';
+    // Create custom header with Cancel, Choose Files, and Upload buttons
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'overlayHeader';
+    headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
     
-    // Create container for upload form
-    const formContainer = document.createElement('div');
-    formContainer.style.cssText = 'padding: 20px; min-width: 400px;';
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = 'Upload Images';
+    headerDiv.appendChild(titleSpan);
     
-    const fileInputLabel = document.createElement('label');
-    fileInputLabel.textContent = 'Select Images:';
-    fileInputLabel.style.cssText = 'display: block; margin-bottom: 10px; font-weight: bold;';
-    formContainer.appendChild(fileInputLabel);
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.style.cssText = 'display: flex; gap: 10px;';
     
-    const fileInputWrapper = document.createElement('div');
-    fileInputWrapper.style.cssText = 'margin-bottom: 20px;';
-    fileInputWrapper.appendChild(fileInput);
-    formContainer.appendChild(fileInputWrapper);
+    // Cancel button (red)
+    const cancelBtn = document.createElement('a');
+    cancelBtn.className = 'cancelButton';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.href = '#';
+    cancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (this.overlay) {
+        overlayManager.close(this.overlay);
+      }
+    });
+    buttonsDiv.appendChild(cancelBtn);
     
-    const fileListDiv = document.createElement('div');
-    fileListDiv.id = 'upload-file-list';
-    fileListDiv.style.cssText = 'margin-bottom: 20px; max-height: 200px; overflow-y: auto;';
-    formContainer.appendChild(fileListDiv);
+    // Choose Files button (blue/gray)
+    this.chooseFilesBtn = document.createElement('a') as HTMLAnchorElement;
+    (this.chooseFilesBtn as HTMLAnchorElement).className = 'chooseFilesButton';
+    (this.chooseFilesBtn as HTMLAnchorElement).textContent = 'Choose Files';
+    (this.chooseFilesBtn as HTMLAnchorElement).href = '#';
+    (this.chooseFilesBtn as HTMLAnchorElement).style.cssText = 'background: #2196F3; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;';
+    (this.chooseFilesBtn as HTMLAnchorElement).addEventListener('click', (e) => {
+      e.preventDefault();
+      this.fileInput.click();
+    });
+    buttonsDiv.appendChild(this.chooseFilesBtn);
     
-    const progressContainer = document.createElement('div');
-    progressContainer.id = 'upload-progress-container';
-    formContainer.appendChild(progressContainer);
+    // Upload button (green)
+    this.uploadBtn = document.createElement('a') as HTMLAnchorElement;
+    (this.uploadBtn as HTMLAnchorElement).className = 'submitButton overlay-submit';
+    (this.uploadBtn as HTMLAnchorElement).textContent = 'Upload';
+    (this.uploadBtn as HTMLAnchorElement).href = '#';
+    buttonsDiv.appendChild(this.uploadBtn);
     
-    // Update file list when files are selected
-    fileInput.addEventListener('change', (e) => {
+    headerDiv.appendChild(buttonsDiv);
+    
+    // Handle file selection
+    this.fileInput.addEventListener('change', (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (!files || files.length === 0) return;
       
-      fileListDiv.innerHTML = '';
       for (let i = 0; i < files.length; i++) {
-        const fileItem = document.createElement('div');
-        fileItem.textContent = `${i + 1}. ${files[i].name}`;
-        fileItem.style.cssText = 'padding: 5px; border-bottom: 1px solid #eee;';
-        fileListDiv.appendChild(fileItem);
+        this.addFile(files[i]);
       }
+      
+      // Reset input so same file can be selected again
+      this.fileInput.value = '';
     });
     
-    // Create clickable area to trigger file input
-    const clickArea = document.createElement('button');
-    clickArea.type = 'button';
-    clickArea.textContent = 'Choose Files...';
-    clickArea.style.cssText = 'padding: 10px 20px; cursor: pointer;';
-    clickArea.addEventListener('click', () => fileInput.click());
-    fileInputWrapper.appendChild(clickArea);
-    
     // Show overlay
-    const overlay = overlayManager.show({
-      header: 'Upload Images',
-      content: formContainer,
-      submitLabel: 'Upload',
-      cancelLabel: 'Cancel',
-      closable: true,
+    this.overlay = overlayManager.show({
+      header: headerDiv,
+      content: this.filesContainer,
+      closable: false, // We handle closing manually
       onSubmit: async () => {
-        const files = fileInput.files;
-        if (!files || files.length === 0) {
-          alert('Please select at least one file');
-          return;
+        if (this.uploadStatuses.length === 0) {
+          return { _showMessage: 'Please select at least one file', _autoFade: false };
         }
         
-        // Disable submit button (find it in the overlay content)
-        const submitBtn = document.querySelector('.overlay-submit') as HTMLButtonElement;
-        if (submitBtn) submitBtn.disabled = true;
-        
-        // Clear progress container and create progress bars
-        progressContainer.innerHTML = '';
-        const fileArray = Array.from(files);
-        const uploadStatuses: Array<{
-          index: number;
-          file: File;
-          uploaded: boolean;
-          uploadResult: { temp_path: string; original_name: string } | null;
-          processing: boolean;
-          processed: boolean;
-        }> = fileArray.map((file, index) => ({
-          index,
-          file,
-          uploaded: false,
-          uploadResult: null,
-          processing: false,
-          processed: false
-        }));
-        
-        // Create progress bars
-        uploadStatuses.forEach((status) => {
-          const progressDiv = document.createElement('div');
-          progressDiv.id = `upload-progress-${status.index}`;
-          progressDiv.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;';
-          progressDiv.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 5px;">${status.file.name}</div>
-            <div style="background: #f0f0f0; border-radius: 4px; height: 20px; position: relative; overflow: hidden;">
-              <div id="upload-progress-bar-${status.index}" style="background: #4CAF50; height: 100%; width: 0%; transition: width 0.3s;"></div>
-              <div id="upload-progress-text-${status.index}" style="position: absolute; top: 0; left: 0; right: 0; text-align: center; line-height: 20px; font-size: 12px;">Waiting...</div>
-            </div>
-          `;
-          progressContainer.appendChild(progressDiv);
-        });
+        // Disable choose files and upload buttons
+        if (this.chooseFilesBtn) {
+          (this.chooseFilesBtn as HTMLElement).style.pointerEvents = 'none';
+          (this.chooseFilesBtn as HTMLElement).style.opacity = '0.5';
+        }
+        if (this.uploadBtn) {
+          (this.uploadBtn as HTMLElement).style.pointerEvents = 'none';
+          (this.uploadBtn as HTMLElement).style.opacity = '0.5';
+        }
         
         // Upload all files in parallel
-        const uploadPromises = fileArray.map(async (file, index) => {
-          const formData = new FormData();
-          formData.append('file', file);
-          
-          const progressBar = document.getElementById(`upload-progress-bar-${index}`) as HTMLElement;
-          const progressText = document.getElementById(`upload-progress-text-${index}`) as HTMLElement;
-          
-          try {
-            progressText.textContent = 'Uploading...';
-            
-            const xhr = new XMLHttpRequest();
-            
-            // Track upload progress
-            xhr.upload.addEventListener('progress', (e) => {
-              if (e.lengthComputable) {
-                const percent = (e.loaded / e.total) * 100;
-                progressBar.style.width = `${percent}%`;
-              }
-            });
-            
-            const uploadPromise = new Promise<{ temp_path: string; original_name: string }>((resolve, reject) => {
-              xhr.addEventListener('load', () => {
-                if (xhr.status === 200) {
-                  try {
-                    const result = JSON.parse(xhr.responseText);
-                    if (result.error) {
-                      reject(new Error(result.error));
-                    } else {
-                      // Handle both single file and array response formats
-                      const fileData = result.files ? result.files[0] : result;
-                      resolve({
-                        temp_path: fileData.temp_path,
-                        original_name: fileData.original_name
-                      });
-                    }
-                  } catch (e) {
-                    reject(new Error('Failed to parse response'));
-                  }
-                } else {
-                  reject(new Error(`Upload failed with status ${xhr.status}`));
-                }
-              });
-              
-              xhr.addEventListener('error', () => {
-                reject(new Error('Upload failed'));
-              });
-              
-              xhr.open('POST', '/upload-file');
-              xhr.send(formData);
-            });
-            
-            const result = await uploadPromise;
-            progressBar.style.width = '100%';
-            progressBar.style.background = '#4CAF50';
-            progressText.textContent = 'Uploaded';
-            
-            uploadStatuses[index].uploaded = true;
-            uploadStatuses[index].uploadResult = result;
-            
-            return { index, result };
-          } catch (error) {
-            progressBar.style.background = '#f44336';
-            progressText.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
-            throw { index, error };
-          }
-        });
-        
-        // Wait for all uploads to complete (but don't fail if some fail)
-        const uploadResults = await Promise.allSettled(uploadPromises);
+        const uploadPromises = this.uploadStatuses.map((status) => this.uploadFile(status, pageId));
+        await Promise.allSettled(uploadPromises);
         
         // Process files sequentially in order
+        let hasErrors = false;
         let nextIndexToProcess = 0;
-        const processNext = async () => {
-          // Find the next file that's ready to process (uploaded and in order)
-          while (nextIndexToProcess < uploadStatuses.length) {
-            const status = uploadStatuses[nextIndexToProcess];
+        
+        const processNext = async (): Promise<void> => {
+          while (nextIndexToProcess < this.uploadStatuses.length) {
+            const status = this.uploadStatuses[nextIndexToProcess];
             
-            // Check if this file is ready (uploaded and not yet processed)
+            if (status.error) {
+              hasErrors = true;
+              nextIndexToProcess++;
+              continue;
+            }
+            
             if (status.uploaded && status.uploadResult && !status.processed && !status.processing) {
               status.processing = true;
-              
-              const progressText = document.getElementById(`upload-progress-text-${nextIndexToProcess}`) as HTMLElement;
-              progressText.textContent = 'Processing...';
+              this.updateFileStatus(status, 'Processing...', 'processing');
               
               try {
-                // Make MCP call to upload_images
                 await this.rpc.call('upload_images', {
                   page_id: pageId,
                   file0_path: status.uploadResult.temp_path,
@@ -226,52 +163,250 @@ export class UploadHandler {
                 });
                 
                 status.processed = true;
-                progressText.textContent = 'Complete';
+                this.updateFileStatus(status, 'Complete', 'success');
                 
                 nextIndexToProcess++;
-                // Process next file
                 await processNext();
               } catch (error) {
                 status.processing = false;
-                progressText.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
-                const progressBar = document.getElementById(`upload-progress-bar-${nextIndexToProcess}`) as HTMLElement;
-                progressBar.style.background = '#f44336';
+                status.error = error instanceof Error ? error.message : String(error);
+                hasErrors = true;
+                this.updateFileStatus(status, `Error: ${status.error}`, 'error');
                 // Stop processing on error
                 return;
               }
             } else if (!status.uploaded) {
-              // This file hasn't finished uploading yet, wait a bit and check again
+              // Wait for upload to complete
               setTimeout(() => processNext(), 100);
               return;
             } else {
-              // This file is already processed or failed, move to next
               nextIndexToProcess++;
             }
           }
         };
         
-        // Start processing
         await processNext();
         
-        // Reload page to show new images
-        try {
-          const { PageManager } = await import('./page-manager.js');
-          const pageManager = PageManager.getInstance();
-          const pageData = await this.rpc.getPage(pageId);
-          pageManager.setPageData(pageData);
-          // Trigger page refresh
-          window.location.reload();
-        } catch (error) {
-          console.error('Failed to reload page:', error);
+        // Reload page if all succeeded
+        if (!hasErrors) {
+          try {
+            const { PageManager } = await import('./page-manager.js');
+            const pageManager = PageManager.getInstance();
+            const pageData = await this.rpc.getPage(pageId);
+            pageManager.setPageData(pageData);
+            
+            // Return success with auto-fade flag
+            return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: true };
+          } catch (error) {
+            return { _showMessage: `Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`, _autoFade: false };
+          }
+        } else {
+          // Don't auto-fade on errors
+          return { _showMessage: 'Some uploads failed. Please check errors below.', _autoFade: false };
         }
-        
-        // Close overlay
-        overlayManager.close(overlay);
       },
       onCancel: () => {
-        overlayManager.close(overlay);
+        overlayManager.close(this.overlay);
       }
     });
   }
-}
 
+  private addFile(file: File): void {
+    const index = this.uploadStatuses.length;
+    const fileDiv = document.createElement('div');
+    fileDiv.className = 'upload-file-item';
+    fileDiv.style.cssText = 'margin-bottom: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: white; position: relative;';
+    
+    // Remove button (X)
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '×';
+    removeBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; background: #f44336; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 18px; line-height: 1;';
+    removeBtn.addEventListener('click', () => {
+      this.removeFile(index);
+    });
+    fileDiv.appendChild(removeBtn);
+    
+    // File name
+    const fileNameDiv = document.createElement('div');
+    fileNameDiv.textContent = file.name;
+    fileNameDiv.style.cssText = 'font-weight: bold; margin-bottom: 10px; padding-right: 30px;';
+    fileDiv.appendChild(fileNameDiv);
+    
+    // Status message
+    const statusDiv = document.createElement('div');
+    statusDiv.id = `upload-status-${index}`;
+    statusDiv.className = 'upload-status';
+    statusDiv.textContent = 'Pending';
+    statusDiv.style.cssText = 'color: #666; font-size: 14px;';
+    fileDiv.appendChild(statusDiv);
+    
+    // Progress bar container (initially hidden)
+    const progressContainer = document.createElement('div');
+    progressContainer.id = `upload-progress-container-${index}`;
+    progressContainer.style.cssText = 'margin-top: 10px; display: none;';
+    
+    const progressBar = document.createElement('div');
+    progressBar.id = `upload-progress-bar-${index}`;
+    progressBar.style.cssText = 'background: #f0f0f0; border-radius: 4px; height: 20px; position: relative; overflow: hidden;';
+    
+    const progressFill = document.createElement('div');
+    progressFill.id = `upload-progress-fill-${index}`;
+    progressFill.style.cssText = 'background: #4CAF50; height: 100%; width: 0%; transition: width 0.3s;';
+    progressBar.appendChild(progressFill);
+    
+    progressContainer.appendChild(progressBar);
+    fileDiv.appendChild(progressContainer);
+    
+    this.filesContainer.appendChild(fileDiv);
+    
+    const status: FileUploadStatus = {
+      index,
+      file,
+      uploaded: false,
+      uploadResult: null,
+      processing: false,
+      processed: false,
+      error: null,
+      div: fileDiv
+    };
+    
+    this.uploadStatuses.push(status);
+  }
+
+  private removeFile(index: number): void {
+    // Find and remove the file status
+    const statusIndex = this.uploadStatuses.findIndex(s => s.index === index);
+    if (statusIndex === -1) return;
+    
+    const status = this.uploadStatuses[statusIndex];
+    status.div.remove();
+    this.uploadStatuses.splice(statusIndex, 1);
+    
+    // Re-index remaining files
+    this.uploadStatuses.forEach((s, i) => {
+      s.index = i;
+      const statusDiv = s.div.querySelector(`#upload-status-${s.index}`) as HTMLElement;
+      const progressContainer = s.div.querySelector(`#upload-progress-container-${s.index}`) as HTMLElement;
+      const progressBar = s.div.querySelector(`#upload-progress-bar-${s.index}`) as HTMLElement;
+      const progressFill = s.div.querySelector(`#upload-progress-fill-${s.index}`) as HTMLElement;
+      
+      if (statusDiv) {
+        statusDiv.id = `upload-status-${i}`;
+      }
+      if (progressContainer) {
+        progressContainer.id = `upload-progress-container-${i}`;
+      }
+      if (progressBar) {
+        progressBar.id = `upload-progress-bar-${i}`;
+      }
+      if (progressFill) {
+        progressFill.id = `upload-progress-fill-${i}`;
+      }
+    });
+  }
+
+  private updateFileStatus(status: FileUploadStatus, message: string, type: 'pending' | 'uploading' | 'uploaded' | 'processing' | 'success' | 'error'): void {
+    const statusDiv = status.div.querySelector(`#upload-status-${status.index}`) as HTMLElement;
+    if (!statusDiv) return;
+    
+    statusDiv.textContent = message;
+    
+    // Update colors based on type
+    switch (type) {
+      case 'pending':
+        statusDiv.style.color = '#666';
+        break;
+      case 'uploading':
+        statusDiv.style.color = '#2196F3';
+        break;
+      case 'uploaded':
+        statusDiv.style.color = '#4CAF50';
+        break;
+      case 'processing':
+        statusDiv.style.color = '#FF9800';
+        break;
+      case 'success':
+        statusDiv.style.color = '#4CAF50';
+        statusDiv.style.fontWeight = 'bold';
+        break;
+      case 'error':
+        statusDiv.style.color = '#f44336';
+        statusDiv.style.fontWeight = 'bold';
+        break;
+    }
+  }
+
+  private async uploadFile(status: FileUploadStatus, pageId: number | string): Promise<void> {
+    const formData = new FormData();
+    formData.append('file', status.file);
+    
+    const progressContainer = status.div.querySelector(`#upload-progress-container-${status.index}`) as HTMLElement;
+    const progressFill = status.div.querySelector(`#upload-progress-fill-${status.index}`) as HTMLElement;
+    
+    if (progressContainer) {
+      progressContainer.style.display = 'block';
+    }
+    
+    this.updateFileStatus(status, 'Uploading...', 'uploading');
+    
+    try {
+      const xhr = new XMLHttpRequest();
+      
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && progressFill) {
+          const percent = (e.loaded / e.total) * 100;
+          progressFill.style.width = `${percent}%`;
+        }
+      });
+      
+      const uploadPromise = new Promise<{ temp_path: string; original_name: string }>((resolve, reject) => {
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              if (result.error) {
+                reject(new Error(result.error));
+              } else {
+                const fileData = result.files ? result.files[0] : result;
+                resolve({
+                  temp_path: fileData.temp_path,
+                  original_name: fileData.original_name
+                });
+              }
+            } catch (e) {
+              reject(new Error('Failed to parse response'));
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+        
+        xhr.addEventListener('error', () => {
+          reject(new Error('Upload failed'));
+        });
+        
+        xhr.open('POST', '/upload-file');
+        xhr.send(formData);
+      });
+      
+      const result = await uploadPromise;
+      
+      if (progressFill) {
+        progressFill.style.width = '100%';
+        progressFill.style.background = '#4CAF50';
+      }
+      
+      status.uploaded = true;
+      status.uploadResult = result;
+      this.updateFileStatus(status, 'Uploaded - Pending processing', 'uploaded');
+    } catch (error) {
+      status.error = error instanceof Error ? error.message : String(error);
+      if (progressFill) {
+        progressFill.style.background = '#f44336';
+      }
+      this.updateFileStatus(status, `Error: ${status.error}`, 'error');
+      throw error;
+    }
+  }
+}
