@@ -50,40 +50,16 @@ class PageAjaxMixin:
             'children_by_class': children_by_class,
         }
         
-        # Add available app actions if HTTP or MCP backend
+        # Add available app actions if MCP backend
         gateway = get_gateway()
-        
-        # Debug information
-        result['_debug'] = {
-            'gateway_exists': gateway is not None,
-            'backend': gateway.backend if gateway else None,
-            'backend_is_http': gateway.backend == "http" if gateway else False,
-            'backend_is_mcp': gateway.backend == "mcp" if gateway else False,
-            'response_exists': gateway.response is not None if gateway else False,
-            'user_tier_level': gateway.response.get_user_tier_level() if (gateway and gateway.response) else None,
-            'mcp_utils_loaded': False,  # Will be set below
-            'app_actions_called': False,
-            'app_actions_count': 0,
-            'app_actions_result': None,
-            'error': None
-        }
         
         # Only include available_actions for MCP backend, not HTTP (HTTP renders them server-side)
         if gateway and gateway.backend == "mcp" and gateway.response:
             try:
                 user_tier_level = gateway.response.get_user_tier_level()
-                result['_debug']['user_tier_level'] = user_tier_level
-                
-                # Check if mcp_utils was loaded (check if any app actions exist in registry)
-                from hh.gateway.registry.mcp_whitelist import _global_tool_registry
-                result['_debug']['mcp_utils_loaded'] = len(_global_tool_registry) > 0
-                result['_debug']['tool_registry_size'] = len(_global_tool_registry)
                 
                 # get_app_actions() adds 4 to user_tier_level and checks for app actions at that tier
                 app_actions = MCPWhitelist.get_app_actions(user_tier_level)
-                result['_debug']['app_actions_called'] = True
-                result['_debug']['app_actions_count'] = len(app_actions) if app_actions else 0
-                result['_debug']['app_actions_result'] = app_actions if app_actions else []
                 
                 if app_actions:
                     # Add source field to mark these as hot_cache
@@ -92,7 +68,6 @@ class PageAjaxMixin:
                     result['available_actions'] = app_actions
                     log(f"Added {len(app_actions)} app actions to get_page response")
             except Exception as e:
-                result['_debug']['error'] = str(e)
                 log(f"Error getting app actions: {e}")
         
         trace_out()

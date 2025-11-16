@@ -224,11 +224,19 @@ class ImageInstancesMixin:
                 trace_out()
                 return []
             # Create date-based directory structure
-            date_path = create_date_directory(base_path)
-            if not date_path:
-                warn(f"Failed to create date directory")
-                report_error("action", "Failed to create date directory")
-                log(f"Image processing FAILED: Could not create date directory - {base_path}")
+            try:
+                date_path = create_date_directory(base_path)
+                if not date_path:
+                    warn(f"Failed to create date directory")
+                    report_error("action", "Failed to create date directory")
+                    log(f"Image processing FAILED: Could not create date directory - {base_path}")
+                    trace_out()
+                    return []
+            except Exception as e:
+                error_msg = str(e)
+                warn(f"Failed to create date directory: {error_msg}")
+                report_error("action", error_msg)
+                log(f"Image processing FAILED: Could not create date directory - {base_path} - {error_msg}")
                 trace_out()
                 return []
             # Process image sizes - dynamic tier processing

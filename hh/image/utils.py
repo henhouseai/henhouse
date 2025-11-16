@@ -54,9 +54,53 @@ def validate_image_size(img: Image.Image, min_width: int = 300) -> bool:
 
 def create_date_directory(base_path: Path) -> Optional[Path]:
     trace_in()
+    now = datetime.datetime.now()
+    date_path = base_path / str(now.year) / str(now.month) / str(now.day)
+    
+    # ===== DEBUG CODE START: Detailed error message for directory creation failures =====
+    # TODO: Remove this debug code after tracking down permission issues
+    # Get current user/group info for debugging (before try block so available in except)
+    import pwd
+    import grp
     try:
-        now = datetime.datetime.now()
-        date_path = base_path / str(now.year) / str(now.month) / str(now.day)
+        current_uid = os.getuid()
+        current_gid = os.getgid()
+        user_info = pwd.getpwuid(current_uid)
+        group_info = grp.getgrgid(current_gid)
+        user_str = f"{user_info.pw_name} (uid:{current_uid})"
+        group_str = f"{group_info.gr_name} (gid:{current_gid})"
+    except Exception:
+        try:
+            user_str = f"uid:{os.getuid()}"
+            group_str = f"gid:{os.getgid()}"
+        except Exception:
+            user_str = "unknown"
+            group_str = "unknown"
+    # ===== DEBUG CODE END =====
+    
+    try:
+        # ===== DEBUG CODE START: Check parent directory permissions =====
+        parent_path = date_path.parent
+        parent_exists = parent_path.exists()
+        parent_perms = None
+        parent_owner = None
+        parent_group = None
+        if parent_exists:
+            try:
+                stat_info = parent_path.stat()
+                parent_perms = oct(stat_info.st_mode)[-3:]
+                try:
+                    parent_owner = pwd.getpwuid(stat_info.st_uid).pw_name
+                except:
+                    parent_owner = f"uid:{stat_info.st_uid}"
+                try:
+                    parent_group = grp.getgrgid(stat_info.st_gid).gr_name
+                except:
+                    parent_group = f"gid:{stat_info.st_gid}"
+            except Exception:
+                pass
+        # ===== DEBUG CODE END =====
+        
         date_path.mkdir(parents=True, exist_ok=True)
         # Set proper permissions
         os.chmod(date_path, 0o774)
@@ -64,10 +108,20 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         trace_out()
         return date_path
     except Exception as e:
-        warn(f"Failed to create date directory: {str(e)}")
-        log(f"Date directory creation FAILED: {base_path} -> {str(e)}")
+        # ===== DEBUG CODE START: Build detailed error message =====
+        error_details = [f"Path: {date_path}", f"Error: {str(e)}", f"Current user: {user_str}", f"Current group: {group_str}"]
+        if parent_exists:
+            error_details.append(f"Parent: {parent_path} (exists: True, perms: {parent_perms}, owner: {parent_owner}, group: {parent_group})")
+        else:
+            error_details.append(f"Parent: {parent_path} (exists: False)")
+        
+        detailed_error = " | ".join(error_details)
+        warn(f"Failed to create date directory: {detailed_error}")
+        log(f"Date directory creation FAILED: {base_path} -> {detailed_error}")
+        # Re-raise with detailed message
+        raise Exception(f"Failed to create date directory: {detailed_error}") from e
+        # ===== DEBUG CODE END =====
         trace_out()
-        return None
 
 
 def calculate_target_height(img: Image.Image, target_width: int) -> int:
