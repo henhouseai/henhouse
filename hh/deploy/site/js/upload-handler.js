@@ -87,6 +87,15 @@ export class UploadHandler {
             closable: true, // Allow closing by clicking backdrop
             submitLabel: 'Upload',
             cancelLabel: 'Cancel',
+            onMount: () => {
+                // Add upload-placeholder class immediately when overlay mounts (before it's visible)
+                // This prevents flicker by ensuring correct styling from the start
+                const placeholderContentDiv = document.querySelector('#overlayWindow .overlayContent:has(.upload-placeholder)');
+                if (placeholderContentDiv) {
+                    placeholderContentDiv.classList.add('upload-placeholder');
+                    this.placeholderDiv = placeholderContentDiv;
+                }
+            },
             onSubmit: async () => {
                 if (this.uploadStatuses.length === 0) {
                     return { _showMessage: 'Please select at least one file', _autoFade: false };
@@ -171,14 +180,8 @@ export class UploadHandler {
                 overlayManager.close(this.overlay);
             }
         });
-        // After overlay is shown, modify the header to add Choose Files button and fix placeholder styling
+        // After overlay is shown, modify the header to add Choose Files button
         setTimeout(() => {
-            // Add upload-placeholder class to the overlayContent div that wraps our placeholder
-            const placeholderContentDiv = document.querySelector('#overlayWindow .overlayContent:has(.upload-placeholder)');
-            if (placeholderContentDiv) {
-                placeholderContentDiv.classList.add('upload-placeholder');
-                this.placeholderDiv = placeholderContentDiv;
-            }
             const headerEl = document.querySelector('#overlayWindow .overlayHeader');
             if (!headerEl) {
                 console.error('Could not find overlay header');
