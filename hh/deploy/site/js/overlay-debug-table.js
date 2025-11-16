@@ -97,7 +97,10 @@ export class OverlayDebugTable {
         const container = document.createElement('div');
         container.className = 'overlay-debug-table-container';
         if (!debugData.entries || debugData.entries.length === 0) {
-            // Return empty container (don't show "No debug entries" message)
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'overlay-debug-empty';
+            emptyMsg.textContent = 'No debug entries';
+            container.appendChild(emptyMsg);
             return container;
         }
         // Create table

@@ -54,6 +54,10 @@ export class RPCError extends Error {
 export interface RPCCallResult {
   data: any;
   debug?: DebugData;
+  requestInfo?: {
+    method: string;
+    params: any;
+  };
 }
 
 export class RPCClient {
@@ -101,6 +105,9 @@ export class RPCClient {
    * @returns Object with data and optional debug info
    */
   async call(method: string, params: any = {}): Promise<RPCCallResult> {
+    // Store original params before merging debug options (for request info display)
+    const originalParams = { ...params };
+    
     // Check current overlay for debug options and merge them into params
     const overlayManager = OverlayManager.getInstance();
     const topOverlay = overlayManager.getTopOverlay();
@@ -191,22 +198,30 @@ export class RPCClient {
         if (allErrors.length > 1) {
           const error = new RPCError(`RPC error: ${data.error.message}`, data.error.code, allErrors);
           (error as any).debug = debugData;
+          (error as any).requestInfo = { method, params: originalParams };
           throw error;
         } else if (allErrors.length === 1) {
           // Single error - use the detailed error content if available
           const error = new RPCError(`RPC error: ${allErrors[0].type}: ${allErrors[0].content}`, data.error.code, allErrors);
           (error as any).debug = debugData;
+          (error as any).requestInfo = { method, params: originalParams };
           throw error;
         } else {
           // Fallback to message only
           const error = new RPCError(`RPC error: ${data.error.message}`, data.error.code);
           (error as any).debug = debugData;
+          (error as any).requestInfo = { method, params: originalParams };
           throw error;
         }
       }
 
       // Extract data and debug from result
-      return this.extractMCPData(data.result);
+      const result = this.extractMCPData(data.result);
+      // Add request info to result
+      if (result.debug) {
+        result.requestInfo = { method, params: originalParams };
+      }
+      return result;
     } catch (error) {
       console.error(`RPC call failed for ${method}:`, error);
       throw error;

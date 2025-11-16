@@ -10,6 +10,7 @@ export interface OverlayOptions {
   content?: string | HTMLElement;
   footer?: string | HTMLElement;
   closable?: boolean;
+  showSubmit?: boolean;
   submitLabel?: string;
   cancelLabel?: string;
   onMount?: () => void;

@@ -33,59 +33,58 @@ export class OverlayDebugOptions {
         this.container.appendChild(logLabel);
         // Store reference to log label for visibility updates
         this.container._logLabel = logLabel;
-        // Filter options container (will be placed in content area)
+        // Filter options container (will be placed after header, before content)
         this.filterContainer = document.createElement('div');
-        this.filterContainer.className = 'overlayContent';
+        this.filterContainer.className = 'overlayContent overlay-debug-filters';
         this.filterContainer.style.display = 'none';
-        // White list input
-        const whiteGroup = document.createElement('div');
-        whiteGroup.className = 'overlay-form-group';
-        const whiteLabel = document.createElement('label');
-        whiteLabel.textContent = 'Whitelist:';
-        this.whiteInput = document.createElement('input');
-        this.whiteInput.type = 'text';
-        this.whiteInput.className = 'overlay-form-input';
-        this.whiteInput.placeholder = 'e.g., *gateway*';
-        whiteGroup.appendChild(whiteLabel);
-        whiteGroup.appendChild(this.whiteInput);
-        this.filterContainer.appendChild(whiteGroup);
-        // Gray list input
-        const grayGroup = document.createElement('div');
-        grayGroup.className = 'overlay-form-group';
-        const grayLabel = document.createElement('label');
-        grayLabel.textContent = 'Graylist:';
-        this.grayInput = document.createElement('input');
-        this.grayInput.type = 'text';
-        this.grayInput.className = 'overlay-form-input';
-        this.grayInput.placeholder = 'e.g., response.py,gateway.py';
-        grayGroup.appendChild(grayLabel);
-        grayGroup.appendChild(this.grayInput);
-        this.filterContainer.appendChild(grayGroup);
-        // Black list input
-        const blackGroup = document.createElement('div');
-        blackGroup.className = 'overlay-form-group';
-        const blackLabel = document.createElement('label');
-        blackLabel.textContent = 'Blacklist:';
+        // Create table for filter inputs (2 rows, 4 columns)
+        const filterTable = document.createElement('table');
+        filterTable.className = 'overlay-debug-filter-table';
+        // Header row
+        const headerRow = document.createElement('tr');
+        ['Blacklist', 'Graylist', 'Whitelist', 'Limit'].forEach(text => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            headerRow.appendChild(th);
+        });
+        filterTable.appendChild(headerRow);
+        // Input row
+        const inputRow = document.createElement('tr');
+        // Blacklist input
+        const blackCell = document.createElement('td');
         this.blackInput = document.createElement('input');
         this.blackInput.type = 'text';
         this.blackInput.className = 'overlay-form-input';
         this.blackInput.placeholder = 'e.g., dispatch,get_arg';
-        blackGroup.appendChild(blackLabel);
-        blackGroup.appendChild(this.blackInput);
-        this.filterContainer.appendChild(blackGroup);
+        blackCell.appendChild(this.blackInput);
+        inputRow.appendChild(blackCell);
+        // Graylist input
+        const grayCell = document.createElement('td');
+        this.grayInput = document.createElement('input');
+        this.grayInput.type = 'text';
+        this.grayInput.className = 'overlay-form-input';
+        this.grayInput.placeholder = 'e.g., response.py,gateway.py';
+        grayCell.appendChild(this.grayInput);
+        inputRow.appendChild(grayCell);
+        // Whitelist input
+        const whiteCell = document.createElement('td');
+        this.whiteInput = document.createElement('input');
+        this.whiteInput.type = 'text';
+        this.whiteInput.className = 'overlay-form-input';
+        this.whiteInput.placeholder = 'e.g., *gateway*';
+        whiteCell.appendChild(this.whiteInput);
+        inputRow.appendChild(whiteCell);
         // Debug limit input
-        const limitGroup = document.createElement('div');
-        limitGroup.className = 'overlay-form-group';
-        const limitLabel = document.createElement('label');
-        limitLabel.textContent = 'Debug Limit:';
+        const limitCell = document.createElement('td');
         this.debugLimitInput = document.createElement('input');
         this.debugLimitInput.type = 'number';
         this.debugLimitInput.className = 'overlay-form-input';
         this.debugLimitInput.placeholder = 'e.g., 10';
         this.debugLimitInput.min = '0';
-        limitGroup.appendChild(limitLabel);
-        limitGroup.appendChild(this.debugLimitInput);
-        this.filterContainer.appendChild(limitGroup);
+        limitCell.appendChild(this.debugLimitInput);
+        inputRow.appendChild(limitCell);
+        filterTable.appendChild(inputRow);
+        this.filterContainer.appendChild(filterTable);
     }
     /**
      * Update visibility of options based on checkbox states.
@@ -95,7 +94,7 @@ export class OverlayDebugOptions {
         if (this.debugCheckbox.checked) {
             // Show log checkbox
             logLabel.style.display = 'inline-flex';
-            // Show filter options in content area
+            // Show filter options
             this.filterContainer.style.display = 'block';
         }
         else {
@@ -105,6 +104,25 @@ export class OverlayDebugOptions {
             // Hide filter options
             this.filterContainer.style.display = 'none';
         }
+    }
+    /**
+     * Hide filters and uncheck boxes (for loading state).
+     * Preserves input values.
+     */
+    hideForLoading() {
+        this.debugCheckbox.checked = false;
+        this.logCheckbox.checked = false;
+        const logLabel = this.container._logLabel;
+        logLabel.style.display = 'none';
+        this.filterContainer.style.display = 'none';
+    }
+    /**
+     * Show filters and checkboxes again (for error state).
+     * Restores input values that were preserved.
+     */
+    showForError() {
+        // Checkboxes remain unchecked, but filters are visible again
+        this.filterContainer.style.display = 'block';
     }
     /**
      * Get the filter container element (for placement in content area).

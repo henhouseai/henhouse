@@ -2,6 +2,7 @@
  * Overlay - Base overlay component (modal window).
  * Handles lifecycle, rendering, and state management.
  */
+import { OverlayManager } from './overlay-manager.js';
 import { OverlayBackdrop } from './overlay-backdrop.js';
 import { OverlayWindow } from './overlay-window.js';
 import { OverlayHeader } from './overlay-header.js';
@@ -44,7 +45,7 @@ export class Overlay {
         this.header = new OverlayHeader({
             title: this.props.header,
             showCancel: this.props.closable !== false,
-            showSubmit: !!this.props.onSubmit,
+            showSubmit: this.props.showSubmit !== false && !!this.props.onSubmit,
             cancelLabel: this.props.cancelLabel || 'Cancel',
             submitLabel: this.props.submitLabel || 'Submit',
             onCancel: () => this.handleCancel(),
@@ -83,11 +84,11 @@ export class Overlay {
         this.debugOptions = new OverlayDebugOptions();
         const debugEl = this.debugOptions.render();
         headerEl.appendChild(debugEl);
+        // Add filter container after header, before content (hidden by default, shown when debug is checked)
+        const filterContainer = this.debugOptions.getFilterContainer();
+        windowEl.insertBefore(filterContainer, headerEl.nextSibling);
         const contentEl = this.content.render();
         windowEl.appendChild(contentEl);
-        // Add filter container as sibling to content area (hidden by default, shown when debug is checked)
-        const filterContainer = this.debugOptions.getFilterContainer();
-        windowEl.appendChild(filterContainer);
         // Show overlay
         this.setState({ isVisible: true });
         // Focus management
@@ -154,13 +155,18 @@ export class Overlay {
                 img.alt = 'Loading...';
                 this.headerEl.appendChild(img);
             }
+            // Hide debug options (filters and checkboxes) during loading
+            if (this.debugOptions) {
+                this.debugOptions.hideForLoading();
+            }
         }
         else {
-            // Show submit button, hide loading spinner
+            // Hide loading spinner
             if (loadingImg) {
                 loadingImg.remove();
             }
-            if (!submitBtn && this.props.onSubmit) {
+            // Only restore submit button on error (not on success)
+            if (!submitBtn && this.props.onSubmit && (this.state.error || (this.state.messages && this.state.messages.some(m => m.type === 'error')))) {
                 const newSubmitBtn = document.createElement('a');
                 newSubmitBtn.id = 'submitOverlayWindow';
                 newSubmitBtn.className = 'overlay-button overlay-button-submit submitButton';
@@ -171,6 +177,10 @@ export class Overlay {
                     this.handleSubmit();
                 });
                 this.headerEl.appendChild(newSubmitBtn);
+                // Show debug options again on error (checkboxes remain unchecked, filters visible)
+                if (this.debugOptions) {
+                    this.debugOptions.showForError();
+                }
             }
         }
         // Remove existing messages
@@ -268,9 +278,10 @@ export class Overlay {
                 // Default success message
                 this.setState({ isLoading: false, success: 'Success!' });
             }
-            // Show debug table if present
+            // Show debug table in separate overlay window if present
+            const requestInfo = result?.requestInfo;
             if (debugData) {
-                this.showDebugTable(debugData);
+                this.showDebugTable(debugData, requestInfo);
             }
             // Auto-close after success: wait 1-2 seconds, then slow fade out
             // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error AND no debug data
@@ -312,17 +323,19 @@ export class Overlay {
                     error: null,
                     success: null
                 });
-                // Show debug table if present
+                // Show debug table in separate overlay window if present
+                const requestInfo = error?.requestInfo;
                 if (debugData) {
-                    this.showDebugTable(debugData);
+                    this.showDebugTable(debugData, requestInfo);
                 }
             }
             else {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 this.setState({ isLoading: false, error: errorMessage, messages: [] });
-                // Show debug table if present
+                // Show debug table in separate overlay window if present
+                const requestInfo = error?.requestInfo;
                 if (debugData) {
-                    this.showDebugTable(debugData);
+                    this.showDebugTable(debugData, requestInfo);
                 }
             }
             if (this.props.onError) {
@@ -351,29 +364,49 @@ export class Overlay {
         return this.debugOptions.getOptions();
     }
     /**
-     * Show debug table in the overlay content area.
+     * Show debug table in a separate overlay window (stacked on top).
      */
-    showDebugTable(debugData) {
-        if (!this.windowEl) {
-            return;
-        }
-        // Remove existing debug table if present
-        const existingDebug = this.windowEl.querySelector('.overlay-debug-table-container');
-        if (existingDebug) {
-            existingDebug.remove();
-        }
-        // Create and render debug table
+    showDebugTable(debugData, requestInfo) {
+        // Create debug table
         const debugTable = new OverlayDebugTable();
         const debugElement = debugTable.render(debugData);
-        // Append to content area (after all other content)
-        const contentEl = this.windowEl.querySelector('.overlayContent');
-        if (contentEl) {
-            contentEl.appendChild(debugElement);
+        // Build request info display
+        let requestInfoHtml = '';
+        if (requestInfo) {
+            requestInfoHtml = `
+        <div class="overlay-form-section">
+          <h3 class="overlay-section-title">Request:</h3>
+          <div class="overlay-form-group">
+            <label><strong>Tool:</strong></label>
+            <div>${this.escapeHtml(requestInfo.method)}</div>
+          </div>
+          <div class="overlay-form-group">
+            <label><strong>Arguments:</strong></label>
+            <pre class="overlay-debug-request-params">${this.escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
+          </div>
+        </div>
+      `;
         }
-        else {
-            // Fallback: append to window
-            this.windowEl.appendChild(debugElement);
-        }
+        // Combine request info and debug table
+        const contentHtml = requestInfoHtml + debugElement.outerHTML;
+        // Create new overlay window for debug info
+        const overlayManager = OverlayManager.getInstance();
+        overlayManager.show({
+            header: 'Debug Information',
+            content: contentHtml,
+            closable: true,
+            cancelLabel: 'Close',
+            showSubmit: false,
+            className: 'overlay-debug-window'
+        });
+    }
+    /**
+     * Escape HTML to prevent XSS.
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     /**
      * Trap focus within the overlay window.
