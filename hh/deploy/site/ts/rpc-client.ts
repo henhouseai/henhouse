@@ -41,14 +41,7 @@ export class RPCError extends Error {
     this.name = 'RPCError';
     this.code = code;
     this.errors = errors;
-    
-    // If we have multiple errors, format them nicely
-    if (errors.length > 1) {
-      const errorMessages = errors.map((err, idx) => 
-        `${idx + 1}. ${err.type}: ${err.content}`
-      ).join('\n');
-      this.message = `${message}\n\nAdditional errors:\n${errorMessages}`;
-    }
+    // Don't format multiple errors into one message - keep them separate
   }
 }
 

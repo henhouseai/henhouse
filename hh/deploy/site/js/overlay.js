@@ -272,9 +272,32 @@ export class Overlay {
             }
         }
         catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            this.setState({ isLoading: false, error: errorMessage });
+            // Check if it's an RPCError with multiple errors
+            if (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors) && error.errors.length > 0) {
+                const rpcError = error;
+                // Add each error as a separate message
+                const errorMessages = rpcError.errors.map((err) => ({
+                    type: 'error',
+                    text: `${err.type}: ${err.content}`
+                }));
+                // Also add the main error message
+                const mainError = {
+                    type: 'error',
+                    text: rpcError.message || 'RPC error'
+                };
+                this.setState({
+                    isLoading: false,
+                    messages: [mainError, ...errorMessages],
+                    error: null,
+                    success: null
+                });
+            }
+            else {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                this.setState({ isLoading: false, error: errorMessage, messages: [] });
+            }
             if (this.props.onError) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
                 this.props.onError(error instanceof Error ? error : new Error(errorMessage));
             }
         }
