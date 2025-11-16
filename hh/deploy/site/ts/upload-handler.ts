@@ -7,7 +7,7 @@ import { SeedData } from './seed.js';
 import { OverlayManager } from './overlay-manager.js';
 
 interface FileUploadStatus {
-  index: number;
+  fileId: string; // Unique ID based on file path
   file: File;
   uploaded: boolean;
   uploadResult: { temp_path: string; original_name: string } | null;
@@ -36,6 +36,18 @@ export class UploadHandler {
     this.fileInput.multiple = true;
     this.fileInput.accept = 'image/*';
     this.fileInput.style.display = 'none';
+  }
+
+  /**
+   * Convert file path to a safe ID format (snake_case with underscores)
+   */
+  private filePathToId(filePath: string): string {
+    // Replace slashes, backslashes, and other problematic characters with underscores
+    return filePath
+      .replace(/[\/\\]/g, '_')
+      .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
   }
 
   /**
@@ -80,8 +92,14 @@ export class UploadHandler {
         this.placeholderDiv = null;
       }
       
-      // Add all selected files directly to overlayWindow
+      // Add all selected files directly to overlayWindow (skip duplicates)
       for (let i = 0; i < files.length; i++) {
+        const fileId = this.filePathToId(files[i].name);
+        // Check if file already exists
+        if (this.uploadStatuses.find(s => s.fileId === fileId)) {
+          // File already added, skip silently
+          continue;
+        }
         this.addFile(files[i]);
       }
       
@@ -245,16 +263,24 @@ export class UploadHandler {
       return;
     }
     
-    const index = this.uploadStatuses.length;
+    const fileId = this.filePathToId(file.name);
+    
+    // Double-check for duplicates (shouldn't happen due to check in change handler, but safety check)
+    if (this.uploadStatuses.find(s => s.fileId === fileId)) {
+      return; // Already exists, skip silently
+    }
+    
     const fileDiv = document.createElement('div');
+    fileDiv.id = fileId;
     fileDiv.className = 'overlayContent upload-file-item';
     
     // Remove button (X)
     const removeBtn = document.createElement('button');
+    removeBtn.id = `remove_${fileId}`;
     removeBtn.className = 'upload-file-remove';
     removeBtn.textContent = '×';
     removeBtn.addEventListener('click', () => {
-      this.removeFile(index);
+      this.removeFile(fileId);
     });
     fileDiv.appendChild(removeBtn);
     
@@ -266,21 +292,21 @@ export class UploadHandler {
     
     // Status message
     const statusDiv = document.createElement('div');
-    statusDiv.id = `upload-status-${index}`;
+    statusDiv.id = `status_${fileId}`;
     statusDiv.className = 'upload-status pending';
     statusDiv.textContent = 'Pending';
     fileDiv.appendChild(statusDiv);
     
     // Progress bar container (initially hidden)
     const progressContainer = document.createElement('div');
-    progressContainer.id = `upload-progress-container-${index}`;
+    progressContainer.id = `upload-progress-container_${fileId}`;
     progressContainer.className = 'upload-progress-container';
     
     const progressBar = document.createElement('div');
     progressBar.className = 'upload-progress-bar';
     
     const progressFill = document.createElement('div');
-    progressFill.id = `upload-progress-fill-${index}`;
+    progressFill.id = `upload-progress-fill_${fileId}`;
     progressFill.className = 'upload-progress-fill';
     progressBar.appendChild(progressFill);
     
@@ -296,7 +322,7 @@ export class UploadHandler {
     }
     
     const status: FileUploadStatus = {
-      index,
+      fileId,
       file,
       uploaded: false,
       uploadResult: null,
@@ -309,9 +335,9 @@ export class UploadHandler {
     this.uploadStatuses.push(status);
   }
 
-  private removeFile(index: number): void {
+  private removeFile(fileId: string): void {
     // Find and remove the file status
-    const statusIndex = this.uploadStatuses.findIndex(s => s.index === index);
+    const statusIndex = this.uploadStatuses.findIndex(s => s.fileId === fileId);
     if (statusIndex === -1) return;
     
     const status = this.uploadStatuses[statusIndex];
@@ -345,32 +371,10 @@ export class UploadHandler {
       }
       return;
     }
-    
-    // Re-index remaining files
-    this.uploadStatuses.forEach((s, i) => {
-      s.index = i;
-      const statusDiv = s.div.querySelector(`#upload-status-${s.index}`) as HTMLElement;
-      const progressContainer = s.div.querySelector(`#upload-progress-container-${s.index}`) as HTMLElement;
-      const progressBar = s.div.querySelector(`#upload-progress-bar-${s.index}`) as HTMLElement;
-      const progressFill = s.div.querySelector(`#upload-progress-fill-${s.index}`) as HTMLElement;
-      
-      if (statusDiv) {
-        statusDiv.id = `upload-status-${i}`;
-      }
-      if (progressContainer) {
-        progressContainer.id = `upload-progress-container-${i}`;
-      }
-      if (progressBar) {
-        progressBar.id = `upload-progress-bar-${i}`;
-      }
-      if (progressFill) {
-        progressFill.id = `upload-progress-fill-${i}`;
-      }
-    });
   }
 
   private updateFileStatus(status: FileUploadStatus, message: string, type: 'pending' | 'uploading' | 'uploaded' | 'processing' | 'success' | 'error'): void {
-    const statusDiv = status.div.querySelector(`#upload-status-${status.index}`) as HTMLElement;
+    const statusDiv = document.getElementById(`status_${status.fileId}`) as HTMLElement;
     if (!statusDiv) return;
     
     statusDiv.textContent = message;
@@ -383,8 +387,8 @@ export class UploadHandler {
     const formData = new FormData();
     formData.append('file', status.file);
     
-    const progressContainer = status.div.querySelector(`#upload-progress-container-${status.index}`) as HTMLElement;
-    const progressFill = status.div.querySelector(`#upload-progress-fill-${status.index}`) as HTMLElement;
+    const progressContainer = document.getElementById(`upload-progress-container_${status.fileId}`) as HTMLElement;
+    const progressFill = document.getElementById(`upload-progress-fill_${status.fileId}`) as HTMLElement;
     
     if (progressContainer) {
       progressContainer.classList.add('show');
