@@ -348,7 +348,7 @@ export class UploadHandler {
         // Remove all children
         fileDiv.innerHTML = '';
         // Change class
-        fileDiv.className = 'pending-file-item';
+        fileDiv.className = 'overlayContent pending-file-item';
         // Add file name
         const newFileNameDiv = document.createElement('div');
         newFileNameDiv.className = 'upload-file-name';

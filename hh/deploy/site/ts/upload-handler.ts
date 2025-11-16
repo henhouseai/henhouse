@@ -412,7 +412,7 @@ export class UploadHandler {
     fileDiv.innerHTML = '';
     
     // Change class
-    fileDiv.className = 'pending-file-item';
+    fileDiv.className = 'overlayContent pending-file-item';
     
     // Add file name
     const newFileNameDiv = document.createElement('div');

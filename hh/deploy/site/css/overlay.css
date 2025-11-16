@@ -477,3 +477,17 @@
   background: #f44336;
 }
 
+#overlayWindow .pending-file-item {
+  background: #f9f9f9;
+}
+
+#overlayWindow .pending-file-item .upload-file-name {
+  margin-bottom: 8px;
+}
+
+#overlayWindow .pending-status {
+  color: #FF9800;
+  font-size: 14px;
+  font-style: italic;
+}
+
