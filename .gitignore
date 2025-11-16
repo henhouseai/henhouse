@@ -32,6 +32,10 @@ MANIFEST
 .DS_Store
 Thumbs.db
 
+# Images
+*.jpeg
+*.jpg
+
 # Cache files
 *-reg.json
 *.cycle.json

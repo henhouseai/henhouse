@@ -342,6 +342,91 @@ def mcp_handler(path: str = ""):
             "id": None
         }), 500, {'Content-Type': 'application/json'}
 
+@app.route('/img/<path:image_path>', methods=['GET'])
+def image_handler(image_path: str = ""):
+    """Handle image viewing by ID. Only accepts numeric IDs."""
+    try:
+        import json
+        
+        # Treat empty path as error (no default image)
+        if not image_path:
+            return json.dumps({
+                'error': 'Image ID required'
+            }), 400, {'Content-Type': 'application/json'}
+        
+        # Only accept numeric paths (strict ID-only, no name searching)
+        if not image_path.isdigit():
+            return json.dumps({
+                'error': 'Image path must be numeric (image ID only)'
+            }), 400, {'Content-Type': 'application/json'}
+        
+        # Build command: show-image --id {image_id}
+        raw_argv = ['show-image', '--id', image_path]
+        
+        # Add query parameters as arguments
+        for key, value in request.args.items():
+            if value is not None:
+                k = str(key)[:64]
+                v = str(value)[:512]
+                raw_argv.extend([f'--{k}', v])
+        
+        logging.info(f"Image request: {raw_argv}")
+        
+        # Call Gateway via subprocess
+        try:
+            http_script = PROJECT_ROOT / 'http_client.py'
+            cmd = ['python3', str(http_script)] + raw_argv
+            
+            acquired = _gateway_semaphore.acquire(timeout=10)
+            if not acquired:
+                logging.error("Gateway concurrency limit reached for image request")
+                return json.dumps({
+                    'error': 'Server busy, please retry'
+                }), 503, {'Content-Type': 'application/json'}
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=str(PROJECT_ROOT)
+                )
+            finally:
+                _gateway_semaphore.release()
+            
+            response = result.stdout
+            if response and response.strip():
+                if response.strip().startswith('{'):
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'application/json'}
+                else:
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                stderr_snippet = (result.stderr or '').strip()
+                logging.error(f"http_client returned {result.returncode} for image: {stderr_snippet}")
+                return json.dumps({
+                    'error': 'Error processing image request',
+                    'details': stderr_snippet
+                }), 500, {'Content-Type': 'application/json'}
+                
+        except subprocess.TimeoutExpired:
+            logging.error("http_client timeout for image")
+            return json.dumps({
+                'error': 'Request timeout'
+            }), 504, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logging.error(f"Subprocess error for image: {e}")
+            return json.dumps({
+                'error': 'Subprocess error',
+                'details': str(e)
+            }), 502, {'Content-Type': 'application/json'}
+            
+    except Exception as e:
+        logging.error(f"Error in image handler: {e}")
+        return json.dumps({
+            'error': str(e)
+        }), 500, {'Content-Type': 'application/json'}
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def dynamic_handler(path):
@@ -472,15 +557,65 @@ def _fallback_response(message: str):
     </body></html>
     """
 
-@app.route('/status')
-def status():
-    """Health check endpoint."""
-    return {
-        'status': 'running',
-        'tier': TIER_SUFFIX,
-        'project': PROJECT_NAME,
-        'site_dir': str(SITE_DIR)
-    }
+@app.route('/upload-file', methods=['POST'])
+def upload_file():
+    """Handle file uploads. Accepts multipart/form-data and returns temp file path."""
+    try:
+        import json
+        
+        if not request.files:
+            return json.dumps({
+                'error': 'No files provided'
+            }), 400, {'Content-Type': 'application/json'}
+        
+        uploaded_files = []
+        idx = 0
+        for key in request.files.keys():
+            file_storage = request.files.get(key)
+            if not file_storage:
+                continue
+            
+            original_name = os.path.basename(file_storage.filename or '')[:128]
+            content_type = (file_storage.mimetype or '')[:128]
+            
+            # Create unique temp file in /tmp
+            tmp_basename = f"henhouse_upload_{uuid.uuid4().hex}"
+            tmp_dir = "/tmp"
+            tmp_path = os.path.join(tmp_dir, tmp_basename)
+            
+            try:
+                with open(tmp_path, 'wb') as f:
+                    file_storage.save(f)
+                
+                uploaded_files.append({
+                    'temp_path': tmp_path,
+                    'original_name': original_name,
+                    'content_type': content_type,
+                    'index': idx
+                })
+                idx += 1
+            except Exception as e:
+                logging.error(f"Failed to save upload to tmp: {e}")
+                continue
+        
+        if not uploaded_files:
+            return json.dumps({
+                'error': 'Failed to save any files'
+            }), 500, {'Content-Type': 'application/json'}
+        
+        # Return single file or array of files
+        if len(uploaded_files) == 1:
+            result = uploaded_files[0]
+        else:
+            result = {'files': uploaded_files}
+        
+        return json.dumps(result), 200, {'Content-Type': 'application/json'}
+        
+    except Exception as e:
+        logging.error(f"Error in upload_file handler: {e}")
+        return json.dumps({
+            'error': str(e)
+        }), 500, {'Content-Type': 'application/json'}
 
 if __name__ == '__main__':
     # Run on all interfaces so Nginx can proxy
