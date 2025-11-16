@@ -69,11 +69,18 @@ export class RPCClient {
    * Make an MCP JSON-RPC call to the backend.
    */
   async call(method: string, params: any = {}): Promise<any> {
+    // Always include debug=1 to see debug output in responses
+    const argumentsWithDebug = { ...params, debug: 1 };
+    
+    // Use tools/call structure: method is the tool name, params go in arguments
     const payload: RPCRequest = {
       jsonrpc: '2.0',
       id: Date.now(),
-      method,
-      params: params || {}
+      method: 'tools/call',
+      params: {
+        name: method,
+        arguments: argumentsWithDebug
+      }
     };
 
     try {

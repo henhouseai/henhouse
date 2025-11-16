@@ -283,65 +283,7 @@ def main() -> int:
             # Client notification - no response needed
             return 0
         else:
-            # Unknown method - try routing to Gateway as fallback
-            from hh.gateway.gateway import get_gateway
-            from hh.gateway.error.error_store import is_error
-            
-            # Build argv from method (command) and params
-            argv = [method]
-            
-            # Convert params dict to command-line arguments
-            if isinstance(params, dict):
-                for key, value in params.items():
-                    argv.append(f"--{key}")
-                    if value is not None:
-                        argv.append(str(value))
-            
-            # Also accept query string params from sys.argv[1:] (added by Flask)
-            query_params = sys.argv[1:] if len(sys.argv) > 1 else []
-            if query_params:
-                argv.extend(query_params)
-            
-            # Initialize gateway and dispatch
-            gateway = get_gateway()
-            
-            # Store request ID for response formatting
-            if hasattr(gateway.response, 'set_request_id'):
-                gateway.response.set_request_id(request_id)
-            
-            # Dispatch with mcp backend
-            result = gateway.dispatch(argv, "mcp")
-            
-            # Get output from gateway response
-            if gateway and gateway.response:
-                output = gateway.response.get_output()
-                
-                # Try to parse as JSON-RPC response
-                try:
-                    output_data = json.loads(output)
-                    if isinstance(output_data, dict) and "jsonrpc" in output_data:
-                        # Ensure request ID is set correctly
-                        output_data["id"] = request_id
-                        response = output_data
-                    else:
-                        # Wrap in JSON-RPC response
-                        response = {
-                            "jsonrpc": "2.0",
-                            "id": request_id,
-                            "result": output_data
-                        }
-                except json.JSONDecodeError:
-                    # Plain text - wrap in error
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {
-                            "code": -32601,
-                            "message": "Method not found",
-                            "data": f"Unknown method: {method}"
-                        }
-                    }
-            else:
+            # Unknown method - return standard JSON-RPC 2.0 error
                 response = {
                     "jsonrpc": "2.0",
                     "id": request_id,
