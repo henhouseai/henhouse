@@ -378,7 +378,7 @@
 
 /* Upload handler styles - chooseFilesButton now uses overlay-button base class */
 
-#overlayWindow .upload-placeholder {
+#overlayWindow .overlayContent.upload-placeholder {
   padding: 40px;
   text-align: center;
   color: #999;

@@ -29,10 +29,11 @@ export class UploadHandler {
             this.rpc.showError('Upload', new Error('No page ID available'));
             return;
         }
-        // Create placeholder content
-        this.placeholderDiv = document.createElement('div');
-        this.placeholderDiv.className = 'overlayContent upload-placeholder';
-        this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
+        // Create placeholder content (just the text, overlay system will wrap it)
+        const placeholderText = document.createTextNode('No files selected. Click "Choose Files" to add images.');
+        const placeholderWrapper = document.createElement('div');
+        placeholderWrapper.className = 'upload-placeholder';
+        placeholderWrapper.appendChild(placeholderText);
         // Handle file selection
         this.fileInput.addEventListener('change', (e) => {
             const files = e.target.files;
@@ -46,9 +47,11 @@ export class UploadHandler {
                 console.error('Overlay window not found');
                 return;
             }
-            // If this is the first file, remove placeholder
-            if (this.placeholderDiv && this.placeholderDiv.parentNode) {
-                this.placeholderDiv.remove();
+            // Find and remove the overlayContent div that contains the placeholder
+            const placeholderContentDiv = this.overlayWindow.querySelector('.overlayContent.upload-placeholder') ||
+                this.overlayWindow.querySelector('.overlayContent');
+            if (placeholderContentDiv && placeholderContentDiv.parentNode) {
+                placeholderContentDiv.remove();
                 this.placeholderDiv = null;
             }
             // Add all selected files directly to overlayWindow
@@ -61,7 +64,7 @@ export class UploadHandler {
         // Show overlay with custom header buttons
         this.overlay = overlayManager.show({
             header: 'Upload Images',
-            content: this.placeholderDiv,
+            content: placeholderWrapper,
             closable: true, // Allow closing by clicking backdrop
             submitLabel: 'Upload',
             cancelLabel: 'Cancel',
@@ -266,17 +269,22 @@ export class UploadHandler {
                 this.overlayWindow = document.querySelector('#overlayWindow');
             }
             if (this.overlayWindow) {
-                this.placeholderDiv = document.createElement('div');
-                this.placeholderDiv.className = 'overlayContent upload-placeholder';
-                this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
+                const placeholderText = document.createTextNode('No files selected. Click "Choose Files" to add images.');
+                const placeholderWrapper = document.createElement('div');
+                placeholderWrapper.className = 'upload-placeholder';
+                placeholderWrapper.appendChild(placeholderText);
+                const placeholderContentDiv = document.createElement('div');
+                placeholderContentDiv.className = 'overlayContent upload-placeholder';
+                placeholderContentDiv.appendChild(placeholderWrapper);
                 // Insert placeholder after header
                 const headerEl = this.overlayWindow.querySelector('.overlayHeader');
                 if (headerEl && headerEl.nextSibling) {
-                    this.overlayWindow.insertBefore(this.placeholderDiv, headerEl.nextSibling);
+                    this.overlayWindow.insertBefore(placeholderContentDiv, headerEl.nextSibling);
                 }
                 else {
-                    this.overlayWindow.appendChild(this.placeholderDiv);
+                    this.overlayWindow.appendChild(placeholderContentDiv);
                 }
+                this.placeholderDiv = placeholderContentDiv;
             }
             return;
         }
