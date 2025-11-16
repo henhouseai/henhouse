@@ -34,15 +34,10 @@ export class UploadHandler {
      */
     async handle() {
         const overlayManager = OverlayManager.getInstance();
-        // Get current page ID and ensure it's a number
-        const pageIdRaw = this.seedData.page?.id;
-        if (!pageIdRaw) {
+        // Get current page ID (backend will auto-convert string to int if needed)
+        const pageId = this.seedData.page?.id;
+        if (!pageId) {
             this.rpc.showError('Upload', new Error('No page ID available'));
-            return;
-        }
-        const pageId = typeof pageIdRaw === 'string' ? parseInt(pageIdRaw, 10) : pageIdRaw;
-        if (isNaN(pageId)) {
-            this.rpc.showError('Upload', new Error('Invalid page ID'));
             return;
         }
         // Create placeholder content (just the inner wrapper, overlay system will wrap it)
