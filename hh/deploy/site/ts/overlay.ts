@@ -314,8 +314,8 @@ export class Overlay {
       }
       
       // Auto-close after success: wait 1-2 seconds, then slow fade out
-      // Only auto-close if explicitly requested (autoFade flag) or if we have success
-      if (autoFade || (this.state.success && !this.state.error)) {
+      // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error
+      if (autoFade && (this.state.success && !this.state.error)) {
         setTimeout(() => {
           this.closeWithFade(1500); // 1.5 second slow fade
           // If redirect is requested, do it after fade completes
