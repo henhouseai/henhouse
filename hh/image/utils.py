@@ -126,6 +126,27 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
                 pass
         # ===== DEBUG CODE END =====
         
+        # ===== DEBUG CODE START: Check if target directory already exists =====
+        target_exists = date_path.exists()
+        target_perms = None
+        target_owner = None
+        target_group = None
+        if target_exists:
+            try:
+                stat_info = date_path.stat()
+                target_perms = oct(stat_info.st_mode)
+                try:
+                    target_owner = pwd.getpwuid(stat_info.st_uid).pw_name
+                except:
+                    target_owner = f"uid:{stat_info.st_uid}"
+                try:
+                    target_group = grp.getgrgid(stat_info.st_gid).gr_name
+                except:
+                    target_group = f"gid:{stat_info.st_gid}"
+            except Exception:
+                pass
+        # ===== DEBUG CODE END =====
+        
         date_path.mkdir(parents=True, exist_ok=True)
         # Set proper permissions
         os.chmod(date_path, 0o774)
@@ -135,6 +156,10 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
     except Exception as e:
         # ===== DEBUG CODE START: Build detailed error message =====
         error_details = [f"Path: {date_path}", f"Error: {str(e)}", f"Current user: {user_str}", f"Current group: {group_str}", f"Effective groups: {groups_str}"]
+        if target_exists:
+            error_details.append(f"Target exists: True, perms: {target_perms}, owner: {target_owner}, group: {target_group}")
+        else:
+            error_details.append(f"Target exists: False")
         if parent_exists:
             perms_display = f"{parent_perms_full} ({parent_perms})" if parent_perms_full and parent_perms_full != f"0o{parent_perms}" else parent_perms
             writable_info = f", writable: {parent_writable}" if parent_writable is not None else ""
