@@ -123,6 +123,9 @@ export class OverlayDebugTable {
             if (index % 2 === 0) {
                 row.classList.add('even');
             }
+            else {
+                row.classList.add('odd');
+            }
             // Time column
             const timeCell = document.createElement('td');
             timeCell.className = 'debug-time';

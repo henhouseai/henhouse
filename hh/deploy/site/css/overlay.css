@@ -3,23 +3,23 @@
 
 /* Map abstract color palette to overlay-specific properties */
 :root {
-  /* Window and container */
-  --overlay-window: var(--primary, #fff);
-  --overlay-window-border: var(--border-primary, #000);
-  --overlay-header-bg: var(--primary, #fff);
-  --overlay-header-text: var(--text-on-primary, #000);
-  --overlay-content-border: var(--border-primary, #000);
+  /* Window and container - use dark theme */
+  --overlay-window: var(--bg-secondary, #161b22);
+  --overlay-window-border: var(--border-primary, #d29922);
+  --overlay-header-bg: var(--bg-secondary, #161b22);
+  --overlay-header-text: var(--text-medium-contrast, #d4d4d4);
+  --overlay-content-border: var(--border-subtle, #3a2a1a);
   
-  /* Content area */
-  --overlay-content: var(--bg-content, #fff);
-  --overlay-content-text: var(--text-on-light, #000);
+  /* Content area - use dark theme */
+  --overlay-content: var(--bg-primary, #1a0d0d);
+  --overlay-content-text: var(--text-medium-contrast, #d4d4d4);
   
-  /* Links and buttons */
-  --overlay-header-link: var(--link, #ccc);
-  --overlay-header-link-text: var(--text-on-light, #000);
-  --overlay-header-link-border: var(--primary, #000);
-  --overlay-header-link-hover: var(--link-hover, #ddd);
-  --overlay-header-link-active: var(--link-active, #bbb);
+  /* Links and buttons - use dark theme */
+  --overlay-header-link: var(--link, #ffa657);
+  --overlay-header-link-text: var(--link, #ffa657);
+  --overlay-header-link-border: var(--border-primary, #d29922);
+  --overlay-header-link-hover: var(--link-hover, #ffb366);
+  --overlay-header-link-active: var(--link-active, #f0883e);
   
   /* Submit button (success semantic) */
   --overlay-header-submit-button: var(--success, #4caf50);
@@ -198,10 +198,10 @@
   width: auto;
   padding: 4px 8px;
   margin: 3px;
-  background-color: var(--overlay-header-bg, var(--overlay-window, #fff));
-  color: var(--overlay-header-text, #000);
+  background-color: var(--overlay-header-bg, var(--overlay-window, #161b22));
+  color: var(--overlay-header-text, #d4d4d4);
   font-weight: bold;
-  border-bottom: 1px solid var(--overlay-content-border, #000);
+  border-bottom: 1px solid var(--overlay-content-border, #3a2a1a);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -209,7 +209,7 @@
 }
 
 #overlayWindow div.overlayContentHeader:hover {
-  background-color: var(--overlay-header-link-hover, #f0f0f0);
+  background-color: var(--bg-tertiary, #21262d);
 }
 
 #overlayWindow div.overlayContentHeader button.overlay-content-toggle {
@@ -218,7 +218,7 @@
   padding: 2px 6px;
   cursor: pointer;
   font-size: 12px;
-  color: var(--overlay-header-text, #000);
+  color: var(--overlay-header-text, #d4d4d4);
   flex-shrink: 0;
 }
 
@@ -552,6 +552,180 @@
   margin-right: 5px;
 }
 
+
+/* Debug table container */
+#overlayWindow .overlay-debug-table-container {
+  background-color: var(--bg-primary, #1a0d0d);
+  color: var(--text-medium-contrast, #d4d4d4);
+  border: 1px solid var(--border-subtle, #3a2a1a);
+  border-radius: 5px;
+  padding: 8px;
+  margin: 3px;
+}
+
+/* Debug table */
+#overlayWindow table.overlay-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: monospace;
+  font-size: 9pt;
+  background-color: var(--bg-primary, #1a0d0d);
+  color: var(--text-medium-contrast, #d4d4d4);
+}
+
+/* Debug table header */
+#overlayWindow table.overlay-debug-table thead {
+  background-color: var(--bg-secondary, #161b22);
+}
+
+#overlayWindow table.overlay-debug-table th {
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: bold;
+  color: var(--text-medium-contrast, #d4d4d4);
+  border-bottom: 1px solid var(--border-subtle, #3a2a1a);
+}
+
+/* Debug table rows - odd/even zebra striping */
+#overlayWindow table.overlay-debug-table tr.odd,
+#overlayWindow table.overlay-debug-table tr.odd td {
+  background-color: var(--bg-primary, #1a0d0d);
+  color: var(--text-medium-contrast, #d4d4d4);
+}
+
+#overlayWindow table.overlay-debug-table tr.even,
+#overlayWindow table.overlay-debug-table tr.even td {
+  background-color: var(--bg-secondary, #161b22);
+  color: var(--text-medium-contrast, #d4d4d4);
+}
+
+/* Debug table cells - horizontal padding */
+#overlayWindow table.overlay-debug-table td {
+  padding: 2px 8px;
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Debug table cell types */
+#overlayWindow table.overlay-debug-table td.debug-time {
+  color: var(--text-low-contrast, #8b949e);
+  white-space: nowrap;
+}
+
+#overlayWindow table.overlay-debug-table td.debug-level {
+  font-weight: bold;
+}
+
+#overlayWindow table.overlay-debug-table td.debug-message {
+  color: var(--text-medium-contrast, #d4d4d4);
+}
+
+/* Debug color classes - high contrast colors for debug table (not theme colors) */
+/* These use the same color definitions as ansi-colors.css but scoped to debug table */
+#overlayWindow table.overlay-debug-table td.debug-module.red,
+#overlayWindow table.overlay-debug-table td.debug-file.red,
+#overlayWindow table.overlay-debug-table td.debug-function.red { color: #FF0000; }
+#overlayWindow table.overlay-debug-table td.debug-module.orange,
+#overlayWindow table.overlay-debug-table td.debug-file.orange,
+#overlayWindow table.overlay-debug-table td.debug-function.orange { color: #FF8700; }
+#overlayWindow table.overlay-debug-table td.debug-module.yellow,
+#overlayWindow table.overlay-debug-table td.debug-file.yellow,
+#overlayWindow table.overlay-debug-table td.debug-function.yellow { color: #FFFF00; }
+#overlayWindow table.overlay-debug-table td.debug-module.green,
+#overlayWindow table.overlay-debug-table td.debug-file.green,
+#overlayWindow table.overlay-debug-table td.debug-function.green { color: #00FF00; }
+#overlayWindow table.overlay-debug-table td.debug-module.cyan,
+#overlayWindow table.overlay-debug-table td.debug-file.cyan,
+#overlayWindow table.overlay-debug-table td.debug-function.cyan { color: #00FFFF; }
+#overlayWindow table.overlay-debug-table td.debug-module.blue,
+#overlayWindow table.overlay-debug-table td.debug-file.blue,
+#overlayWindow table.overlay-debug-table td.debug-function.blue { color: #0000FF; }
+#overlayWindow table.overlay-debug-table td.debug-module.magenta,
+#overlayWindow table.overlay-debug-table td.debug-file.magenta,
+#overlayWindow table.overlay-debug-table td.debug-function.magenta { color: #FF00FF; }
+#overlayWindow table.overlay-debug-table td.debug-module.gold,
+#overlayWindow table.overlay-debug-table td.debug-file.gold,
+#overlayWindow table.overlay-debug-table td.debug-function.gold { color: #FFAF00; }
+#overlayWindow table.overlay-debug-table td.debug-module.white,
+#overlayWindow table.overlay-debug-table td.debug-file.white,
+#overlayWindow table.overlay-debug-table td.debug-function.white { color: #FFFFFF; }
+#overlayWindow table.overlay-debug-table td.debug-module.brown,
+#overlayWindow table.overlay-debug-table td.debug-file.brown,
+#overlayWindow table.overlay-debug-table td.debug-function.brown { color: #804000; }
+#overlayWindow table.overlay-debug-table td.debug-module.pink,
+#overlayWindow table.overlay-debug-table td.debug-file.pink,
+#overlayWindow table.overlay-debug-table td.debug-function.pink { color: #FFB8D1; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_yellow,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_yellow,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_yellow { color: #FFFFD7; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_cyan,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_cyan,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_cyan { color: #D7FFFF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_pink,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_pink,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_pink { color: #FFD7FF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_green,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_green,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_green { color: #D7FFD7; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_blue,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_blue,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_blue { color: #D7FFFF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_purple,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_purple,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_purple { color: #EBD7FF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_orange,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_orange,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_orange { color: #FFE7D7; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_red,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_red,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_red { color: #FFE7E7; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_lavender,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_lavender,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_lavender { color: #F5D7FF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_peach,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_peach,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_peach { color: #FFD1AF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_mint,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_mint,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_mint { color: #AAFFAA; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_lilac,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_lilac,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_lilac { color: #D1AAFF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_sky,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_sky,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_sky { color: #9FD7FF; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_rose,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_rose,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_rose { color: #FFE7E7; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_aqua,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_aqua,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_aqua { color: #B8E7E7; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_coral,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_coral,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_coral { color: #FFD7AA; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_lime,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_lime,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_lime { color: #D7FFAA; }
+#overlayWindow table.overlay-debug-table td.debug-module.pastel_violet,
+#overlayWindow table.overlay-debug-table td.debug-file.pastel_violet,
+#overlayWindow table.overlay-debug-table td.debug-function.pastel_violet { color: #D7E7AA; }
+
+/* Debug level colors */
+#overlayWindow table.overlay-debug-table td.debug-level.trace_in { color: var(--text-low-contrast, #8b949e); }
+#overlayWindow table.overlay-debug-table td.debug-level.trace_out { color: var(--text-low-contrast, #8b949e); }
+#overlayWindow table.overlay-debug-table td.debug-level.log { color: var(--text-medium-contrast, #d4d4d4); }
+#overlayWindow table.overlay-debug-table td.debug-level.debug { color: var(--info, #58a6ff); }
+#overlayWindow table.overlay-debug-table td.debug-level.warn { color: var(--warning, #ff9800); }
+#overlayWindow table.overlay-debug-table td.debug-level.error { color: var(--error, #f85149); }
+
+/* Debug empty message */
+#overlayWindow .overlay-debug-empty {
+  color: var(--text-low-contrast, #8b949e);
+  font-style: italic;
+  padding: 10px;
+  text-align: center;
+}
 
 /* RPC error box */
 .hh-error {
