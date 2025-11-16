@@ -8,6 +8,7 @@ import { OverlayBackdrop } from './overlay-backdrop.js';
 import { OverlayWindow } from './overlay-window.js';
 import { OverlayHeader } from './overlay-header.js';
 import { OverlayContent } from './overlay-content.js';
+import { OverlayDebugTable, DebugData } from './overlay-debug-table.js';
 
 export interface OverlayState {
   isVisible: boolean;
@@ -304,6 +305,7 @@ export class Overlay {
       const showMessage = (result as any)?._showMessage;
       const autoFade = (result as any)?._autoFade === true;
       const redirectAfterFade = (result as any)?._redirectAfterFade;
+      const debugData = (result as any)?.debug as DebugData | undefined;
       
       if (showMessage) {
         // Use custom message from onSubmit handler
@@ -313,9 +315,15 @@ export class Overlay {
         this.setState({ isLoading: false, success: 'Success!' });
       }
       
+      // Show debug table if present
+      if (debugData) {
+        this.showDebugTable(debugData);
+      }
+      
       // Auto-close after success: wait 1-2 seconds, then slow fade out
-      // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error
-      if (autoFade && (this.state.success && !this.state.error)) {
+      // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error AND no debug data
+      // Debug data disables auto-fade so user can see warnings/debug info
+      if (autoFade && (this.state.success && !this.state.error && !debugData)) {
         setTimeout(() => {
           this.closeWithFade(1500); // 1.5 second slow fade
           // If redirect is requested, do it after fade completes
@@ -327,6 +335,12 @@ export class Overlay {
         }, 1500); // 1.5 second delay before fade starts
       }
     } catch (error) {
+      // Check for debug data in error (from RPCError or result)
+      let debugData: DebugData | undefined;
+      if (error && typeof error === 'object' && 'debug' in error) {
+        debugData = (error as any).debug;
+      }
+      
       // Check if it's an RPCError with multiple errors
       if (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors) && (error as any).errors.length > 0) {
         const rpcError = error as any;
@@ -346,9 +360,19 @@ export class Overlay {
           error: null,
           success: null
         });
+        
+        // Show debug table if present
+        if (debugData) {
+          this.showDebugTable(debugData);
+        }
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.setState({ isLoading: false, error: errorMessage, messages: [] });
+        
+        // Show debug table if present
+        if (debugData) {
+          this.showDebugTable(debugData);
+        }
       }
       if (this.props.onError) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -366,6 +390,34 @@ export class Overlay {
     }
     // Fast fade for manual close
     this.closeWithFade(200);
+  }
+
+  /**
+   * Show debug table in the overlay content area.
+   */
+  showDebugTable(debugData: DebugData): void {
+    if (!this.windowEl) {
+      return;
+    }
+
+    // Remove existing debug table if present
+    const existingDebug = this.windowEl.querySelector('.overlay-debug-table-container');
+    if (existingDebug) {
+      existingDebug.remove();
+    }
+
+    // Create and render debug table
+    const debugTable = new OverlayDebugTable();
+    const debugElement = debugTable.render(debugData);
+
+    // Append to content area (after all other content)
+    const contentEl = this.windowEl.querySelector('.overlayContent');
+    if (contentEl) {
+      contentEl.appendChild(debugElement);
+    } else {
+      // Fallback: append to window
+      this.windowEl.appendChild(debugElement);
+    }
   }
 
   /**

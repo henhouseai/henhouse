@@ -9,6 +9,7 @@ This document covers the comprehensive debug system that provides sophisticated 
 3. [Debug Table](#3-debug-table)
 4. [Debug Trace](#4-debug-trace)
 5. [Debug Filters](#5-debug-filters)
+6. [Debug MCP](#6-debug-mcp)
 
 ## Agent Quick Reference
 
@@ -16,8 +17,9 @@ This document covers the comprehensive debug system that provides sophisticated 
 - **Filter Control**: Use `-white`, `-gray`, `-black` flags for precise output control
 - **Output Limits**: Use `-debug-limit` to control message volume
 - **Error Rendering**: Error system provides structured error display with field configurations
-- **Debug Modules**: Debug Safe (base), Debug Table (tabular), Debug Trace (call stack analysis)
+- **Debug Modules**: Debug Safe (base), Debug Table (tabular), Debug Trace (call stack analysis), Debug MCP (JSON output)
 - **Filtering System**: Three-tier filtering (whitelist/graylist/blacklist) with combination counting
+- **MCP Debug**: All debug flags work in MCP requests; debug output returned as JSON in response content
 
 ## Agent Training Notes
 
@@ -401,6 +403,153 @@ The debug filters enable developers to see exactly the debug information they ne
 
 ---
 
+## 6. Debug MCP
+
+**File**: `hh/gateway/debug/debug_mcp.py`
+
+The MCP-specific debug rendering system that outputs debug information as structured JSON for inclusion in MCP JSON-RPC responses.
+
+Debug MCP extends Debug Safe to provide JSON-formatted debug output specifically designed for MCP (Model Context Protocol) responses. It uses shortened keys and normalized timestamps to minimize response size while maintaining full debug information. The debug output is automatically included in MCP responses as a separate content item when debug flags are present in the request.
+
+### DebugMCP Class
+
+#### owned by:
+- global scope : *Global debug MCP instance*
+
+#### owns:
+- filtered_data : *Processed debug entries*
+- color mappings : *Module, filename, function color assignments (inherited)*
+
+#### data managed:
+- filtered_data (source of truth) : *Processed and filtered debug entries*
+- JSON output structure (source of truth) : *Structured debug entries with shortened keys*
+
+#### calls:
+- **render()** : *Main rendering method - returns JSON dict structure*
+- **get_arg_overrides()** : *Gets filter settings from shared store*
+- **is_whitelisted(), is_graylisted(), is_blacklisted()** : *Filter checking methods*
+- **should_show_message()** : *Limit checking per function combination*
+
+#### called by:
+- gateway (debug output for MCP) : *Gateway gets debug output for MCP responses*
+- response_mcp (response formatting) : *MCP response handler includes debug output*
+
+#### retrieves from:
+- shared debug store : *Gets captured debug data*
+- debug_filters : *Gets filtering functionality*
+- debug_safe : *Gets base debug functionality*
+
+#### provides to:
+- response_mcp (JSON debug output) : *Provides structured JSON debug data*
+
+### MCP Debug Output Format
+
+Debug MCP outputs a compact JSON structure with shortened keys:
+
+```json
+{
+  "entries": [
+    {
+      "L": "log",           // level (trace_in, trace_out, log, debug, warn)
+      "F": "/hh/gateway/",  // folder (module path)
+      "I": "gateway.py",    // file (filename)
+      "U": "dispatch",       // function (function name)
+      "M": "Message text",   // message (debug message)
+      "T": 0.123             // timestamp (delta in seconds, millisecond precision)
+    }
+  ]
+}
+```
+
+**Key Features**:
+- **Shortened Keys**: Single-character keys (L, F, I, U, M, T) to minimize JSON size
+- **Normalized Timestamps**: First entry is 0.0, subsequent entries are deltas in seconds with millisecond precision
+- **Structured Data**: All debug information preserved in machine-readable format
+- **Filtering Support**: All standard debug filters (whitelist, graylist, blacklist, debug-limit) work with MCP requests
+
+### MCP Debug Integration
+
+When making MCP requests, agents can include any debug flags in the request arguments:
+
+**Available Debug Flags for MCP Requests**:
+- `debug=1` : Enable debug level messages (level 4)
+- `log=1` : Enable log level messages (level 3)
+- `trace=1` : Enable trace level messages (levels 1-2)
+- `debug-limit=N` : Limit messages per function combination (default: unlimited)
+- `gray="filename.py"` : Filter by filename (comma-separated list supported)
+- `white="*pattern*"` : Filter by folder/module pattern (comma-separated list supported)
+- `black="function_name"` : Exclude functions by name (comma-separated list supported)
+
+**Example MCP Request with Debug Flags**:
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "get_page",
+    "arguments": {
+      "id": 1,
+      "debug": 1,
+      "log": 1,
+      "debug-limit": 3,
+      "gray": "response.py,gateway.py"
+    }
+  }
+}
+```
+
+**Response Structure**:
+The debug output is included in the MCP response as a separate content item:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "<main response data as JSON string>"
+      },
+      {
+        "type": "text",
+        "text": "{\"entries\":[{\"L\":\"log\",\"F\":\"/hh/gateway/\",\"I\":\"gateway.py\",\"U\":\"dispatch\",\"M\":\"Message\",\"T\":0.0}]}"
+      }
+    ]
+  }
+}
+```
+
+### Global Module
+
+#### owned by:
+- global scope : *Module-level singleton*
+
+#### owns:
+- _debug : *Global debug MCP instance*
+
+#### data managed:
+- none : *Pure singleton pattern*
+
+#### calls:
+- **get_debug()** : *Gets global debug MCP instance*
+
+#### called by:
+- debug_registry (debug instance access) : *Gets debug MCP instance*
+- gateway (MCP debug configuration) : *Gets debug MCP for MCP backend*
+
+#### retrieves from:
+- none : *Static singleton*
+
+#### provides to:
+- debug_registry : *Provides debug MCP instance*
+- gateway : *Provides debug MCP for MCP backend*
+
+#### cross-references:
+- **[Debug Safe](#2-debug-safe)**: *Extends debug safe for base functionality*
+- **[Response MCP](../mcp.md#mcp-response-handler)**: *Debug output included in MCP responses*
+
+---
+
 ## Debug System Use Guide
 
 This section provides comprehensive guidance for using the Henhouse debug system effectively, with practical examples and best practices for system investigation and troubleshooting.
@@ -409,6 +558,7 @@ This section provides comprehensive guidance for using the Henhouse debug system
 
 The debug system supports multiple activation levels that can be combined:
 
+**CLI Usage**:
 ```bash
 # Basic log messages only
 python3 hh.py command-name -log
@@ -418,6 +568,24 @@ python3 hh.py command-name -log -debug
 
 # Log + debug + trace messages (comprehensive)
 python3 hh.py command-name -log -debug -trace
+```
+
+**MCP Request Usage**:
+All debug flags can be included in MCP request arguments:
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "get_page",
+    "arguments": {
+      "id": 1,
+      "log": 1,
+      "debug": 1,
+      "trace": 1
+    }
+  }
+}
 ```
 
 ### Filter System Control
@@ -441,6 +609,7 @@ python3 hh.py command-list -log -white "*gateway*,*render*"
 #### Graylist Filter (`-gray`)
 Controls which **files** are included using pattern matching:
 
+**CLI Usage**:
 ```bash
 # Show only cache.py messages
 python3 hh.py command-list -log -gray "cache.py"
@@ -450,6 +619,20 @@ python3 hh.py command-list -log -gray "cache.py,request.py"
 
 # Show files with pattern matching
 python3 hh.py command-list -log -gray "*debug*"
+```
+
+**MCP Request Usage**:
+```json
+{
+  "params": {
+    "name": "get_page",
+    "arguments": {
+      "id": 1,
+      "log": 1,
+      "gray": "response.py,gateway.py"
+    }
+  }
+}
 ```
 
 #### Blacklist Filter (`-black`)
@@ -467,6 +650,7 @@ python3 hh.py command-list -log -black "*_init*,*_setup*"
 
 Use `-debug-limit` to control message volume per function combination:
 
+**CLI Usage**:
 ```bash
 # Start safe with minimal output
 python3 hh.py command-list -log -debug-limit 1
@@ -479,6 +663,20 @@ python3 hh.py command-list -log -debug-limit 50
 
 # Unlimited output (use with caution)
 python3 hh.py command-list -log -debug-limit 0
+```
+
+**MCP Request Usage**:
+```json
+{
+  "params": {
+    "name": "get_page",
+    "arguments": {
+      "id": 1,
+      "log": 1,
+      "debug-limit": 3
+    }
+  }
+}
 ```
 
 ### Strategic Debugging Workflow
@@ -650,5 +848,53 @@ python3 hh.py command-name -log -debug-limit 10 -white "*target_module*"
 # Use minimal debug for performance testing
 python3 hh.py command-name -log -debug-limit 1 -gray "specific_file.py"
 ```
+
+### MCP Debug Usage
+
+When making MCP requests, agents can include debug flags directly in the request arguments. The debug output will be returned as a separate content item in the JSON-RPC response.
+
+**Example: Focused Debug Output**:
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "get_page",
+    "arguments": {
+      "id": 1,
+      "debug": 1,
+      "log": 1,
+      "debug-limit": 3,
+      "gray": "response.py,gateway.py"
+    }
+  }
+}
+```
+
+**Response includes debug output**:
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "<main response data>"
+      },
+      {
+        "type": "text",
+        "text": "{\"entries\":[{\"L\":\"log\",\"F\":\"/hh/gateway/\",\"I\":\"gateway.py\",\"U\":\"dispatch\",\"M\":\"Message\",\"T\":0.0}]}"
+      }
+    ]
+  }
+}
+```
+
+**Best Practices for MCP Debug**:
+1. Always start with `debug-limit=1` to avoid overwhelming responses
+2. Use `gray` filter to focus on specific files of interest
+3. Combine multiple filters for precise control
+4. Parse the debug content item separately from main response data
+5. Use normalized timestamps (T field) to understand execution timing
 
 This debug system provides powerful capabilities for understanding and troubleshooting the Henhouse system while maintaining control over output volume and focus.

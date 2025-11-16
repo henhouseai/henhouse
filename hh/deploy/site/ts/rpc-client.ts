@@ -4,6 +4,7 @@
 
 import { PageData, GetPageResponse } from './page-data.js';
 import { PageDataFactory } from './page-data-factory.js';
+import { DebugData } from './overlay-debug-table.js';
 
 export interface RPCRequest {
   jsonrpc: string;
@@ -25,6 +26,10 @@ export interface RPCResponse {
         content: string;
         timestamp?: string;
       }>;
+      content?: Array<{
+        type: string;
+        text: string;
+      }>;
     };
   };
 }
@@ -45,33 +50,56 @@ export class RPCError extends Error {
   }
 }
 
+export interface RPCCallResult {
+  data: any;
+  debug?: DebugData;
+}
+
 export class RPCClient {
   /**
    * Extract and parse MCP response data from the envelope.
    * MCP responses have structure: { content: [{ type: "text", text: "<JSON_STRING>" }] }
+   * Now parses ALL content items to extract both main data and debug data.
    */
-  extractMCPData(result: any): any {
-    if (result && result.content && Array.isArray(result.content) && result.content.length > 0) {
-      const contentItem = result.content[0];
-      if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
-        try {
-          return JSON.parse(contentItem.text);
-        } catch (e) {
-          throw new Error(`Failed to parse MCP response JSON: ${e}`);
+  extractMCPData(result: any): RPCCallResult {
+    const response: RPCCallResult = { data: null };
+    
+    if (result && result.content && Array.isArray(result.content)) {
+      // Parse all content items
+      for (const contentItem of result.content) {
+        if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
+          try {
+            const parsed = JSON.parse(contentItem.text);
+            // Check if this is debug data (has "entries" array)
+            if (parsed && Array.isArray(parsed.entries)) {
+              response.debug = parsed as DebugData;
+            } else if (response.data === null) {
+              // First non-debug content item is the main data
+              response.data = parsed;
+            }
+          } catch (e) {
+            // If parsing fails, skip this content item
+            console.warn('Failed to parse MCP content item:', e);
+          }
         }
       }
     }
-    // Fallback: return result as-is (for non-MCP responses or already-parsed data)
-    return result;
+    
+    // Fallback: if no data extracted, return result as-is
+    if (response.data === null) {
+      response.data = result;
+    }
+    
+    return response;
   }
 
   /**
    * Make an MCP JSON-RPC call to the backend.
+   * @param method - The tool name to call
+   * @param params - Parameters to pass (can include debug options)
+   * @returns Object with data and optional debug info
    */
-  async call(method: string, params: any = {}): Promise<any> {
-    // Always include debug=1 to see debug output in responses
-    const argumentsWithDebug = { ...params, debug: 1 };
-    
+  async call(method: string, params: any = {}): Promise<RPCCallResult> {
     // Use tools/call structure: method is the tool name, params go in arguments
     const payload: RPCRequest = {
       jsonrpc: '2.0',
@@ -79,7 +107,7 @@ export class RPCClient {
       method: 'tools/call',
       params: {
         name: method,
-        arguments: argumentsWithDebug
+        arguments: params
       }
     };
 
@@ -112,19 +140,44 @@ export class RPCClient {
           }
         }
         
+        // Also check for debug data in error.data.content
+        let debugData: DebugData | undefined;
+        if (data.error.data?.content && Array.isArray(data.error.data.content)) {
+          for (const contentItem of data.error.data.content) {
+            if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
+              try {
+                const parsed = JSON.parse(contentItem.text);
+                if (parsed && Array.isArray(parsed.entries)) {
+                  debugData = parsed as DebugData;
+                  break;
+                }
+              } catch (e) {
+                // Skip if not valid JSON
+              }
+            }
+          }
+        }
+        
         // If we have multiple errors, use RPCError to format them nicely
         if (allErrors.length > 1) {
-          throw new RPCError(`RPC error: ${data.error.message}`, data.error.code, allErrors);
+          const error = new RPCError(`RPC error: ${data.error.message}`, data.error.code, allErrors);
+          (error as any).debug = debugData;
+          throw error;
         } else if (allErrors.length === 1) {
           // Single error - use the detailed error content if available
-          throw new RPCError(`RPC error: ${allErrors[0].type}: ${allErrors[0].content}`, data.error.code, allErrors);
+          const error = new RPCError(`RPC error: ${allErrors[0].type}: ${allErrors[0].content}`, data.error.code, allErrors);
+          (error as any).debug = debugData;
+          throw error;
         } else {
           // Fallback to message only
-          throw new RPCError(`RPC error: ${data.error.message}`, data.error.code);
+          const error = new RPCError(`RPC error: ${data.error.message}`, data.error.code);
+          (error as any).debug = debugData;
+          throw error;
         }
       }
 
-      return data.result;
+      // Extract data and debug from result
+      return this.extractMCPData(data.result);
     } catch (error) {
       console.error(`RPC call failed for ${method}:`, error);
       throw error;
@@ -135,18 +188,21 @@ export class RPCClient {
    * Get page data and return as PageData instance.
    * This is the recommended way to fetch page data.
    */
-  async getPage(pageId: number | string): Promise<PageData> {
+  async getPage(pageId: number | string, debugOptions?: any): Promise<PageData> {
     // Convert to number for schema validation (schema expects integer)
     const id = typeof pageId === 'string' ? parseInt(pageId, 10) : pageId;
-    const result = await this.call('get_page', { id });
-    const parsedData = this.extractMCPData(result) as GetPageResponse;
+    const params: any = { id };
+    if (debugOptions) {
+      Object.assign(params, debugOptions);
+    }
+    const result = await this.call('get_page', params);
     
-    if (!parsedData || !parsedData.page) {
+    if (!result.data || !result.data.page) {
       throw new Error('Invalid page data response: missing page object');
     }
     
     // Use factory to create appropriate derived class
-    return PageDataFactory.create(parsedData);
+    return PageDataFactory.create(result.data as GetPageResponse);
   }
 
   /**
