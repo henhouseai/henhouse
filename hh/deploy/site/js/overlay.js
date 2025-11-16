@@ -79,12 +79,12 @@ export class Overlay {
         const headerEl = this.header.render();
         windowEl.appendChild(headerEl);
         this.headerEl = headerEl;
-        const contentEl = this.content.render();
-        windowEl.appendChild(contentEl);
-        // Automatically add debug options component to every overlay
+        // Automatically add debug options component to header (next to submit/cancel buttons)
         this.debugOptions = new OverlayDebugOptions();
         const debugEl = this.debugOptions.render();
-        contentEl.appendChild(debugEl);
+        headerEl.appendChild(debugEl);
+        const contentEl = this.content.render();
+        windowEl.appendChild(contentEl);
         // Show overlay
         this.setState({ isVisible: true });
         // Focus management
