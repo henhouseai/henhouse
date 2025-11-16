@@ -20,21 +20,23 @@ export class OverlayDebugOptions {
         debugLabel.appendChild(this.debugCheckbox);
         debugLabel.appendChild(document.createTextNode(' Debug'));
         this.container.appendChild(debugLabel);
-        // Log checkbox (enabled when debug is checked)
+        // Log checkbox (only appears when debug is checked)
         const logLabel = document.createElement('label');
         logLabel.className = 'overlay-label-inline';
+        logLabel.style.display = 'none';
         this.logCheckbox = document.createElement('input');
         this.logCheckbox.type = 'checkbox';
         this.logCheckbox.id = 'overlay-log-checkbox';
-        this.logCheckbox.disabled = true;
         this.logCheckbox.addEventListener('change', () => this.updateVisibility());
         logLabel.appendChild(this.logCheckbox);
         logLabel.appendChild(document.createTextNode(' Log'));
         this.container.appendChild(logLabel);
-        // Filter options container (hidden by default, will be shown below header when debug is checked)
-        const filterContainer = document.createElement('div');
-        filterContainer.className = 'overlay-debug-filters';
-        filterContainer.style.display = 'none';
+        // Store reference to log label for visibility updates
+        this.container._logLabel = logLabel;
+        // Filter options container (will be placed in content area)
+        this.filterContainer = document.createElement('div');
+        this.filterContainer.className = 'overlayContent';
+        this.filterContainer.style.display = 'none';
         // White list input
         const whiteGroup = document.createElement('div');
         whiteGroup.className = 'overlay-form-group';
@@ -46,7 +48,7 @@ export class OverlayDebugOptions {
         this.whiteInput.placeholder = 'e.g., *gateway*';
         whiteGroup.appendChild(whiteLabel);
         whiteGroup.appendChild(this.whiteInput);
-        filterContainer.appendChild(whiteGroup);
+        this.filterContainer.appendChild(whiteGroup);
         // Gray list input
         const grayGroup = document.createElement('div');
         grayGroup.className = 'overlay-form-group';
@@ -58,7 +60,7 @@ export class OverlayDebugOptions {
         this.grayInput.placeholder = 'e.g., response.py,gateway.py';
         grayGroup.appendChild(grayLabel);
         grayGroup.appendChild(this.grayInput);
-        filterContainer.appendChild(grayGroup);
+        this.filterContainer.appendChild(grayGroup);
         // Black list input
         const blackGroup = document.createElement('div');
         blackGroup.className = 'overlay-form-group';
@@ -70,7 +72,7 @@ export class OverlayDebugOptions {
         this.blackInput.placeholder = 'e.g., dispatch,get_arg';
         blackGroup.appendChild(blackLabel);
         blackGroup.appendChild(this.blackInput);
-        filterContainer.appendChild(blackGroup);
+        this.filterContainer.appendChild(blackGroup);
         // Debug limit input
         const limitGroup = document.createElement('div');
         limitGroup.className = 'overlay-form-group';
@@ -83,29 +85,32 @@ export class OverlayDebugOptions {
         this.debugLimitInput.min = '0';
         limitGroup.appendChild(limitLabel);
         limitGroup.appendChild(this.debugLimitInput);
-        filterContainer.appendChild(limitGroup);
-        this.container.appendChild(filterContainer);
-        // Store reference to filter container for visibility updates
-        this.container._filterContainer = filterContainer;
+        this.filterContainer.appendChild(limitGroup);
     }
     /**
      * Update visibility of options based on checkbox states.
      */
     updateVisibility() {
-        const filterContainer = this.container._filterContainer;
+        const logLabel = this.container._logLabel;
         if (this.debugCheckbox.checked) {
-            // Enable log checkbox
-            this.logCheckbox.disabled = false;
-            // Show filter options as dropdown
-            filterContainer.style.display = 'block';
+            // Show log checkbox
+            logLabel.style.display = 'inline-flex';
+            // Show filter options in content area
+            this.filterContainer.style.display = 'block';
         }
         else {
-            // Disable log checkbox and uncheck it
-            this.logCheckbox.disabled = true;
+            // Hide log checkbox and uncheck it
+            logLabel.style.display = 'none';
             this.logCheckbox.checked = false;
             // Hide filter options
-            filterContainer.style.display = 'none';
+            this.filterContainer.style.display = 'none';
         }
+    }
+    /**
+     * Get the filter container element (for placement in content area).
+     */
+    getFilterContainer() {
+        return this.filterContainer;
     }
     /**
      * Get current debug options values.

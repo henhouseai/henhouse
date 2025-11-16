@@ -117,6 +117,10 @@ export class Overlay {
     const contentEl = this.content.render();
     windowEl.appendChild(contentEl);
 
+    // Add filter container to content area (hidden by default, shown when debug is checked)
+    const filterContainer = this.debugOptions.getFilterContainer();
+    contentEl.appendChild(filterContainer);
+
     // Show overlay
     this.setState({ isVisible: true });
 
