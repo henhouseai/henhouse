@@ -110,8 +110,8 @@ class ResponseMCP(Response):
             "result": response_data
         }
         
-        # Include debug output if available
-        if self.debug_output:
+        # Include debug output if available (even if empty entries array)
+        if self.debug_output is not None:
             jsonrpc_response["result"]["debug"] = self.debug_output
         
         if self.request_id is not None:

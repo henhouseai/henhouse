@@ -37,8 +37,15 @@ class ResponseHTTP(Response):
         
         # Add debug output if present
         if self.debug_output:
-            if isinstance(self.debug_output, dict) and "text" in self.debug_output:
-                body_parts.append(self.debug_output["text"])
+            if isinstance(self.debug_output, dict):
+                if "text" in self.debug_output:
+                    # HTTP/Parser debug format (text)
+                    body_parts.append(self.debug_output["text"])
+                elif "entries" in self.debug_output:
+                    # MCP debug format (JSON entries) - convert to text for display
+                    import json
+                    debug_text = json.dumps(self.debug_output, indent=2)
+                    body_parts.append(f"<pre>{debug_text}</pre>")
             elif isinstance(self.debug_output, str):
                 body_parts.append(self.debug_output)
         

@@ -141,9 +141,14 @@ class Gateway:
             report_error("registry", "No backend handler found.")
         
     def _configure_debug_module(self):
-        # MCP backend always uses debug_safe (even with -trace flag)
-        if self.backend == "mcp":
-            self.debug_system = "debug_safe"
+        # Check for mcp flag to enable MCP debugger (for testing)
+        if self.request.get_arg("mcp"):
+            self.debug_system = "mcp"
+            set_debug_backend(self.debug_system)
+            self.get_debug_func = resolve_get_debug_for(self.debug_system)
+        # MCP backend always uses debug_mcp (even with -trace flag)
+        elif self.backend == "mcp":
+            self.debug_system = "mcp"
             set_debug_backend(self.debug_system)
             self.get_debug_func = resolve_get_debug_for(self.debug_system)
             # Still enable trace flags if -trace is passed (for trace_in/trace_out capture)
@@ -155,7 +160,7 @@ class Gateway:
             self.debug_system = "trace"
         else:
             self.debug_system = "table"
-        if self.backend != "mcp":
+        if self.backend != "mcp" and not self.request.get_arg("mcp"):
             set_debug_backend(self.debug_system)
             self.get_debug_func = resolve_get_debug_for(self.debug_system)
             if self.get_debug_func is None and self.debug_system != "none":
@@ -329,15 +334,15 @@ class Gateway:
             debug_obj = self.get_debug_func()
             if hasattr(debug_obj, 'render'):
                 debug_output = debug_obj.render()
-                if debug_output:
-                    # Set debug_output on response object instead of adding to output_buffer
-                    # For MCP, debug_safe will output JSON structure
-                    # For HTTP/Parser, it will output text (which can be stored as-is)
-                    if isinstance(debug_output, dict):
-                        self.response.debug_output = debug_output
-                    else:
-                        # For text output (HTTP/Parser), store as dict with "text" key
-                        self.response.debug_output = {"text": debug_output}
+                # Set debug_output on response object (even if empty for MCP)
+                # For MCP, debug_safe will output JSON structure (dict)
+                # For HTTP/Parser, it will output text (string)
+                if isinstance(debug_output, dict):
+                    # MCP backend - always set, even if entries array is empty
+                    self.response.debug_output = debug_output
+                elif debug_output:
+                    # For text output (HTTP/Parser), store as dict with "text" key
+                    self.response.debug_output = {"text": debug_output}
         except Exception as e:
             warn(f"Error flushing debug output: {e}")
     
