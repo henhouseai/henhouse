@@ -3,23 +3,23 @@
 
 /* Map abstract color palette to overlay-specific properties */
 :root {
-  /* Window and container - use dark theme */
-  --overlay-window: var(--bg-secondary, #161b22);
-  --overlay-window-border: var(--border-primary, #d29922);
-  --overlay-header-bg: var(--bg-secondary, #161b22);
-  --overlay-header-text: var(--text-medium-contrast, #d4d4d4);
-  --overlay-content-border: var(--border-subtle, #3a2a1a);
+  /* Window and container */
+  --overlay-window: var(--primary, #fff);
+  --overlay-window-border: var(--border-primary, #000);
+  --overlay-header-bg: var(--primary, #fff);
+  --overlay-header-text: var(--text-on-primary, #000);
+  --overlay-content-border: var(--border-primary, #000);
   
-  /* Content area - use dark theme */
-  --overlay-content: var(--bg-primary, #1a0d0d);
-  --overlay-content-text: var(--text-medium-contrast, #d4d4d4);
+  /* Content area */
+  --overlay-content: var(--bg-content, #fff);
+  --overlay-content-text: var(--text-on-light, #000);
   
-  /* Links and buttons - use dark theme */
-  --overlay-header-link: var(--link, #ffa657);
-  --overlay-header-link-text: var(--link, #ffa657);
-  --overlay-header-link-border: var(--border-primary, #d29922);
-  --overlay-header-link-hover: var(--link-hover, #ffb366);
-  --overlay-header-link-active: var(--link-active, #f0883e);
+  /* Links and buttons */
+  --overlay-header-link: var(--link, #ccc);
+  --overlay-header-link-text: var(--text-on-light, #000);
+  --overlay-header-link-border: var(--primary, #000);
+  --overlay-header-link-hover: var(--link-hover, #ddd);
+  --overlay-header-link-active: var(--link-active, #bbb);
   
   /* Submit button (success semantic) */
   --overlay-header-submit-button: var(--success, #4caf50);
@@ -198,10 +198,10 @@
   width: auto;
   padding: 4px 8px;
   margin: 3px;
-  background-color: var(--overlay-header-bg, var(--overlay-window, #161b22));
-  color: var(--overlay-header-text, #d4d4d4);
+  background-color: var(--overlay-header-bg, var(--overlay-window, #fff));
+  color: var(--overlay-header-text, #000);
   font-weight: bold;
-  border-bottom: 1px solid var(--overlay-content-border, #3a2a1a);
+  border-bottom: 1px solid var(--overlay-content-border, #000);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -209,7 +209,7 @@
 }
 
 #overlayWindow div.overlayContentHeader:hover {
-  background-color: var(--bg-tertiary, #21262d);
+  background-color: var(--overlay-header-link-hover, #f0f0f0);
 }
 
 #overlayWindow div.overlayContentHeader button.overlay-content-toggle {
@@ -218,7 +218,7 @@
   padding: 2px 6px;
   cursor: pointer;
   font-size: 12px;
-  color: var(--overlay-header-text, #d4d4d4);
+  color: var(--overlay-header-text, #000);
   flex-shrink: 0;
 }
 
