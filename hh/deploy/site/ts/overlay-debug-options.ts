@@ -26,9 +26,6 @@ export class OverlayDebugOptions {
     this.container.className = 'overlay-debug-options';
     
     // Debug checkbox (enables everything)
-    const debugGroup = document.createElement('div');
-    debugGroup.className = 'overlay-debug-group';
-    
     const debugLabel = document.createElement('label');
     debugLabel.className = 'overlay-label-inline';
     this.debugCheckbox = document.createElement('input');
@@ -38,7 +35,7 @@ export class OverlayDebugOptions {
     
     debugLabel.appendChild(this.debugCheckbox);
     debugLabel.appendChild(document.createTextNode(' Debug'));
-    debugGroup.appendChild(debugLabel);
+    this.container.appendChild(debugLabel);
     
     // Log checkbox (enabled when debug is checked)
     const logLabel = document.createElement('label');
@@ -51,11 +48,9 @@ export class OverlayDebugOptions {
     
     logLabel.appendChild(this.logCheckbox);
     logLabel.appendChild(document.createTextNode(' Log'));
-    debugGroup.appendChild(logLabel);
+    this.container.appendChild(logLabel);
     
-    this.container.appendChild(debugGroup);
-    
-    // Filter options container (hidden by default)
+    // Filter options container (hidden by default, will be shown below header when debug is checked)
     const filterContainer = document.createElement('div');
     filterContainer.className = 'overlay-debug-filters';
     filterContainer.style.display = 'none';
@@ -65,7 +60,6 @@ export class OverlayDebugOptions {
     whiteGroup.className = 'overlay-form-group';
     const whiteLabel = document.createElement('label');
     whiteLabel.textContent = 'Whitelist:';
-    whiteLabel.className = 'overlay-label';
     this.whiteInput = document.createElement('input');
     this.whiteInput.type = 'text';
     this.whiteInput.className = 'overlay-form-input';
@@ -79,7 +73,6 @@ export class OverlayDebugOptions {
     grayGroup.className = 'overlay-form-group';
     const grayLabel = document.createElement('label');
     grayLabel.textContent = 'Graylist:';
-    grayLabel.className = 'overlay-label';
     this.grayInput = document.createElement('input');
     this.grayInput.type = 'text';
     this.grayInput.className = 'overlay-form-input';
@@ -93,7 +86,6 @@ export class OverlayDebugOptions {
     blackGroup.className = 'overlay-form-group';
     const blackLabel = document.createElement('label');
     blackLabel.textContent = 'Blacklist:';
-    blackLabel.className = 'overlay-label';
     this.blackInput = document.createElement('input');
     this.blackInput.type = 'text';
     this.blackInput.className = 'overlay-form-input';
@@ -107,7 +99,6 @@ export class OverlayDebugOptions {
     limitGroup.className = 'overlay-form-group';
     const limitLabel = document.createElement('label');
     limitLabel.textContent = 'Debug Limit:';
-    limitLabel.className = 'overlay-label';
     this.debugLimitInput = document.createElement('input');
     this.debugLimitInput.type = 'number';
     this.debugLimitInput.className = 'overlay-form-input';
@@ -132,7 +123,7 @@ export class OverlayDebugOptions {
     if (this.debugCheckbox.checked) {
       // Enable log checkbox
       this.logCheckbox.disabled = false;
-      // Show filter options
+      // Show filter options as dropdown
       filterContainer.style.display = 'block';
     } else {
       // Disable log checkbox and uncheck it

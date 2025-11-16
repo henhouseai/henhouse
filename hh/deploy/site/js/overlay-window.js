@@ -20,24 +20,7 @@ export class OverlayWindow {
         if (this.props.className) {
             window.className += ` ${this.props.className}`;
         }
-        // Base styling
-        window.style.cssText = `
-      position: fixed;
-      top: 10%;
-      left: 5%;
-      width: 90%;
-      max-width: 90%;
-      max-height: 90%;
-      margin: 0;
-      padding: 4px;
-      background-color: var(--overlay-window, #fff);
-      border: 2px solid var(--overlay-window-border, #000);
-      border-radius: 10px;
-      z-index: 101;
-      display: flex;
-      flex-direction: column;
-      overflow: auto;
-    `;
+        // Base styles are in CSS, only set dynamic properties
         // Apply custom width/height
         if (this.props.width !== 'auto' && this.props.width !== undefined) {
             window.style.width = typeof this.props.width === 'number'

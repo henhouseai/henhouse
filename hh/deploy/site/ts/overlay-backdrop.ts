@@ -25,17 +25,8 @@ export class OverlayBackdrop {
     backdrop.id = 'overlay';
     backdrop.className = 'overlay-backdrop';
 
-    // Styling
-    backdrop.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: #000;
-      opacity: ${this.props.opacity || 0.7};
-      z-index: 100;
-    `;
+    // Only set dynamic opacity (base styles are in CSS)
+    backdrop.style.opacity = String(this.props.opacity || 0.7);
 
     // Click handler
     if (this.props.onClick) {

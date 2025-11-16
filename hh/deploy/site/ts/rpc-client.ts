@@ -240,22 +240,7 @@ export class RPCClient {
   showError(label: string, error: any): void {
     const errorBox = document.createElement('div');
     errorBox.className = 'hh-error';
-    errorBox.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #2a1a1a;
-      color: #ff6b6b;
-      padding: 15px 20px;
-      border: 2px solid #ff6b6b;
-      border-radius: 4px;
-      z-index: 10000;
-      font-family: monospace;
-      font-size: 13px;
-      max-width: 500px;
-      white-space: pre-wrap;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    `;
+    // Styles are in CSS
     
     const errorMessage = error instanceof Error ? error.message : String(error);
     errorBox.textContent = `[${label}] Error:\n${errorMessage}`;
