@@ -111,19 +111,16 @@ export class UploadHandler {
                 const uploadPromises = this.uploadStatuses.map((status) => this.uploadFile(status, pageId));
                 await Promise.allSettled(uploadPromises);
                 // Process files sequentially in order
-                let hasErrors = false;
                 let nextIndexToProcess = 0;
                 const processNext = async () => {
                     while (nextIndexToProcess < this.uploadStatuses.length) {
                         const status = this.uploadStatuses[nextIndexToProcess];
                         if (status.error) {
-                            hasErrors = true;
                             nextIndexToProcess++;
                             continue;
                         }
                         if (status.uploaded && status.uploadResult && !status.processed && !status.processing) {
                             status.processing = true;
-                            this.updateFileStatus(status, 'Processing...', 'processing');
                             try {
                                 await this.rpc.call('upload_images', {
                                     page_id: pageId,
@@ -131,17 +128,18 @@ export class UploadHandler {
                                     file0_name: status.uploadResult.original_name
                                 });
                                 status.processed = true;
-                                this.updateFileStatus(status, 'Complete', 'success');
+                                // Remove pending div and add success message
+                                this.removePendingDiv(status);
+                                this.addSuccessMessage(`Successfully processed ${status.file.name}`);
                                 nextIndexToProcess++;
                                 await processNext();
                             }
                             catch (error) {
                                 status.processing = false;
                                 status.error = error instanceof Error ? error.message : String(error);
-                                hasErrors = true;
-                                this.updateFileStatus(status, `Error: ${status.error}`, 'error');
-                                // Stop processing on error
-                                return;
+                                // Remove pending div and throw error up to overlay
+                                this.removePendingDiv(status);
+                                throw error;
                             }
                         }
                         else if (!status.uploaded) {
@@ -156,21 +154,16 @@ export class UploadHandler {
                 };
                 await processNext();
                 // Reload page if all succeeded
-                if (!hasErrors) {
-                    try {
-                        const { PageManager } = await import('./page-manager.js');
-                        const pageManager = PageManager.getInstance();
-                        const pageData = await this.rpc.getPage(pageId);
-                        pageManager.setPageData(pageData);
-                        // Return success but disable auto-fade so user can see results and manually close
-                        return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: false };
-                    }
-                    catch (error) {
-                        throw new Error(`Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`);
-                    }
+                try {
+                    const { PageManager } = await import('./page-manager.js');
+                    const pageManager = PageManager.getInstance();
+                    const pageData = await this.rpc.getPage(pageId);
+                    pageManager.setPageData(pageData);
+                    // Return success but disable auto-fade so user can see results and manually close
+                    return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: false };
                 }
-                else {
-                    throw new Error('Some uploads failed. Please check errors below.');
+                catch (error) {
+                    throw new Error(`Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`);
                 }
             },
             onCancel: () => {
@@ -342,6 +335,50 @@ export class UploadHandler {
         // Remove all status classes and add the appropriate one
         statusDiv.className = `upload-status ${type}`;
     }
+    /**
+     * Convert file item to pending processing div (remove X button, progress bar, change class)
+     */
+    convertToPending(status) {
+        const fileDiv = status.div;
+        if (!fileDiv)
+            return;
+        // Get file name before removing everything
+        const fileNameDiv = fileDiv.querySelector('.upload-file-name');
+        const fileName = fileNameDiv ? fileNameDiv.textContent : status.file.name;
+        // Remove all children
+        fileDiv.innerHTML = '';
+        // Change class
+        fileDiv.className = 'pending-file-item';
+        // Add file name
+        const newFileNameDiv = document.createElement('div');
+        newFileNameDiv.className = 'upload-file-name';
+        newFileNameDiv.textContent = fileName;
+        fileDiv.appendChild(newFileNameDiv);
+        // Add pending status
+        const pendingStatusDiv = document.createElement('div');
+        pendingStatusDiv.className = 'pending-status';
+        pendingStatusDiv.textContent = 'Upload done. Pending processing';
+        fileDiv.appendChild(pendingStatusDiv);
+    }
+    /**
+     * Remove pending div
+     */
+    removePendingDiv(status) {
+        if (status.div && status.div.parentNode) {
+            status.div.remove();
+        }
+    }
+    /**
+     * Add success message to overlay messages array
+     */
+    addSuccessMessage(message) {
+        if (!this.overlay)
+            return;
+        const currentMessages = this.overlay['state'].messages || [];
+        this.overlay.setState({
+            messages: [...currentMessages, { type: 'success', text: message }]
+        });
+    }
     async uploadFile(status, pageId) {
         const formData = new FormData();
         formData.append('file', status.file);
@@ -396,7 +433,8 @@ export class UploadHandler {
             }
             status.uploaded = true;
             status.uploadResult = result;
-            this.updateFileStatus(status, 'Uploaded - Pending processing', 'uploaded');
+            // Convert file item to pending processing div
+            this.convertToPending(status);
         }
         catch (error) {
             status.error = error instanceof Error ? error.message : String(error);
