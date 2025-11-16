@@ -7,6 +7,7 @@ import { OverlayManager } from './overlay-manager.js';
 import { OverlayDebugTable, DebugData } from './overlay-debug-table.js';
 
 export interface RPCResponseWithDebug {
+  data?: any;
   debug?: DebugData;
   requestInfo?: {
     method: string;
@@ -25,21 +26,34 @@ export function handleRPCResponseWithDebug(
   method?: string,
   params?: any
 ): void {
-  // Extract debug data and request info
+  // Extract debug data, request info, and response data
   let debugData: DebugData | undefined;
   let requestInfo: { method: string; params: any } | undefined;
+  let responseData: any = undefined;
 
   // Check if it's an RPCCallResult with debug
   if (rpcResult && typeof rpcResult === 'object') {
     if (rpcResult.debug) {
       debugData = rpcResult.debug;
+      responseData = rpcResult.data;
       // Prefer requestInfo from result, fall back to provided method/params
-      requestInfo = rpcResult.requestInfo || (method && params ? { method, params } : undefined);
+      // Always use provided method/params if requestInfo is missing or incomplete
+      if (rpcResult.requestInfo && rpcResult.requestInfo.method && rpcResult.requestInfo.params) {
+        requestInfo = rpcResult.requestInfo;
+      } else if (method && params !== undefined) {
+        requestInfo = { method, params };
+      }
     }
     // Also check if it's an error with debug attached (RPCError)
     else if ('debug' in rpcResult && rpcResult.debug) {
       debugData = rpcResult.debug;
-      requestInfo = rpcResult.requestInfo || (method && params ? { method, params } : undefined);
+      responseData = rpcResult.data;
+      // Prefer requestInfo from error, fall back to provided method/params
+      if (rpcResult.requestInfo && rpcResult.requestInfo.method && rpcResult.requestInfo.params) {
+        requestInfo = rpcResult.requestInfo;
+      } else if (method && params !== undefined) {
+        requestInfo = { method, params };
+      }
     }
   }
 
@@ -49,26 +63,44 @@ export function handleRPCResponseWithDebug(
     const debugTable = new OverlayDebugTable();
     const debugElement = debugTable.render(debugData);
 
-    // Build request info display
+    // Build request info display (Box 1)
     let requestInfoHtml = '';
     if (requestInfo) {
       requestInfoHtml = `
-        <div class="overlay-form-section">
-          <h3 class="overlay-section-title">Request:</h3>
-          <div class="overlay-form-group">
-            <label><strong>Tool:</strong></label>
-            <div>${escapeHtml(requestInfo.method)}</div>
-          </div>
-          <div class="overlay-form-group">
-            <label><strong>Arguments:</strong></label>
-            <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
+        <div class="overlayContent">
+          <div class="overlay-form-section">
+            <h3 class="overlay-section-title">Request:</h3>
+            <div class="overlay-form-group">
+              <label><strong>Tool:</strong></label>
+              <div>${escapeHtml(requestInfo.method)}</div>
+            </div>
+            <div class="overlay-form-group">
+              <label><strong>Arguments:</strong></label>
+              <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
+            </div>
           </div>
         </div>
       `;
     }
 
-    // Combine request info and debug table
-    const contentHtml = requestInfoHtml + debugElement.outerHTML;
+    // Build response data display (Box 2)
+    let responseInfoHtml = '';
+    if (responseData !== undefined) {
+      responseInfoHtml = `
+        <div class="overlayContent">
+          <div class="overlay-form-section">
+            <h3 class="overlay-section-title">Response:</h3>
+            <div class="overlay-form-group">
+              <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Debug table (Box 3) - already wrapped in overlayContent by OverlayDebugTable
+    // Combine all three sections
+    const contentHtml = requestInfoHtml + responseInfoHtml + debugElement.outerHTML;
 
     // Create new overlay window for debug info
     overlayManager.show({
