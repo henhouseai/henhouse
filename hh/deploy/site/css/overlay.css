@@ -192,6 +192,43 @@
   text-align: left;
 }
 
+/* Overlay content header (for collapsible sections) */
+#overlayWindow div.overlayContentHeader {
+  width: auto;
+  padding: 4px 8px;
+  margin: 3px;
+  background-color: var(--overlay-header-bg, var(--overlay-window, #fff));
+  color: var(--overlay-header-text, #000);
+  font-weight: bold;
+  border-bottom: 1px solid var(--overlay-content-border, #000);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#overlayWindow div.overlayContentHeader:hover {
+  background-color: var(--overlay-header-link-hover, #f0f0f0);
+}
+
+#overlayWindow div.overlayContentHeader button.overlay-content-toggle {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--overlay-header-text, #000);
+  flex-shrink: 0;
+}
+
+#overlayWindow div.overlayContentHeader button.overlay-content-toggle:hover {
+  opacity: 0.7;
+}
+
+#overlayWindow div.overlayContentHeader .overlay-content-header-text {
+  flex: 1;
+}
+
 /* Success, warning, and error messages */
 #overlayWindow div.overlaySuccess,
 #overlayWindow div.overlayWarning,

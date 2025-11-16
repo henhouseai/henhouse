@@ -82,7 +82,8 @@ export class Overlay {
     });
 
     this.content = new OverlayContent({
-      children: this.props.content
+      children: this.props.content,
+      headers: (this.props as any).contentHeaders
     });
   }
 

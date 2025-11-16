@@ -49,41 +49,40 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
         const overlayManager = OverlayManager.getInstance();
         const debugTable = new OverlayDebugTable();
         const debugElement = debugTable.render(debugData);
-        // Build array of content sections - OverlayContent will wrap each as sibling overlayContent divs
+        // Build arrays for headers and content sections
+        const headerArray = [];
         const contentArray = [];
         // Box 1: Request info
         if (requestInfo) {
+            headerArray.push('Request');
             contentArray.push(`
-        <div class="overlay-form-section">
-          <h3 class="overlay-section-title">Request:</h3>
-          <div class="overlay-form-group">
-            <label><strong>Tool:</strong></label>
-            <div>${escapeHtml(requestInfo.method)}</div>
-          </div>
-          <div class="overlay-form-group">
-            <label><strong>Arguments:</strong></label>
-            <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
-          </div>
+        <div class="overlay-form-group">
+          <label><strong>Tool:</strong></label>
+          <div>${escapeHtml(requestInfo.method)}</div>
+        </div>
+        <div class="overlay-form-group">
+          <label><strong>Arguments:</strong></label>
+          <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
         </div>
       `);
         }
         // Box 2: Response data
         if (responseData !== undefined) {
+            headerArray.push('Response');
             contentArray.push(`
-        <div class="overlay-form-section">
-          <h3 class="overlay-section-title">Response:</h3>
-          <div class="overlay-form-group">
-            <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
-          </div>
+        <div class="overlay-form-group">
+          <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
         </div>
       `);
         }
-        // Box 3: Debug table
+        // Box 3: Debug table (no header - blank string means no header div)
+        headerArray.push('');
         contentArray.push(debugElement);
-        // Create new overlay window for debug info - pass array so each gets wrapped as sibling
+        // Create new overlay window for debug info - pass arrays with headers
         overlayManager.show({
             header: 'Debug Information',
             content: contentArray,
+            contentHeaders: headerArray,
             closable: true,
             cancelLabel: 'Close',
             showSubmit: false,

@@ -59,7 +59,8 @@ export class Overlay {
             onMiddleButton: this.props.onMiddleButton
         });
         this.content = new OverlayContent({
-            children: this.props.content
+            children: this.props.content,
+            headers: this.props.contentHeaders
         });
     }
     /**
