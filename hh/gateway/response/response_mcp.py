@@ -65,8 +65,11 @@ class ResponseMCP(Response):
                 }
             }
             
-            # Include debug output if available - add as content item with type "text"
-            if self.debug_output:
+            # Include debug output if available and has entries - add as content item with type "text"
+            if (self.debug_output is not None and 
+                isinstance(self.debug_output, dict) and 
+                self.debug_output.get("entries") and 
+                len(self.debug_output.get("entries", [])) > 0):
                 # Add debug as a text content item in error data
                 if "content" not in error_response["error"]["data"]:
                     error_response["error"]["data"]["content"] = []
@@ -97,8 +100,11 @@ class ResponseMCP(Response):
             "result": response_data
         }
         
-        # Include debug output if available - add as content item with type "text"
-        if self.debug_output is not None:
+        # Include debug output if available and has entries - add as content item with type "text"
+        if (self.debug_output is not None and 
+            isinstance(self.debug_output, dict) and 
+            self.debug_output.get("entries") and 
+            len(self.debug_output.get("entries", [])) > 0):
             # Ensure content array exists
             if "content" not in response_data:
                 response_data["content"] = []
