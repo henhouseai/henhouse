@@ -8,6 +8,7 @@ export class UploadHandler {
         this.chooseFilesBtn = null;
         this.uploadBtn = null;
         this.overlay = null;
+        this.placeholderDiv = null;
         this.rpc = rpc;
         this.seedData = seedData;
         this.fileInput = document.createElement('input');
@@ -17,7 +18,6 @@ export class UploadHandler {
         this.fileInput.style.display = 'none';
         this.filesContainer = document.createElement('div');
         this.filesContainer.id = 'upload-files-container';
-        this.filesContainer.style.cssText = 'padding: 20px;';
     }
     /**
      * Handle Upload: Upload images to current page
@@ -30,61 +30,33 @@ export class UploadHandler {
             this.rpc.showError('Upload', new Error('No page ID available'));
             return;
         }
-        // Create custom header with Cancel, Choose Files, and Upload buttons
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'overlayHeader';
-        headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
-        const titleSpan = document.createElement('span');
-        titleSpan.textContent = 'Upload Images';
-        headerDiv.appendChild(titleSpan);
-        const buttonsDiv = document.createElement('div');
-        buttonsDiv.style.cssText = 'display: flex; gap: 10px;';
-        // Cancel button (red)
-        const cancelBtn = document.createElement('a');
-        cancelBtn.className = 'cancelButton';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.href = '#';
-        cancelBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (this.overlay) {
-                overlayManager.close(this.overlay);
-            }
-        });
-        buttonsDiv.appendChild(cancelBtn);
-        // Choose Files button (blue/gray)
-        this.chooseFilesBtn = document.createElement('a');
-        this.chooseFilesBtn.className = 'chooseFilesButton';
-        this.chooseFilesBtn.textContent = 'Choose Files';
-        this.chooseFilesBtn.href = '#';
-        this.chooseFilesBtn.style.cssText = 'background: #2196F3; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;';
-        this.chooseFilesBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.fileInput.click();
-        });
-        buttonsDiv.appendChild(this.chooseFilesBtn);
-        // Upload button (green)
-        this.uploadBtn = document.createElement('a');
-        this.uploadBtn.className = 'submitButton overlay-submit';
-        this.uploadBtn.textContent = 'Upload';
-        this.uploadBtn.href = '#';
-        buttonsDiv.appendChild(this.uploadBtn);
-        headerDiv.appendChild(buttonsDiv);
+        // Create placeholder content
+        this.placeholderDiv = document.createElement('div');
+        this.placeholderDiv.className = 'overlayContent upload-placeholder';
+        this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
         // Handle file selection
         this.fileInput.addEventListener('change', (e) => {
             const files = e.target.files;
             if (!files || files.length === 0)
                 return;
+            // Remove placeholder if it exists
+            if (this.placeholderDiv && this.placeholderDiv.parentNode) {
+                this.placeholderDiv.remove();
+                this.placeholderDiv = null;
+            }
             for (let i = 0; i < files.length; i++) {
                 this.addFile(files[i]);
             }
             // Reset input so same file can be selected again
             this.fileInput.value = '';
         });
-        // Show overlay
+        // Show overlay with custom header buttons
         this.overlay = overlayManager.show({
-            header: headerDiv,
-            content: this.filesContainer,
-            closable: false, // We handle closing manually
+            header: 'Upload Images',
+            content: this.placeholderDiv,
+            closable: false, // We handle closing manually with custom buttons
+            submitLabel: 'Upload',
+            cancelLabel: 'Cancel',
             onSubmit: async () => {
                 if (this.uploadStatuses.length === 0) {
                     return { _showMessage: 'Please select at least one file', _autoFade: false };
@@ -169,42 +141,79 @@ export class UploadHandler {
                 overlayManager.close(this.overlay);
             }
         });
+        // After overlay is shown, modify the header to add Choose Files button
+        setTimeout(() => {
+            const headerEl = document.querySelector('.overlayHeader');
+            if (!headerEl)
+                return;
+            // Find existing buttons
+            const cancelBtn = headerEl.querySelector('.cancelButton');
+            const submitBtn = headerEl.querySelector('.submitButton');
+            if (!cancelBtn || !submitBtn)
+                return;
+            // Store reference to upload button
+            this.uploadBtn = submitBtn;
+            // Create Choose Files button
+            this.chooseFilesBtn = document.createElement('a');
+            this.chooseFilesBtn.className = 'chooseFilesButton';
+            this.chooseFilesBtn.textContent = 'Choose Files';
+            this.chooseFilesBtn.href = '#';
+            this.chooseFilesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.fileInput.click();
+            });
+            // Insert Choose Files button between Cancel and Upload
+            if (submitBtn.parentNode) {
+                submitBtn.parentNode.insertBefore(this.chooseFilesBtn, submitBtn);
+            }
+        }, 100);
     }
     addFile(file) {
+        // If this is the first file, replace placeholder with files container
+        if (this.placeholderDiv && this.placeholderDiv.parentNode) {
+            this.placeholderDiv.remove();
+            this.placeholderDiv = null;
+            // Create new files container
+            this.filesContainer = document.createElement('div');
+            this.filesContainer.id = 'upload-files-container';
+            this.filesContainer.className = 'overlayContent';
+            // Get overlay content element and replace it
+            const overlayContentEl = document.querySelector('.overlayContent');
+            if (overlayContentEl && overlayContentEl.parentNode) {
+                overlayContentEl.parentNode.replaceChild(this.filesContainer, overlayContentEl);
+            }
+        }
         const index = this.uploadStatuses.length;
         const fileDiv = document.createElement('div');
-        fileDiv.className = 'upload-file-item';
-        fileDiv.style.cssText = 'margin-bottom: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: white; position: relative;';
+        fileDiv.className = 'overlayContent upload-file-item';
         // Remove button (X)
         const removeBtn = document.createElement('button');
+        removeBtn.className = 'upload-file-remove';
         removeBtn.textContent = '×';
-        removeBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; background: #f44336; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 18px; line-height: 1;';
         removeBtn.addEventListener('click', () => {
             this.removeFile(index);
         });
         fileDiv.appendChild(removeBtn);
         // File name
         const fileNameDiv = document.createElement('div');
+        fileNameDiv.className = 'upload-file-name';
         fileNameDiv.textContent = file.name;
-        fileNameDiv.style.cssText = 'font-weight: bold; margin-bottom: 10px; padding-right: 30px;';
         fileDiv.appendChild(fileNameDiv);
         // Status message
         const statusDiv = document.createElement('div');
         statusDiv.id = `upload-status-${index}`;
-        statusDiv.className = 'upload-status';
+        statusDiv.className = 'upload-status pending';
         statusDiv.textContent = 'Pending';
-        statusDiv.style.cssText = 'color: #666; font-size: 14px;';
         fileDiv.appendChild(statusDiv);
         // Progress bar container (initially hidden)
         const progressContainer = document.createElement('div');
         progressContainer.id = `upload-progress-container-${index}`;
-        progressContainer.style.cssText = 'margin-top: 10px; display: none;';
+        progressContainer.className = 'upload-progress-container';
         const progressBar = document.createElement('div');
-        progressBar.id = `upload-progress-bar-${index}`;
-        progressBar.style.cssText = 'background: #f0f0f0; border-radius: 4px; height: 20px; position: relative; overflow: hidden;';
+        progressBar.className = 'upload-progress-bar';
         const progressFill = document.createElement('div');
         progressFill.id = `upload-progress-fill-${index}`;
-        progressFill.style.cssText = 'background: #4CAF50; height: 100%; width: 0%; transition: width 0.3s;';
+        progressFill.className = 'upload-progress-fill';
         progressBar.appendChild(progressFill);
         progressContainer.appendChild(progressBar);
         fileDiv.appendChild(progressContainer);
@@ -229,6 +238,18 @@ export class UploadHandler {
         const status = this.uploadStatuses[statusIndex];
         status.div.remove();
         this.uploadStatuses.splice(statusIndex, 1);
+        // If no files left, show placeholder again
+        if (this.uploadStatuses.length === 0) {
+            this.placeholderDiv = document.createElement('div');
+            this.placeholderDiv.className = 'overlayContent upload-placeholder';
+            this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
+            const overlayContentEl = document.querySelector('.overlayContent');
+            if (overlayContentEl && overlayContentEl.parentNode) {
+                overlayContentEl.parentNode.replaceChild(this.placeholderDiv, overlayContentEl);
+            }
+            this.filesContainer = this.placeholderDiv;
+            return;
+        }
         // Re-index remaining files
         this.uploadStatuses.forEach((s, i) => {
             s.index = i;
@@ -255,29 +276,8 @@ export class UploadHandler {
         if (!statusDiv)
             return;
         statusDiv.textContent = message;
-        // Update colors based on type
-        switch (type) {
-            case 'pending':
-                statusDiv.style.color = '#666';
-                break;
-            case 'uploading':
-                statusDiv.style.color = '#2196F3';
-                break;
-            case 'uploaded':
-                statusDiv.style.color = '#4CAF50';
-                break;
-            case 'processing':
-                statusDiv.style.color = '#FF9800';
-                break;
-            case 'success':
-                statusDiv.style.color = '#4CAF50';
-                statusDiv.style.fontWeight = 'bold';
-                break;
-            case 'error':
-                statusDiv.style.color = '#f44336';
-                statusDiv.style.fontWeight = 'bold';
-                break;
-        }
+        // Remove all status classes and add the appropriate one
+        statusDiv.className = `upload-status ${type}`;
     }
     async uploadFile(status, pageId) {
         const formData = new FormData();
@@ -285,7 +285,7 @@ export class UploadHandler {
         const progressContainer = status.div.querySelector(`#upload-progress-container-${status.index}`);
         const progressFill = status.div.querySelector(`#upload-progress-fill-${status.index}`);
         if (progressContainer) {
-            progressContainer.style.display = 'block';
+            progressContainer.classList.add('show');
         }
         this.updateFileStatus(status, 'Uploading...', 'uploading');
         try {
@@ -330,7 +330,6 @@ export class UploadHandler {
             const result = await uploadPromise;
             if (progressFill) {
                 progressFill.style.width = '100%';
-                progressFill.style.background = '#4CAF50';
             }
             status.uploaded = true;
             status.uploadResult = result;
@@ -339,7 +338,7 @@ export class UploadHandler {
         catch (error) {
             status.error = error instanceof Error ? error.message : String(error);
             if (progressFill) {
-                progressFill.style.background = '#f44336';
+                progressFill.classList.add('error');
             }
             this.updateFileStatus(status, `Error: ${status.error}`, 'error');
             throw error;

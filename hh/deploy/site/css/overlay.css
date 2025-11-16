@@ -339,3 +339,123 @@
   height: 16px;
 }
 
+/* Upload handler styles */
+#overlayWindow a.chooseFilesButton {
+  background-color: #2196F3;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  margin-right: 10px;
+  display: inline-block;
+  vertical-align: middle;
+  border: 1px solid #1976D2;
+}
+
+#overlayWindow a.chooseFilesButton:hover {
+  background-color: #1976D2;
+}
+
+#overlayWindow a.chooseFilesButton:active {
+  background-color: #1565C0;
+}
+
+#overlayWindow .upload-placeholder {
+  padding: 40px;
+  text-align: center;
+  color: #999;
+}
+
+#overlayWindow .upload-file-item {
+  margin-bottom: 10px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  position: relative;
+}
+
+#overlayWindow .upload-file-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+#overlayWindow .upload-file-remove:hover {
+  background: #da190b;
+}
+
+#overlayWindow .upload-file-name {
+  font-weight: bold;
+  margin-bottom: 10px;
+  padding-right: 30px;
+}
+
+#overlayWindow .upload-status {
+  color: #666;
+  font-size: 14px;
+}
+
+#overlayWindow .upload-status.pending {
+  color: #666;
+}
+
+#overlayWindow .upload-status.uploading {
+  color: #2196F3;
+}
+
+#overlayWindow .upload-status.uploaded {
+  color: #4CAF50;
+}
+
+#overlayWindow .upload-status.processing {
+  color: #FF9800;
+}
+
+#overlayWindow .upload-status.success {
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+#overlayWindow .upload-status.error {
+  color: #f44336;
+  font-weight: bold;
+}
+
+#overlayWindow .upload-progress-container {
+  margin-top: 10px;
+  display: none;
+}
+
+#overlayWindow .upload-progress-container.show {
+  display: block;
+}
+
+#overlayWindow .upload-progress-bar {
+  background: #f0f0f0;
+  border-radius: 4px;
+  height: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+#overlayWindow .upload-progress-fill {
+  background: #4CAF50;
+  height: 100%;
+  width: 0%;
+  transition: width 0.3s;
+}
+
+#overlayWindow .upload-progress-fill.error {
+  background: #f44336;
+}
+
