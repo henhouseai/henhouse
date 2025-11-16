@@ -72,26 +72,43 @@ def mcp_handler(path: str = ""):
         
         # Get JSON-RPC request from POST body
         if request.method == 'POST':
-            if not request.is_json:
+            # Handle both JSON and multipart/form-data requests
+            if request.is_json:
+                # Standard JSON request
+                try:
+                    mcp_request = request.get_json()
+                except Exception as e:
+                    return json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32700,
+                            "message": "Parse error",
+                            "data": str(e)
+                        },
+                        "id": None
+                    }), 400, {'Content-Type': 'application/json'}
+            elif request.form and 'jsonrpc' in request.form:
+                # Multipart request with JSON-RPC in form field
+                try:
+                    jsonrpc_str = request.form.get('jsonrpc')
+                    mcp_request = json.loads(jsonrpc_str)
+                except Exception as e:
+                    return json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32700,
+                            "message": "Parse error",
+                            "data": f"Failed to parse JSON-RPC from form data: {str(e)}"
+                        },
+                        "id": None
+                    }), 400, {'Content-Type': 'application/json'}
+            else:
                 return json.dumps({
                     "jsonrpc": "2.0",
                     "error": {
                         "code": -32700,
                         "message": "Parse error",
-                        "data": "Content-Type must be application/json"
-                    },
-                    "id": None
-                }), 400, {'Content-Type': 'application/json'}
-            
-            try:
-                mcp_request = request.get_json()
-            except Exception as e:
-                return json.dumps({
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32700,
-                        "message": "Parse error",
-                        "data": str(e)
+                        "data": "Content-Type must be application/json or multipart/form-data with 'jsonrpc' field"
                     },
                     "id": None
                 }), 400, {'Content-Type': 'application/json'}

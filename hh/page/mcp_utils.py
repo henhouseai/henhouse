@@ -367,7 +367,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read',  # Mark as read since it's not a real MCP tool
     app_action_group='images',
-    app_action_label='Upload Images'
+    app_action_label='Upload'
 )
 @register_mcp_tool(
     tool_name='copy_images_app',

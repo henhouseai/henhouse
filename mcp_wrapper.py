@@ -12,6 +12,7 @@ import base64
 import configparser
 import requests
 from pathlib import Path
+from typing import List, Tuple, Optional
 
 def debug_print(message: str) -> None:
     """Debug print function - no-op by default. Uncomment the print line to enable debug output."""
@@ -158,21 +159,80 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
             }), file=sys.stderr)
             return 1
         
+        # Check for file attachments in params
+        # Look for _files array or file_paths array in params
+        file_paths = []
+        if isinstance(params, dict):
+            # Check for _files array (special key for file attachments)
+            if '_files' in params and isinstance(params['_files'], list):
+                file_paths = params['_files']
+                # Remove _files from params before sending (it's metadata, not a real param)
+                params = {k: v for k, v in params.items() if k != '_files'}
+                mcp_request['params'] = params
+            # Also check for file_paths (alternative key)
+            elif 'file_paths' in params and isinstance(params['file_paths'], list):
+                file_paths = params['file_paths']
+                params = {k: v for k, v in params.items() if k != 'file_paths'}
+                mcp_request['params'] = params
+        
         # Prepare HTTP request with Basic Auth
         headers = {
-            "Content-Type": "application/json",
             "Authorization": get_auth_header(config['user'], config['password'])
         }
         
         # Make HTTP request to MCP server
         try:
-            debug_print(f"Making HTTP POST request to {mcp_url}")
-            response = requests.post(
-                mcp_url,
-                json=mcp_request,
-                headers=headers,
-                timeout=30
-            )
+            if file_paths:
+                # Use multipart/form-data for file uploads
+                debug_print(f"Attaching {len(file_paths)} file(s) to request")
+                files = []
+                for idx, file_path in enumerate(file_paths):
+                    file_path_obj = Path(file_path)
+                    if not file_path_obj.exists():
+                        print(json.dumps({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32602,
+                                "message": "Invalid params",
+                                "data": f"File not found: {file_path}"
+                            },
+                            "id": mcp_request.get("id")
+                        }), file=sys.stderr)
+                        return True  # Continue on error
+                    
+                    # Open file and add to files list
+                    # Flask expects files with keys like "file0", "file1", etc.
+                    file_obj = open(file_path_obj, 'rb')
+                    files.append((f'file{idx}', (file_path_obj.name, file_obj, 'application/octet-stream')))
+                    debug_print(f"  - file{idx}: {file_path_obj.name} ({file_path_obj.stat().st_size} bytes)")
+                
+                # Add JSON-RPC as form data
+                data = {
+                    'jsonrpc': json.dumps(mcp_request)
+                }
+                
+                debug_print(f"Making HTTP POST request to {mcp_url} with {len(files)} file(s)")
+                response = requests.post(
+                    mcp_url,
+                    data=data,
+                    files=files,
+                    headers=headers,
+                    timeout=60  # Longer timeout for file uploads
+                )
+                
+                # Close file handles
+                for _, (_, file_obj, _) in files:
+                    file_obj.close()
+            else:
+                # Use JSON for regular requests
+                headers["Content-Type"] = "application/json"
+                debug_print(f"Making HTTP POST request to {mcp_url}")
+                response = requests.post(
+                    mcp_url,
+                    json=mcp_request,
+                    headers=headers,
+                    timeout=30
+                )
             
             debug_print(f"HTTP response status: {response.status_code}")
             

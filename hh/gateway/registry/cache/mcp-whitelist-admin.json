@@ -798,21 +798,6 @@
       "required": []
     }
   },
-  "mcp_action_request_dummy": {
-    "description": "MCP Action Request Dummy - Test app action for mcp_action_request group",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "integer",
-          "description": "The ID of the MCP action request page"
-        }
-      },
-      "required": [
-        "page_id"
-      ]
-    }
-  },
   "modify_mcp_action_request": {
     "description": "Modify an MCP action request. Requires admin/panel tier access with database write permissions.",
     "inputSchema": {
@@ -861,21 +846,6 @@
         "is_delete": {
           "type": "boolean",
           "description": "Whether this is a delete operation"
-        }
-      },
-      "required": [
-        "page_id"
-      ]
-    }
-  },
-  "mcp_request_dummy": {
-    "description": "MCP Request Dummy - Test app action for mcp_request group",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "integer",
-          "description": "The ID of the MCP request page"
         }
       },
       "required": [
@@ -1232,98 +1202,6 @@
       ]
     }
   },
-  "add_images": {
-    "description": "Add multiple images from a folder to a page. Scans folder for valid image files and adds them all. Requires admin/panel tier access with database write permissions.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "target_page": {
-          "type": "integer",
-          "description": "The ID of the page to add images to"
-        },
-        "t_page": {
-          "type": "integer",
-          "description": "Alternative parameter name for target_page"
-        },
-        "id": {
-          "type": "integer",
-          "description": "Alternative parameter name for target_page"
-        },
-        "folder": {
-          "type": "string",
-          "description": "Path to the folder containing image files to add"
-        },
-        "caption": {
-          "type": "string",
-          "description": "Caption to use for all images (optional, defaults to individual filenames)"
-        }
-      },
-      "required": [
-        "target_page",
-        "folder"
-      ]
-    }
-  },
-  "add_image": {
-    "description": "Add a single image to a page. Requires admin/panel tier access with database write permissions.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "target_page": {
-          "type": "integer",
-          "description": "The ID of the page to add the image to"
-        },
-        "t_page": {
-          "type": "integer",
-          "description": "Alternative parameter name for target_page"
-        },
-        "id": {
-          "type": "integer",
-          "description": "Alternative parameter name for target_page"
-        },
-        "file": {
-          "type": "string",
-          "description": "Path to the image file to add"
-        },
-        "caption": {
-          "type": "string",
-          "description": "Caption for the image (optional, defaults to filename without extension)"
-        }
-      },
-      "required": [
-        "target_page",
-        "file"
-      ]
-    }
-  },
-  "move_page": {
-    "description": "Move a page to a different parent page. Requires admin/panel tier access with database write permissions.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "source_page": {
-          "type": "integer",
-          "description": "The ID of the page to move"
-        },
-        "s_page": {
-          "type": "integer",
-          "description": "Alternative parameter name for source_page"
-        },
-        "target_page": {
-          "type": "integer",
-          "description": "The ID of the new parent page"
-        },
-        "t_page": {
-          "type": "integer",
-          "description": "Alternative parameter name for target_page"
-        }
-      },
-      "required": [
-        "source_page",
-        "target_page"
-      ]
-    }
-  },
   "copy_page": {
     "description": "Copy a page (and optionally its children recursively) to a target parent page. Requires admin/panel tier access with database write permissions.",
     "inputSchema": {
@@ -1360,6 +1238,34 @@
         "rd": {
           "type": "integer",
           "description": "Short form of recursive-depth parameter"
+        }
+      },
+      "required": [
+        "source_page",
+        "target_page"
+      ]
+    }
+  },
+  "move_page": {
+    "description": "Move a page to a different parent page. Requires admin/panel tier access with database write permissions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_page": {
+          "type": "integer",
+          "description": "The ID of the page to move"
+        },
+        "s_page": {
+          "type": "integer",
+          "description": "Alternative parameter name for source_page"
+        },
+        "target_page": {
+          "type": "integer",
+          "description": "The ID of the new parent page"
+        },
+        "t_page": {
+          "type": "integer",
+          "description": "Alternative parameter name for target_page"
         }
       },
       "required": [
@@ -1417,14 +1323,6 @@
       "required": [
         "target_page"
       ]
-    }
-  },
-  "combo": {
-    "description": "Test form with name and text editable, plus read-only fields displayed. App action only - no MCP call.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": []
     }
   },
   "modify_text": {
@@ -1596,29 +1494,6 @@
         }
       },
       "required": []
-    }
-  },
-  "source_code_file_combo": {
-    "description": "Edit source code file: text, file path, and language. App action only - no MCP call.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": []
-    }
-  },
-  "source_code_file_dummy": {
-    "description": "Source Code File Dummy - Test app action for source_code group",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "integer",
-          "description": "The ID of the source code file page"
-        }
-      },
-      "required": [
-        "page_id"
-      ]
     }
   },
   "mcp_list": {
