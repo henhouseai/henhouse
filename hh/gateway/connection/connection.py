@@ -364,9 +364,11 @@ def _execute_file_operations(conn) -> bool:
             to_path = Path(operation['to_path'])
             
             if not from_path.exists():
-                warn(f"Source file does not exist, skipping: {from_path}")
-                operation['status'] = 'skipped'
-                continue
+                warn(f"Source file does not exist: {from_path}")
+                report_error("file_operation", f"Source file does not exist: {from_path}")
+                operation['status'] = 'failed'
+                trace_out()
+                return False
             
             if operation['type'] == 'move':
                 # Ensure destination directory exists
