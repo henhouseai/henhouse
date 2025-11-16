@@ -40,7 +40,7 @@ export class UploadHandler {
             this.rpc.showError('Upload', new Error('No page ID available'));
             return;
         }
-        // Create placeholder content (just the text, overlay system will wrap it)
+        // Create placeholder content (just the inner wrapper, overlay system will wrap it)
         const placeholderText = document.createTextNode('No files selected. Click "Choose Files" to add images.');
         const placeholderWrapper = document.createElement('div');
         placeholderWrapper.className = 'upload-placeholder';
@@ -59,7 +59,9 @@ export class UploadHandler {
                 return;
             }
             // Find and remove the overlayContent div that contains the placeholder
-            const placeholderContentDiv = this.overlayWindow.querySelector('.overlayContent.upload-placeholder') ||
+            // The overlay system wraps our content in overlayContent, so find that wrapper
+            const placeholderContentDiv = this.overlayWindow.querySelector('.overlayContent:has(.upload-placeholder)') ||
+                this.overlayWindow.querySelector('.overlayContent.upload-placeholder') ||
                 this.overlayWindow.querySelector('.overlayContent');
             if (placeholderContentDiv && placeholderContentDiv.parentNode) {
                 placeholderContentDiv.remove();
@@ -169,8 +171,14 @@ export class UploadHandler {
                 overlayManager.close(this.overlay);
             }
         });
-        // After overlay is shown, modify the header to add Choose Files button
+        // After overlay is shown, modify the header to add Choose Files button and fix placeholder styling
         setTimeout(() => {
+            // Add upload-placeholder class to the overlayContent div that wraps our placeholder
+            const placeholderContentDiv = document.querySelector('#overlayWindow .overlayContent:has(.upload-placeholder)');
+            if (placeholderContentDiv) {
+                placeholderContentDiv.classList.add('upload-placeholder');
+                this.placeholderDiv = placeholderContentDiv;
+            }
             const headerEl = document.querySelector('#overlayWindow .overlayHeader');
             if (!headerEl) {
                 console.error('Could not find overlay header');
