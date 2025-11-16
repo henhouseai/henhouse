@@ -302,12 +302,17 @@ export class Overlay {
       
       // Check if result has custom message and auto-fade flag
       const showMessage = (result as any)?._showMessage;
+      const isError = (result as any)?._isError === true;
       const autoFade = (result as any)?._autoFade === true;
       const redirectAfterFade = (result as any)?._redirectAfterFade;
       
       if (showMessage) {
         // Use custom message from onSubmit handler
-        this.setState({ isLoading: false, success: showMessage });
+        if (isError) {
+          this.setState({ isLoading: false, error: showMessage, success: null });
+        } else {
+          this.setState({ isLoading: false, success: showMessage, error: null });
+        }
       } else {
         // Default success message
         this.setState({ isLoading: false, success: 'Success!' });
