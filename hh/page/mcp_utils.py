@@ -373,7 +373,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='create'
 )
 @register_mcp_tool(
-    tool_name='upload_images',
+    tool_name='Upload',
     description='Upload images to a page. App action only - no MCP call.',
     inputSchema={
         'type': 'object',
