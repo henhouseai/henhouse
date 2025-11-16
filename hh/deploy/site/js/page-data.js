@@ -236,6 +236,7 @@ export class PageData {
         }
         const allOperations = [];
         let allSucceeded = true;
+        let hasDebugData = false; // Track if any operation returned debug data
         // Process each operation individually (not in parallel)
         for (const { mapping, fields } of optimalMappings) {
             const params = mapping.buildParams(fields, currentValues, pageId);
@@ -247,6 +248,7 @@ export class PageData {
                 // Handle debug data immediately - create overlay for each response with debug
                 // Only show debug overlay if debug data exists and has entries
                 if (rawResult.debug && Array.isArray(rawResult.debug.entries) && rawResult.debug.entries.length > 0) {
+                    hasDebugData = true; // Mark that we found debug data
                     const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
                     handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
                 }
@@ -283,6 +285,7 @@ export class PageData {
                     // Handle debug data immediately - create overlay for error response with debug
                     // Only show debug overlay if debug data exists and has entries
                     if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
+                        hasDebugData = true; // Mark that we found debug data
                         const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
                         handleRPCResponseWithDebug(error, mapping.mcpTool, params);
                     }
@@ -309,8 +312,9 @@ export class PageData {
             noChanges: false,
             operations: allOperations,
             successes: allOperations.filter((op) => op.success),
-            errors: allOperations.filter((op) => !op.success)
-            // Don't return collectedDebug - we already show individual debug overlays for each call
+            errors: allOperations.filter((op) => !op.success),
+            // Return a flag indicating if any operation had debug data (prevents auto-fade)
+            debug: hasDebugData ? {} : undefined
         };
     }
     /**
