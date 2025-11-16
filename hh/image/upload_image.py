@@ -24,8 +24,8 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_action('upload_image')
-@register_command('upload_image')
+@register_action('upload_images')
+@register_command('upload_images')
 def upload_image() -> bool:
     trace_in()
     gateway = get_gateway()

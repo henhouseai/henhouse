@@ -356,7 +356,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='update'
 )
 @register_mcp_tool(
-    tool_name='upload_image',
+    tool_name='upload_images',
     description='Upload one or more images to a page from temp files. Requires admin/panel tier access with database write permissions. Pass files using the _files parameter (e.g., _files=["path/to/file1.jpg", "path/to/file2.jpg"]). The system automatically handles file upload via multipart/form-data. Processes files sequentially and stops on any error.',
     inputSchema={
         'type': 'object',
