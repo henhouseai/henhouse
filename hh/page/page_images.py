@@ -418,3 +418,39 @@ class PageImagesMixin:
             log(f"Successfully removed image {image_id} (rank {image_rank}) from page {self.id}")
         trace_out()
         return not is_error()
+
+
+    def _delete_all_image_groups(self) -> bool:
+        trace_in()
+        log(f"Deleting all image_groups entries for page {self.id}")
+        if not is_error():
+            # Get all unique image_ids from this page's image_groups before deleting
+            results = r_query(self.conn, "SELECT DISTINCT image_id FROM image_groups WHERE page_id = %s", [self.id])
+            image_ids = [row['image_id'] for row in results] if results else []
+            log(f"Found {len(image_ids)} unique images in page {self.id} image_groups")
+        
+        if not is_error():
+            # Delete all image_groups entries for this page
+            affected = d_query(self.conn, "DELETE FROM image_groups WHERE page_id = %s", [self.id])
+            log(f"Deleted {affected} image_groups entries for page {self.id}")
+        
+        # Check each image to see if it should be deleted (no longer used by any pages)
+        if not is_error() and image_ids:
+            for image_id in image_ids:
+                if not is_error():
+                    image = get_image_conn(self.conn, image_id=image_id)
+                    if image:
+                        usage_count = image.get_usage_count()
+                        if usage_count == 0:
+                            log(f"Image {image_id} no longer used by any pages, deleting from database")
+                            if not image.delete_from_database():
+                                warn(f"Failed to delete unused image {image_id}")
+                                report_error("action", f"Failed to delete unused image {image_id}")
+                        else:
+                            log(f"Image {image_id} still used by {usage_count} pages, keeping in database")
+                    else:
+                        warn(f"Failed to load image {image_id} for usage check")
+                        report_error("action", f"Failed to load image {image_id}")
+        
+        trace_out()
+        return not is_error()

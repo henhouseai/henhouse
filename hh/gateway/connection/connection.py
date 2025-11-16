@@ -3,10 +3,13 @@ import json
 import os
 import pymysql
 import getpass
+import shutil
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union, TypedDict
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
@@ -122,6 +125,8 @@ def get_connection(dict_cursor: bool = True):
         else:
             conn = pymysql.connect(**dsn)
             log(f"Database connection established: host={dsn['host']}, database={dsn['database']}")
+        # Initialize file operation buffer
+        conn._file_operations = []
         trace_out()
         return conn
     except Exception as e:
@@ -297,3 +302,146 @@ def validate_agent_identity(conn, agent_id: int, badge_ts: Optional[str]) -> boo
     log(f"Agent identity validation: agent_id={agent_id}, badge_ts={badge_ts}, valid={is_valid}")
     trace_out()
     return is_valid
+
+
+def schedule_file_move(conn, from_path: str, to_path: str) -> None:
+    """Schedule a file move operation to be executed after DB commit."""
+    trace_in()
+    if not hasattr(conn, '_file_operations'):
+        conn._file_operations = []
+    operation = {
+        'type': 'move',
+        'from_path': from_path,
+        'to_path': to_path,
+        'status': 'scheduled',
+        'temp_filename': None
+    }
+    conn._file_operations.append(operation)
+    log(f"Scheduled file move: {from_path} -> {to_path}")
+    trace_out()
+
+
+def schedule_file_delete(conn, file_path: str) -> None:
+    """Schedule a file delete operation (moves to /tmp) to be executed after DB commit."""
+    trace_in()
+    if not hasattr(conn, '_file_operations'):
+        conn._file_operations = []
+    # Generate unique temp filename
+    file_path_obj = Path(file_path)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    unique_id = str(uuid.uuid4())[:8]
+    temp_filename = f"henhouse_deleted_{timestamp}_{unique_id}_{file_path_obj.name}"
+    temp_path = f"/tmp/{temp_filename}"
+    operation = {
+        'type': 'delete',
+        'from_path': file_path,
+        'to_path': temp_path,
+        'status': 'scheduled',
+        'temp_filename': temp_filename
+    }
+    conn._file_operations.append(operation)
+    log(f"Scheduled file delete: {file_path} -> {temp_path}")
+    trace_out()
+
+
+def _execute_file_operations(conn) -> bool:
+    """Execute all buffered file operations. Returns True if all succeed, False otherwise."""
+    trace_in()
+    if not hasattr(conn, '_file_operations') or not conn._file_operations:
+        log("No file operations to execute")
+        trace_out()
+        return True
+    
+    log(f"Executing {len(conn._file_operations)} buffered file operations")
+    
+    # Execute all operations
+    for operation in conn._file_operations:
+        if operation['status'] != 'scheduled':
+            continue
+        
+        try:
+            from_path = Path(operation['from_path'])
+            to_path = Path(operation['to_path'])
+            
+            if not from_path.exists():
+                warn(f"Source file does not exist, skipping: {from_path}")
+                operation['status'] = 'skipped'
+                continue
+            
+            if operation['type'] == 'move':
+                # Ensure destination directory exists
+                to_path.parent.mkdir(parents=True, exist_ok=True)
+                # Move file
+                shutil.move(str(from_path), str(to_path))
+                log(f"Moved file: {from_path} -> {to_path}")
+                operation['status'] = 'completed'
+                
+            elif operation['type'] == 'delete':
+                # Ensure /tmp directory exists
+                to_path.parent.mkdir(parents=True, exist_ok=True)
+                # Move file to temp
+                shutil.move(str(from_path), str(to_path))
+                log(f"Moved file to temp for deletion: {from_path} -> {to_path}")
+                operation['status'] = 'completed'
+                
+        except Exception as e:
+            warn(f"Failed to execute file operation {operation['type']}: {from_path} -> {to_path}: {str(e)}")
+            report_error("file_operation", f"Failed to {operation['type']} file: {str(e)}")
+            operation['status'] = 'failed'
+            trace_out()
+            return False
+    
+    log("All file operations executed successfully")
+    trace_out()
+    return True
+
+
+def _rollback_file_operations(conn) -> bool:
+    """Rollback all completed file operations. Returns True if all rollbacks succeed."""
+    trace_in()
+    if not hasattr(conn, '_file_operations') or not conn._file_operations:
+        log("No file operations to rollback")
+        trace_out()
+        return True
+    
+    log(f"Rolling back {len(conn._file_operations)} file operations")
+    
+    # Rollback in reverse order
+    for operation in reversed(conn._file_operations):
+        if operation['status'] != 'completed':
+            continue
+        
+        try:
+            from_path = Path(operation['from_path'])
+            to_path = Path(operation['to_path'])
+            
+            if operation['type'] == 'move':
+                # Move back: to_path -> from_path
+                if to_path.exists():
+                    from_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(to_path), str(from_path))
+                    log(f"Rolled back move: {to_path} -> {from_path}")
+                else:
+                    warn(f"Destination file does not exist for rollback: {to_path}")
+                operation['status'] = 'rolled_back'
+                
+            elif operation['type'] == 'delete':
+                # Move back from temp: to_path -> from_path
+                if to_path.exists():
+                    from_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(to_path), str(from_path))
+                    log(f"Rolled back delete: {to_path} -> {from_path}")
+                else:
+                    warn(f"Temp file does not exist for rollback: {to_path}")
+                operation['status'] = 'rolled_back'
+                
+        except Exception as e:
+            warn(f"Failed to rollback file operation {operation['type']}: {str(e)}")
+            report_error("file_operation", f"Failed to rollback {operation['type']}: {str(e)}")
+            operation['status'] = 'rollback_failed'
+            trace_out()
+            return False
+    
+    log("All file operations rolled back successfully")
+    trace_out()
+    return True

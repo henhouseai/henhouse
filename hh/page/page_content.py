@@ -9,7 +9,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
-from hh.page.page_registry import get_page
+from hh.page.page_registry import get_page, get_page_conn
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -252,12 +252,18 @@ class PageContentMixin:
         if not is_error():
             for child_id in child_ids:
                 if not is_error():
-                    child_page = get_page(page_id=child_id)
+                    child_page = get_page_conn(self.conn, child_id)
                     if child_page:
-                        child_page.delete_page()  # Recursive call
+                        child_page.delete_page()  # Recursive call - uses same connection/transaction
                     else:
                         warn(f"Failed to load child page {child_id}")
                         report_error("action", f"Failed to load child page {child_id}")
+        if not is_error():
+            # Delete all image_groups entries and clean up unused images before deleting page
+            if hasattr(self, '_delete_all_image_groups'):
+                if not self._delete_all_image_groups():
+                    warn(f"Failed to delete image_groups for page {self.id}")
+                    report_error("action", f"Failed to delete image_groups for page {self.id}")
         if not is_error():
             # Call hook to clean up class-specific data before deleting
             self.delete_page_class_information()

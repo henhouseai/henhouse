@@ -237,8 +237,24 @@ def with_connection(
                             conn.rollback()
                             log("Transaction rolled back due to errors")
                         else:
-                            conn.commit()
-                            log("Transaction committed successfully")
+                            # Execute buffered file operations before committing DB
+                            from hh.gateway.connection.connection import _execute_file_operations, _rollback_file_operations
+                            if not _execute_file_operations(conn):
+                                # File operations failed, rollback file ops and DB transaction
+                                warn("File operations failed, rolling back")
+                                _rollback_file_operations(conn)
+                                conn.rollback()
+                                log("Transaction rolled back due to file operation errors")
+                            elif is_error():
+                                # Check for errors after file operations
+                                warn("Errors detected after file operations, rolling back")
+                                _rollback_file_operations(conn)
+                                conn.rollback()
+                                log("Transaction rolled back due to errors after file operations")
+                            else:
+                                # All good, commit DB transaction
+                                conn.commit()
+                                log("Transaction committed successfully after file operations")
                     duration_ms = int((time.time() - start_time) * 1000)
                     log(f"{func.__name__}: Function execution successful, duration={duration_ms}ms")
                     trace_out()
@@ -248,6 +264,12 @@ def with_connection(
                         pymysql.InternalError, pymysql.InterfaceError) as exc:
                     last_exception = exc
                     if conn and auto_transaction:
+                        # Rollback any file operations that were executed
+                        try:
+                            from hh.gateway.connection.connection import _rollback_file_operations
+                            _rollback_file_operations(conn)
+                        except:
+                            pass
                         try:
                             conn.rollback()
                         except:

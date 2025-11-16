@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 import datetime as dt
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
+from hh.gateway.connection.connection import r_query, u_query, c_query, d_query, schedule_file_move
 from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -174,7 +174,7 @@ class ImageContentMixin:
             project_name, _ = detect_project_context()
             base_path = Path(f"/srv/images/{project_name}")
             deleted_path = base_path / "deleted"
-            # Ensure deleted directory exists
+            # Ensure deleted directory exists (will be created when file operations execute)
             deleted_path.mkdir(parents=True, exist_ok=True)
             # Process each instance file
             for instance in self.instances:
@@ -190,17 +190,15 @@ class ImageContentMixin:
                 if self._is_file_shared(src_path):
                     log(f"File is shared by other images, keeping: {src_path}")
                     continue
-                # Move file to deleted folder
+                # Schedule move file to deleted folder (buffered, will execute after DB commit)
                 deleted_file = deleted_path / current_file.name
-                try:
-                    current_file.rename(deleted_file)
-                    log(f"Moved file to deleted folder: {src_path} -> deleted/{current_file.name}")
-                except Exception as e:
-                    warn(f"Failed to move file to deleted folder: {str(e)}")
+                schedule_file_move(self.conn, str(current_file), str(deleted_file))
+                log(f"Scheduled file move to deleted folder: {src_path} -> deleted/{current_file.name}")
             trace_out()
             return True
         except Exception as e:
-            warn(f"Failed to soft delete files: {str(e)}")
+            warn(f"Failed to schedule soft delete files: {str(e)}")
+            report_error("file_operation", f"Failed to schedule soft delete: {str(e)}")
             trace_out()
             return False
 
