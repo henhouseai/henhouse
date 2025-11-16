@@ -58,11 +58,9 @@ export class UploadHandler {
                 console.error('Overlay window not found');
                 return;
             }
-            // Find and remove the overlayContent div that contains the placeholder
-            // The overlay system wraps our content in overlayContent, so find that wrapper
+            // Find and remove the placeholder div by its specific class
             const placeholderContentDiv = this.overlayWindow.querySelector('.overlayContent:has(.upload-placeholder)') ||
-                this.overlayWindow.querySelector('.overlayContent.upload-placeholder') ||
-                this.overlayWindow.querySelector('.overlayContent');
+                this.overlayWindow.querySelector('.overlayContent.upload-placeholder');
             if (placeholderContentDiv && placeholderContentDiv.parentNode) {
                 placeholderContentDiv.remove();
                 this.placeholderDiv = null;
