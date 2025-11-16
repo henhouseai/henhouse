@@ -99,7 +99,7 @@ def upload_image() -> bool:
             report_error("action", f"Failed to reload page {page_id}")
     
     if not is_error():
-        response_data = updated_page.show_page()
+        response_data = updated_page.get_page()
         gateway.response.set_action_response(success_payload(response_data))
         log(f"Successfully uploaded image {new_image_id} to page {page_id}: {updated_page.name}")
     
