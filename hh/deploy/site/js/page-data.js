@@ -238,6 +238,11 @@ export class PageData {
                 const rawResult = await rpc.call(mapping.mcpTool, params);
                 // rawResult is already RPCCallResult with data and debug
                 const result = rawResult.data;
+                // Handle debug data immediately - create overlay for each response with debug
+                if (rawResult.debug) {
+                    const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                    handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
+                }
                 // Collect debug data (use first non-empty debug found)
                 if (rawResult.debug && !collectedDebug) {
                     collectedDebug = rawResult.debug;
@@ -272,6 +277,11 @@ export class PageData {
                 // Check for debug data in error (from RPCError)
                 if (error && typeof error === 'object' && 'debug' in error) {
                     const errorDebug = error.debug;
+                    // Handle debug data immediately - create overlay for error response with debug
+                    if (errorDebug) {
+                        const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                        handleRPCResponseWithDebug(error, mapping.mcpTool, params);
+                    }
                     if (errorDebug && !collectedDebug) {
                         collectedDebug = errorDebug;
                     }

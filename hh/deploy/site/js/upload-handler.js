@@ -2,6 +2,7 @@
  * Upload handler for image uploads
  */
 import { OverlayManager } from './overlay-manager.js';
+import { handleRPCResponseWithDebug } from './debug-helper.js';
 export class UploadHandler {
     constructor(rpc, seedData) {
         this.uploadStatuses = [];
@@ -164,7 +165,11 @@ export class UploadHandler {
                                         params['debug-limit'] = status.debugOptions.debugLimit;
                                     }
                                 }
-                                await this.rpc.call('upload_images', params);
+                                const rpcResult = await this.rpc.call('upload_images', params);
+                                // Handle debug data immediately - create overlay for each response with debug
+                                if (rpcResult.debug) {
+                                    handleRPCResponseWithDebug(rpcResult, 'upload_images', params);
+                                }
                                 status.processed = true;
                                 // Remove pending div and add success message
                                 this.removePendingDiv(status);

@@ -6,6 +6,7 @@ import { RPCClient } from './rpc-client.js';
 import { SeedData } from './seed.js';
 import { OverlayManager } from './overlay-manager.js';
 import { DebugOptions } from './overlay-debug-options.js';
+import { handleRPCResponseWithDebug } from './debug-helper.js';
 
 interface FileUploadStatus {
   fileId: string; // Unique ID based on file path
@@ -206,7 +207,12 @@ export class UploadHandler {
                   }
                 }
                 
-                await this.rpc.call('upload_images', params);
+                const rpcResult = await this.rpc.call('upload_images', params);
+                
+                // Handle debug data immediately - create overlay for each response with debug
+                if (rpcResult.debug) {
+                  handleRPCResponseWithDebug(rpcResult, 'upload_images', params);
+                }
                 
                 status.processed = true;
                 // Remove pending div and add success message
