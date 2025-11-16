@@ -164,10 +164,14 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
                 pass
         # ===== DEBUG CODE END =====
         
-        date_path.mkdir(parents=True, exist_ok=True)
-        # Set proper permissions
-        os.chmod(date_path, 0o774)
-        log(f"Successfully created date directory: {date_path} (permissions: 0o774)")
+        # If directory already exists and is accessible, skip mkdir (which can fail even with exist_ok=True)
+        if not target_exists:
+            date_path.mkdir(parents=True, exist_ok=True)
+            # Set proper permissions
+            os.chmod(date_path, 0o774)
+            log(f"Successfully created date directory: {date_path} (permissions: 0o774)")
+        else:
+            log(f"Date directory already exists: {date_path}")
         trace_out()
         return date_path
     except Exception as e:
