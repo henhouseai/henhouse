@@ -202,8 +202,8 @@ export class UploadHandler {
             const pageData = await this.rpc.getPage(pageId);
             pageManager.setPageData(pageData);
             
-            // Return success with auto-fade flag
-            return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: true };
+            // Return success but disable auto-fade so user can see results and manually close
+            return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: false };
           } catch (error) {
             return { _showMessage: `Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`, _autoFade: false };
           }
