@@ -190,18 +190,12 @@ export class UploadHandler {
         
         await processNext();
         
-        // Reload page if all succeeded
-        try {
-          const { PageManager } = await import('./page-manager.js');
-          const pageManager = PageManager.getInstance();
-          const pageData = await this.rpc.getPage(pageId);
-          pageManager.setPageData(pageData);
-          
-          // Return success but disable auto-fade so user can see results and manually close
-          return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: false };
-        } catch (error) {
-          throw new Error(`Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        // Return success with auto-fade enabled and page refresh after fade
+        return { 
+          _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, 
+          _autoFade: true,
+          _redirectAfterFade: window.location.href
+        };
       },
       onCancel: () => {
         overlayManager.close(this.overlay);
