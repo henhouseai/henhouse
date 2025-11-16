@@ -69,13 +69,27 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         group_info = grp.getgrgid(current_gid)
         user_str = f"{user_info.pw_name} (uid:{current_uid})"
         group_str = f"{group_info.gr_name} (gid:{current_gid})"
+        # Get effective groups
+        try:
+            effective_gids = os.getgroups()
+            effective_groups = []
+            for gid in effective_gids:
+                try:
+                    effective_groups.append(grp.getgrgid(gid).gr_name)
+                except:
+                    effective_groups.append(f"gid:{gid}")
+            groups_str = ", ".join(effective_groups) if effective_groups else "none"
+        except Exception:
+            groups_str = "unknown"
     except Exception:
         try:
             user_str = f"uid:{os.getuid()}"
             group_str = f"gid:{os.getgid()}"
+            groups_str = "unknown"
         except Exception:
             user_str = "unknown"
             group_str = "unknown"
+            groups_str = "unknown"
     # ===== DEBUG CODE END =====
     
     try:
@@ -83,12 +97,14 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         parent_path = date_path.parent
         parent_exists = parent_path.exists()
         parent_perms = None
+        parent_perms_full = None
         parent_owner = None
         parent_group = None
         if parent_exists:
             try:
                 stat_info = parent_path.stat()
-                parent_perms = oct(stat_info.st_mode)[-3:]
+                parent_perms_full = oct(stat_info.st_mode)  # Full mode including setgid/setuid/sticky bits
+                parent_perms = oct(stat_info.st_mode)[-3:]  # Last 3 digits (standard permissions)
                 try:
                     parent_owner = pwd.getpwuid(stat_info.st_uid).pw_name
                 except:
@@ -109,9 +125,10 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         return date_path
     except Exception as e:
         # ===== DEBUG CODE START: Build detailed error message =====
-        error_details = [f"Path: {date_path}", f"Error: {str(e)}", f"Current user: {user_str}", f"Current group: {group_str}"]
+        error_details = [f"Path: {date_path}", f"Error: {str(e)}", f"Current user: {user_str}", f"Current group: {group_str}", f"Effective groups: {groups_str}"]
         if parent_exists:
-            error_details.append(f"Parent: {parent_path} (exists: True, perms: {parent_perms}, owner: {parent_owner}, group: {parent_group})")
+            perms_display = f"{parent_perms_full} ({parent_perms})" if parent_perms_full and parent_perms_full != f"0o{parent_perms}" else parent_perms
+            error_details.append(f"Parent: {parent_path} (exists: True, perms: {perms_display}, owner: {parent_owner}, group: {parent_group})")
         else:
             error_details.append(f"Parent: {parent_path} (exists: False)")
         
