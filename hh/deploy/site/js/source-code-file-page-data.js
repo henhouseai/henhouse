@@ -61,7 +61,6 @@ export class SourceCodeFilePageData extends PageData {
             const pathStr = Array.isArray(path) ? path.map((p) => p.name).filter(Boolean).join(' / ') : '';
             // Create form HTML with editable and read-only fields
             const formHtml = `
-        <div class="overlayContent">
           <div class="overlay-form-section">
             <h3 class="overlay-section-title">Editable Fields:</h3>
             <div class="overlay-form-group">
@@ -94,7 +93,6 @@ export class SourceCodeFilePageData extends PageData {
               <div>${this.escapeHtml(pathStr)}</div>
             </div>
           </div>
-        </div>
       `;
             OverlayManager.getInstance().show({
                 header: 'Edit Source Code File',

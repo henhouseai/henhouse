@@ -346,12 +346,10 @@ export class PageData {
             const currentName = this.getField('name', 'form') || '';
             // Create form HTML with standardized field ID
             const formHtml = `
-        <div class="overlayContent">
           <div class="overlay-form-group">
             <label>Page name:</label>
             <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" class="overlay-form-input">
           </div>
-        </div>
       `;
             OverlayManager.getInstance().show({
                 header: 'Modify Page Name',
@@ -456,11 +454,9 @@ export class PageData {
             const currentText = this.getField('text', 'form') || '';
             // Create textarea form with standardized field ID
             const formHtml = `
-        <div class="overlayContent">
           <div class="overlay-form-group">
             <textarea id="page-field-text" name="text" rows="20" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
           </div>
-        </div>
       `;
             OverlayManager.getInstance().show({
                 header: 'Text Editor',
@@ -536,7 +532,6 @@ export class PageData {
             const pageClass = this.getField('class') || 'page';
             // Create form HTML with confirmation checkbox
             const formHtml = `
-        <div class="overlayContent">
           <div class="overlay-warning-text">
             <p><strong>Warning:</strong> This will permanently delete the page and all its children.</p>
             <p>Page: <strong>${this.escapeHtml(pageName)}</strong> (ID: ${pageId}, Class: ${this.escapeHtml(pageClass)})</p>
@@ -547,7 +542,6 @@ export class PageData {
               <span>I confirm that I want to delete this page</span>
             </label>
           </div>
-        </div>
       `;
             OverlayManager.getInstance().show({
                 header: 'Delete Page',
@@ -633,7 +627,6 @@ export class PageData {
             const pathStr = Array.isArray(path) ? path.map((p) => p.name).filter(Boolean).join(' / ') : '';
             // Create form HTML with editable and read-only fields
             const formHtml = `
-        <div class="overlayContent">
           <div class="overlay-form-section">
             <h3 class="overlay-section-title">Editable Fields:</h3>
             <div class="overlay-form-group">
@@ -662,7 +655,6 @@ export class PageData {
               <div>${this.escapeHtml(pathStr)}</div>
             </div>
           </div>
-        </div>
       `;
             OverlayManager.getInstance().show({
                 header: 'Combo Test Form',
@@ -783,7 +775,6 @@ export class PageData {
                 }
             }
             const formHtml = `
-        <div class="overlayContent">
           <div class="overlay-form-group">
             <label>Page class:</label>
             <select id="add-page-class" class="overlay-form-select">
@@ -794,7 +785,6 @@ export class PageData {
             <label>Page name:</label>
             <input type="text" id="add-page-name" value="" class="overlay-form-input" placeholder="${selectedClassAllowNull ? 'Optional' : 'Required'}">
           </div>
-        </div>
       `;
             OverlayManager.getInstance().show({
                 header: 'Add New Page',
