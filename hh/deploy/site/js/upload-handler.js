@@ -168,12 +168,11 @@ export class UploadHandler {
                         return { _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, _autoFade: false };
                     }
                     catch (error) {
-                        return { _showMessage: `Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`, _autoFade: false };
+                        throw new Error(`Uploaded images but failed to reload page: ${error instanceof Error ? error.message : String(error)}`);
                     }
                 }
                 else {
-                    // Don't auto-fade on errors
-                    return { _showMessage: 'Some uploads failed. Please check errors below.', _autoFade: false };
+                    throw new Error('Some uploads failed. Please check errors below.');
                 }
             },
             onCancel: () => {
