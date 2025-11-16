@@ -254,6 +254,14 @@ class ActionHandlers {
         alert('Page Options not yet implemented');
     }
     /**
+     * Handle Upload: Upload images to current page
+     */
+    async Upload() {
+        const { UploadHandler } = await import('./upload-handler.js');
+        const handler = new UploadHandler(this.rpc, this.seedData);
+        await handler.handle();
+    }
+    /**
      * Escape HTML to prevent XSS
      */
     escapeHtml(text) {

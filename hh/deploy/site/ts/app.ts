@@ -289,6 +289,15 @@ class ActionHandlers {
   }
 
   /**
+   * Handle Upload: Upload images to current page
+   */
+  private async Upload(): Promise<void> {
+    const { UploadHandler } = await import('./upload-handler.js');
+    const handler = new UploadHandler(this.rpc, this.seedData);
+    await handler.handle();
+  }
+
+  /**
    * Escape HTML to prevent XSS
    */
   private escapeHtml(text: string): string {
