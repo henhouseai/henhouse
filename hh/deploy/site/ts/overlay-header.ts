@@ -45,7 +45,7 @@ export class OverlayHeader {
     if (this.props.showCancel) {
       const cancelBtn = document.createElement('a');
       cancelBtn.id = 'cancelOverlayWindow';
-      cancelBtn.className = 'cancelButton';
+      cancelBtn.className = 'overlay-button overlay-button-cancel cancelButton';
       cancelBtn.textContent = this.props.cancelLabel || 'Cancel';
       cancelBtn.href = '#';
       cancelBtn.addEventListener('click', (e) => {
@@ -61,7 +61,7 @@ export class OverlayHeader {
     if (this.props.showSubmit) {
       const submitBtn = document.createElement('a');
       submitBtn.id = 'submitOverlayWindow';
-      submitBtn.className = 'submitButton';
+      submitBtn.className = 'overlay-button overlay-button-submit submitButton';
       submitBtn.textContent = this.props.submitLabel || 'Submit';
       submitBtn.href = '#';
       submitBtn.addEventListener('click', (e) => {

@@ -91,42 +91,79 @@
   border-radius: 5px;
 }
 
-/* Overlay header buttons */
-#overlayWindow div.overlayHeader a {
+/* Overlay header buttons - base class */
+#overlayWindow div.overlayHeader a.overlay-button {
   position: relative;
   top: -3px;
   margin-left: 10px;
   border: 1px solid var(--overlay-header-link-border, #000);
   border-radius: 5px;
   padding: 2px 5px;
-  background-color: var(--overlay-header-link, #ccc);
-  color: var(--overlay-header-link-text, #000);
   font-size: 10pt;
   font-weight: normal;
   text-decoration: none;
+  color: var(--overlay-header-link-text, #000);
+  display: inline-block;
+  vertical-align: middle;
 }
 
-#overlayWindow div.overlayHeader a:hover {
-  background-color: var(--overlay-header-link-hover, #ddd);
+#overlayWindow div.overlayHeader a.overlay-button:hover {
+  opacity: 0.9;
 }
 
-#overlayWindow div.overlayHeader a:active {
-  background-color: var(--overlay-header-link-active, #bbb);
+#overlayWindow div.overlayHeader a.overlay-button:active {
+  opacity: 0.8;
 }
 
+/* Cancel button modifier */
+#overlayWindow div.overlayHeader a.overlay-button-cancel {
+  background-color: var(--overlay-header-cancel-button, #f44336);
+  color: var(--overlay-header-cancel-button-text, #fff);
+}
+
+#overlayWindow div.overlayHeader a.overlay-button-cancel:hover {
+  background-color: var(--overlay-header-cancel-button-hover, #da190b);
+}
+
+#overlayWindow div.overlayHeader a.overlay-button-cancel:active {
+  background-color: var(--overlay-header-cancel-button-active, #b71c1c);
+}
+
+/* Upload/Submit button modifier */
+#overlayWindow div.overlayHeader a.overlay-button-upload,
+#overlayWindow div.overlayHeader a.overlay-button-submit,
 #overlayWindow div.overlayHeader a.submitButton {
   background-color: var(--overlay-header-submit-button, #4caf50);
   color: var(--overlay-header-submit-button-text, #fff);
 }
 
+#overlayWindow div.overlayHeader a.overlay-button-upload:hover,
+#overlayWindow div.overlayHeader a.overlay-button-submit:hover,
 #overlayWindow div.overlayHeader a.submitButton:hover {
   background-color: var(--overlay-header-submit-button-hover, #45a049);
 }
 
+#overlayWindow div.overlayHeader a.overlay-button-upload:active,
+#overlayWindow div.overlayHeader a.overlay-button-submit:active,
 #overlayWindow div.overlayHeader a.submitButton:active {
   background-color: var(--overlay-header-submit-button-active, #3d8b40);
 }
 
+/* Choose Files button modifier */
+#overlayWindow div.overlayHeader a.overlay-button-choose-files {
+  background-color: #2196F3;
+  color: white;
+}
+
+#overlayWindow div.overlayHeader a.overlay-button-choose-files:hover {
+  background-color: #1976D2;
+}
+
+#overlayWindow div.overlayHeader a.overlay-button-choose-files:active {
+  background-color: #1565C0;
+}
+
+/* Legacy support for old class names */
 #overlayWindow div.overlayHeader a.cancelButton {
   background-color: var(--overlay-header-cancel-button, #f44336);
   color: var(--overlay-header-cancel-button-text, #fff);
@@ -339,26 +376,7 @@
   height: 16px;
 }
 
-/* Upload handler styles */
-#overlayWindow a.chooseFilesButton {
-  background-color: #2196F3;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 4px;
-  text-decoration: none;
-  margin-right: 10px;
-  display: inline-block;
-  vertical-align: middle;
-  border: 1px solid #1976D2;
-}
-
-#overlayWindow a.chooseFilesButton:hover {
-  background-color: #1976D2;
-}
-
-#overlayWindow a.chooseFilesButton:active {
-  background-color: #1565C0;
-}
+/* Upload handler styles - chooseFilesButton now uses overlay-button base class */
 
 #overlayWindow .upload-placeholder {
   padding: 40px;

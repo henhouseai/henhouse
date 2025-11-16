@@ -4,6 +4,7 @@
 import { OverlayManager } from './overlay-manager.js';
 export class UploadHandler {
     constructor(rpc, seedData) {
+        this.filesContainer = null;
         this.uploadStatuses = [];
         this.chooseFilesBtn = null;
         this.uploadBtn = null;
@@ -16,8 +17,6 @@ export class UploadHandler {
         this.fileInput.multiple = true;
         this.fileInput.accept = 'image/*';
         this.fileInput.style.display = 'none';
-        this.filesContainer = document.createElement('div');
-        this.filesContainer.id = 'upload-files-container';
     }
     /**
      * Handle Upload: Upload images to current page
@@ -39,11 +38,17 @@ export class UploadHandler {
             const files = e.target.files;
             if (!files || files.length === 0)
                 return;
-            // Remove placeholder if it exists
+            // If this is the first file, replace placeholder with files container
             if (this.placeholderDiv && this.placeholderDiv.parentNode) {
-                this.placeholderDiv.remove();
+                // Create new files container
+                this.filesContainer = document.createElement('div');
+                this.filesContainer.id = 'upload-files-container';
+                this.filesContainer.className = 'overlayContent';
+                // Replace placeholder with files container
+                this.placeholderDiv.parentNode.replaceChild(this.filesContainer, this.placeholderDiv);
                 this.placeholderDiv = null;
             }
+            // Add all selected files
             for (let i = 0; i < files.length; i++) {
                 this.addFile(files[i]);
             }
@@ -162,13 +167,13 @@ export class UploadHandler {
             // Store reference to upload button
             this.uploadBtn = submitBtn;
             // Check if Choose Files button already exists
-            if (headerEl.querySelector('.chooseFilesButton')) {
-                this.chooseFilesBtn = headerEl.querySelector('.chooseFilesButton');
+            if (headerEl.querySelector('.overlay-button-choose-files')) {
+                this.chooseFilesBtn = headerEl.querySelector('.overlay-button-choose-files');
                 return;
             }
             // Create Choose Files button
             this.chooseFilesBtn = document.createElement('a');
-            this.chooseFilesBtn.className = 'chooseFilesButton';
+            this.chooseFilesBtn.className = 'overlay-button overlay-button-choose-files';
             this.chooseFilesBtn.textContent = 'Choose Files';
             this.chooseFilesBtn.href = '#';
             this.chooseFilesBtn.addEventListener('click', (e) => {
@@ -182,19 +187,10 @@ export class UploadHandler {
         }, 100);
     }
     addFile(file) {
-        // If this is the first file, replace placeholder with files container
-        if (this.placeholderDiv && this.placeholderDiv.parentNode) {
-            this.placeholderDiv.remove();
-            this.placeholderDiv = null;
-            // Create new files container
-            this.filesContainer = document.createElement('div');
-            this.filesContainer.id = 'upload-files-container';
-            this.filesContainer.className = 'overlayContent';
-            // Get overlay content element and replace it
-            const overlayContentEl = document.querySelector('.overlayContent');
-            if (overlayContentEl && overlayContentEl.parentNode) {
-                overlayContentEl.parentNode.replaceChild(this.filesContainer, overlayContentEl);
-            }
+        // Ensure files container exists
+        if (!this.filesContainer || !this.filesContainer.parentNode) {
+            console.error('Files container not found');
+            return;
         }
         const index = this.uploadStatuses.length;
         const fileDiv = document.createElement('div');
@@ -252,15 +248,12 @@ export class UploadHandler {
         status.div.remove();
         this.uploadStatuses.splice(statusIndex, 1);
         // If no files left, show placeholder again
-        if (this.uploadStatuses.length === 0) {
+        if (this.uploadStatuses.length === 0 && this.filesContainer && this.filesContainer.parentNode) {
             this.placeholderDiv = document.createElement('div');
             this.placeholderDiv.className = 'overlayContent upload-placeholder';
             this.placeholderDiv.textContent = 'No files selected. Click "Choose Files" to add images.';
-            const overlayContentEl = document.querySelector('.overlayContent');
-            if (overlayContentEl && overlayContentEl.parentNode) {
-                overlayContentEl.parentNode.replaceChild(this.placeholderDiv, overlayContentEl);
-            }
-            this.filesContainer = this.placeholderDiv;
+            this.filesContainer.parentNode.replaceChild(this.placeholderDiv, this.filesContainer);
+            this.filesContainer = null;
             return;
         }
         // Re-index remaining files
