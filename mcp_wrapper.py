@@ -159,21 +159,117 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
             }), file=sys.stderr)
             return 1
         
-        # Check for file attachments in params
-        # Look for _files array or file_paths array in params
+        # Check for file attachments in params (can be nested in 'arguments' for tools/call)
+        # Look for _files array or file_paths array in params or nested structures
         file_paths = []
+        
+        def extract_files_from_dict(d: dict, remove: bool = False) -> list:
+            """Recursively search for _files or file_paths in dict, return list of file paths."""
+            found_files = []
+            if not isinstance(d, dict):
+                return found_files
+            
+            # Check current level
+            for key in ['_files', 'file_paths']:
+                if key in d:
+                    files_value = d[key]
+                    # Handle both list and string representation of list
+                    if isinstance(files_value, list):
+                        found_files.extend(files_value)
+                    elif isinstance(files_value, str):
+                        # Try to parse string representation of list (e.g., "['file1', 'file2']")
+                        try:
+                            import ast
+                            parsed = ast.literal_eval(files_value)
+                            if isinstance(parsed, list):
+                                found_files.extend(parsed)
+                            else:
+                                found_files.append(files_value)
+                        except:
+                            # If parsing fails, treat as single file path
+                            if files_value:
+                                found_files.append(files_value)
+                    
+                    # Remove _files from dict if requested
+                    if remove:
+                        del d[key]
+            
+            # Recursively check nested dicts (like 'arguments' in tools/call)
+            for value in d.values():
+                if isinstance(value, dict):
+                    found_files.extend(extract_files_from_dict(value, remove=remove))
+            
+            return found_files
+        
         if isinstance(params, dict):
-            # Check for _files array (special key for file attachments)
-            if '_files' in params and isinstance(params['_files'], list):
-                file_paths = params['_files']
-                # Remove _files from params before sending (it's metadata, not a real param)
-                params = {k: v for k, v in params.items() if k != '_files'}
-                mcp_request['params'] = params
-            # Also check for file_paths (alternative key)
-            elif 'file_paths' in params and isinstance(params['file_paths'], list):
-                file_paths = params['file_paths']
-                params = {k: v for k, v in params.items() if k != 'file_paths'}
-                mcp_request['params'] = params
+            # Extract files from params (recursively, including nested 'arguments')
+            file_paths = extract_files_from_dict(params, remove=True)
+            # Update params after removing _files
+            mcp_request['params'] = params
+        
+        # Validate and convert file paths to absolute paths (relative to wrapper script)
+        validated_file_paths = []
+        if file_paths:
+            script_path = Path(__file__).resolve()
+            script_dir = script_path.parent
+            debug_print(f"Wrapper script directory: {script_dir}")
+            
+            for file_path in file_paths:
+                if not isinstance(file_path, str):
+                    continue
+                
+                # Check for path traversal attempts (..)
+                if '..' in file_path:
+                    print(json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32602,
+                            "message": "Invalid params",
+                            "data": f"Path traversal not allowed: {file_path}"
+                        },
+                        "id": mcp_request.get("id")
+                    }), file=sys.stderr)
+                    return True  # Continue on error
+                
+                # Convert to absolute path relative to script directory
+                if os.path.isabs(file_path):
+                    # If absolute, check if it's within project directory
+                    abs_path = Path(file_path)
+                    try:
+                        abs_path.relative_to(script_dir)
+                    except ValueError:
+                        # Path is outside project directory
+                        print(json.dumps({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32602,
+                                "message": "Invalid params",
+                                "data": f"Path outside project directory not allowed: {file_path}"
+                            },
+                            "id": mcp_request.get("id")
+                        }), file=sys.stderr)
+                        return True
+                    validated_file_paths.append(str(abs_path))
+                else:
+                    # Relative path - resolve relative to script directory
+                    abs_path = (script_dir / file_path).resolve()
+                    # Verify it's still within project directory (prevent symlink attacks)
+                    try:
+                        abs_path.relative_to(script_dir)
+                    except ValueError:
+                        print(json.dumps({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32602,
+                                "message": "Invalid params",
+                                "data": f"Resolved path outside project directory: {file_path}"
+                            },
+                            "id": mcp_request.get("id")
+                        }), file=sys.stderr)
+                        return True
+                    validated_file_paths.append(str(abs_path))
+            
+            file_paths = validated_file_paths
         
         # Prepare HTTP request with Basic Auth
         headers = {
