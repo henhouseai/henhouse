@@ -5,6 +5,7 @@ Outputs JSON-RPC 2.0 formatted responses.
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
 import json
+import copy
 from hh.gateway.response.response import Response
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
@@ -85,31 +86,10 @@ class ResponseMCP(Response):
             trace_out()
             return result
         
-        # Build success response from action response and/or output buffer
-        response_data: Dict[str, Any] = {}
-        
-        # If we have action response, use that as the main result
-        if self.action_response:
-            # action_response always has content structure from success_payload()
-            # Keep text as dict for now - will stringify in post-processing
-            response_data = dict(self.action_response)
-        # Otherwise, if we have output buffer, use that
-        elif self.output_buffer:
-            # Join output buffer - might be JSON strings or text
-            output_text = "\n".join(self.output_buffer)
-            # Try to parse as JSON if it looks like JSON
-            try:
-                response_data = json.loads(output_text)
-            except (json.JSONDecodeError, ValueError):
-                # If not JSON, wrap in result object
-                response_data = {
-                    "output": output_text
-                }
-        else:
-            # Empty response
-            response_data = {
-                "success": True
-            }
+        # Build success response from action response
+        # action_response always has content structure from success_payload()
+        # Make a deep copy to avoid modifying the original
+        response_data = copy.deepcopy(self.action_response)
         
         # Format as JSON-RPC 2.0 response
         jsonrpc_response = {
