@@ -43,14 +43,20 @@ export class Overlay {
             className: this.props.className,
             style: this.props.style
         });
+        // Calculate button visibility (used in both constructor and mount)
+        const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
+        const willShowMiddle = willShowSubmit && !!this.props.middleButtonLabel && !!this.props.onMiddleButton;
         this.header = new OverlayHeader({
             title: this.props.header,
             showCancel: this.props.closable !== false,
-            showSubmit: this.props.showSubmit !== false && !!this.props.onSubmit,
+            showSubmit: willShowSubmit,
+            showMiddleButton: willShowMiddle,
             cancelLabel: this.props.cancelLabel || 'Cancel',
             submitLabel: this.props.submitLabel || 'Submit',
+            middleButtonLabel: this.props.middleButtonLabel,
             onCancel: () => this.handleCancel(),
-            onSubmit: () => this.handleSubmit()
+            onSubmit: () => this.handleSubmit(),
+            onMiddleButton: this.props.onMiddleButton
         });
         this.content = new OverlayContent({
             children: this.props.content
@@ -81,13 +87,17 @@ export class Overlay {
         const headerEl = this.header.render();
         windowEl.appendChild(headerEl);
         this.headerEl = headerEl;
-        // Automatically add debug options component to header (next to submit/cancel buttons)
-        this.debugOptions = new OverlayDebugOptions();
-        const debugEl = this.debugOptions.render();
-        headerEl.appendChild(debugEl);
-        // Add filter container after header, before content (hidden by default, shown when debug is checked)
-        const filterContainer = this.debugOptions.getFilterContainer();
-        windowEl.insertBefore(filterContainer, headerEl.nextSibling);
+        // Only add debug options if submit button will be shown (linked to submit button visibility)
+        const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
+        if (willShowSubmit) {
+            // Automatically add debug options component to header (next to submit/cancel buttons)
+            this.debugOptions = new OverlayDebugOptions();
+            const debugEl = this.debugOptions.render();
+            headerEl.appendChild(debugEl);
+            // Add filter container after header, before content (hidden by default, shown when debug is checked)
+            const filterContainer = this.debugOptions.getFilterContainer();
+            windowEl.insertBefore(filterContainer, headerEl.nextSibling);
+        }
         const contentEl = this.content.render();
         windowEl.appendChild(contentEl);
         // Show overlay
@@ -149,6 +159,11 @@ export class Overlay {
             if (submitBtn) {
                 submitBtn.remove();
             }
+            // Hide middle button during loading (same logic as submit button)
+            const middleBtn = this.headerEl.querySelector('#middleOverlayWindow');
+            if (middleBtn) {
+                middleBtn.remove();
+            }
             if (!loadingImg) {
                 const img = document.createElement('img');
                 img.src = '/site/ajaxloading.gif';
@@ -156,10 +171,11 @@ export class Overlay {
                 img.alt = 'Loading...';
                 this.headerEl.appendChild(img);
             }
-            // Hide debug options (filters and checkboxes) during loading
+            // Hide debug options during loading (submit button is hidden, so debug should be too)
             // Note: storedDebugOptions was already saved before setState, so getDebugOptions() will return stored state
             if (this.debugOptions) {
                 this.debugOptions.hideForLoading();
+                this.debugOptions.hide(); // Hide the entire debug options component
             }
         }
         else {
@@ -169,6 +185,22 @@ export class Overlay {
             }
             // Only restore submit button on error (not on success)
             if (!submitBtn && this.props.onSubmit && (this.state.error || (this.state.messages && this.state.messages.some(m => m.type === 'error')))) {
+                // Restore middle button if it was configured
+                const willShowMiddle = !!this.props.middleButtonLabel && !!this.props.onMiddleButton;
+                if (willShowMiddle) {
+                    const middleBtn = document.createElement('a');
+                    middleBtn.id = 'middleOverlayWindow';
+                    middleBtn.className = 'overlay-button overlay-button-middle middleButton';
+                    middleBtn.textContent = this.props.middleButtonLabel || '';
+                    middleBtn.href = '#';
+                    middleBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (this.props.onMiddleButton) {
+                            this.props.onMiddleButton();
+                        }
+                    });
+                    this.headerEl.appendChild(middleBtn);
+                }
                 const newSubmitBtn = document.createElement('a');
                 newSubmitBtn.id = 'submitOverlayWindow';
                 newSubmitBtn.className = 'overlay-button overlay-button-submit submitButton';
@@ -180,7 +212,9 @@ export class Overlay {
                 });
                 this.headerEl.appendChild(newSubmitBtn);
                 // Show debug options again on error (checkboxes remain unchecked, filters visible)
+                // Debug options should be visible when submit button is present
                 if (this.debugOptions) {
+                    this.debugOptions.show();
                     this.debugOptions.showForError();
                 }
                 // Clear stored debug options since we're no longer loading
@@ -189,6 +223,10 @@ export class Overlay {
             else {
                 // On success, clear stored debug options
                 this.storedDebugOptions = null;
+                // Hide debug options when submit button is gone (success case)
+                if (this.debugOptions && !submitBtn) {
+                    this.debugOptions.hide();
+                }
             }
         }
         // Remove existing messages

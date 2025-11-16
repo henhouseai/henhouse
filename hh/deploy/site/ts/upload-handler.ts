@@ -114,6 +114,10 @@ export class UploadHandler {
       closable: true, // Allow closing by clicking backdrop
       submitLabel: 'Upload',
       cancelLabel: 'Cancel',
+      middleButtonLabel: 'Choose Files',
+      onMiddleButton: () => {
+        this.fileInput.click();
+      },
       onMount: () => {
         // Add upload-placeholder class immediately when overlay mounts (before it's visible)
         // This prevents flicker by ensuring correct styling from the start
@@ -202,50 +206,23 @@ export class UploadHandler {
       }
     });
     
-    // After overlay is shown, modify the header to add Choose Files button
-    setTimeout(() => {
-      const headerEl = document.querySelector('#overlayWindow .overlayHeader') as HTMLElement;
-      if (!headerEl) {
-        console.error('Could not find overlay header');
-        return;
-      }
-      
-      // Find existing buttons
-      const cancelBtn = headerEl.querySelector('.cancelButton') as HTMLAnchorElement;
-      const submitBtn = headerEl.querySelector('.submitButton') as HTMLAnchorElement;
-      
-      if (!cancelBtn) {
-        console.error('Could not find cancel button');
-      }
-      if (!submitBtn) {
-        console.error('Could not find submit button');
-      }
-      if (!cancelBtn || !submitBtn) return;
-      
-      // Store reference to upload button
-      this.uploadBtn = submitBtn;
-      
-      // Check if Choose Files button already exists
-      if (headerEl.querySelector('.overlay-button-choose-files')) {
-        this.chooseFilesBtn = headerEl.querySelector('.overlay-button-choose-files') as HTMLAnchorElement;
-        return;
-      }
-      
-      // Create Choose Files button
-      this.chooseFilesBtn = document.createElement('a');
-      this.chooseFilesBtn.className = 'overlay-button overlay-button-choose-files';
-      this.chooseFilesBtn.textContent = 'Choose Files';
-      this.chooseFilesBtn.href = '#';
-      this.chooseFilesBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.fileInput.click();
-      });
-      
-      // Insert Choose Files button between Cancel and Upload
-      if (submitBtn.parentNode) {
-        submitBtn.parentNode.insertBefore(this.chooseFilesBtn, submitBtn);
-      }
-    }, 100);
+      // Store references to buttons after overlay is shown (for disabling during upload)
+      setTimeout(() => {
+        const headerEl = document.querySelector('#overlayWindow .overlayHeader') as HTMLElement;
+        if (!headerEl) {
+          console.error('Could not find overlay header');
+          return;
+        }
+        
+        // Find buttons
+        const cancelBtn = headerEl.querySelector('.cancelButton') as HTMLAnchorElement;
+        const submitBtn = headerEl.querySelector('.submitButton') as HTMLAnchorElement;
+        const middleBtn = headerEl.querySelector('.middleButton') as HTMLAnchorElement;
+        
+        // Store references
+        this.uploadBtn = submitBtn;
+        this.chooseFilesBtn = middleBtn;
+      }, 100);
   }
 
   private addFile(file: File): void {

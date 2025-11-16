@@ -8,6 +8,7 @@ export class OverlayDebugOptions {
         this.grayInput = null;
         this.blackInput = null;
         this.debugLimitInput = null;
+        this.isVisible = true; // Track visibility state
         this.container = document.createElement('div');
         this.container.className = 'overlay-debug-options';
         // Debug checkbox (enables everything)
@@ -164,6 +165,28 @@ export class OverlayDebugOptions {
             }
         }
         return options;
+    }
+    /**
+     * Show the debug options component.
+     */
+    show() {
+        this.isVisible = true;
+        this.container.style.display = '';
+    }
+    /**
+     * Hide the debug options component.
+     */
+    hide() {
+        this.isVisible = false;
+        this.container.style.display = 'none';
+        // Also hide filter container when hiding debug options
+        this.filterContainer.style.display = 'none';
+    }
+    /**
+     * Check if debug options are visible.
+     */
+    getVisible() {
+        return this.isVisible;
     }
     /**
      * Render the debug options component.

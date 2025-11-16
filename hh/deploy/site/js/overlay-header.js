@@ -41,6 +41,21 @@ export class OverlayHeader {
             });
             header.appendChild(cancelBtn);
         }
+        // Middle button (only shown when submit button is also shown)
+        if (this.props.showMiddleButton && this.props.showSubmit) {
+            const middleBtn = document.createElement('a');
+            middleBtn.id = 'middleOverlayWindow';
+            middleBtn.className = 'overlay-button overlay-button-middle middleButton';
+            middleBtn.textContent = this.props.middleButtonLabel || '';
+            middleBtn.href = '#';
+            middleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (this.props.onMiddleButton) {
+                    this.props.onMiddleButton();
+                }
+            });
+            header.appendChild(middleBtn);
+        }
         // Submit button
         if (this.props.showSubmit) {
             const submitBtn = document.createElement('a');

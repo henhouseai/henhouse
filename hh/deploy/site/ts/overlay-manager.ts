@@ -13,6 +13,8 @@ export interface OverlayOptions {
   showSubmit?: boolean;
   submitLabel?: string;
   cancelLabel?: string;
+  middleButtonLabel?: string;
+  onMiddleButton?: () => void;
   onMount?: () => void;
   onUnmount?: () => void;
   onSubmit?: () => Promise<any> | any;

@@ -21,6 +21,7 @@ export class OverlayDebugOptions {
   private grayInput: HTMLInputElement | null = null;
   private blackInput: HTMLInputElement | null = null;
   private debugLimitInput: HTMLInputElement | null = null;
+  private isVisible: boolean = true; // Track visibility state
 
   constructor() {
     this.container = document.createElement('div');
@@ -201,6 +202,31 @@ export class OverlayDebugOptions {
     }
     
     return options;
+  }
+
+  /**
+   * Show the debug options component.
+   */
+  show(): void {
+    this.isVisible = true;
+    this.container.style.display = '';
+  }
+
+  /**
+   * Hide the debug options component.
+   */
+  hide(): void {
+    this.isVisible = false;
+    this.container.style.display = 'none';
+    // Also hide filter container when hiding debug options
+    this.filterContainer.style.display = 'none';
+  }
+
+  /**
+   * Check if debug options are visible.
+   */
+  getVisible(): boolean {
+    return this.isVisible;
   }
 
   /**
