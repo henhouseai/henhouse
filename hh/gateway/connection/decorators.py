@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Callable, Union, TypedDict
 from functools import wraps
 from hh.gateway.connection.connection import get_connection, validate_agent_identity
 from hh.deploy.utils import detect_project_context
-from hh.gateway.error.error_store import report_error
+from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.response.json_standard import (
     resolve_error, ERROR_CODES
 )
@@ -233,8 +233,12 @@ def with_connection(
                         result = func(conn, *args[1:], **kwargs)
                     
                     if auto_transaction:
-                        conn.commit()
-                        log("Transaction committed successfully")
+                        if is_error():
+                            conn.rollback()
+                            log("Transaction rolled back due to errors")
+                        else:
+                            conn.commit()
+                            log("Transaction committed successfully")
                     duration_ms = int((time.time() - start_time) * 1000)
                     log(f"{func.__name__}: Function execution successful, duration={duration_ms}ms")
                     trace_out()
@@ -415,8 +419,12 @@ def with_mysql_connection(
                         result = func(conn, *args[1:], **kwargs)
                     
                     if auto_transaction:
-                        conn.commit()
-                        log("MySQL system transaction committed successfully")
+                        if is_error():
+                            conn.rollback()
+                            log("MySQL system transaction rolled back due to errors")
+                        else:
+                            conn.commit()
+                            log("MySQL system transaction committed successfully")
                     
                     duration_ms = int((time.time() - start_time) * 1000)
                     log(f"MySQL system function execution successful: {func.__name__}, duration={duration_ms}ms")
@@ -632,8 +640,12 @@ def with_root_connection(
                         result = func(conn, *args[1:], **kwargs)
                     
                     if auto_transaction:
-                        conn.commit()
-                        log("Root transaction committed successfully")
+                        if is_error():
+                            conn.rollback()
+                            log("Root transaction rolled back due to errors")
+                        else:
+                            conn.commit()
+                            log("Root transaction committed successfully")
                     
                     duration_ms = int((time.time() - start_time) * 1000)
                     log(f"Root function execution successful: {func.__name__}, duration={duration_ms}ms")
