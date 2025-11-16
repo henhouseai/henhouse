@@ -82,7 +82,7 @@ export class UploadHandler {
     this.overlay = overlayManager.show({
       header: 'Upload Images',
       content: this.placeholderDiv,
-      closable: false, // We handle closing manually with custom buttons
+      closable: true, // Allow closing by clicking backdrop
       submitLabel: 'Upload',
       cancelLabel: 'Cancel',
       onSubmit: async () => {
@@ -179,17 +179,32 @@ export class UploadHandler {
     
     // After overlay is shown, modify the header to add Choose Files button
     setTimeout(() => {
-      const headerEl = document.querySelector('.overlayHeader') as HTMLElement;
-      if (!headerEl) return;
+      const headerEl = document.querySelector('#overlayWindow .overlayHeader') as HTMLElement;
+      if (!headerEl) {
+        console.error('Could not find overlay header');
+        return;
+      }
       
       // Find existing buttons
       const cancelBtn = headerEl.querySelector('.cancelButton') as HTMLAnchorElement;
       const submitBtn = headerEl.querySelector('.submitButton') as HTMLAnchorElement;
       
+      if (!cancelBtn) {
+        console.error('Could not find cancel button');
+      }
+      if (!submitBtn) {
+        console.error('Could not find submit button');
+      }
       if (!cancelBtn || !submitBtn) return;
       
       // Store reference to upload button
       this.uploadBtn = submitBtn;
+      
+      // Check if Choose Files button already exists
+      if (headerEl.querySelector('.chooseFilesButton')) {
+        this.chooseFilesBtn = headerEl.querySelector('.chooseFilesButton') as HTMLAnchorElement;
+        return;
+      }
       
       // Create Choose Files button
       this.chooseFilesBtn = document.createElement('a');
