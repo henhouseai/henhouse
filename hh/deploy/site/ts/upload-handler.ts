@@ -164,6 +164,7 @@ export class UploadHandler {
         
         // Process files sequentially in order
         let nextIndexToProcess = 0;
+        let hasDebugData = false; // Track if any debug data was present
         
         const processNext = async (): Promise<void> => {
           while (nextIndexToProcess < this.uploadStatuses.length) {
@@ -209,8 +210,10 @@ export class UploadHandler {
                 
                 const rpcResult = await this.rpc.call('upload_images', params);
                 
-                // Handle debug data immediately - create overlay for each response with debug
-                if (rpcResult.debug) {
+                // Track if debug data was present (prevents auto-fade)
+                if (rpcResult.debug && Array.isArray(rpcResult.debug.entries) && rpcResult.debug.entries.length > 0) {
+                  hasDebugData = true;
+                  // Handle debug data immediately - create overlay for each response with debug
                   handleRPCResponseWithDebug(rpcResult, 'upload_images', params);
                 }
                 
@@ -240,11 +243,12 @@ export class UploadHandler {
         
         await processNext();
         
-        // Return success with auto-fade and redirect enabled
+        // Return success - disable auto-fade if debug data was present
+        // Use standardized redirect pattern ('self' for refresh)
         return { 
           _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`, 
-          _autoFade: true,
-          _redirectAfterFade: window.location.href // Refresh current page after fade
+          _autoFade: !hasDebugData, // Disable auto-fade if debug data was present
+          _redirectAfterFade: hasDebugData ? null : 'self' // Only redirect if no debug data (standardized pattern)
         };
       },
       onCancel: () => {

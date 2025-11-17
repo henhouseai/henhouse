@@ -10,6 +10,8 @@ import { OverlayHeader } from './overlay-header.js';
 import { OverlayContent } from './overlay-content.js';
 import { OverlayDebugTable, DebugData } from './overlay-debug-table.js';
 import { OverlayDebugOptions, DebugOptions } from './overlay-debug-options.js';
+import { PageManager } from './page-manager.js';
+import { getSeedData } from './seed.js';
 
 export interface OverlayState {
   isVisible: boolean;
@@ -406,7 +408,7 @@ export class Overlay {
           // If redirect is requested, do it after fade completes
           if (redirectAfterFade) {
             setTimeout(() => {
-              window.location.href = redirectAfterFade;
+              this.handleRedirect(redirectAfterFade);
             }, 1500); // Wait for fade to complete
           }
         }, 1500); // 1.5 second delay before fade starts
@@ -536,6 +538,44 @@ export class Overlay {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /**
+   * Handle redirect after fade using standardized redirect patterns.
+   * Supports: 'self' (refresh), 'parent' (redirect to parent), '/url' (specific URL), or null (no redirect).
+   */
+  private handleRedirect(redirectAfterFade: string | null | undefined): void {
+    if (!redirectAfterFade) {
+      return; // No redirect
+    }
+
+    if (redirectAfterFade === 'self') {
+      // Refresh current page
+      window.location.reload();
+    } else if (redirectAfterFade === 'parent') {
+      // Redirect to parent page
+      const pageManager = PageManager.getInstance();
+      const pageData = pageManager.getPageData();
+      if (pageData) {
+        const parentId = pageData.getField('parent');
+        // Construct parent URL: /{parentId} or / for root
+        window.location.href = parentId ? `/${parentId}` : '/';
+      } else {
+        // Fallback: try to get parent from seed data
+        const seedData = getSeedData();
+        if (seedData.page?.parent) {
+          // Construct parent URL (assuming numeric IDs)
+          const parentId = seedData.page.parent;
+          window.location.href = parentId ? `/${parentId}` : '/';
+        } else {
+          // No parent found, just reload
+          window.location.reload();
+        }
+      }
+    } else {
+      // Treat as URL (backward compatible with existing code)
+      window.location.href = redirectAfterFade;
+    }
   }
 
   /**

@@ -770,26 +770,13 @@ export class PageData {
               confirm: true
             });
             
-            // Get parent page for redirect
-            const parentId = this.getField('parent');
-            const path = this.getField('path') || [];
-            let redirectUrl = '';
-            
-            if (Array.isArray(path) && path.length > 1) {
-              // Get parent from path (second-to-last item)
-              const parentPathItem = path[path.length - 2];
-              redirectUrl = this.getPageUrl(parentPathItem?.id);
-            } else {
-              // Fallback to parent ID or root
-              redirectUrl = this.getPageUrl(parentId);
-            }
-            
+            // Use standardized redirect pattern: 'parent' redirects to parent page
             return {
               debug: result.debug,
               success: true,
               _showMessage: `Page "${this.escapeHtml(pageName)}" has been deleted successfully.`,
               _autoFade: true,
-              _redirectAfterFade: redirectUrl
+              _redirectAfterFade: 'parent' // Standardized redirect pattern
             };
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
