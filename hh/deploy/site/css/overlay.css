@@ -552,6 +552,11 @@
   margin-right: 5px;
 }
 
+/* Debug options table */
+#overlayWindow .overlay-debug-filter-table th {
+  padding-left: 10px;
+  padding-right: 10px;
+}
 
 /* RPC error box */
 .hh-error {
