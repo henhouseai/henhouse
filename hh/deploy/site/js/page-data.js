@@ -4,6 +4,7 @@
  */
 import { PageManager } from './page-manager.js';
 import { OverlayManager } from './overlay-manager.js';
+import { getSeedData } from './seed.js';
 export class PageData {
     constructor(data) {
         this.dynamicFields = {};
@@ -895,6 +896,14 @@ export class PageData {
         catch (error) {
             rpc.showError('add_page', error);
         }
+    }
+    /**
+     * Handle Upload: Upload images to current page
+     */
+    async Upload(rpc) {
+        const { UploadHandler } = await import('./upload-handler.js');
+        const handler = new UploadHandler(rpc, getSeedData());
+        await handler.handle();
     }
 }
 // Base page fields that are always present

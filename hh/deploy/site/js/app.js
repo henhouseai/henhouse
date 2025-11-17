@@ -1,11 +1,13 @@
 /**
- * Main application entry point and action handlers.
+ * Main application entry point and action manager.
+ * Handles action loading, menu building, and handler attachment.
+ * All actual handlers live in PageData classes.
  */
 import { getSeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
 import { PageManager } from './page-manager.js';
 import { TestHandlers } from './test.js';
-class ActionHandlers {
+class ActionManager {
     constructor() {
         this.hotCacheActionIds = new Set(); // Track hot-cache loaded action IDs
         this.rpc = new RPCClient();
@@ -182,7 +184,7 @@ class ActionHandlers {
             if (element.hasAttribute('data-handler-attached')) {
                 continue;
             }
-            // First, try to find handler in PageData (via PageManager)
+            // Find handler in PageData (via PageManager)
             const pageManager = PageManager.getInstance();
             const pageData = pageManager.getPageData();
             if (pageData && typeof pageData[action.id] === 'function') {
@@ -190,21 +192,6 @@ class ActionHandlers {
                     e.preventDefault();
                     try {
                         await pageData[action.id].call(pageData, this.rpc);
-                    }
-                    catch (error) {
-                        this.rpc.showError(action.id, error);
-                    }
-                });
-                element.setAttribute('data-handler-attached', 'true');
-                continue;
-            }
-            // Fallback: look for handler method in ActionHandlers class
-            const handlerMethod = this[action.id];
-            if (typeof handlerMethod === 'function') {
-                element.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    try {
-                        await handlerMethod.call(this);
                     }
                     catch (error) {
                         this.rpc.showError(action.id, error);
@@ -224,8 +211,8 @@ class ActionHandlers {
         // Register test handlers (temporary - will be removed eventually)
         const testHandlers = new TestHandlers(this.rpc, this.seedData);
         testHandlers.registerHandlers((id, handler) => this.attachHandler(id, handler));
-        // CRUD handlers
-        this.attachHandler('pageOptions', () => this.handlePageOptions());
+        // All CRUD handlers now live in PageData classes
+        // No handlers registered here anymore
     }
     /**
      * Attach a click handler to an element by ID.
@@ -246,34 +233,11 @@ class ActionHandlers {
             }
         });
     }
-    /**
-     * Handle pageOptions: Edit page options
-     */
-    async handlePageOptions() {
-        // TODO: Implement pageOptions handler
-        alert('Page Options not yet implemented');
-    }
-    /**
-     * Handle Upload: Upload images to current page
-     */
-    async Upload() {
-        const { UploadHandler } = await import('./upload-handler.js');
-        const handler = new UploadHandler(this.rpc, this.seedData);
-        await handler.handle();
-    }
-    /**
-     * Escape HTML to prevent XSS
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 }
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
-    const handlers = new ActionHandlers();
-    handlers.init();
+    const actionManager = new ActionManager();
+    actionManager.init();
     // Load page data and populate app actions
-    await handlers.loadPageAndSetupActions();
+    await actionManager.loadPageAndSetupActions();
 });

@@ -5,6 +5,7 @@
 
 import { PageManager } from './page-manager.js';
 import { OverlayManager } from './overlay-manager.js';
+import { getSeedData } from './seed.js';
 
 export interface PageInfo {
   id: number;
@@ -1105,6 +1106,15 @@ export class PageData {
     } catch (error) {
       rpc.showError('add_page', error);
     }
+  }
+
+  /**
+   * Handle Upload: Upload images to current page
+   */
+  async Upload(rpc: any): Promise<void> {
+    const { UploadHandler } = await import('./upload-handler.js');
+    const handler = new UploadHandler(rpc, getSeedData());
+    await handler.handle();
   }
 }
 

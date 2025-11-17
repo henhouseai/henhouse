@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS `ask_sidecar_link` (
 
 CREATE TABLE IF NOT EXISTS `asks` (
   `id` bigint NOT NULL AUTO_INCREMENT,
+  `page_id` int DEFAULT NULL,
   `work_docket_id` bigint NOT NULL,
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` enum('todo','doing','review','done') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'todo',
@@ -154,7 +155,9 @@ CREATE TABLE IF NOT EXISTS `asks` (
   PRIMARY KEY (`id`),
   KEY `work_docket_id` (`work_docket_id`,`status`),
   KEY `idx_asks_wd` (`work_docket_id`),
-  KEY `idx_asks_order` (`work_docket_id`,`sort_order`)
+  KEY `idx_asks_order` (`work_docket_id`,`sort_order`),
+  KEY `idx_page_id` (`page_id`),
+  CONSTRAINT `asks_ibfk_page` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `bootstrap_files` (
@@ -411,6 +414,7 @@ CREATE TABLE IF NOT EXISTS `step_sidecar_link` (
 
 CREATE TABLE IF NOT EXISTS `steps` (
   `id` bigint NOT NULL AUTO_INCREMENT,
+  `page_id` int DEFAULT NULL,
   `task_id` bigint DEFAULT NULL,
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
@@ -421,8 +425,10 @@ CREATE TABLE IF NOT EXISTS `steps` (
   KEY `work_docket_id` (`status`),
   KEY `idx_steps_task` (`task_id`),
   KEY `idx_steps_order` (`task_id`,`sort_order`),
+  KEY `idx_page_id` (`page_id`),
   CONSTRAINT `fk_steps_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `steps_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `steps_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `steps_ibfk_page` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `subscription_agent` (
@@ -516,6 +522,7 @@ CREATE TABLE IF NOT EXISTS `task_sidecar_link` (
 
 CREATE TABLE IF NOT EXISTS `tasks` (
   `id` bigint NOT NULL AUTO_INCREMENT,
+  `page_id` int DEFAULT NULL,
   `ask_id` bigint DEFAULT NULL,
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` enum('todo','doing','review','done') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'todo',
@@ -526,8 +533,10 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   KEY `work_docket_id` (`status`),
   KEY `idx_tasks_ask` (`ask_id`),
   KEY `idx_tasks_order` (`ask_id`,`sort_order`),
+  KEY `idx_page_id` (`page_id`),
   CONSTRAINT `fk_tasks_ask` FOREIGN KEY (`ask_id`) REFERENCES `asks` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `tasks_ibfk_1` FOREIGN KEY (`ask_id`) REFERENCES `asks` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `tasks_ibfk_1` FOREIGN KEY (`ask_id`) REFERENCES `asks` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `tasks_ibfk_page` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `watercooler_messages` (
