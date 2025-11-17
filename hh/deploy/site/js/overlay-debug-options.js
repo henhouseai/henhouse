@@ -39,25 +39,17 @@ export class OverlayDebugOptions {
         const inputRow = document.createElement('tr');
         // Debug checkbox cell
         const debugCell = document.createElement('td');
-        const debugLabel = document.createElement('label');
-        debugLabel.className = 'overlay-label-inline';
         this.debugCheckbox = document.createElement('input');
         this.debugCheckbox.type = 'checkbox';
         this.debugCheckbox.id = 'overlay-debug-checkbox';
-        debugLabel.appendChild(this.debugCheckbox);
-        debugLabel.appendChild(document.createTextNode(' Debug'));
-        debugCell.appendChild(debugLabel);
+        debugCell.appendChild(this.debugCheckbox);
         inputRow.appendChild(debugCell);
         // Log checkbox cell
         const logCell = document.createElement('td');
-        const logLabel = document.createElement('label');
-        logLabel.className = 'overlay-label-inline';
         this.logCheckbox = document.createElement('input');
         this.logCheckbox.type = 'checkbox';
         this.logCheckbox.id = 'overlay-log-checkbox';
-        logLabel.appendChild(this.logCheckbox);
-        logLabel.appendChild(document.createTextNode(' Log'));
-        logCell.appendChild(logLabel);
+        logCell.appendChild(this.logCheckbox);
         inputRow.appendChild(logCell);
         // Blacklist input
         const blackCell = document.createElement('td');
