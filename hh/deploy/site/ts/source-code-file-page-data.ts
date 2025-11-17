@@ -67,45 +67,43 @@ export class SourceCodeFilePageData extends PageData {
       const path = this.getField('path') || [];
       const pathStr = Array.isArray(path) ? path.map((p: any) => p.name).filter(Boolean).join(' / ') : '';
 
-      // Create form HTML with editable and read-only fields
-      const formHtml = `
-          <div class="overlay-form-section">
-            <h3 class="overlay-section-title">Editable Fields:</h3>
-            <div class="overlay-form-group">
-              <label>File path:</label>
-              <input type="text" id="page-field-file_path" value="${this.escapeHtml(currentFilePath)}" class="overlay-form-input">
-            </div>
-            <div class="overlay-form-group">
-              <label>Language:</label>
-              <input type="text" id="page-field-language" value="${this.escapeHtml(currentLanguage)}" class="overlay-form-input">
-            </div>
-            <div class="overlay-form-group">
-              <label>Page text:</label>
-              <textarea id="page-field-text" name="text" rows="20" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
-            </div>
+      // Create form HTML with editable and read-only fields using array-based content structure
+      const editableFieldsHtml = `
+          <div class="overlay-form-group">
+            <label>File path:</label>
+            <input type="text" id="page-field-file_path" value="${this.escapeHtml(currentFilePath)}" class="overlay-form-input">
           </div>
-          <div class="overlay-form-divider">
-            <h3 class="overlay-section-title">Read-Only Fields (for display only):</h3>
-            <div class="overlay-form-grid">
-              <div><strong>ID:</strong></div>
-              <div>${this.escapeHtml(String(pageIdValue))}</div>
-              <div><strong>Class:</strong></div>
-              <div>${this.escapeHtml(pageClass)}</div>
-              <div><strong>Link:</strong></div>
-              <div>${this.escapeHtml(pageLink)}</div>
-              <div><strong>Last Modified:</strong></div>
-              <div>${this.escapeHtml(lastModified)}</div>
-              <div><strong>Username:</strong></div>
-              <div>${this.escapeHtml(username)}</div>
-              <div><strong>Path:</strong></div>
-              <div>${this.escapeHtml(pathStr)}</div>
-            </div>
+          <div class="overlay-form-group">
+            <label>Language:</label>
+            <input type="text" id="page-field-language" value="${this.escapeHtml(currentLanguage)}" class="overlay-form-input">
+          </div>
+          <div class="overlay-form-group">
+            <label>Page text:</label>
+            <textarea id="page-field-text" name="text" rows="20" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
+          </div>
+      `;
+
+      const readOnlyFieldsHtml = `
+          <div class="overlay-form-grid">
+            <div><strong>ID:</strong></div>
+            <div>${this.escapeHtml(String(pageIdValue))}</div>
+            <div><strong>Class:</strong></div>
+            <div>${this.escapeHtml(pageClass)}</div>
+            <div><strong>Link:</strong></div>
+            <div>${this.escapeHtml(pageLink)}</div>
+            <div><strong>Last Modified:</strong></div>
+            <div>${this.escapeHtml(lastModified)}</div>
+            <div><strong>Username:</strong></div>
+            <div>${this.escapeHtml(username)}</div>
+            <div><strong>Path:</strong></div>
+            <div>${this.escapeHtml(pathStr)}</div>
           </div>
       `;
 
       OverlayManager.getInstance().show({
         header: 'Edit Source Code File',
-        content: formHtml,
+        content: [editableFieldsHtml, readOnlyFieldsHtml],
+        contentHeaders: ['Editable Fields', 'Read-Only Fields (for display only)'],
         closable: true,
         submitLabel: 'Submit',
         cancelLabel: 'Cancel',

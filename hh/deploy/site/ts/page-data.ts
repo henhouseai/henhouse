@@ -524,7 +524,7 @@ export class PageData {
       // Request 'name' field with 'form' context to register it for editing
       const currentName = this.getField('name', 'form') || '';
 
-      // Create form HTML with standardized field ID
+      // Create form HTML with standardized field ID using array-based content structure
       const formHtml = `
           <div class="overlay-form-group">
             <label>Page name:</label>
@@ -534,7 +534,8 @@ export class PageData {
 
       OverlayManager.getInstance().show({
         header: 'Modify Page Name',
-        content: formHtml,
+        content: [formHtml],
+        contentHeaders: [''],
         closable: true,
         submitLabel: 'Submit',
         cancelLabel: 'Cancel',
@@ -644,7 +645,7 @@ export class PageData {
       // Request 'text' field with 'form' context to register it for editing
       const currentText = this.getField('text', 'form') || '';
 
-      // Create textarea form with standardized field ID
+      // Create textarea form with standardized field ID using array-based content structure
       const formHtml = `
           <div class="overlay-form-group">
             <textarea id="page-field-text" name="text" rows="20" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
@@ -653,7 +654,8 @@ export class PageData {
 
       OverlayManager.getInstance().show({
         header: 'Text Editor',
-        content: formHtml,
+        content: [formHtml],
+        contentHeaders: [''],
         closable: true,
         submitLabel: 'Submit',
         cancelLabel: 'Cancel',
@@ -732,7 +734,7 @@ export class PageData {
       const pageName = this.getField('name') || `Page ${pageId}`;
       const pageClass = this.getField('class') || 'page';
       
-      // Create form HTML with confirmation checkbox
+      // Create form HTML with confirmation checkbox using array-based content structure
       const formHtml = `
           <div class="overlay-warning-text">
             <p><strong>Warning:</strong> This will permanently delete the page and all its children.</p>
@@ -748,7 +750,8 @@ export class PageData {
 
       OverlayManager.getInstance().show({
         header: 'Delete Page',
-        content: formHtml,
+        content: [formHtml],
+        contentHeaders: [''],
         closable: true,
         submitLabel: 'Delete',
         cancelLabel: 'Cancel',
@@ -823,41 +826,39 @@ export class PageData {
       const path = this.getField('path') || [];
       const pathStr = Array.isArray(path) ? path.map((p: any) => p.name).filter(Boolean).join(' / ') : '';
       
-      // Create form HTML with editable and read-only fields
-      const formHtml = `
-          <div class="overlay-form-section">
-            <h3 class="overlay-section-title">Editable Fields:</h3>
-            <div class="overlay-form-group">
-              <label>Page name:</label>
-              <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" class="overlay-form-input">
-            </div>
-            <div class="overlay-form-group">
-              <label>Page text:</label>
-              <textarea id="page-field-text" name="text" rows="10" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
-            </div>
+      // Create form HTML with editable and read-only fields using array-based content structure
+      const editableFieldsHtml = `
+          <div class="overlay-form-group">
+            <label>Page name:</label>
+            <input type="text" id="page-field-name" value="${this.escapeHtml(currentName)}" class="overlay-form-input">
           </div>
-          <div class="overlay-form-divider">
-            <h3 class="overlay-section-title">Read-Only Fields (for display only):</h3>
-            <div class="overlay-form-grid">
-              <div><strong>ID:</strong></div>
-              <div>${this.escapeHtml(String(pageIdValue))}</div>
-              <div><strong>Class:</strong></div>
-              <div>${this.escapeHtml(pageClass)}</div>
-              <div><strong>Link:</strong></div>
-              <div>${this.escapeHtml(pageLink)}</div>
-              <div><strong>Last Modified:</strong></div>
-              <div>${this.escapeHtml(lastModified)}</div>
-              <div><strong>Username:</strong></div>
-              <div>${this.escapeHtml(username)}</div>
-              <div><strong>Path:</strong></div>
-              <div>${this.escapeHtml(pathStr)}</div>
-            </div>
+          <div class="overlay-form-group">
+            <label>Page text:</label>
+            <textarea id="page-field-text" name="text" rows="10" cols="80" class="overlay-form-textarea">${this.escapeHtml(currentText)}</textarea>
+          </div>
+      `;
+
+      const readOnlyFieldsHtml = `
+          <div class="overlay-form-grid">
+            <div><strong>ID:</strong></div>
+            <div>${this.escapeHtml(String(pageIdValue))}</div>
+            <div><strong>Class:</strong></div>
+            <div>${this.escapeHtml(pageClass)}</div>
+            <div><strong>Link:</strong></div>
+            <div>${this.escapeHtml(pageLink)}</div>
+            <div><strong>Last Modified:</strong></div>
+            <div>${this.escapeHtml(lastModified)}</div>
+            <div><strong>Username:</strong></div>
+            <div>${this.escapeHtml(username)}</div>
+            <div><strong>Path:</strong></div>
+            <div>${this.escapeHtml(pathStr)}</div>
           </div>
       `;
 
       OverlayManager.getInstance().show({
         header: 'Combo Test Form',
-        content: formHtml,
+        content: [editableFieldsHtml, readOnlyFieldsHtml],
+        contentHeaders: ['Editable Fields', 'Read-Only Fields (for display only)'],
         closable: true,
         submitLabel: 'Submit',
         cancelLabel: 'Cancel',
@@ -1005,7 +1006,8 @@ export class PageData {
 
       OverlayManager.getInstance().show({
         header: 'Add New Page',
-        content: formHtml,
+        content: [formHtml],
+        contentHeaders: [''],
         closable: true,
         submitLabel: 'Add Page',
         cancelLabel: 'Cancel',
