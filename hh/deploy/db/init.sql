@@ -762,6 +762,7 @@ CREATE TABLE IF NOT EXISTS `wc_microlog_link_task` (
 
 CREATE TABLE IF NOT EXISTS `work_dockets` (
   `id` bigint NOT NULL AUTO_INCREMENT,
+  `page_id` int DEFAULT NULL,
   `started_ts` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `ended_ts` datetime(6) DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT '0',
@@ -771,7 +772,9 @@ CREATE TABLE IF NOT EXISTS `work_dockets` (
   `status` enum('todo','doing','review','done') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'todo',
   `sort_order` int NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
-  KEY `active` (`active`,`started_ts`)
+  KEY `active` (`active`,`started_ts`),
+  KEY `idx_page_id` (`page_id`),
+  CONSTRAINT `work_dockets_ibfk_page` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `pages` (

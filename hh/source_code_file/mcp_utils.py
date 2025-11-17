@@ -8,25 +8,37 @@ Registers source code file-related MCP tools with appropriate tier access:
 
 from hh.gateway.registry.mcp_whitelist import register_mcp_tool
 
-# Write operations - available to admin and root tiers only
-# Note: modify_path and modify_language are registered in hh/page/mcp_utils.py
-
-# App actions - tiers 7, 8 (admin app, root app)
 @register_mcp_tool(
-    tool_name='source_code_file_dummy',
-    description='Source Code File Dummy - Test app action for source_code group',
+    tool_name='modify_path',
+    description='Modify the file path of a source code file page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
         'type': 'object',
         'properties': {
-            'page_id': {'type': 'integer', 'description': 'The ID of the source code file page'}
+            'page_id': {'type': 'integer', 'description': 'The ID of the source code file page to modify'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
+            'path': {'type': 'string', 'description': 'The new file path for the source code file'}
         },
-        'required': ['page_id']
+        'required': ['page_id', 'path']
     },
-    tiers=[7, 8],
+    tiers=[3, 4],
     requires_approval=False,
-    crud_type='read',
-    app_action_group='source_code',
-    app_action_label='Source Code File Dummy'
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='modify_language',
+    description='Modify the programming language of a source code file page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the source code file page to modify'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
+            'language': {'type': 'string', 'description': 'The new programming language for the source code file (e.g., \'python\', \'javascript\', \'markdown\')'}
+        },
+        'required': ['page_id', 'language']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
 )
 @register_mcp_tool(
     tool_name='source_code_file_combo',

@@ -84,21 +84,6 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read'
 )
 @register_mcp_tool(
-    tool_name='show_image',
-    description='Show image details by ID. Returns complete image data including usage, instances, and metadata.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'id': {'type': 'integer', 'description': 'The ID of the image to show'},
-            'json': {'type': 'boolean', 'description': 'If true, returns JSON format output (optional)'}
-        },
-        'required': ['id']
-    },
-    tiers=[1, 2, 3, 4],
-    requires_approval=False,
-    crud_type='read'
-)
-@register_mcp_tool(
     tool_name='help',
     description='Get help documentation for a topic and optional section. Returns help content in JSON format.',
     inputSchema={
@@ -356,37 +341,6 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='update'
 )
 @register_mcp_tool(
-    tool_name='upload_images',
-    description='Upload one or more images to a page from temp files. Requires admin/panel tier access with database write permissions. Pass files using the _files parameter (e.g., _files=["path/to/file1.jpg", "path/to/file2.jpg"]). The system automatically handles file upload via multipart/form-data. Processes files sequentially and stops on any error.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'page_id': {'type': 'integer', 'description': 'The ID of the page to upload the image(s) to'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id'},
-            'caption': {'type': 'string', 'description': 'Optional caption for all images (defaults to original filename for each image)'},
-            '_files': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Array of file paths to upload. The system handles the file upload automatically.'}
-        },
-        'required': ['page_id']
-    },
-    tiers=[3, 4],
-    requires_approval=False,
-    crud_type='create'
-)
-@register_mcp_tool(
-    tool_name='Upload',
-    description='Upload images to a page. App action only - no MCP call.',
-    inputSchema={
-        'type': 'object',
-        'properties': {},
-        'required': []
-    },
-    tiers=[7, 8],  # App action only - no MCP tiers
-    requires_approval=False,
-    crud_type='read',  # Mark as read since it's not a real MCP tool
-    app_action_group='images',
-    app_action_label='Upload'
-)
-@register_mcp_tool(
     tool_name='copy_images_app',
     description='Copy images to a target page. App action only - no MCP call.',
     inputSchema={
@@ -443,53 +397,18 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Sort'
 )
 @register_mcp_tool(
-    tool_name='modify_caption',
-    description='Modify the caption of an image. Requires admin/panel tier access with database write permissions.',
+    tool_name='Upload',
+    description='Upload images to a page. App action only - no MCP call.',
     inputSchema={
         'type': 'object',
-        'properties': {
-            'image_id': {'type': 'integer', 'description': 'The ID of the image to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for image_id (use either image_id or id)'},
-            'caption': {'type': 'string', 'description': 'The new caption text for the image'},
-            'clear': {'type': 'boolean', 'description': 'If true, clears the caption (sets to empty string). Use this instead of providing an empty caption string.'}
-        },
-        'required': ['image_id', 'caption']
+        'properties': {},
+        'required': []
     },
-    tiers=[3, 4],
+    tiers=[7, 8],  # App action only - no MCP tiers
     requires_approval=False,
-    crud_type='update'
-)
-@register_mcp_tool(
-    tool_name='modify_path',
-    description='Modify the file path of a source code file page. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'page_id': {'type': 'integer', 'description': 'The ID of the source code file page to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
-            'path': {'type': 'string', 'description': 'The new file path for the source code file'}
-        },
-        'required': ['page_id', 'path']
-    },
-    tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update'
-)
-@register_mcp_tool(
-    tool_name='modify_language',
-    description='Modify the programming language of a source code file page. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'page_id': {'type': 'integer', 'description': 'The ID of the source code file page to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
-            'language': {'type': 'string', 'description': 'The new programming language for the source code file (e.g., \'python\', \'javascript\', \'markdown\')'}
-        },
-        'required': ['page_id', 'language']
-    },
-    tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update'
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='images',
+    app_action_label='Upload'
 )
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""

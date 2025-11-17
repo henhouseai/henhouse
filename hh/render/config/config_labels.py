@@ -79,7 +79,6 @@ from hh.render.config.config_registry import register_label
 @register_label('timestamp',                         'Timestamp:'                   )
 @register_label('title',                             'Title:'                       )
 @register_label('name',                              'Name:'                        )
-@register_label('work_docket',                       'Work Docket:'                 )
 @register_label('work_preview_header',               'Work Preview'                )
 @register_label('command',                           'Command:',                    '⌨️')
 def _register_config():

@@ -96,23 +96,6 @@
       "required": []
     }
   },
-  "help": {
-    "description": "Get help documentation for a topic and optional section. Returns help content in JSON format.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "topic": {
-          "type": "string",
-          "description": "The help topic to retrieve (defaults to 'help' if not provided)"
-        },
-        "section": {
-          "type": "string",
-          "description": "Optional specific section within the topic"
-        }
-      },
-      "required": []
-    }
-  },
   "show_image": {
     "description": "Show image details by ID. Returns complete image data including usage, instances, and metadata.",
     "inputSchema": {
@@ -130,6 +113,23 @@
       "required": [
         "id"
       ]
+    }
+  },
+  "help": {
+    "description": "Get help documentation for a topic and optional section. Returns help content in JSON format.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "description": "The help topic to retrieve (defaults to 'help' if not provided)"
+        },
+        "section": {
+          "type": "string",
+          "description": "Optional specific section within the topic"
+        }
+      },
+      "required": []
     }
   },
   "get_add_page_class_info": {
