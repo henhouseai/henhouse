@@ -456,7 +456,8 @@ export class Overlay {
         const overlayManager = OverlayManager.getInstance();
         overlayManager.show({
             header: 'Debug Information',
-            content: contentHtml,
+            content: [contentHtml],
+            contentHeaders: [''],
             closable: true,
             cancelLabel: 'Close',
             showSubmit: false,

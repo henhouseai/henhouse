@@ -113,7 +113,8 @@ export class UploadHandler {
     // Show overlay with custom header buttons
     this.overlay = overlayManager.show({
       header: 'Upload Images',
-      content: placeholderWrapper,
+      content: [placeholderWrapper],
+      contentHeaders: [''],
       closable: true, // Allow closing by clicking backdrop
       submitLabel: 'Upload',
       cancelLabel: 'Cancel',

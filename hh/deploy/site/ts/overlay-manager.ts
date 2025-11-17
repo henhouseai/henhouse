@@ -7,7 +7,7 @@ import { Overlay } from './overlay.js';
 
 export interface OverlayOptions {
   header?: string | HTMLElement;
-  content?: string | HTMLElement | Array<string | HTMLElement>;
+  content?: Array<string | HTMLElement>; // Array-based content structure (required)
   contentHeaders?: Array<string>; // Optional headers for each content section
   footer?: string | HTMLElement;
   closable?: boolean;

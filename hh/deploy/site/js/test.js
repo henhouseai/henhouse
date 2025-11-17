@@ -100,7 +100,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Simple Overlay Test',
-            content: 'This is a simple overlay with just text content. Click Cancel or press ESC to close.',
+            content: ['This is a simple overlay with just text content. Click Cancel or press ESC to close.'],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -122,7 +123,8 @@ export class TestHandlers {
     `;
         manager.show({
             header: 'HTML Overlay Test',
-            content: htmlContent,
+            content: [htmlContent],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -133,7 +135,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Submit Overlay Test',
-            content: 'This overlay has a submit button. Click Submit to see it in action.',
+            content: ['This overlay has a submit button. Click Submit to see it in action.'],
+            contentHeaders: [''],
             closable: true,
             onSubmit: async () => {
                 // Simulate async operation
@@ -154,13 +157,15 @@ export class TestHandlers {
         // Show first overlay
         manager.show({
             header: 'First Overlay',
-            content: 'This is the first overlay. Click Submit to open a second overlay on top.',
+            content: ['This is the first overlay. Click Submit to open a second overlay on top.'],
+            contentHeaders: [''],
             closable: true,
             onSubmit: async () => {
                 // Show second overlay on top
                 manager.show({
                     header: 'Second Overlay',
-                    content: 'This is a second overlay stacked on top of the first. Notice the z-index stacking.',
+                    content: ['This is a second overlay stacked on top of the first. Notice the z-index stacking.'],
+                    contentHeaders: [''],
                     closable: true,
                     onSubmit: async () => {
                         alert('Second overlay submitted!');
@@ -189,7 +194,8 @@ export class TestHandlers {
     `;
         manager.show({
             header: 'Focus Trap Test',
-            content: htmlContent,
+            content: [htmlContent],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -200,7 +206,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Backdrop Click Test',
-            content: 'Click the dark backdrop behind this overlay. It should close the overlay.',
+            content: ['Click the dark backdrop behind this overlay. It should close the overlay.'],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -219,7 +226,8 @@ export class TestHandlers {
     `;
         manager.show({
             header: 'Textarea Enter Test',
-            content: htmlContent,
+            content: [htmlContent],
+            contentHeaders: [''],
             closable: true,
             onSubmit: async () => {
                 alert('Submit triggered! (Enter was pressed outside textarea)');
@@ -235,20 +243,23 @@ export class TestHandlers {
         // Show multiple overlays
         manager.show({
             header: 'Overlay 1',
-            content: 'This is overlay 1. We will open 2 more overlays, then close all at once.',
+            content: ['This is overlay 1. We will open 2 more overlays, then close all at once.'],
+            contentHeaders: [''],
             closable: true
         });
         setTimeout(() => {
             manager.show({
                 header: 'Overlay 2',
-                content: 'This is overlay 2.',
+                content: ['This is overlay 2.'],
+                contentHeaders: [''],
                 closable: true
             });
         }, 500);
         setTimeout(() => {
             manager.show({
                 header: 'Overlay 3',
-                content: 'This is overlay 3. Click Submit to close all overlays at once.',
+                content: ['This is overlay 3. Click Submit to close all overlays at once.'],
+                contentHeaders: [''],
                 closable: true,
                 onSubmit: async () => {
                     manager.closeAll();
@@ -265,7 +276,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Empty Content Test',
-            content: '', // Empty string
+            content: [''], // Array-based content structure
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -277,7 +289,8 @@ export class TestHandlers {
         const longContent = Array(50).fill(0).map((_, i) => `<p>This is paragraph ${i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>`).join('');
         manager.show({
             header: 'Long Content Test',
-            content: `<div>${longContent}</div>`,
+            content: [`<div>${longContent}</div>`],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -306,7 +319,8 @@ export class TestHandlers {
     `;
         manager.show({
             header: 'Complex HTML Test',
-            content: complexHTML,
+            content: [complexHTML],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -317,7 +331,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Error Message Test',
-            content: 'Click Submit to trigger an error message. The submit button should disappear, show loading, then reappear with an error message.',
+            content: ['Click Submit to trigger an error message. The submit button should disappear, show loading, then reappear with an error message.'],
+            contentHeaders: [''],
             closable: true,
             onSubmit: async () => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -332,7 +347,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Success Message Test',
-            content: 'Click Submit to trigger a success message. The submit button should disappear, show loading, then show a success message.',
+            content: ['Click Submit to trigger a success message. The submit button should disappear, show loading, then show a success message.'],
+            contentHeaders: [''],
             closable: true,
             onSubmit: async () => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -347,7 +363,8 @@ export class TestHandlers {
         const manager = OverlayManager.getInstance();
         manager.show({
             header: 'Loading State Test',
-            content: 'Click Submit to see the loading spinner. It will take 3 seconds to complete.',
+            content: ['Click Submit to see the loading spinner. It will take 3 seconds to complete.'],
+            contentHeaders: [''],
             closable: true,
             onSubmit: async () => {
                 await new Promise(resolve => setTimeout(resolve, 3000));
@@ -374,7 +391,8 @@ export class TestHandlers {
     `;
         manager.show({
             header: 'Special Characters Test',
-            content: specialContent,
+            content: [specialContent],
+            contentHeaders: [''],
             closable: true
         });
     }
@@ -424,7 +442,8 @@ export class TestHandlers {
     `;
         manager.show({
             header: 'Table/Form Content Test',
-            content: tableFormContent,
+            content: [tableFormContent],
+            contentHeaders: [''],
             closable: true
         });
     }
