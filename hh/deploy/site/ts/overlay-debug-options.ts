@@ -1,6 +1,6 @@
 /**
  * OverlayDebugOptions - Debug options UI component for overlay forms.
- * Provides checkboxes and input fields for debug/log flags and filters.
+ * Provides a collapsible footer section with debug/log checkboxes and filter inputs.
  */
 
 export interface DebugOptions {
@@ -14,53 +14,74 @@ export interface DebugOptions {
 
 export class OverlayDebugOptions {
   private container: HTMLElement;
-  private filterContainer: HTMLElement;
+  private headerDiv: HTMLElement;
+  private contentDiv: HTMLElement;
+  private toggleBtn: HTMLButtonElement;
   private debugCheckbox: HTMLInputElement;
   private logCheckbox: HTMLInputElement;
-  private whiteInput: HTMLInputElement | null = null;
-  private grayInput: HTMLInputElement | null = null;
-  private blackInput: HTMLInputElement | null = null;
-  private debugLimitInput: HTMLInputElement | null = null;
-  private isVisible: boolean = true; // Track visibility state
+  private whiteInput: HTMLInputElement;
+  private grayInput: HTMLInputElement;
+  private blackInput: HTMLInputElement;
+  private debugLimitInput: HTMLInputElement;
+  private isCollapsed: boolean = true; // Start collapsed by default
 
   constructor() {
+    // Create container for the entire debug section
     this.container = document.createElement('div');
-    this.container.className = 'overlay-debug-options';
+    this.container.className = 'overlay-debug-section';
     
-    // Debug checkbox (enables everything)
+    // Create header with expand/collapse button
+    this.headerDiv = document.createElement('div');
+    this.headerDiv.className = 'overlayContentHeader';
+    
+    this.toggleBtn = document.createElement('button');
+    this.toggleBtn.className = 'overlay-content-toggle';
+    this.toggleBtn.textContent = '▶'; // Collapsed state (right arrow)
+    this.toggleBtn.type = 'button';
+    
+    const headerTextSpan = document.createElement('span');
+    headerTextSpan.className = 'overlay-content-header-text';
+    headerTextSpan.textContent = 'Debug Options';
+    
+    this.headerDiv.appendChild(this.toggleBtn);
+    this.headerDiv.appendChild(headerTextSpan);
+    
+    // Create content div (collapsed by default)
+    this.contentDiv = document.createElement('div');
+    this.contentDiv.className = 'overlayContent overlay-debug-content';
+    this.contentDiv.style.display = 'none'; // Start collapsed
+    
+    // Create inner container for checkboxes and table
+    const innerContainer = document.createElement('div');
+    innerContainer.className = 'overlay-debug-options-inner';
+    
+    // Checkboxes container
+    const checkboxesDiv = document.createElement('div');
+    checkboxesDiv.className = 'overlay-debug-checkboxes';
+    
+    // Debug checkbox
     const debugLabel = document.createElement('label');
     debugLabel.className = 'overlay-label-inline';
     this.debugCheckbox = document.createElement('input');
     this.debugCheckbox.type = 'checkbox';
     this.debugCheckbox.id = 'overlay-debug-checkbox';
-    this.debugCheckbox.addEventListener('change', () => this.updateVisibility());
-    
     debugLabel.appendChild(this.debugCheckbox);
     debugLabel.appendChild(document.createTextNode(' Debug'));
-    this.container.appendChild(debugLabel);
+    checkboxesDiv.appendChild(debugLabel);
     
-    // Log checkbox (only appears when debug is checked)
+    // Log checkbox
     const logLabel = document.createElement('label');
     logLabel.className = 'overlay-label-inline';
-    logLabel.style.display = 'none';
     this.logCheckbox = document.createElement('input');
     this.logCheckbox.type = 'checkbox';
     this.logCheckbox.id = 'overlay-log-checkbox';
-    this.logCheckbox.addEventListener('change', () => this.updateVisibility());
-    
     logLabel.appendChild(this.logCheckbox);
     logLabel.appendChild(document.createTextNode(' Log'));
-    this.container.appendChild(logLabel);
+    checkboxesDiv.appendChild(logLabel);
     
-    // Store reference to log label for visibility updates
-    (this.container as any)._logLabel = logLabel;
+    innerContainer.appendChild(checkboxesDiv);
     
-    // Filter options container (will be placed after header, before content)
-    this.filterContainer = document.createElement('div');
-    this.filterContainer.className = 'overlayContent overlay-debug-filters';
-    this.filterContainer.style.display = 'none';
-    
-    // Create table for filter inputs (2 rows, 4 columns)
+    // Filter table
     const filterTable = document.createElement('table');
     filterTable.className = 'overlay-debug-filter-table';
     
@@ -114,64 +135,50 @@ export class OverlayDebugOptions {
     inputRow.appendChild(limitCell);
     
     filterTable.appendChild(inputRow);
-    this.filterContainer.appendChild(filterTable);
+    innerContainer.appendChild(filterTable);
+    
+    this.contentDiv.appendChild(innerContainer);
+    
+    // Add toggle functionality
+    this.toggleBtn.addEventListener('click', () => {
+      this.toggle();
+    });
+    
+    // Assemble container
+    this.container.appendChild(this.headerDiv);
+    this.container.appendChild(this.contentDiv);
   }
 
   /**
-   * Update visibility of options based on checkbox states.
+   * Toggle expand/collapse state.
    */
-  private updateVisibility(): void {
-    const logLabel = (this.container as any)._logLabel as HTMLElement;
-    
-    if (this.debugCheckbox.checked) {
-      // Show log checkbox
-      logLabel.style.display = 'inline-flex';
-      // Show filter options
-      this.filterContainer.style.display = 'block';
+  toggle(): void {
+    this.isCollapsed = !this.isCollapsed;
+    if (this.isCollapsed) {
+      this.contentDiv.style.display = 'none';
+      this.toggleBtn.textContent = '▶'; // Collapsed state
     } else {
-      // Hide log checkbox and uncheck it
-      logLabel.style.display = 'none';
-      this.logCheckbox.checked = false;
-      // Hide filter options
-      this.filterContainer.style.display = 'none';
+      this.contentDiv.style.display = '';
+      this.toggleBtn.textContent = '▼'; // Expanded state
     }
   }
 
   /**
-   * Get current debug options values (reads from DOM, so must be called before hiding).
+   * Collapse the debug section.
    */
-  getOptionsBeforeHide(): DebugOptions {
-    // Read values before hiding - this preserves the state
-    return this.getOptions();
+  collapse(): void {
+    if (!this.isCollapsed) {
+      this.toggle();
+    }
   }
 
   /**
-   * Hide filters and uncheck boxes (for loading state).
-   * Preserves input values but unchecks boxes.
-   * NOTE: Call getOptionsBeforeHide() first if you need the checkbox states!
+   * Expand the debug section.
    */
-  hideForLoading(): void {
-    this.debugCheckbox.checked = false;
-    this.logCheckbox.checked = false;
-    const logLabel = (this.container as any)._logLabel as HTMLElement;
-    logLabel.style.display = 'none';
-    this.filterContainer.style.display = 'none';
-  }
-
-  /**
-   * Show filters and checkboxes again (for error state).
-   * Restores input values that were preserved.
-   */
-  showForError(): void {
-    // Checkboxes remain unchecked, but filters are visible again
-    this.filterContainer.style.display = 'block';
-  }
-
-  /**
-   * Get the filter container element (for placement in content area).
-   */
-  getFilterContainer(): HTMLElement {
-    return this.filterContainer;
+  expand(): void {
+    if (this.isCollapsed) {
+      this.toggle();
+    }
   }
 
   /**
@@ -184,16 +191,16 @@ export class OverlayDebugOptions {
     };
     
     if (this.debugCheckbox.checked) {
-      if (this.whiteInput && this.whiteInput.value.trim()) {
+      if (this.whiteInput.value.trim()) {
         options.white = this.whiteInput.value.trim();
       }
-      if (this.grayInput && this.grayInput.value.trim()) {
+      if (this.grayInput.value.trim()) {
         options.gray = this.grayInput.value.trim();
       }
-      if (this.blackInput && this.blackInput.value.trim()) {
+      if (this.blackInput.value.trim()) {
         options.black = this.blackInput.value.trim();
       }
-      if (this.debugLimitInput && this.debugLimitInput.value) {
+      if (this.debugLimitInput.value) {
         const limit = parseInt(this.debugLimitInput.value, 10);
         if (!isNaN(limit) && limit > 0) {
           options.debugLimit = limit;
@@ -205,35 +212,9 @@ export class OverlayDebugOptions {
   }
 
   /**
-   * Show the debug options component.
-   */
-  show(): void {
-    this.isVisible = true;
-    this.container.style.display = '';
-  }
-
-  /**
-   * Hide the debug options component.
-   */
-  hide(): void {
-    this.isVisible = false;
-    this.container.style.display = 'none';
-    // Also hide filter container when hiding debug options
-    this.filterContainer.style.display = 'none';
-  }
-
-  /**
-   * Check if debug options are visible.
-   */
-  getVisible(): boolean {
-    return this.isVisible;
-  }
-
-  /**
-   * Render the debug options component.
+   * Render the debug options component (returns the container with header and content).
    */
   render(): HTMLElement {
     return this.container;
   }
 }
-

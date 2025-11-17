@@ -19,7 +19,6 @@ export class Overlay {
         this.previousFocus = null;
         this.isClosing = false;
         this.debugOptions = null;
-        this.storedDebugOptions = null; // Store debug options during loading
         this.props = { ...options };
         this.state = {
             isVisible: false,
@@ -90,19 +89,16 @@ export class Overlay {
         const headerEl = this.header.render();
         windowEl.appendChild(headerEl);
         this.headerEl = headerEl;
-        // Only add debug options if submit button will be shown (linked to submit button visibility)
-        const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
-        if (willShowSubmit) {
-            // Automatically add debug options component to header (next to submit/cancel buttons)
-            this.debugOptions = new OverlayDebugOptions();
-            const debugEl = this.debugOptions.render();
-            headerEl.appendChild(debugEl);
-            // Add filter container after header, before content (hidden by default, shown when debug is checked)
-            const filterContainer = this.debugOptions.getFilterContainer();
-            windowEl.insertBefore(filterContainer, headerEl.nextSibling);
-        }
         const contentEl = this.content.render();
         windowEl.appendChild(contentEl);
+        // Only add debug options to footer if submit button will be shown (linked to submit button visibility)
+        const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
+        if (willShowSubmit) {
+            // Add debug options as a collapsible footer section
+            this.debugOptions = new OverlayDebugOptions();
+            const debugEl = this.debugOptions.render();
+            windowEl.appendChild(debugEl);
+        }
         // Show overlay
         this.setState({ isVisible: true });
         // Focus management
@@ -174,11 +170,9 @@ export class Overlay {
                 img.alt = 'Loading...';
                 this.headerEl.appendChild(img);
             }
-            // Hide debug options during loading (submit button is hidden, so debug should be too)
-            // Note: storedDebugOptions was already saved before setState, so getDebugOptions() will return stored state
+            // Collapse debug options during loading to keep things tidy
             if (this.debugOptions) {
-                this.debugOptions.hideForLoading();
-                this.debugOptions.hide(); // Hide the entire debug options component
+                this.debugOptions.collapse();
             }
         }
         else {
@@ -214,22 +208,12 @@ export class Overlay {
                     this.handleSubmit();
                 });
                 this.headerEl.appendChild(newSubmitBtn);
-                // Show debug options again on error (checkboxes remain unchecked, filters visible)
-                // Debug options should be visible when submit button is present
-                if (this.debugOptions) {
-                    this.debugOptions.show();
-                    this.debugOptions.showForError();
-                }
-                // Clear stored debug options since we're no longer loading
-                this.storedDebugOptions = null;
+                // Debug options remain visible (collapsed) when submit button is restored
+                // User can expand it if needed
             }
             else {
-                // On success, clear stored debug options
-                this.storedDebugOptions = null;
-                // Hide debug options when submit button is gone (success case)
-                if (this.debugOptions && !submitBtn) {
-                    this.debugOptions.hide();
-                }
+                // On success, debug options remain visible (collapsed) until overlay closes
+                // No need to hide them
             }
         }
         // Remove existing messages
@@ -310,12 +294,6 @@ export class Overlay {
     async handleSubmit() {
         if (!this.props.onSubmit) {
             return;
-        }
-        // Read and store debug options BEFORE hiding them (so RPC call can read the checked state)
-        // The RPC call happens inside onSubmit(), so we need to preserve the state
-        // Store options even if they're empty (so we know to clear them later)
-        if (this.debugOptions) {
-            this.storedDebugOptions = this.debugOptions.getOptionsBeforeHide();
         }
         this.setState({ isLoading: true, error: null, success: null });
         try {
@@ -419,10 +397,6 @@ export class Overlay {
     getDebugOptions() {
         if (!this.debugOptions) {
             return null;
-        }
-        // If we're loading and have stored options, return those (boxes are unchecked but we need the original state)
-        if (this.state.isLoading && this.storedDebugOptions) {
-            return this.storedDebugOptions;
         }
         return this.debugOptions.getOptions();
     }
