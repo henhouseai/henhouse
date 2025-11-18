@@ -782,8 +782,7 @@ export class PageData {
               _redirectAfterFade: 'parent' // Standardized redirect pattern
             };
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to delete page: ${errorMessage}`);
+            throw error;
           }
         }
       });
@@ -1066,8 +1065,7 @@ export class PageData {
               debug: result.debug
             };
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to create page: ${errorMessage}`);
+            throw error;
           }
         }
       });
