@@ -44,7 +44,7 @@ class WorkDocketContentMixin:
             WHERE pages.parent = %s
               AND pages.class = 'work_docket'
             ORDER BY COALESCE(
-                CAST(JSON_UNQUOTE(JSON_EXTRACT(pages.metadata, '$.work.sort_order')) AS UNSIGNED),
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(pages.metadata, '$.sort_order')) AS UNSIGNED),
                 0
             )
             """,

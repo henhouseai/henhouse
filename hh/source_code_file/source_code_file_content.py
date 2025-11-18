@@ -1,18 +1,17 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
 import os
-from pathlib import Path
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 from pygments.util import ClassNotFound
-from hh.gateway.connection.connection import r_query, c_query, d_query, u_query
 from hh.deploy.utils import detect_project_context
 from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
+from hh.page.page_registry import get_page_conn
 from hh.source_code_file.source_code_file_method_registry import register_source_code_file_mixin_methods
 
 trace_in = lambda message=None: None
@@ -69,23 +68,20 @@ class SourceCodeFileContentMixin:
         if is_error() or not conn:
             return
         
-        # Load source code file data
         trace_in()
-        query = "SELECT path, language FROM source_code_files WHERE page_id = %s"
-        results = r_query(conn, query, [page_id])
-        if results:
-            source_data = results[0]
-            raw_file_path = source_data.get('path')
-            raw_language = source_data.get('language')
-            debug(f"SourceCodeFile {page_id} raw DB values: path={repr(raw_file_path)}, language={repr(raw_language)}")
-            # Convert None/NULL to blank string
-            self.file_path = '' if raw_file_path is None else raw_file_path
-            self.language = '' if raw_language is None else raw_language
-            log(f"SourceCodeFile {page_id} loaded: file_path='{self.file_path}', language='{self.language}'")
-        else:
-            debug(f"SourceCodeFile {page_id} has no source_code_files entry")
-            self.file_path = ''
-            self.language = ''
+        metadata = self._get_metadata_dict()
+        mutated = False
+        if 'path' not in metadata:
+            metadata['path'] = ''
+            mutated = True
+        if 'language' not in metadata:
+            metadata['language'] = ''
+            mutated = True
+        if mutated:
+            self._write_metadata_dict(metadata)
+        self.file_path = metadata.get('path') or ''
+        self.language = metadata.get('language') or ''
+        log(f"SourceCodeFile {page_id} loaded from metadata: file_path='{self.file_path}', language='{self.language}'")
         trace_out()
     
     @staticmethod
@@ -242,17 +238,15 @@ class SourceCodeFileContentMixin:
         file_path = gateway.get_arg('path') or None
         language = gateway.get_arg('language') or None
         
-        # Insert into source_code_files table
-        if conn:
-            try:
-                c_query(conn, """
-                    INSERT INTO source_code_files (page_id, path, language)
-                    VALUES (%s, %s, %s)
-                """, (new_page_id, file_path, language))
-                log(f"Created source_code_files entry for page {new_page_id}: file_path='{file_path}', language='{language}'")
-            except Exception as e:
-                warn(f"Failed to create source_code_files entry: {str(e)}")
-                report_error("backend", f"Failed to create source_code_files entry: {str(e)}")
+        page = get_page_conn(conn, new_page_id)
+        if not page:
+            warn(f"Failed to load page {new_page_id} for metadata initialization")
+            trace_out()
+            return
+        page.set_metadata_value('path', file_path or '')
+        page.set_metadata_value('language', language or '')
+        page.reset_connection()
+        log(f"Initialized metadata for source code file page {new_page_id}")
         
         trace_out()
     
@@ -262,13 +256,7 @@ class SourceCodeFileContentMixin:
         This is an instance method (like PHP) because it's called on the page being deleted.
         """
         trace_in()
-        if self.conn and self.id:
-            try:
-                d_query(self.conn, "DELETE FROM source_code_files WHERE page_id = %s", [self.id])
-                log(f"Deleted source_code_files entry for page {self.id}")
-            except Exception as e:
-                warn(f"Failed to delete source_code_files entry: {str(e)}")
-                report_error("backend", f"Failed to delete source_code_files entry: {str(e)}")
+        # No additional cleanup needed; metadata lives on the page row.
         trace_out()
     
     def _modify_path(self, path: str) -> bool:
@@ -278,22 +266,9 @@ class SourceCodeFileContentMixin:
             log("Path unchanged, no update needed")
             trace_out()
             return True
-        old_path = self.file_path
-        log(f"Old path: '{old_path}', new path: '{path}'")
-        if not is_error():
-            log(f"Updating page {self.id} file path in database: '{old_path}' -> '{path}'")
-            affected = u_query(self.conn, "UPDATE source_code_files SET path = %s WHERE page_id = %s", (path, self.id))
-            if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, "INSERT INTO source_code_files (page_id, path, language) VALUES (%s, %s, %s)", (self.id, path, self.language if hasattr(self, 'language') else None))
-                    log(f"Created source_code_files entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create source_code_files entry: {str(e)}")
-                    report_error("action", f"Failed to create source_code_files entry: {str(e)}")
-            else:
-                log(f"Successfully updated page {self.id} file path in database")
-        if not is_error():
+        metadata = self._get_metadata_dict()
+        metadata['path'] = path
+        if self._write_metadata_dict(metadata):
             self.file_path = path
             log(f"Successfully updated page {self.id} file path to '{path}'")
         trace_out()
@@ -306,22 +281,9 @@ class SourceCodeFileContentMixin:
             log("Language unchanged, no update needed")
             trace_out()
             return True
-        old_language = self.language
-        log(f"Old language: '{old_language}', new language: '{language}'")
-        if not is_error():
-            log(f"Updating page {self.id} language in database: '{old_language}' -> '{language}'")
-            affected = u_query(self.conn, "UPDATE source_code_files SET language = %s WHERE page_id = %s", (language, self.id))
-            if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, "INSERT INTO source_code_files (page_id, path, language) VALUES (%s, %s, %s)", (self.id, self.file_path if hasattr(self, 'file_path') else None, language))
-                    log(f"Created source_code_files entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create source_code_files entry: {str(e)}")
-                    report_error("action", f"Failed to create source_code_files entry: {str(e)}")
-            else:
-                log(f"Successfully updated page {self.id} language in database")
-        if not is_error():
+        metadata = self._get_metadata_dict()
+        metadata['language'] = language
+        if self._write_metadata_dict(metadata):
             self.language = language
             log(f"Successfully updated page {self.id} language to '{language}'")
         trace_out()

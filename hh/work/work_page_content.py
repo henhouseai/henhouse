@@ -56,8 +56,6 @@ def _parse_metadata(metadata: Any) -> Dict[str, Any]:
 
 
 class WorkPageContentMixin:
-    WORK_NAMESPACE = 'work'
-    CUSTOM_META_NAMESPACE = 'meta'
 
     @staticmethod
     def _sort_meta_dict(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -74,35 +72,37 @@ class WorkPageContentMixin:
             return
         
         trace_in()
-        work_defaults = {
-            'status': 'todo',
-            'sort_order': 0,
-            'started_ts': dt.datetime.now().isoformat(),
-            'ended_ts': None,
-        }
-        work_data = self.get_metadata_namespace(
-            self.WORK_NAMESPACE,
-            default=work_defaults,
-            persist_if_missing=True,
-        )
-        self.status = work_data.get('status', 'todo')
-        self.sort_order = work_data.get('sort_order', 0)
-        self.started_ts = work_data.get('started_ts')
-        self.ended_ts = work_data.get('ended_ts')
-
-        raw_meta_bucket = self.get_metadata_namespace(
-            self.CUSTOM_META_NAMESPACE,
-            default={},
-            persist_if_missing=True,
-        )
-        if not isinstance(raw_meta_bucket, dict):
+        metadata = self._get_metadata_dict()
+        mutated = False
+        if 'status' not in metadata:
+            metadata['status'] = 'todo'
+            mutated = True
+        if 'sort_order' not in metadata:
+            metadata['sort_order'] = 0
+            mutated = True
+        if 'meta' not in metadata or metadata['meta'] in (None, ''):
+            metadata['meta'] = {}
+            mutated = True
+        self.status = metadata.get('status') or 'todo'
+        self.sort_order = metadata.get('sort_order') or 0
+        self.started_ts = metadata.get('started_ts')
+        self.ended_ts = metadata.get('ended_ts')
+        raw_meta_bucket = metadata.get('meta') or {}
+        if isinstance(raw_meta_bucket, str):
+            try:
+                raw_meta_bucket = json.loads(raw_meta_bucket)
+            except (ValueError, TypeError):
+                raw_meta_bucket = {}
+        elif not isinstance(raw_meta_bucket, dict):
             raw_meta_bucket = {}
-            self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, raw_meta_bucket)
         sorted_meta_bucket = self._sort_meta_dict(raw_meta_bucket)
-        if sorted_meta_bucket != raw_meta_bucket:
-            self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta_bucket)
+        if metadata.get('meta') != sorted_meta_bucket:
+            metadata['meta'] = sorted_meta_bucket
+            mutated = True
+        if mutated:
+            self._write_metadata_dict(metadata)
         self.meta_dict = sorted_meta_bucket
-        self.meta = json.dumps(sorted_meta_bucket, ensure_ascii=False)
+        self.meta = json.dumps(sorted_meta_bucket, ensure_ascii=False) if sorted_meta_bucket else '{}'
         log(
             f"{self.__class__.__name__} {page_id} loaded from metadata: "
             f"status='{self.status}', sort_order={self.sort_order}"
@@ -188,34 +188,29 @@ class WorkPageContentMixin:
             )
             for row in sibling_rows:
                 metadata = _parse_metadata(row.get('metadata'))
-                work_block = metadata.get(cls.WORK_NAMESPACE)
-                if isinstance(work_block, dict):
-                    try:
-                        current = int(work_block.get('sort_order') or 0)
-                        if current > max_order:
-                            max_order = current
-                    except (TypeError, ValueError):
-                        continue
+                try:
+                    current = int(metadata.get('sort_order') or 0)
+                    if current > max_order:
+                        max_order = current
+                except (TypeError, ValueError):
+                    continue
 
         new_sort_order = max_order + 1
-        work_namespace = {
-            'status': status,
-            'sort_order': new_sort_order,
-            'started_ts': dt.datetime.now().isoformat(),
-            'ended_ts': None,
-        }
-
         new_page = get_page_conn(conn, new_page_id)
         if not new_page:
             warn(f"Failed to load page {new_page_id} for metadata initialization")
             trace_out()
             return
 
-        new_page.set_metadata_namespace(cls.WORK_NAMESPACE, work_namespace)
-        new_page.set_metadata_namespace(cls.CUSTOM_META_NAMESPACE, user_meta or {})
+        now_iso = dt.datetime.now().isoformat()
+        new_page.set_metadata_value('status', status)
+        new_page.set_metadata_value('sort_order', new_sort_order)
+        new_page.set_metadata_value('started_ts', now_iso)
+        new_page.set_metadata_value('ended_ts', None)
+        new_page.set_metadata_value('meta', user_meta or {})
         new_page.status = status
         new_page.sort_order = new_sort_order
-        new_page.started_ts = work_namespace['started_ts']
+        new_page.started_ts = now_iso
         new_page.ended_ts = None
         new_page.meta = json.dumps(user_meta or {}, ensure_ascii=False)
         new_page.reset_connection()
@@ -237,10 +232,9 @@ class WorkPageContentMixin:
             log("Status unchanged, no update needed")
             trace_out()
             return True
-        work_data = self.get_metadata_namespace(self.WORK_NAMESPACE, default={}, persist_if_missing=True)
-        updated = dict(work_data)
-        updated['status'] = status
-        if self.set_metadata_namespace(self.WORK_NAMESPACE, updated):
+        metadata = self._get_metadata_dict()
+        metadata['status'] = status
+        if self._write_metadata_dict(metadata):
             self.status = status
             log(f"Successfully updated page {self.id} status to '{status}'")
         trace_out()
@@ -250,11 +244,15 @@ class WorkPageContentMixin:
         """Set/add/update a single key-value pair in the meta JSON field."""
         trace_in()
         log(f"Setting meta key '{key}' for page {self.id}")
-        current_meta = self.get_metadata_namespace(
-            self.CUSTOM_META_NAMESPACE,
-            default={},
-            persist_if_missing=True,
-        )
+        metadata = self._get_metadata_dict()
+        current_meta = metadata.get('meta')
+        if isinstance(current_meta, str):
+            try:
+                current_meta = json.loads(current_meta)
+            except (ValueError, TypeError):
+                current_meta = {}
+        if not isinstance(current_meta, dict):
+            current_meta = {}
         meta_copy = dict(current_meta)
         try:
             parsed_value = json.loads(value)
@@ -262,9 +260,10 @@ class WorkPageContentMixin:
             parsed_value = value
         meta_copy[key] = parsed_value
         sorted_meta = self._sort_meta_dict(meta_copy)
-        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta):
+        metadata['meta'] = sorted_meta
+        if self._write_metadata_dict(metadata):
             self.meta_dict = sorted_meta
-            self.meta = json.dumps(sorted_meta, ensure_ascii=False)
+            self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
             log(f"Successfully updated page {self.id} meta key '{key}'")
         trace_out()
         return not is_error()
@@ -273,18 +272,23 @@ class WorkPageContentMixin:
         """Remove a single key from the meta JSON field."""
         trace_in()
         log(f"Removing meta key '{key}' for page {self.id}")
-        current_meta = self.get_metadata_namespace(
-            self.CUSTOM_META_NAMESPACE,
-            default={},
-            persist_if_missing=True,
-        )
+        metadata = self._get_metadata_dict()
+        current_meta = metadata.get('meta')
+        if isinstance(current_meta, str):
+            try:
+                current_meta = json.loads(current_meta)
+            except (ValueError, TypeError):
+                current_meta = {}
+        if not isinstance(current_meta, dict):
+            current_meta = {}
         if key in current_meta:
             meta_copy = dict(current_meta)
             meta_copy.pop(key, None)
             sorted_meta = self._sort_meta_dict(meta_copy)
-            if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta):
+            metadata['meta'] = sorted_meta
+            if self._write_metadata_dict(metadata):
                 self.meta_dict = sorted_meta
-                self.meta = json.dumps(sorted_meta, ensure_ascii=False)
+                self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
                 log(f"Successfully removed key '{key}' from page {self.id} meta")
         else:
             log(f"Key '{key}' not found in meta, nothing to remove")
@@ -313,9 +317,11 @@ class WorkPageContentMixin:
             meta_dict = {}
         sorted_meta = self._sort_meta_dict(meta_dict)
         
-        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta):
+        metadata = self._get_metadata_dict()
+        metadata['meta'] = sorted_meta
+        if self._write_metadata_dict(metadata):
             self.meta_dict = sorted_meta
-            self.meta = json.dumps(sorted_meta, ensure_ascii=False)
+            self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
             log(f"Successfully updated page {self.id} meta")
         trace_out()
         return not is_error()
@@ -349,8 +355,7 @@ class WorkPageContentMixin:
                 siblings_with_meta = []
                 for row in siblings:
                     metadata = _parse_metadata(row.get('metadata'))
-                    work_block = metadata.get(self.WORK_NAMESPACE, {})
-                    current_order = work_block.get('sort_order') or 0
+                    current_order = metadata.get('sort_order') or 0
                     try:
                         current_order = int(current_order)
                     except (TypeError, ValueError):
@@ -400,11 +405,7 @@ class WorkPageContentMixin:
                 for index, sibling in enumerate(new_order):
                     new_sort = index + 1
                     metadata = sibling['metadata']
-                    work_block = metadata.get(self.WORK_NAMESPACE)
-                    if not isinstance(work_block, dict):
-                        work_block = {}
-                    work_block['sort_order'] = new_sort
-                    metadata[self.WORK_NAMESPACE] = work_block
+                    metadata['sort_order'] = new_sort
                     metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
                     affected = u_query(
                         self.conn,
