@@ -150,22 +150,6 @@ export class WorkPageData extends PageData {
             if (pairs.length === 0) {
                 pairs.push({ key: '', value: '' });
             }
-            const sortRowsByKey = () => {
-                const tbodyEl = document.querySelector(`#${tableId}-tbody`);
-                if (!tbodyEl) {
-                    return;
-                }
-                const rows = Array.from(tbodyEl.querySelectorAll('tr'));
-                rows.sort((a, b) => {
-                    const keyA = a.querySelector('.meta-key-input')?.value.trim().toLowerCase() ?? '';
-                    const keyB = b.querySelector('.meta-key-input')?.value.trim().toLowerCase() ?? '';
-                    if (keyA === keyB) {
-                        return 0;
-                    }
-                    return keyA < keyB ? -1 : 1;
-                });
-                rows.forEach(row => tbodyEl.appendChild(row));
-            };
             // Build table HTML
             const tableId = 'meta-table-' + Date.now();
             let tableHtml = `
@@ -206,7 +190,7 @@ export class WorkPageData extends PageData {
             </tbody>
           </table>
           <button type="button" id="${tableId}-add-btn" style="margin-top: 10px; padding: 6px 12px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 3px;">Add Row</button>
-          <div class="overlay-form-help" style="margin-top: 10px;">Keys must be JSON valid (no spaces). Values can be strings or JSON. Use the “Sort Keys” button to alphabetize by key.</div>
+          <div class="overlay-form-help" style="margin-top: 10px;">Keys must be JSON valid (no spaces). Values can be strings or JSON.</div>
         </div>
       `;
             OverlayManager.getInstance().show({
@@ -216,8 +200,6 @@ export class WorkPageData extends PageData {
                 closable: true,
                 submitLabel: 'Submit',
                 cancelLabel: 'Cancel',
-                middleButtonLabel: 'Sort Keys',
-                onMiddleButton: () => sortRowsByKey(),
                 onCancel: () => {
                     // Cleanup
                 },
@@ -358,8 +340,6 @@ export class WorkPageData extends PageData {
                     });
                 };
                 attachRemoveHandlers();
-                // Initial alphabetical order when overlay opens
-                sortRowsByKey();
             }, 100);
         }
         catch (error) {

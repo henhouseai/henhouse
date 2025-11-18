@@ -58,6 +58,12 @@ def _parse_metadata(metadata: Any) -> Dict[str, Any]:
 class WorkPageContentMixin:
     WORK_NAMESPACE = 'work'
     CUSTOM_META_NAMESPACE = 'meta'
+
+    @staticmethod
+    def _sort_meta_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(data, dict):
+            return {}
+        return {key: data[key] for key in sorted(data.keys(), key=lambda k: k.lower())}
     
     def do_init(self, conn: DatabaseConnection, page_id: int):
         # Call parent's do_init first to load base page data
@@ -84,16 +90,19 @@ class WorkPageContentMixin:
         self.started_ts = work_data.get('started_ts')
         self.ended_ts = work_data.get('ended_ts')
 
-        meta_bucket = self.get_metadata_namespace(
+        raw_meta_bucket = self.get_metadata_namespace(
             self.CUSTOM_META_NAMESPACE,
             default={},
             persist_if_missing=True,
         )
-        if not isinstance(meta_bucket, dict):
-            meta_bucket = {}
-            self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_bucket)
-        self.meta_dict = meta_bucket
-        self.meta = json.dumps(meta_bucket, ensure_ascii=False)
+        if not isinstance(raw_meta_bucket, dict):
+            raw_meta_bucket = {}
+            self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, raw_meta_bucket)
+        sorted_meta_bucket = self._sort_meta_dict(raw_meta_bucket)
+        if sorted_meta_bucket != raw_meta_bucket:
+            self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta_bucket)
+        self.meta_dict = sorted_meta_bucket
+        self.meta = json.dumps(sorted_meta_bucket, ensure_ascii=False)
         log(
             f"{self.__class__.__name__} {page_id} loaded from metadata: "
             f"status='{self.status}', sort_order={self.sort_order}"
@@ -252,8 +261,10 @@ class WorkPageContentMixin:
         except (json.JSONDecodeError, TypeError):
             parsed_value = value
         meta_copy[key] = parsed_value
-        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_copy):
-            self.meta = json.dumps(meta_copy, ensure_ascii=False)
+        sorted_meta = self._sort_meta_dict(meta_copy)
+        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta):
+            self.meta_dict = sorted_meta
+            self.meta = json.dumps(sorted_meta, ensure_ascii=False)
             log(f"Successfully updated page {self.id} meta key '{key}'")
         trace_out()
         return not is_error()
@@ -270,8 +281,10 @@ class WorkPageContentMixin:
         if key in current_meta:
             meta_copy = dict(current_meta)
             meta_copy.pop(key, None)
-            if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_copy):
-                self.meta = json.dumps(meta_copy, ensure_ascii=False)
+            sorted_meta = self._sort_meta_dict(meta_copy)
+            if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta):
+                self.meta_dict = sorted_meta
+                self.meta = json.dumps(sorted_meta, ensure_ascii=False)
                 log(f"Successfully removed key '{key}' from page {self.id} meta")
         else:
             log(f"Key '{key}' not found in meta, nothing to remove")
@@ -298,9 +311,11 @@ class WorkPageContentMixin:
                 return False
         else:
             meta_dict = {}
+        sorted_meta = self._sort_meta_dict(meta_dict)
         
-        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_dict):
-            self.meta = json.dumps(meta_dict, ensure_ascii=False)
+        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, sorted_meta):
+            self.meta_dict = sorted_meta
+            self.meta = json.dumps(sorted_meta, ensure_ascii=False)
             log(f"Successfully updated page {self.id} meta")
         trace_out()
         return not is_error()
