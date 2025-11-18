@@ -806,48 +806,6 @@ CREATE TABLE IF NOT EXISTS `pages` (
   KEY `parent` (`parent`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `source_code_files` (
-  `page_id` int NOT NULL,
-  `path` varchar(512) DEFAULT NULL,
-  `language` varchar(50) DEFAULT NULL,
-  PRIMARY KEY (`page_id`),
-  CONSTRAINT `source_code_files_ibfk_1` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `mcp_requests` (
-  `page_id` int NOT NULL,
-  `input_request` json NOT NULL,
-  `output_response` json DEFAULT NULL,
-  `create_request` int NOT NULL DEFAULT '0',
-  `read_request` int NOT NULL DEFAULT '0',
-  `update_request` int NOT NULL DEFAULT '0',
-  `delete_request` int NOT NULL DEFAULT '0',
-  `create_executed` int NOT NULL DEFAULT '0',
-  `read_executed` int NOT NULL DEFAULT '0',
-  `update_executed` int NOT NULL DEFAULT '0',
-  `delete_executed` int NOT NULL DEFAULT '0',
-  `status` enum('pending','approved','executing','completed','failed','cancelled','rolled_back') NOT NULL DEFAULT 'pending',
-  PRIMARY KEY (`page_id`),
-  KEY `idx_status` (`status`),
-  CONSTRAINT `mcp_requests_ibfk_1` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `mcp_action_requests` (
-  `page_id` int NOT NULL,
-  `tool_name` varchar(255) NOT NULL,
-  `arguments` json NOT NULL,
-  `extraction_spec` json DEFAULT NULL,
-  `status` enum('pending','approved','dependency_unmet','executing','executed','failed','rejected','cancelled') NOT NULL DEFAULT 'pending',
-  `result` json DEFAULT NULL,
-  `is_create` tinyint(1) NOT NULL DEFAULT '0',
-  `is_read` tinyint(1) NOT NULL DEFAULT '0',
-  `is_update` tinyint(1) NOT NULL DEFAULT '0',
-  `is_delete` tinyint(1) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`page_id`),
-  KEY `idx_status` (`status`),
-  CONSTRAINT `mcp_action_requests_ibfk_1` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `images` (
   `id` int NOT NULL AUTO_INCREMENT,
   `caption` varchar(255) DEFAULT NULL,

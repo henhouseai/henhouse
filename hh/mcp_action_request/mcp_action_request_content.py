@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from typing import Dict, Any, Optional
 
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
-from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
@@ -19,6 +17,7 @@ from hh.gateway.registry.debug import (
 from hh.mcp_action_request.mcp_action_request_method_registry import (
     register_mcp_action_request_mixin_methods,
 )
+from hh.page.page_registry import get_page_conn
 
 
 trace_in = lambda message=None: None
@@ -60,6 +59,44 @@ class McpActionRequestContentMixin:
         'cancelled',
     }
 
+    BOOL_FIELDS = ['is_create', 'is_read', 'is_update', 'is_delete']
+
+    def _ensure_metadata_defaults(self) -> Dict[str, Any]:
+        metadata = self._get_metadata_dict()
+        mutated = False
+
+        for field in ['tool_name', 'arguments', 'extraction_spec', 'result']:
+            if field not in metadata:
+                metadata[field] = None
+                mutated = True
+
+        status = metadata.get('status')
+        normalized_status = status.strip().lower() if isinstance(status, str) else None
+        if normalized_status not in self.VALID_STATUSES:
+            metadata['status'] = 'pending'
+            mutated = True
+
+        for field in self.BOOL_FIELDS:
+            current = bool(metadata.get(field))
+            if metadata.get(field) != current:
+                metadata[field] = current
+                mutated = True
+
+        if mutated:
+            self._write_metadata_dict(metadata)
+        return metadata
+
+    def _sync_from_metadata(self, metadata: Dict[str, Any]) -> None:
+        self.tool_name = metadata.get('tool_name')
+        self.arguments = metadata.get('arguments')
+        self.extraction_spec = metadata.get('extraction_spec')
+        self.status = metadata.get('status', 'pending')
+        self.result = metadata.get('result')
+        self.is_create = bool(metadata.get('is_create'))
+        self.is_read = bool(metadata.get('is_read'))
+        self.is_update = bool(metadata.get('is_update'))
+        self.is_delete = bool(metadata.get('is_delete'))
+
     @staticmethod
     def get_children_query(parent_id: int) -> tuple[str, list]:
         """Return query to get mcp_action children."""
@@ -86,48 +123,13 @@ class McpActionRequestContentMixin:
             return
 
         trace_in()
-        query = """
-            SELECT
-                tool_name,
-                arguments,
-                extraction_spec,
-                status,
-                result,
-                is_create,
-                is_read,
-                is_update,
-                is_delete
-            FROM mcp_action_requests
-            WHERE page_id = %s
-        """
-        results = r_query(conn, query, [page_id])
-        if results:
-            data = results[0]
-            self.tool_name = data.get('tool_name')
-            self.arguments = data.get('arguments')
-            self.extraction_spec = data.get('extraction_spec')
-            self.status = data.get('status', 'pending')
-            self.result = data.get('result')
-            self.is_create = bool(data.get('is_create', 0))
-            self.is_read = bool(data.get('is_read', 0))
-            self.is_update = bool(data.get('is_update', 0))
-            self.is_delete = bool(data.get('is_delete', 0))
-            log(
-                f"MCP Action Request {page_id} loaded: tool={self.tool_name}, "
-                f"status={self.status}, crud_flags="
-                f"({self.is_create},{self.is_read},{self.is_update},{self.is_delete})"
-            )
-        else:
-            debug(f"MCP Action Request {page_id} missing record; initializing defaults")
-            self.tool_name = None
-            self.arguments = None
-            self.extraction_spec = None
-            self.status = 'pending'
-            self.result = None
-            self.is_create = False
-            self.is_read = False
-            self.is_update = False
-            self.is_delete = False
+        metadata = self._ensure_metadata_defaults()
+        self._sync_from_metadata(metadata)
+        log(
+            f"MCP Action Request {page_id} loaded: tool={self.tool_name}, "
+            f"status={self.status}, crud_flags="
+            f"({self.is_create},{self.is_read},{self.is_update},{self.is_delete})"
+        )
         trace_out()
 
     @classmethod
@@ -144,41 +146,34 @@ class McpActionRequestContentMixin:
         extraction_spec = cls._safe_json_arg(gateway.get_arg('extraction_spec'))
         result = cls._safe_json_arg(gateway.get_arg('result'))
 
-        try:
-            c_query(
-                conn,
-                """
-                INSERT INTO mcp_action_requests (
-                    page_id,
-                    tool_name,
-                    arguments,
-                    extraction_spec,
-                    status,
-                    result,
-                    is_create,
-                    is_read,
-                    is_update,
-                    is_delete
-                )
-                VALUES (%s, %s, %s, %s, 'pending', %s, 0, 0, 0, 0)
-                """,
-                (new_page_id, tool_name, arguments, extraction_spec, result),
-            )
-            log(f"Initialized mcp_action_requests entry for page {new_page_id}")
-        except Exception as exc:
-            warn(f"Failed to initialize mcp_action_requests entry: {exc}")
-            report_error("backend", f"Failed to create mcp_action_requests entry: {exc}")
+        page = get_page_conn(conn, new_page_id)
+        if not page:
+            warn(f"Failed to load page {new_page_id} for metadata initialization")
+            trace_out()
+            return
+
+        defaults = {
+            'tool_name': tool_name,
+            'arguments': arguments,
+            'extraction_spec': extraction_spec,
+            'status': 'pending',
+            'result': result,
+            'is_create': False,
+            'is_read': False,
+            'is_update': False,
+            'is_delete': False,
+        }
+
+        for key, value in defaults.items():
+            page.set_metadata_value(key, value)
+
+        page.reset_connection()
+        log(f"Initialized metadata for MCP action request page {new_page_id}")
         trace_out()
 
     def delete_page_class_information(self):
         trace_in()
-        if self.conn and self.id:
-            try:
-                d_query(self.conn, "DELETE FROM mcp_action_requests WHERE page_id = %s", [self.id])
-                log(f"Deleted mcp_action_requests entry for page {self.id}")
-            except Exception as exc:
-                warn(f"Failed to delete mcp_action_requests entry: {exc}")
-                report_error("backend", f"Failed to delete mcp_action_requests entry: {exc}")
+        # Metadata stored with page; nothing additional to delete.
         trace_out()
 
     def _get_page_data(self) -> Dict[str, Any]:
@@ -259,31 +254,31 @@ class McpActionRequestContentMixin:
         is_delete: Optional[str] = None,
     ) -> bool:
         trace_in()
-        updates = []
-        params = []
+        metadata = self._get_metadata_dict()
+        mutated = False
 
         if tool_name is not None:
             sanitized = tool_name.strip()
-            updates.append("tool_name = %s")
-            params.append(sanitized or None)
+            metadata['tool_name'] = sanitized or None
+            mutated = True
 
         if arguments is not None:
             normalized = self._safe_json_arg(arguments, field_name='arguments')
             if not is_error():
-                updates.append("arguments = %s")
-                params.append(normalized)
+                metadata['arguments'] = normalized
+                mutated = True
 
         if extraction_spec is not None:
             normalized = self._safe_json_arg(extraction_spec, field_name='extraction_spec')
             if not is_error():
-                updates.append("extraction_spec = %s")
-                params.append(normalized)
+                metadata['extraction_spec'] = normalized
+                mutated = True
 
         if result is not None:
             normalized = self._safe_json_arg(result, field_name='result')
             if not is_error():
-                updates.append("result = %s")
-                params.append(normalized)
+                metadata['result'] = normalized
+                mutated = True
 
         if status is not None:
             normalized_status = status.strip().lower()
@@ -291,8 +286,8 @@ class McpActionRequestContentMixin:
                 warn(f"Invalid status value '{status}'")
                 report_error("action", f"Invalid status '{status}'")
             else:
-                updates.append("status = %s")
-                params.append(normalized_status)
+                metadata['status'] = normalized_status
+                mutated = True
 
         boolean_fields = {
             "is_create": is_create,
@@ -305,68 +300,28 @@ class McpActionRequestContentMixin:
             if value is not None:
                 parsed = self._parse_boolean(value, column)
                 if parsed is not None:
-                    updates.append(f"{column} = %s")
-                    params.append(1 if parsed else 0)
+                    metadata[column] = bool(parsed)
+                    mutated = True
 
         if is_error():
             trace_out()
             return False
 
-        if not updates:
+        if not mutated:
             log("No MCP action request fields provided for update")
             trace_out()
             return True
 
-        params.append(self.id)
-        affected = u_query(
-            self.conn,
-            f"UPDATE mcp_action_requests SET {', '.join(updates)} WHERE page_id = %s",
-            params,
-        )
-        if affected == 0:
-            warn(f"Failed to update mcp_action_requests entry for page {self.id}")
-            report_error(
-                "action",
-                f"Failed to update MCP action request {self.id}",
-            )
-        else:
-            log(f"Updated mcp_action_requests entry for page {self.id} ({affected} rows)")
-            self._refresh_local_state()
+        if self._write_metadata_dict(metadata):
+            self._sync_from_metadata(metadata)
+            log(f"Updated MCP action request metadata for page {self.id}")
 
         trace_out()
         return not is_error()
 
     def _refresh_local_state(self):
-        if self.conn:
-            results = r_query(
-                self.conn,
-                """
-                SELECT
-                    tool_name,
-                    arguments,
-                    extraction_spec,
-                    status,
-                    result,
-                    is_create,
-                    is_read,
-                    is_update,
-                    is_delete
-                FROM mcp_action_requests
-                WHERE page_id = %s
-                """,
-                [self.id],
-            )
-            if results:
-                data = results[0]
-                self.tool_name = data.get('tool_name')
-                self.arguments = data.get('arguments')
-                self.extraction_spec = data.get('extraction_spec')
-                self.status = data.get('status', 'pending')
-                self.result = data.get('result')
-                self.is_create = bool(data.get('is_create', 0))
-                self.is_read = bool(data.get('is_read', 0))
-                self.is_update = bool(data.get('is_update', 0))
-                self.is_delete = bool(data.get('is_delete', 0))
+        metadata = self._ensure_metadata_defaults()
+        self._sync_from_metadata(metadata)
 
     @staticmethod
     def _safe_json_arg(value: Optional[str], field_name: str = 'json') -> Optional[str]:
