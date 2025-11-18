@@ -126,14 +126,13 @@ class WorkPageContentMixin:
         return data
     
     def get_child_page_data(self) -> Dict[str, Any]:
-        """Override to return simplified data for work page children: id, name, status, meta, sort_order, timestamps."""
+        """Override to return simplified data for work page children: id, name, sort_order, meta, timestamps."""
         trace_in()
         data = {
             "id": self.id,
             "name": self.name,
-            "status": self.status if hasattr(self, 'status') else 'todo',
-            "meta": self.meta if hasattr(self, 'meta') else '',
             "sort_order": self.sort_order if hasattr(self, 'sort_order') else 0,
+            "meta": self.meta if hasattr(self, 'meta') else '',
             "started_ts": str(self.started_ts) if hasattr(self, 'started_ts') and self.started_ts else None,
             "ended_ts": str(self.ended_ts) if hasattr(self, 'ended_ts') and self.ended_ts else None
         }
@@ -156,15 +155,32 @@ class WorkPageContentMixin:
         status = gateway.get_arg('status') or 'todo'
         meta = gateway.get_arg('meta') or None
         
-        # Get max sort_order for all entities of this type
+        # Get parent page ID for the new page
+        parent_id = None
+        try:
+            parent_results = r_query(conn, "SELECT parent FROM pages WHERE id = %s", [new_page_id])
+            if parent_results and parent_results[0].get('parent') is not None:
+                parent_id = int(parent_results[0]['parent'])
+        except Exception as e:
+            debug(f"Failed to get parent for page {new_page_id}: {str(e)}")
+        
+        # Get max sort_order for entities of this type under the same parent
         table_name = cls.get_table_name()
         max_order = 0
-        try:
-            results = r_query(conn, f"SELECT MAX(sort_order) as max_order FROM {table_name}", [])
-            if results and results[0].get('max_order') is not None:
-                max_order = int(results[0]['max_order'])
-        except Exception as e:
-            debug(f"Failed to get max sort_order: {str(e)}")
+        if parent_id:
+            try:
+                # Join work entity table with pages table to filter by parent
+                query = f"""
+                    SELECT MAX({table_name}.sort_order) as max_order 
+                    FROM {table_name} 
+                    INNER JOIN pages ON {table_name}.page_id = pages.id 
+                    WHERE pages.parent = %s
+                """
+                results = r_query(conn, query, [parent_id])
+                if results and results[0].get('max_order') is not None:
+                    max_order = int(results[0]['max_order'])
+            except Exception as e:
+                debug(f"Failed to get max sort_order for parent {parent_id}: {str(e)}")
         
         new_sort_order = max_order + 1
         
