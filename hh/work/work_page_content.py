@@ -63,13 +63,17 @@ class WorkPageContentMixin:
     @classmethod
     def get_table_name(cls) -> str:
         """Get the database table name for this work entity class."""
-        # Walk up the MRO to find the actual work entity class (not the mixin)
+        # Import here to avoid circular import
+        from hh.work.work_page import WorkPage
+        
+        # Walk up the MRO to find the actual work entity class (not the mixin or abstract base)
         for base in cls.__mro__:
-            # Skip mixins (classes ending with Mixin), object, and base classes
-            if (base not in (cls, WorkPageContentMixin, object) and 
+            # Skip mixins (classes ending with Mixin), WorkPage (abstract base), object, and base classes
+            if (base not in (cls, WorkPageContentMixin, WorkPage, object) and 
                 hasattr(base, '__module__') and 
                 base.__module__ and
                 not base.__name__.endswith('Mixin') and  # Skip all mixin classes
+                base.__name__ != 'WorkPage' and  # Skip abstract WorkPage base class
                 ('work' in base.__module__ or 'work_docket' in base.__module__ or 'work_page' in base.__module__)):
                 class_name = base.__name__
                 return _camel_to_snake_plural(class_name)
