@@ -257,22 +257,57 @@ export class RPCClient {
    * Display an error message to the user.
    */
   showError(label: string, error: any): void {
-    const errorBox = document.createElement('div');
-    errorBox.className = 'hh-error';
-    // Styles are in CSS
+    // Create an overlay window to display the error
+    // This replaces the old temporary error box behavior
+    const overlayManager = OverlayManager.getInstance();
     
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    errorBox.textContent = `[${label}] Error:\n${errorMessage}`;
-    
-    const container = document.body || document.documentElement;
-    container.appendChild(errorBox);
-
-    // Auto-remove after 10 seconds
-    setTimeout(() => {
-      if (errorBox.parentNode) {
-        errorBox.parentNode.removeChild(errorBox);
+    // Check if it's an RPCError with multiple errors
+    let errorMessages: Array<{ type: 'error'; text: string }> = [];
+    if (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors) && (error as any).errors.length > 0) {
+      // RPCError with multiple errors - extract all of them
+      const rpcError = error as any;
+      errorMessages = rpcError.errors.map((err: { type: string; content: string }) => ({
+        type: 'error' as const,
+        text: `${err.type}: ${err.content}`
+      }));
+      // Also add the main error message if present
+      if (rpcError.message) {
+        errorMessages.unshift({
+          type: 'error' as const,
+          text: rpcError.message
+        });
       }
-    }, 10000);
+    } else {
+      // Single error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errorMessages = [{
+        type: 'error' as const,
+        text: errorMessage
+      }];
+    }
+    
+    // Create error content - each error as a separate red div
+    const errorContent = errorMessages.map(msg => {
+      return `<div class="overlayError">${this.escapeHtml(msg.text)}</div>`;
+    });
+    
+    overlayManager.show({
+      header: `Error: ${label}`,
+      content: errorContent,
+      contentHeaders: errorContent.map(() => ''), // Empty headers for each error div
+      closable: true,
+      cancelLabel: 'Close',
+      showSubmit: false // No submit button, just close
+    });
+  }
+  
+  /**
+   * Escape HTML to prevent XSS.
+   */
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
 

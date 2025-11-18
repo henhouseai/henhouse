@@ -1,6 +1,12 @@
 /**
- * Test handlers for overlay and MCP testing.
- * These are temporary test routines that will be removed eventually.
+ * TEMPORARY TEST FILE - DO NOT USE IN PRODUCTION
+ * 
+ * This file contains test handlers for overlay and MCP testing.
+ * These are temporary test routines used during development to verify
+ * overlay functionality and MCP integration. They will be removed
+ * once the system is fully tested and stable.
+ * 
+ * All handlers in this file are for testing purposes only.
  */
 
 import { RPCClient } from './rpc-client.js';

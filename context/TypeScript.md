@@ -1,6 +1,6 @@
 # Henhouse TypeScript System Architecture
 
-This document covers the comprehensive TypeScript/ES modules system that provides client-side interactivity for the Henhouse HTTP interface, including overlay management, page data handling, RPC integration, and form processing.
+This document covers the TypeScript/ES modules system that provides client-side interactivity for the Henhouse HTTP interface, including overlay management, page data handling, RPC integration, and form processing.
 
 ## Table of Contents
 
@@ -14,7 +14,6 @@ This document covers the comprehensive TypeScript/ES modules system that provide
 8. [Derived PageData Classes](#8-derived-pagedata-classes)
 9. [File Upload](#9-file-upload)
 10. [Best Practices](#10-best-practices)
-11. [Migration Notes](#11-migration-notes)
 
 ## Agent Quick Reference
 
@@ -64,7 +63,7 @@ This document covers the comprehensive TypeScript/ES modules system that provide
 
 ## 1. System Overview
 
-The TypeScript system provides client-side interactivity for the Henhouse HTTP interface, replacing legacy jQuery-based code with a modern ES modules architecture. The system integrates with the Python MCP backend through JSON-RPC 2.0 calls and provides a sophisticated overlay system for user interactions.
+The TypeScript system provides client-side interactivity for the Henhouse HTTP interface, using ES modules architecture. The system integrates with the Python MCP backend through JSON-RPC 2.0 calls and provides an overlay system for user interactions.
 
 ### Architecture Flow
 
@@ -125,7 +124,7 @@ hh/deploy/site/ts/
 
 ## 2. Core Overlay System
 
-The overlay system provides modal dialogs for user interactions, replacing legacy jQuery-based overlays with a modern component-based architecture.
+The overlay system provides modal dialogs for user interactions, using a component-based architecture.
 
 ### OverlayManager
 
@@ -169,8 +168,8 @@ Base overlay component that handles lifecycle, rendering, and state management.
 ```typescript
 interface OverlayOptions {
   header?: string | HTMLElement;
-  content?: string | HTMLElement | Array<string | HTMLElement>;
-  contentHeaders?: Array<string>;  // Headers for each content section
+  content?: Array<string | HTMLElement>;  // Array-based content structure (required)
+  contentHeaders?: Array<string>;  // Optional headers for each content section
   footer?: string | HTMLElement;
   closable?: boolean;
   showSubmit?: boolean;
@@ -189,12 +188,12 @@ interface OverlayOptions {
 ```
 
 **Content Structure**:
-The overlay system supports two content structures:
+The overlay system uses an array-based content structure:
 
-1. **Legacy (single content)**: `content: string | HTMLElement` - wrapped in single overlayContent div
-2. **Modern (array-based)**: `content: Array<string | HTMLElement>` with `contentHeaders: Array<string>` - creates multiple sections with optional headers
+- `content: Array<string | HTMLElement>` - Array of content items
+- `contentHeaders: Array<string>` - Optional headers for each content section (empty string = no header)
 
-**Modern Array-Based Structure**:
+**Array-Based Structure**:
 ```typescript
 manager.show({
   header: 'Debug Information',
@@ -249,7 +248,7 @@ manager.show({
 
 ## 3. PageData System
 
-The PageData system provides a sophisticated field management and form processing architecture that automatically handles field registration, change detection, and optimal MCP tool selection.
+The PageData system provides field management and form processing that handles field registration, change detection, and MCP tool selection.
 
 ### PageData Base Class
 
@@ -406,7 +405,7 @@ const pageData = PageDataFactory.create(getPageResponse);
 
 ## 4. RPC Integration
 
-The RPC client provides a clean interface for making MCP JSON-RPC calls with automatic debug option handling and error management.
+The RPC client provides an interface for making MCP JSON-RPC calls with automatic debug option handling and error management.
 
 ### RPCClient
 
@@ -502,7 +501,7 @@ Action handlers are registered in two ways:
 1. **Persistent Actions**: Server-rendered action links with `data-source` attribute
    - Loaded from `get_page` response `available_actions`
    - Attached to DOM elements by ID
-   - Handlers found in PageData class or ActionHandlers class
+   - Handlers found in PageData class
 
 2. **Hot-Cache Actions**: Dynamically discovered actions
    - Also from `available_actions` but with `source: 'hot_cache'`
@@ -511,8 +510,7 @@ Action handlers are registered in two ways:
 
 **Handler Lookup Order**:
 1. Check PageData class for method matching action ID
-2. Fallback to ActionHandlers class
-3. Warn if handler not found
+2. Warn if handler not found
 
 **Handler Signature**:
 ```typescript
@@ -524,13 +522,9 @@ async actionId(rpc: any): Promise<void> {
 ### Handler Location Pattern
 
 **Standard Pattern**: Handlers live in PageData classes
-- Base handlers: `page-data.ts` (modify_name, modify_text, delete_page, add_page, combo)
+- Base handlers: `page-data.ts` (modify_name, modify_text, delete_page, add_page, combo, Upload)
 - Derived handlers: `source-code-file-page-data.ts` (source_code_file_combo)
 - One file per page class type
-
-**Exception**: Some handlers may live in ActionHandlers class temporarily
-- `pageOptions`: Incomplete placeholder
-- `Upload`: May move to image-related code
 
 ### Handler Types
 
@@ -717,16 +711,16 @@ const result = await this.processOperationsIncrementally(
 
 ## 7. Debug Integration
 
-The debug system is fully integrated into the overlay and RPC systems, allowing users to enable debug output for MCP calls directly from overlay forms.
+The debug system is integrated into the overlay and RPC systems. Users can enable debug output for MCP calls from overlay forms.
 
 ### Debug Options Component
 
 **File**: `overlay-debug-options.ts`
 
-Debug options UI component that appears in overlay headers when submit button is shown.
+Debug options UI component that appears in overlay footer when submit button is shown.
 
 **Standard Behavior**:
-- Always present in overlay header (when submit button shown)
+- Always present in overlay footer (when submit button shown)
 - Collapsed by default (like response section)
 - Expandable section with checkboxes and filter inputs
 - Checkboxes: Debug, Log
@@ -994,7 +988,6 @@ await handler.handle();
 **Location**: Always put handlers in PageData classes (base or derived)
 - One file per page class type
 - Keeps related code together
-- Avoids ActionHandlers class bloat
 
 **Naming**: Handler method names match action IDs exactly
 - Action ID: `modify_name` → Method: `async modify_name(rpc: any)`
@@ -1013,11 +1006,11 @@ await handler.handle();
 
 **Field IDs**: Always use standardized pattern
 - `#page-field-{fieldName}` (e.g., `#page-field-name`, `#page-field-text`)
-- Enables automatic form value extraction
+- Required for automatic form value extraction
 
 ### Content Structure
 
-**Modern Array-Based System** (preferred):
+**Array-Based System** (required):
 ```typescript
 content: [
   '<div>Section 1 HTML</div>',
@@ -1027,9 +1020,10 @@ content: [
 contentHeaders: ['Section 1', 'Section 2', '']  // Empty = no header
 ```
 
-**Legacy Single Content** (still works, but migrate when possible):
+All content must be provided as an array, even for single items:
 ```typescript
-content: '<div>All HTML in one string</div>'
+content: ['Single item content'],
+contentHeaders: ['']
 ```
 
 ### Operation Processing
@@ -1056,8 +1050,8 @@ content: '<div>All HTML in one string</div>'
 - Debug data automatically displayed in separate overlay
 
 **Debug Options State**:
-- Always present but collapsed by default
-- No need to show/hide during submit
+- Always present in footer but collapsed by default
+- Collapses automatically when form is submitted
 - User expands when needed
 
 ### Redirect Handling
@@ -1144,164 +1138,15 @@ try {
 
 ---
 
-## 11. Migration Notes
-
-This section documents legacy code patterns that need to be migrated to match the documented standards above.
-
-### Error Handling Standardization
-
-**Current State**: Mixed error handling patterns
-- Some handlers throw errors
-- Some handlers use `rpc.showError()`
-- Some handlers return error objects
-- Multiple RPC errors not always displayed
-
-**Required Migration**:
-- Standardize all handlers to return objects with `_showMessage` for success
-- Throw errors for validation failures (will be caught and displayed)
-- Ensure multiple errors from RPCError stack as separate overlay content sections
-- Each error should appear as red overlay content div
-- Remove manual error display code (errors handled automatically)
-
-**Files to Update**:
-- All handler methods in `page-data.ts`
-- All handler methods in derived PageData classes
-- `upload-handler.ts`
-- `app.ts` error handling
-
-**Target Pattern**:
-```typescript
-// Success
-return { _showMessage: 'Success!', _autoFade: true };
-
-// Validation error
-throw new Error('Validation failed');
-
-// RPC error (automatically handled)
-// RPCError with multiple errors automatically displays all errors
-```
-
-### Content Structure Migration
-
-**Current State**: Mix of legacy and modern content structures
-- Many handlers use legacy single HTML string
-- Some handlers use modern array-based system
-- Debug helper uses modern system
-
-**Required Migration**:
-- Migrate all handlers to use array-based content structure
-- Use `content: Array<string | HTMLElement>` with `contentHeaders: Array<string>`
-- Remove single HTML string content (except for simple cases)
-
-**Files to Update**:
-- `modify_name` handler in `page-data.ts`
-- `modify_text` handler in `page-data.ts`
-- `delete_page` handler in `page-data.ts`
-- `add_page` handler in `page-data.ts`
-- `combo` handler in `page-data.ts`
-- `source_code_file_combo` handler in `source-code-file-page-data.ts`
-- All future handlers
-
-**Target Pattern**:
-```typescript
-content: [
-  '<div class="overlay-form-section">...</div>',
-  '<div class="overlay-form-divider">...</div>'
-],
-contentHeaders: ['Editable Fields', 'Read-Only Fields']
-```
-
-### Debug Options UX Simplification
-
-**Current State**: Complex show/hide state management
-- Debug options hidden during loading
-- Debug options shown again on error
-- Complex state tracking with `storedDebugOptions`
-
-**Required Migration**:
-- Always show debug options section (but collapsed by default)
-- Remove `hideForLoading()` and `showForError()` complexity
-- Debug options always present, just collapsed/expanded
-- Similar to how response section works (collapsed by default)
-
-**Files to Update**:
-- `overlay-debug-options.ts` - Remove hide/show complexity
-- `overlay.ts` - Remove debug options state management during submit
-- Update all handlers that interact with debug options
-
-**Target Pattern**:
-- Debug options always in overlay header (when submit button shown)
-- Collapsed by default (user expands when needed)
-- No state management needed during submit
-
-### Redirect Handling Standardization
-
-**Current State**: Mix of redirect patterns
-- Some use `_redirectAfterFade: '/url'`
-- Some use `window.location.href = url`
-- Inconsistent redirect logic
-
-**Required Migration**:
-- Standardize on `_redirectAfterFade` with options:
-  - `'parent'` - Redirect to parent page
-  - `'self'` - Refresh current page
-  - `'/url'` - Redirect to specific URL
-  - `null` or omit - No redirect, just fade
-- Remove direct `window.location.href` usage
-- Create helper method for redirect URL calculation
-
-**Files to Update**:
-- All handlers that perform redirects
-- Standardize redirect URL calculation (use `getPageUrl()` helper)
-
-**Target Pattern**:
-```typescript
-return {
-  _showMessage: 'Success!',
-  _autoFade: true,
-  _redirectAfterFade: 'parent'  // or 'self' or '/123' or null
-};
-```
-
-### Handler Location Cleanup
-
-**Current State**: Some handlers in ActionHandlers class
-- `pageOptions` - Incomplete placeholder
-- `Upload` - May belong in image-related code
-
-**Required Migration**:
-- Complete or remove `pageOptions` handler
-- Move `Upload` to appropriate location (or keep if page-related)
-- Consider removing ActionHandlers class if not needed
-- Ensure all handlers follow PageData class pattern
-
-**Files to Review**:
-- `app.ts` - ActionHandlers class
-- Determine if ActionHandlers class should be removed entirely
-
-### Test Code Documentation
-
-**Current State**: `test.ts` file with test handlers still present
-
-**Required Action**:
-- Add clear documentation that test.ts is temporary
-- Add comments in test.ts explaining it's for testing only
-- Consider moving to separate test directory in future
-
-**Files to Update**:
-- `test.ts` - Add documentation comments
-
----
-
 ## Summary
 
-The TypeScript system provides a sophisticated client-side architecture for the Henhouse HTTP interface, with:
+The TypeScript system provides client-side functionality for the Henhouse HTTP interface:
 
-- **Modern Overlay System**: Component-based modal dialogs with array-based content structure
+- **Overlay System**: Component-based modal dialogs with array-based content structure
 - **PageData Architecture**: Field management and form processing with automatic MCP tool selection
-- **RPC Integration**: Clean MCP JSON-RPC wrapper with automatic debug handling
+- **RPC Integration**: MCP JSON-RPC wrapper with automatic debug handling
 - **Standardized Patterns**: Consistent handler patterns, field registration, and error handling
-- **Debug Integration**: Full debug system integration with overlay UI
+- **Debug Integration**: Debug system integrated with overlay UI
 
-The system is designed to be extended with new page types and handlers following the established patterns documented above.
+The system can be extended with new page types and handlers following the patterns documented above.
 
