@@ -47,14 +47,7 @@ export function handleRPCResponseWithDebug(
       }
       
       // Debug logging
-      console.log('handleRPCResponseWithDebug:', {
-        hasDebug: !!debugData,
-        hasResponseData: responseData !== undefined,
-        responseDataType: typeof responseData,
-        hasRequestInfo: !!requestInfo,
-        requestInfoSource: rpcResult.requestInfo ? 'rpcResult' : 'fallback',
-        rpcResultKeys: Object.keys(rpcResult)
-      });
+      console.log('handleRPCResponseWithDebug: hasDebug=' + !!debugData + ', hasResponseData=' + (responseData !== undefined) + ', hasRequestInfo=' + !!requestInfo);
     }
     // Also check if it's an error with debug attached (RPCError)
     else if ('debug' in rpcResult && rpcResult.debug) {
@@ -84,7 +77,7 @@ export function handleRPCResponseWithDebug(
 
     // Box 1: Request info - always show if we have method/params (even if requestInfo wasn't on rpcResult)
     const shouldShowRequest = !!(requestInfo || (method && params !== undefined));
-    console.log('Request section check:', { requestInfo: !!requestInfo, method, hasParams: params !== undefined, shouldShowRequest });
+    console.log('Request section check: shouldShowRequest=' + shouldShowRequest + ', hasRequestInfo=' + !!requestInfo + ', method=' + method);
     if (shouldShowRequest) {
       const finalRequestInfo = requestInfo || { method: method!, params: params || {} };
       headerArray.push('Request');
@@ -104,7 +97,7 @@ export function handleRPCResponseWithDebug(
     // Box 2: Response data
     // Always show response data if we have debug data (even if null/undefined, show it)
     const shouldShowResponse = !!(responseData !== undefined || debugData);
-    console.log('Response section check:', { responseData: responseData !== undefined, hasDebugData: !!debugData, shouldShowResponse });
+    console.log('Response section check: shouldShowResponse=' + shouldShowResponse + ', hasResponseData=' + (responseData !== undefined) + ', hasDebugData=' + !!debugData);
     if (shouldShowResponse) {
       headerArray.push('Response');
       const responseContent = responseData !== undefined 
@@ -122,8 +115,7 @@ export function handleRPCResponseWithDebug(
     headerArray.push('');
     contentArray.push(debugElement);
     
-    console.log('Final arrays:', { headerCount: headerArray.length, contentCount: contentArray.length, headers: headerArray });
-    console.log('Content items:', contentArray.map((item, i) => ({ index: i, type: typeof item, isString: typeof item === 'string', length: typeof item === 'string' ? item.length : 'N/A' })));
+    console.log('Final arrays: headerCount=' + headerArray.length + ', contentCount=' + contentArray.length + ', headers=' + headerArray.join(','));
 
     // Create new overlay window for debug info - pass arrays with headers
     const overlay = overlayManager.show({
