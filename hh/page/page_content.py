@@ -1,6 +1,8 @@
 from typing import Dict, Any, List, Optional, Union
 import datetime as dt
 import re
+import json
+from copy import deepcopy
 from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
 from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
@@ -42,6 +44,106 @@ def _register_content_methods():
 
 
 class PageContentMixin:
+
+    @staticmethod
+    def _parse_metadata_value(metadata: Any) -> Dict[str, Any]:
+        if metadata in (None, '', b''):
+            return {}
+        try:
+            if isinstance(metadata, (bytes, bytearray)):
+                metadata = metadata.decode('utf-8')
+            if isinstance(metadata, str):
+                parsed = json.loads(metadata)
+            else:
+                parsed = metadata
+            if isinstance(parsed, dict):
+                return parsed
+        except (ValueError, TypeError):
+            pass
+        return {}
+
+    def _get_metadata_dict(self) -> Dict[str, Any]:
+        """Return the in-memory metadata dict, normalizing raw storage as needed."""
+        metadata = getattr(self, 'metadata', None)
+        if isinstance(metadata, dict):
+            return metadata
+        parsed = self._parse_metadata_value(metadata)
+        self.metadata = parsed
+        return self.metadata
+
+    def _write_metadata_dict(self, metadata: Dict[str, Any]) -> bool:
+        """Persist the provided metadata dict to the database."""
+        trace_in()
+        metadata = metadata or {}
+        metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
+        success = True
+        if not is_error():
+            affected = u_query(self.conn, "UPDATE pages SET metadata = %s WHERE id = %s", (metadata_json, self.id))
+            if affected == 0:
+                log(f"Metadata for page {self.id} already up to date; no rows affected")
+        if success:
+            self.metadata = metadata
+        trace_out()
+        return success and not is_error()
+
+    def get_metadata_namespace(
+        self,
+        namespace: str,
+        default: Optional[Dict[str, Any]] = None,
+        persist_if_missing: bool = False,
+    ) -> Dict[str, Any]:
+        metadata = self._get_metadata_dict()
+        bucket = metadata.get(namespace)
+        if not isinstance(bucket, dict):
+            if default is None:
+                bucket = {}
+            elif isinstance(default, dict):
+                bucket = deepcopy(default)
+            else:
+                bucket = default
+            if not isinstance(bucket, dict):
+                bucket = {}
+            metadata[namespace] = bucket
+            if persist_if_missing:
+                self._write_metadata_dict(metadata)
+        return bucket
+
+    def set_metadata_namespace(self, namespace: str, data: Dict[str, Any]) -> bool:
+        metadata = self._get_metadata_dict()
+        metadata[namespace] = data if isinstance(data, dict) else {}
+        return self._write_metadata_dict(metadata)
+
+    def get_metadata_value(self, key: str, default: Any = None, namespace: Optional[str] = None) -> Any:
+        """Retrieve a metadata value from the specified namespace (or root)."""
+        trace_in()
+        metadata = self._get_metadata_dict()
+        container: Any = metadata
+        if namespace:
+            container = metadata.get(namespace)
+            if not isinstance(container, dict):
+                container = {}
+        if not isinstance(container, dict):
+            trace_out()
+            return default
+        value = container.get(key, default)
+        trace_out()
+        return value
+
+    def set_metadata_value(self, key: str, value: Any, namespace: Optional[str] = None) -> bool:
+        """Set a metadata value inside the specified namespace (or root) and persist it."""
+        trace_in()
+        metadata = self._get_metadata_dict()
+        if namespace:
+            bucket = metadata.get(namespace)
+            if not isinstance(bucket, dict):
+                bucket = {}
+                metadata[namespace] = bucket
+        else:
+            bucket = metadata
+        bucket[key] = value
+        result = self._write_metadata_dict(metadata)
+        trace_out()
+        return result
     
     @classmethod
     def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):

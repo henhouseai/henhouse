@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Optional, Union, Callable
+import json
 import datetime as dt
 from hh.gateway.connection.connection import r_query
 from hh.gateway.connection.decorators import db_read, db_write
@@ -110,6 +111,7 @@ class Page(PageValidationMixin, PageHierarchyMixin, PageContentMixin, PageImages
         self.last_modified = None
         self.username = None
         self.comments = None
+        self.metadata = {}
         query = "SELECT * FROM pages WHERE id = %s"
         results = r_query(conn, query, [page_id])
         if not results:
@@ -127,6 +129,18 @@ class Page(PageValidationMixin, PageHierarchyMixin, PageContentMixin, PageImages
         self.last_modified = page_data.get('last_modified')
         self.username = page_data.get('username')
         self.comments = page_data.get('comments')
+        metadata_raw = page_data.get('metadata')
+        if metadata_raw in (None, '', b''):
+            self.metadata = {}
+        else:
+            try:
+                if isinstance(metadata_raw, (bytes, bytearray)):
+                    metadata_raw = metadata_raw.decode('utf-8')
+                self.metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
+                if not isinstance(self.metadata, dict):
+                    self.metadata = {}
+            except (ValueError, TypeError):
+                self.metadata = {}
         text_length = len(self.text) if self.text else 0
         log(f"Page {page_id} initialized: name='{self.name}', parent={self.parent}, class='{self.class_name}', visibility={self.visibility}, text_len={text_length}")
         trace_out()

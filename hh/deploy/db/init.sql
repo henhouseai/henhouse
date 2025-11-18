@@ -791,6 +791,7 @@ CREATE TABLE IF NOT EXISTS `pages` (
   `name` varchar(255) DEFAULT NULL,
   `link` varchar(255) DEFAULT NULL,
   `text` text,
+  `metadata` json DEFAULT NULL,
   `parent` int DEFAULT NULL,
   `class` varchar(255) DEFAULT NULL,
   `last_modified` datetime DEFAULT NULL,

@@ -1,14 +1,15 @@
 from __future__ import annotations
-import re
 import json
+import datetime as dt
 from typing import Dict, Any
-from hh.gateway.connection.connection import r_query, c_query, d_query, u_query
+from hh.gateway.connection.connection import r_query, u_query
 from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.work.work_page_method_registry import register_work_page_mixin_methods
+from hh.page.page_registry import get_page_conn
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -26,30 +27,6 @@ def _initialize_work_page_content_debug():
     warn = get_warn(True)
 
 
-def _camel_to_snake_plural(class_name: str) -> str:
-    """
-    Convert CamelCase class name to snake_case plural table name.
-    Examples:
-        WorkDocket -> work_dockets
-        Ask -> asks
-        Task -> tasks
-        Step -> steps
-    """
-    # Insert underscore before uppercase letters (except the first one)
-    snake = re.sub(r'(?<!^)(?=[A-Z])', '_', class_name).lower()
-    # Pluralize: simple rule - add 's' or 'es' based on ending
-    if snake.endswith('y'):
-        # e.g., category -> categories
-        snake = snake[:-1] + 'ies'
-    elif snake.endswith(('s', 'sh', 'ch', 'x', 'z')):
-        # e.g., class -> classes
-        snake = snake + 'es'
-    else:
-        # Default: add 's'
-        snake = snake + 's'
-    return snake
-
-
 @register_work_page_mixin_methods
 def _register_work_page_content_methods():
     return {
@@ -61,28 +38,26 @@ def _register_work_page_content_methods():
     }
 
 
+def _parse_metadata(metadata: Any) -> Dict[str, Any]:
+    if metadata in (None, '', b''):
+        return {}
+    try:
+        if isinstance(metadata, (bytes, bytearray)):
+            metadata = metadata.decode('utf-8')
+        if isinstance(metadata, str):
+            parsed = json.loads(metadata)
+        else:
+            parsed = metadata
+        if isinstance(parsed, dict):
+            return parsed
+    except (ValueError, TypeError):
+        pass
+    return {}
+
+
 class WorkPageContentMixin:
-    
-    @classmethod
-    def get_table_name(cls) -> str:
-        """Get the database table name for this work entity class."""
-        # Import here to avoid circular import
-        from hh.work.work_page import WorkPage
-        
-        # Walk up the MRO to find the actual work entity class (not the mixin or abstract base)
-        for base in cls.__mro__:
-            # Skip mixins (classes ending with Mixin), WorkPage (abstract base), object, and base classes
-            if (base not in (cls, WorkPageContentMixin, WorkPage, object) and 
-                hasattr(base, '__module__') and 
-                base.__module__ and
-                not base.__name__.endswith('Mixin') and  # Skip all mixin classes
-                base.__name__ != 'WorkPage' and  # Skip abstract WorkPage base class
-                ('work' in base.__module__ or 'work_docket' in base.__module__ or 'work_page' in base.__module__)):
-                class_name = base.__name__
-                return _camel_to_snake_plural(class_name)
-        # Fallback: use the class name directly
-        class_name = cls.__name__
-        return _camel_to_snake_plural(class_name)
+    WORK_NAMESPACE = 'work'
+    CUSTOM_META_NAMESPACE = 'meta'
     
     def do_init(self, conn: DatabaseConnection, page_id: int):
         # Call parent's do_init first to load base page data
@@ -92,26 +67,37 @@ class WorkPageContentMixin:
         if is_error() or not conn:
             return
         
-        # Load work entity data using dynamically determined table name
         trace_in()
-        table_name = self.__class__.get_table_name()
-        query = f"SELECT status, meta, sort_order, started_ts, ended_ts FROM {table_name} WHERE page_id = %s"
-        results = r_query(conn, query, [page_id])
-        if results:
-            entity_data = results[0]
-            self.status = entity_data.get('status') or 'todo'
-            self.meta = entity_data.get('meta') or ''
-            self.sort_order = entity_data.get('sort_order') or 0
-            self.started_ts = entity_data.get('started_ts')
-            self.ended_ts = entity_data.get('ended_ts')
-            log(f"{self.__class__.__name__} {page_id} loaded: status='{self.status}', sort_order={self.sort_order}")
-        else:
-            debug(f"{self.__class__.__name__} {page_id} has no {table_name} entry")
-            self.status = 'todo'
-            self.meta = ''
-            self.sort_order = 0
-            self.started_ts = None
-            self.ended_ts = None
+        work_defaults = {
+            'status': 'todo',
+            'sort_order': 0,
+            'started_ts': dt.datetime.now().isoformat(),
+            'ended_ts': None,
+        }
+        work_data = self.get_metadata_namespace(
+            self.WORK_NAMESPACE,
+            default=work_defaults,
+            persist_if_missing=True,
+        )
+        self.status = work_data.get('status', 'todo')
+        self.sort_order = work_data.get('sort_order', 0)
+        self.started_ts = work_data.get('started_ts')
+        self.ended_ts = work_data.get('ended_ts')
+
+        meta_bucket = self.get_metadata_namespace(
+            self.CUSTOM_META_NAMESPACE,
+            default={},
+            persist_if_missing=True,
+        )
+        if not isinstance(meta_bucket, dict):
+            meta_bucket = {}
+            self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_bucket)
+        self.meta_dict = meta_bucket
+        self.meta = json.dumps(meta_bucket, ensure_ascii=False)
+        log(
+            f"{self.__class__.__name__} {page_id} loaded from metadata: "
+            f"status='{self.status}', sort_order={self.sort_order}"
+        )
         trace_out()
     
     def _get_page_data(self) -> Dict[str, Any]:
@@ -145,7 +131,7 @@ class WorkPageContentMixin:
     @classmethod
     def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
-        Hook called after page creation to add work entity table entry.
+        Hook called after page creation to initialize metadata for work entities.
         """
         trace_in()
         gateway = get_gateway()
@@ -154,66 +140,84 @@ class WorkPageContentMixin:
             trace_out()
             return
         
-        # Get status and meta from gateway arguments (both optional)
         status = gateway.get_arg('status') or 'todo'
-        meta = gateway.get_arg('meta') or None
-        
-        # Get parent page ID for the new page
+        meta_arg = gateway.get_arg('meta')
+        if meta_arg is True:
+            meta_arg = "{}"
+        user_meta: Dict[str, Any] = {}
+        if meta_arg and isinstance(meta_arg, str) and meta_arg.strip():
+            try:
+                user_meta = json.loads(meta_arg)
+                if not isinstance(user_meta, dict):
+                    user_meta = {}
+            except json.JSONDecodeError as exc:
+                warn(f"Invalid JSON provided for work meta: {exc}")
+                report_error("action", f"Invalid JSON for meta: {exc}")
+        elif isinstance(meta_arg, dict):
+            user_meta = meta_arg
+
+        if is_error():
+            trace_out()
+            return
+
         parent_id = None
+        class_name = None
         try:
-            parent_results = r_query(conn, "SELECT parent FROM pages WHERE id = %s", [new_page_id])
-            if parent_results and parent_results[0].get('parent') is not None:
-                parent_id = int(parent_results[0]['parent'])
-        except Exception as e:
-            debug(f"Failed to get parent for page {new_page_id}: {str(e)}")
-        
-        # Get max sort_order for entities of this type under the same parent
-        table_name = cls.get_table_name()
+            parent_results = r_query(conn, "SELECT parent, class FROM pages WHERE id = %s", [new_page_id])
+            if parent_results:
+                parent_id = parent_results[0].get('parent')
+                class_name = parent_results[0].get('class')
+        except Exception as exc:
+            debug(f"Failed to get parent/class for page {new_page_id}: {exc}")
+
         max_order = 0
-        if parent_id:
-            try:
-                # Join work entity table with pages table to filter by parent
-                query = f"""
-                    SELECT MAX({table_name}.sort_order) as max_order 
-                    FROM {table_name} 
-                    INNER JOIN pages ON {table_name}.page_id = pages.id 
-                    WHERE pages.parent = %s
-                """
-                results = r_query(conn, query, [parent_id])
-                if results and results[0].get('max_order') is not None:
-                    max_order = int(results[0]['max_order'])
-            except Exception as e:
-                debug(f"Failed to get max sort_order for parent {parent_id}: {str(e)}")
-        
+        if parent_id is not None and class_name:
+            sibling_rows = r_query(
+                conn,
+                "SELECT metadata FROM pages WHERE parent = %s AND class = %s",
+                [parent_id, class_name],
+            )
+            for row in sibling_rows:
+                metadata = _parse_metadata(row.get('metadata'))
+                work_block = metadata.get(cls.WORK_NAMESPACE)
+                if isinstance(work_block, dict):
+                    try:
+                        current = int(work_block.get('sort_order') or 0)
+                        if current > max_order:
+                            max_order = current
+                    except (TypeError, ValueError):
+                        continue
+
         new_sort_order = max_order + 1
-        
-        # Insert into work entity table
-        if conn:
-            try:
-                c_query(conn, f"""
-                    INSERT INTO {table_name} (page_id, status, meta, sort_order)
-                    VALUES (%s, %s, %s, %s)
-                """, (new_page_id, status, meta, new_sort_order))
-                log(f"Created {table_name} entry for page {new_page_id}: status='{status}', sort_order={new_sort_order}")
-            except Exception as e:
-                warn(f"Failed to create {table_name} entry: {str(e)}")
-                report_error("backend", f"Failed to create {table_name} entry: {str(e)}")
-        
+        work_namespace = {
+            'status': status,
+            'sort_order': new_sort_order,
+            'started_ts': dt.datetime.now().isoformat(),
+            'ended_ts': None,
+        }
+
+        new_page = get_page_conn(conn, new_page_id)
+        if not new_page:
+            warn(f"Failed to load page {new_page_id} for metadata initialization")
+            trace_out()
+            return
+
+        new_page.set_metadata_namespace(cls.WORK_NAMESPACE, work_namespace)
+        new_page.set_metadata_namespace(cls.CUSTOM_META_NAMESPACE, user_meta or {})
+        new_page.status = status
+        new_page.sort_order = new_sort_order
+        new_page.started_ts = work_namespace['started_ts']
+        new_page.ended_ts = None
+        new_page.meta = json.dumps(user_meta or {}, ensure_ascii=False)
+        new_page.reset_connection()
         trace_out()
     
     def delete_page_class_information(self):
         """
-        Hook called before page deletion to remove work entity table entry.
+        Hook called before page deletion to remove work-specific metadata if desired.
         """
         trace_in()
-        if self.conn and self.id:
-            table_name = self.__class__.get_table_name()
-            try:
-                d_query(self.conn, f"DELETE FROM {table_name} WHERE page_id = %s", [self.id])
-                log(f"Deleted {table_name} entry for page {self.id}")
-            except Exception as e:
-                warn(f"Failed to delete {table_name} entry: {str(e)}")
-                report_error("backend", f"Failed to delete {table_name} entry: {str(e)}")
+        # No additional cleanup required now that metadata lives on the page row.
         trace_out()
     
     def _modify_status(self, status: str) -> bool:
@@ -224,19 +228,10 @@ class WorkPageContentMixin:
             log("Status unchanged, no update needed")
             trace_out()
             return True
-        old_status = self.status
-        log(f"Old status: '{old_status}', new status: '{status}'")
-        table_name = self.__class__.get_table_name()
-        if not is_error():
-            log(f"Updating page {self.id} status in database: '{old_status}' -> '{status}'")
-            affected = u_query(self.conn, f"UPDATE {table_name} SET status = %s WHERE page_id = %s", (status, self.id))
-            if affected == 0:
-                # Entry should already exist - if UPDATE affects 0 rows, that's an error
-                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
-                report_error("action", f"No {table_name} entry found for page {self.id}")
-            else:
-                log(f"Successfully updated page {self.id} status in database")
-        if not is_error():
+        work_data = self.get_metadata_namespace(self.WORK_NAMESPACE, default={}, persist_if_missing=True)
+        updated = dict(work_data)
+        updated['status'] = status
+        if self.set_metadata_namespace(self.WORK_NAMESPACE, updated):
             self.status = status
             log(f"Successfully updated page {self.id} status to '{status}'")
         trace_out()
@@ -246,38 +241,19 @@ class WorkPageContentMixin:
         """Set/add/update a single key-value pair in the meta JSON field."""
         trace_in()
         log(f"Setting meta key '{key}' for page {self.id}")
-        table_name = self.__class__.get_table_name()
-        
-        # Get current meta
-        current_meta_str = self.meta if hasattr(self, 'meta') and self.meta else '{}'
-        try:
-            current_meta = json.loads(current_meta_str) if current_meta_str else {}
-        except json.JSONDecodeError:
-            # If current meta is not valid JSON, start with empty dict
-            warn(f"Current meta for page {self.id} is not valid JSON, starting fresh")
-            current_meta = {}
-        
-        # Try to parse value as JSON, fall back to string
+        current_meta = self.get_metadata_namespace(
+            self.CUSTOM_META_NAMESPACE,
+            default={},
+            persist_if_missing=True,
+        )
+        meta_copy = dict(current_meta)
         try:
             parsed_value = json.loads(value)
         except (json.JSONDecodeError, TypeError):
             parsed_value = value
-        
-        # Update the key
-        current_meta[key] = parsed_value
-        new_meta_str = json.dumps(current_meta)
-        
-        if not is_error():
-            log(f"Updating page {self.id} meta in database")
-            affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
-            if affected == 0:
-                # Entry should already exist - if UPDATE affects 0 rows, that's an error
-                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
-                report_error("action", f"No {table_name} entry found for page {self.id}")
-            else:
-                log(f"Successfully updated page {self.id} meta in database")
-        if not is_error():
-            self.meta = new_meta_str
+        meta_copy[key] = parsed_value
+        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_copy):
+            self.meta = json.dumps(meta_copy, ensure_ascii=False)
             log(f"Successfully updated page {self.id} meta key '{key}'")
         trace_out()
         return not is_error()
@@ -286,39 +262,19 @@ class WorkPageContentMixin:
         """Remove a single key from the meta JSON field."""
         trace_in()
         log(f"Removing meta key '{key}' for page {self.id}")
-        table_name = self.__class__.get_table_name()
-        
-        # Get current meta
-        current_meta_str = self.meta if hasattr(self, 'meta') and self.meta else '{}'
-        try:
-            current_meta = json.loads(current_meta_str) if current_meta_str else {}
-        except json.JSONDecodeError:
-            # If current meta is not valid JSON, nothing to remove
-            warn(f"Current meta for page {self.id} is not valid JSON, nothing to remove")
-            log("No valid meta to remove key from")
-            trace_out()
-            return True
-        
-        # Remove the key if it exists
+        current_meta = self.get_metadata_namespace(
+            self.CUSTOM_META_NAMESPACE,
+            default={},
+            persist_if_missing=True,
+        )
         if key in current_meta:
-            del current_meta[key]
-            new_meta_str = json.dumps(current_meta)
-            
-            if not is_error():
-                log(f"Updating page {self.id} meta in database")
-                affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
-                if affected == 0:
-                    # Entry should already exist - if UPDATE affects 0 rows, that's an error
-                    warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
-                    report_error("action", f"No {table_name} entry found for page {self.id}")
-                else:
-                    log(f"Successfully updated page {self.id} meta in database")
-            if not is_error():
-                self.meta = new_meta_str
+            meta_copy = dict(current_meta)
+            meta_copy.pop(key, None)
+            if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_copy):
+                self.meta = json.dumps(meta_copy, ensure_ascii=False)
                 log(f"Successfully removed key '{key}' from page {self.id} meta")
         else:
             log(f"Key '{key}' not found in meta, nothing to remove")
-        
         trace_out()
         return not is_error()
     
@@ -326,53 +282,25 @@ class WorkPageContentMixin:
         """Replace the entire meta JSON field with a new JSON object."""
         trace_in()
         log(f"Setting entire meta for page {self.id}")
-        table_name = self.__class__.get_table_name()
         
-        # Validate JSON format but preserve original string exactly to maintain key order
-        if meta_json and meta_json.strip():
+        if meta_json and isinstance(meta_json, str) and meta_json.strip():
             try:
-                # Only validate JSON structure - don't parse/re-serialize to preserve order
-                json.loads(meta_json)
-                # Use original string directly to preserve key order from frontend
-                new_meta_str = meta_json
-            except json.JSONDecodeError as e:
-                warn(f"Invalid JSON provided for meta: {str(e)}")
-                report_error("action", f"Invalid JSON for meta: {str(e)}")
+                meta_dict = json.loads(meta_json)
+                if not isinstance(meta_dict, dict):
+                    warn("Provided meta JSON must describe an object")
+                    report_error("action", "Meta JSON must be an object")
+                    trace_out()
+                    return False
+            except json.JSONDecodeError as exc:
+                warn(f"Invalid JSON provided for meta: {exc}")
+                report_error("action", f"Invalid JSON for meta: {exc}")
                 trace_out()
                 return False
         else:
-            # Empty string means clear all meta
-            new_meta_str = '{}'
+            meta_dict = {}
         
-        if not is_error():
-            log(f"Updating page {self.id} meta in database (preserving key order)")
-            log(f"Meta string being saved (first 200 chars): {new_meta_str[:200]}")
-            affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
-            if affected == 0:
-                log(f"No update needed for page {self.id} meta - value already set")
-                # Check what's actually in the database to see if order matches
-                verify_query = f"SELECT meta FROM {table_name} WHERE page_id = %s"
-                verify_results = r_query(self.conn, verify_query, [self.id])
-                if verify_results:
-                    existing_meta = verify_results[0].get('meta') or ''
-                    log(f"Existing meta in database (first 200 chars): {existing_meta[:200]}")
-                    log(f"New meta being set (first 200 chars): {new_meta_str[:200]}")
-                    if existing_meta != new_meta_str:
-                        warn(f"Meta strings differ but UPDATE affected 0 rows! Existing length: {len(existing_meta)}, New length: {len(new_meta_str)}")
-                        warn(f"Existing meta full: {existing_meta}")
-                        warn(f"New meta full: {new_meta_str}")
-            else:
-                log(f"Successfully updated page {self.id} meta in database")
-                # Verify what was actually saved by reading it back
-                verify_query = f"SELECT meta FROM {table_name} WHERE page_id = %s"
-                verify_results = r_query(self.conn, verify_query, [self.id])
-                if verify_results:
-                    saved_meta = verify_results[0].get('meta') or ''
-                    log(f"Meta string after save (first 200 chars): {saved_meta[:200]}")
-                    if saved_meta != new_meta_str:
-                        warn(f"Meta string changed after save! Original length: {len(new_meta_str)}, Saved length: {len(saved_meta)}")
-        if not is_error():
-            self.meta = new_meta_str
+        if self.set_metadata_namespace(self.CUSTOM_META_NAMESPACE, meta_dict):
+            self.meta = json.dumps(meta_dict, ensure_ascii=False)
             log(f"Successfully updated page {self.id} meta")
         trace_out()
         return not is_error()
@@ -393,46 +321,43 @@ class WorkPageContentMixin:
                 report_error("action", f"Could not determine parent for page {self.id}")
         
         if not is_error() and parent_id:
-            table_name = self.__class__.get_table_name()
             class_name = self.class_name
-            
-            # Get current ordering of all siblings (same parent, same class)
-            if not is_error():
-                query = f"""
-                    SELECT {table_name}.page_id, {table_name}.sort_order 
-                    FROM {table_name} 
-                    INNER JOIN pages ON {table_name}.page_id = pages.id 
-                    WHERE pages.parent = %s AND pages.class = %s 
-                    ORDER BY {table_name}.sort_order
-                """
-                siblings = r_query(self.conn, query, [parent_id, class_name])
+            siblings = r_query(
+                self.conn,
+                "SELECT id, metadata FROM pages WHERE parent = %s AND class = %s ORDER BY id",
+                [parent_id, class_name],
+            )
+            if not siblings:
+                warn(f"No siblings found for page {self.id} under parent {parent_id}")
+                report_error("action", f"No siblings found for page {self.id}")
+            else:
+                siblings_with_meta = []
+                for row in siblings:
+                    metadata = _parse_metadata(row.get('metadata'))
+                    work_block = metadata.get(self.WORK_NAMESPACE, {})
+                    current_order = work_block.get('sort_order') or 0
+                    try:
+                        current_order = int(current_order)
+                    except (TypeError, ValueError):
+                        current_order = 0
+                    siblings_with_meta.append({
+                        'page_id': row['id'],
+                        'sort_order': current_order,
+                        'metadata': metadata,
+                    })
                 
-                if not siblings:
-                    warn(f"No siblings found for page {self.id} under parent {parent_id}")
-                    report_error("action", f"No siblings found for page {self.id}")
-            
-            if not is_error():
-                # Find the target entity in the list
-                target_found = None
-                target_index = None
-                for i, sibling in enumerate(siblings):
-                    if sibling['page_id'] == self.id:
-                        target_found = sibling
-                        target_index = i
-                        break
+                target_entry = next((s for s in siblings_with_meta if s['page_id'] == self.id), None)
+                if target_entry is None:
+                    target_entry = {
+                        'page_id': self.id,
+                        'sort_order': self.sort_order or 0,
+                        'metadata': self._get_metadata_dict(),
+                    }
+                    siblings_with_meta.append(target_entry)
+                    log(f"Page {self.id} not found in siblings metadata, adding placeholder")
                 
-                if target_found is None:
-                    # Target not in siblings list - might not have a work entity entry yet
-                    # Create a minimal entry for it
-                    target_found = {'page_id': self.id, 'sort_order': 0}
-                    siblings.append(target_found)
-                    target_index = len(siblings) - 1
-                    log(f"Page {self.id} not found in siblings, adding to end")
+                siblings_without_target = [s for s in siblings_with_meta if s['page_id'] != self.id]
                 
-                # Remove target from list
-                siblings_without_target = [s for s in siblings if s['page_id'] != self.id]
-                
-                # Clamp position: <= 0 or negative = beginning, too high = end
                 if sort_order <= 0:
                     new_pos = 0
                     log(f"Position {sort_order} clamped to beginning (0)")
@@ -440,50 +365,45 @@ class WorkPageContentMixin:
                     new_pos = len(siblings_without_target)
                     log(f"Position {sort_order} clamped to end ({new_pos})")
                 else:
-                    new_pos = sort_order - 1  # Convert to 0-based
+                    new_pos = sort_order - 1
                     log(f"Position {sort_order} -> index {new_pos}")
                 
-                # Insert target at new position
-                siblings_without_target.insert(new_pos, target_found)
+                siblings_without_target.insert(new_pos, target_entry)
                 new_order = siblings_without_target
                 
-                # Check if order actually changed
-                order_changed = False
-                if len(new_order) != len(siblings):
-                    order_changed = True
-                else:
-                    for i, sibling in enumerate(new_order):
-                        if sibling['page_id'] != siblings[i]['page_id']:
-                            order_changed = True
-                            break
+                order_changed = any(
+                    original['page_id'] != updated['page_id']
+                    for original, updated in zip(siblings_with_meta, new_order)
+                ) or (len(siblings_with_meta) != len(new_order))
                 
                 if not order_changed:
                     log("Sort order unchanged after reflow, no update needed")
                     trace_out()
                     return True
                 
-                # Reflow all siblings to sequential order (1, 2, 3, 4...)
+                log(f"Reflowing {len(new_order)} siblings under parent {parent_id}")
+                for index, sibling in enumerate(new_order):
+                    new_sort = index + 1
+                    metadata = sibling['metadata']
+                    work_block = metadata.get(self.WORK_NAMESPACE)
+                    if not isinstance(work_block, dict):
+                        work_block = {}
+                    work_block['sort_order'] = new_sort
+                    metadata[self.WORK_NAMESPACE] = work_block
+                    metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
+                    affected = u_query(
+                        self.conn,
+                        "UPDATE pages SET metadata = %s WHERE id = %s",
+                        (metadata_json, sibling['page_id']),
+                    )
+                    if affected == 0:
+                        warn(f"Failed to update sort_order for page {sibling['page_id']}")
+                        report_error("action", f"Failed to update sort_order for page {sibling['page_id']}")
+                        break
+                    if sibling['page_id'] == self.id:
+                        self.sort_order = new_sort
                 if not is_error():
-                    log(f"Reflowing {len(new_order)} siblings under parent {parent_id}")
-                    try:
-                        # Use transaction for atomic updates
-                        u_query(self.conn, "START TRANSACTION", [])
-                        for i, sibling in enumerate(new_order):
-                            new_sort_order = i + 1
-                            u_query(self.conn, f"UPDATE {table_name} SET sort_order = %s WHERE page_id = %s", 
-                                   (new_sort_order, sibling['page_id']))
-                        u_query(self.conn, "COMMIT", [])
-                        log(f"Successfully reflowed {len(new_order)} siblings to sequential order")
-                    except Exception as e:
-                        u_query(self.conn, "ROLLBACK", [])
-                        warn(f"Failed to reflow siblings: {str(e)}")
-                        report_error("action", f"Failed to reflow siblings: {str(e)}")
-                
-                if not is_error():
-                    # Update instance variable to new sort_order
-                    new_sort_order = new_pos + 1
-                    self.sort_order = new_sort_order
-                    log(f"Successfully updated page {self.id} sort_order to {new_sort_order} (position {sort_order})")
+                    log(f"Successfully updated ordering for {len(new_order)} siblings")
         
         trace_out()
         return not is_error()

@@ -167,6 +167,23 @@ export class WorkPageData extends PageData {
         pairs.push({ key: '', value: '' });
       }
 
+      const sortRowsByKey = () => {
+        const tbodyEl = document.querySelector(`#${tableId}-tbody`) as HTMLElement | null;
+        if (!tbodyEl) {
+          return;
+        }
+        const rows = Array.from(tbodyEl.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+          const keyA = (a.querySelector('.meta-key-input') as HTMLInputElement | null)?.value.trim().toLowerCase() ?? '';
+          const keyB = (b.querySelector('.meta-key-input') as HTMLInputElement | null)?.value.trim().toLowerCase() ?? '';
+          if (keyA === keyB) {
+            return 0;
+          }
+          return keyA < keyB ? -1 : 1;
+        });
+        rows.forEach(row => tbodyEl.appendChild(row));
+      };
+
       // Build table HTML
       const tableId = 'meta-table-' + Date.now();
       let tableHtml = `
@@ -187,7 +204,7 @@ export class WorkPageData extends PageData {
       pairs.forEach((pair, index) => {
         const rowId = `${tableId}-row-${index}`;
         tableHtml += `
-          <tr id="${rowId}" draggable="true" style="cursor: move;">
+          <tr id="${rowId}">
             <td style="padding: 4px; border: 1px solid #ddd;">
               <input type="text" class="meta-key-input" value="${this.escapeHtml(pair.key)}" 
                      style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
@@ -209,7 +226,7 @@ export class WorkPageData extends PageData {
             </tbody>
           </table>
           <button type="button" id="${tableId}-add-btn" style="margin-top: 10px; padding: 6px 12px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 3px;">Add Row</button>
-          <div class="overlay-form-help" style="margin-top: 10px;">Keys must be JSON valid (no spaces). Values can be strings or JSON. Drag rows to reorder.</div>
+          <div class="overlay-form-help" style="margin-top: 10px;">Keys must be JSON valid (no spaces). Values can be strings or JSON. Use the “Sort Keys” button to alphabetize by key.</div>
         </div>
       `;
 
@@ -220,6 +237,8 @@ export class WorkPageData extends PageData {
         closable: true,
         submitLabel: 'Submit',
         cancelLabel: 'Cancel',
+        middleButtonLabel: 'Sort Keys',
+        onMiddleButton: () => sortRowsByKey(),
         onCancel: () => {
           // Cleanup
         },
@@ -333,8 +352,6 @@ export class WorkPageData extends PageData {
         // Add row button handler
         addBtn.addEventListener('click', () => {
           const newRow = document.createElement('tr');
-          newRow.setAttribute('draggable', 'true');
-          newRow.style.cursor = 'move';
           newRow.innerHTML = `
             <td style="padding: 4px; border: 1px solid #ddd;">
               <input type="text" class="meta-key-input" value="" 
@@ -351,28 +368,6 @@ export class WorkPageData extends PageData {
             </td>
           `;
           tbody.appendChild(newRow);
-          
-          // Add another empty row below (auto-add feature)
-          const autoRow = document.createElement('tr');
-          autoRow.setAttribute('draggable', 'true');
-          autoRow.style.cursor = 'move';
-          autoRow.innerHTML = `
-            <td style="padding: 4px; border: 1px solid #ddd;">
-              <input type="text" class="meta-key-input" value="" 
-                     style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
-                     placeholder="Key (no spaces, JSON valid)">
-            </td>
-            <td style="padding: 4px; border: 1px solid #ddd;">
-              <input type="text" class="meta-value-input" value="" 
-                     style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
-                     placeholder="Value (can be JSON string)">
-            </td>
-            <td style="padding: 4px; border: 1px solid #ddd; text-align: center;">
-              <button type="button" class="meta-remove-btn" style="background: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 3px;">×</button>
-            </td>
-          `;
-          tbody.appendChild(autoRow);
-          
           // Attach remove handler to new buttons
           attachRemoveHandlers();
         });
@@ -397,41 +392,8 @@ export class WorkPageData extends PageData {
         };
         attachRemoveHandlers();
 
-        // Drag and drop handlers
-        let draggedRow: HTMLTableRowElement | null = null;
-        
-        tbody.querySelectorAll('tr').forEach(row => {
-          row.addEventListener('dragstart', (e) => {
-            draggedRow = row as HTMLTableRowElement;
-            row.style.opacity = '0.5';
-          });
-          
-          row.addEventListener('dragend', () => {
-            if (draggedRow) {
-              draggedRow.style.opacity = '1';
-              draggedRow = null;
-            }
-          });
-          
-          row.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const target = e.target as HTMLElement;
-            const targetRow = target.closest('tr');
-            if (targetRow && targetRow !== draggedRow && draggedRow) {
-              const rect = targetRow.getBoundingClientRect();
-              const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
-              if (next) {
-                tbody.insertBefore(draggedRow, targetRow.nextSibling);
-              } else {
-                tbody.insertBefore(draggedRow, targetRow);
-              }
-            }
-          });
-          
-          row.addEventListener('drop', (e) => {
-            e.preventDefault();
-          });
-        });
+        // Initial alphabetical order when overlay opens
+        sortRowsByKey();
       }, 100);
     } catch (error) {
       rpc.showError('modify_work_meta_set_all', error);
