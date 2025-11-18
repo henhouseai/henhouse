@@ -263,26 +263,49 @@ export class RPCClient {
     
     // Check if it's an RPCError with multiple errors
     let errorMessages: Array<{ type: 'error'; text: string }> = [];
+    let debugData: DebugData | undefined;
+    
+    // Check for RPCError with errors array
     if (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors) && (error as any).errors.length > 0) {
       // RPCError with multiple errors - extract all of them
       const rpcError = error as any;
-      errorMessages = rpcError.errors.map((err: { type: string; content: string }) => ({
-        type: 'error' as const,
-        text: `${err.type}: ${err.content}`
-      }));
-      // Also add the main error message if present
-      if (rpcError.message) {
-        errorMessages.unshift({
+      errorMessages = rpcError.errors
+        .filter((err: any) => err && typeof err === 'object' && 'content' in err)
+        .map((err: { type: string; content: string }) => ({
           type: 'error' as const,
-          text: rpcError.message
+          text: `${err.type || 'error'}: ${err.content || 'Unknown error'}`
+        }));
+      
+      // If we couldn't extract any errors from the array, indicate extraction failure
+      if (errorMessages.length === 0) {
+        errorMessages.push({
+          type: 'error' as const,
+          text: `Error extraction failed: Expected errors array but could not extract valid errors. Original error: ${rpcError.message || 'Unknown'}`
         });
       }
+      
+      // Extract debug data if present
+      if (rpcError.debug) {
+        debugData = rpcError.debug;
+      }
     } else {
-      // Single error
+      // Single error - extract message
       const errorMessage = error instanceof Error ? error.message : String(error);
       errorMessages = [{
         type: 'error' as const,
         text: errorMessage
+      }];
+      // Check for debug data on single errors too
+      if (error && typeof error === 'object' && 'debug' in error) {
+        debugData = (error as any).debug;
+      }
+    }
+    
+    // Ensure we have at least one error message (shouldn't happen, but safety check)
+    if (errorMessages.length === 0) {
+      errorMessages = [{
+        type: 'error' as const,
+        text: `Error extraction failed: Could not extract error message from error object. Error type: ${typeof error}`
       }];
     }
     
@@ -290,6 +313,21 @@ export class RPCClient {
     const errorContent = errorMessages.map(msg => {
       return `<div class="overlayError">${this.escapeHtml(msg.text)}</div>`;
     });
+    
+    // If we have debug data, show it in a separate overlay
+    if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
+      // Import and use debug helper to show debug data
+      import('./debug-helper.js').then(({ handleRPCResponseWithDebug }) => {
+        // Create a mock result structure for the debug helper
+        const mockResult = {
+          debug: debugData,
+          requestInfo: error && typeof error === 'object' && 'requestInfo' in error 
+            ? (error as any).requestInfo 
+            : { method: label, params: {} }
+        };
+        handleRPCResponseWithDebug(mockResult, label, {});
+      });
+    }
     
     overlayManager.show({
       header: `Error: ${label}`,
