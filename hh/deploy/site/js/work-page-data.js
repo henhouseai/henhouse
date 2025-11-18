@@ -239,15 +239,13 @@ export class WorkPageData extends PageData {
                             pairs.push([key, parsedValue]);
                         }
                     }
-                    // Build JSON string directly from pairs array to explicitly preserve order
-                    // This ensures the order is maintained through JSON serialization
-                    const jsonParts = [];
+                    // Build object from pairs array to preserve insertion order
+                    const metaObj = {};
                     for (const [key, value] of pairs) {
-                        const keyStr = JSON.stringify(key);
-                        const valueStr = JSON.stringify(value);
-                        jsonParts.push(`${keyStr}:${valueStr}`);
+                        metaObj[key] = value;
                     }
-                    const metaJson = `{${jsonParts.join(',')}}`;
+                    // Convert to JSON string (should preserve insertion order in modern JS)
+                    const metaJson = JSON.stringify(metaObj);
                     // Call MCP tool
                     try {
                         const params = {

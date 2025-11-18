@@ -114,15 +114,11 @@ export class OverlayDebugTable {
    * Render debug table from JSON debug data.
    */
   render(debugData: DebugData): HTMLElement {
-    const container = document.createElement('div');
-    container.className = 'overlay-debug-table-container';
-
     if (!debugData.entries || debugData.entries.length === 0) {
       const emptyMsg = document.createElement('div');
       emptyMsg.className = 'overlay-debug-empty';
       emptyMsg.textContent = 'No debug entries';
-      container.appendChild(emptyMsg);
-      return container;
+      return emptyMsg;
     }
 
     // Create table
@@ -189,8 +185,7 @@ export class OverlayDebugTable {
     });
     table.appendChild(tbody);
 
-    container.appendChild(table);
-    return container;
+    return table;
   }
 }
 

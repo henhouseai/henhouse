@@ -94,14 +94,11 @@ export class OverlayDebugTable {
      * Render debug table from JSON debug data.
      */
     render(debugData) {
-        const container = document.createElement('div');
-        container.className = 'overlay-debug-table-container';
         if (!debugData.entries || debugData.entries.length === 0) {
             const emptyMsg = document.createElement('div');
             emptyMsg.className = 'overlay-debug-empty';
             emptyMsg.textContent = 'No debug entries';
-            container.appendChild(emptyMsg);
-            return container;
+            return emptyMsg;
         }
         // Create table
         const table = document.createElement('table');
@@ -157,7 +154,6 @@ export class OverlayDebugTable {
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
-        container.appendChild(table);
-        return container;
+        return table;
     }
 }
