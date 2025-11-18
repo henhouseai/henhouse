@@ -328,11 +328,12 @@ class WorkPageContentMixin:
         log(f"Setting entire meta for page {self.id}")
         table_name = self.__class__.get_table_name()
         
-        # Validate JSON
+        # Validate JSON format but preserve original string exactly to maintain key order
         if meta_json and meta_json.strip():
             try:
-                # Parse to validate JSON, but use original string if valid
+                # Only validate JSON structure - don't parse/re-serialize to preserve order
                 json.loads(meta_json)
+                # Use original string directly to preserve key order from frontend
                 new_meta_str = meta_json
             except json.JSONDecodeError as e:
                 warn(f"Invalid JSON provided for meta: {str(e)}")
@@ -344,12 +345,21 @@ class WorkPageContentMixin:
             new_meta_str = '{}'
         
         if not is_error():
-            log(f"Updating page {self.id} meta in database")
+            log(f"Updating page {self.id} meta in database (preserving key order)")
+            log(f"Meta string being saved (first 200 chars): {new_meta_str[:200]}")
             affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
             if affected == 0:
                 log(f"No update needed for page {self.id} meta - value already set")
             else:
                 log(f"Successfully updated page {self.id} meta in database")
+                # Verify what was actually saved by reading it back
+                verify_query = f"SELECT meta FROM {table_name} WHERE page_id = %s"
+                verify_results = r_query(self.conn, verify_query, [self.id])
+                if verify_results:
+                    saved_meta = verify_results[0].get('meta') or ''
+                    log(f"Meta string after save (first 200 chars): {saved_meta[:200]}")
+                    if saved_meta != new_meta_str:
+                        warn(f"Meta string changed after save! Original length: {len(new_meta_str)}, Saved length: {len(saved_meta)}")
         if not is_error():
             self.meta = new_meta_str
             log(f"Successfully updated page {self.id} meta")
