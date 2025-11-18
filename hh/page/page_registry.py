@@ -26,7 +26,7 @@ def _initialize_debug():
 _page_cache: Dict[int, Any] = {}
 
 def _load_mcp_utils_for_page_class(PageClass: type) -> None:
-    """Dynamically import mcp_utils module for a page class for HTTP or MCP backend."""
+    """Dynamically import mcp_utils module for a page class and all its parent classes for HTTP or MCP backend."""
     trace_in()
     gateway = get_gateway()
     if not gateway or gateway.backend not in ("http", "mcp"):
@@ -34,19 +34,36 @@ def _load_mcp_utils_for_page_class(PageClass: type) -> None:
         trace_out()
         return
     
+    # Walk the MRO (Method Resolution Order) to load mcp_utils from each class in the inheritance chain
+    loaded_modules = set()  # Track loaded modules to avoid duplicates
+    
     try:
-        module_name = PageClass.__module__
-        # Extract base module path (e.g., 'hh.page.page' -> 'hh.page')
-        module_parts = module_name.split('.')
-        if len(module_parts) >= 2:
-            base_module = '.'.join(module_parts[:-1])
-            mcp_utils_module = f"{base_module}.mcp_utils"
-            try:
-                importlib.import_module(mcp_utils_module)
-                log(f"Loaded mcp_utils for {module_name}: {mcp_utils_module}")
-            except ImportError:
-                # mcp_utils doesn't exist for this module, that's okay
-                debug(f"No mcp_utils found for {module_name} (expected for some page classes)")
+        for base_class in PageClass.__mro__:
+            # Skip mixins, object, and base classes that don't have meaningful modules
+            if (base_class is object or 
+                base_class.__name__.endswith('Mixin') or
+                not hasattr(base_class, '__module__') or
+                not base_class.__module__):
+                continue
+            
+            module_name = base_class.__module__
+            # Extract base module path (e.g., 'hh.page.page' -> 'hh.page')
+            module_parts = module_name.split('.')
+            if len(module_parts) >= 2:
+                base_module = '.'.join(module_parts[:-1])
+                mcp_utils_module = f"{base_module}.mcp_utils"
+                
+                # Skip if we've already loaded this module
+                if mcp_utils_module in loaded_modules:
+                    continue
+                
+                try:
+                    importlib.import_module(mcp_utils_module)
+                    loaded_modules.add(mcp_utils_module)
+                    log(f"Loaded mcp_utils for {base_class.__name__} ({module_name}): {mcp_utils_module}")
+                except ImportError:
+                    # mcp_utils doesn't exist for this module, that's okay
+                    debug(f"No mcp_utils found for {base_class.__name__} ({module_name})")
     except Exception as e:
         warn(f"Error loading mcp_utils for {PageClass.__name__}: {e}")
     trace_out()
