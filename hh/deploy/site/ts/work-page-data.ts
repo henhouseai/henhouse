@@ -276,13 +276,20 @@ export class WorkPageData extends PageData {
 
           // Call MCP tool
           try {
-            const result = await rpc.call('modify_work_meta_set_all', {
+            const params = {
               page_id: pageId,
               meta: metaJson
-            });
+            };
+            const result = await rpc.call('modify_work_meta_set_all', params);
 
             // Check for debug data in result
             const hasDebugData = result?.debug && Array.isArray(result.debug.entries) && result.debug.entries.length > 0;
+            
+            // Show debug overlay if debug data is present
+            if (hasDebugData) {
+              const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+              handleRPCResponseWithDebug(result, 'modify_work_meta_set_all', params);
+            }
             
             if (result && result.success !== false) {
               // Update internal data
@@ -302,10 +309,15 @@ export class WorkPageData extends PageData {
             // RPC errors may have debug data attached
             const hasDebugData = error?.debug && Array.isArray(error.debug.entries) && error.debug.entries.length > 0;
             
-            // Re-throw with debug data preserved
+            // Show debug overlay for errors with debug data
             if (hasDebugData) {
-              (error as any).debug = error.debug;
+              const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+              handleRPCResponseWithDebug(error, 'modify_work_meta_set_all', {
+                page_id: pageId,
+                meta: metaJson
+              });
             }
+            
             throw error;
           }
         }
