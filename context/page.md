@@ -11,6 +11,9 @@ This document covers the core business logic modules for page, image, and text p
 ## Agent Quick Reference
 
 - **Core Modules**: `page/` (hierarchical content), `image/` (media management), `tp/` (markup parsing)
+- **Mixin Architecture**: Page class uses 6 mixins with automatic connection management via wrapper system
+- **Method Registration**: Mixins register methods with `@register_page_mixin_methods` decorator
+- **Connection Management**: Wrapper system automatically routes to `@db_read`/`@db_write` or reuses existing connection
 - **Markup Language**: `[[page_links]]`, `{{image_embeds}}`, decorator-based processing
 - **Page Hierarchy**: Parent-child relationships with automatic breadcrumb generation
 - **Image Instances**: Automatic multi-size generation and management
@@ -65,6 +68,7 @@ The hierarchical page management system with CRUD operations, display logic, and
 - **Content mixins** : *PageContentMixin for content handling*
 - **Image mixins** : *PageImagesMixin for image operations*
 - **Display mixins** : *PageDisplayMixin for output preparation*
+- **AJAX mixins** : *PageAjaxMixin for JSON payload assembly*
 
 #### called by:
 - action handlers : *Actions create Page instances and call methods*
@@ -85,9 +89,142 @@ The hierarchical page management system with CRUD operations, display logic, and
 #### agent training notes:
 - **Page Creation**: Actions call `Page(page_id)` which loads from database
 - **Data Loading**: Page constructor loads data automatically on init
-- **Mixin Methods**: Page uses multiple mixins for different functionality areas
-- **Display Data**: call `_show_page()` to get formatted output data
+- **Mixin Methods**: Page uses six mixins with automatic connection management via wrapper system
+- **Method Registration**: Mixins register methods with `@register_page_mixin_methods` decorator
+- **Connection Management**: Wrapper system automatically handles `@db_read`/`@db_write` decorators
+- **Transaction Support**: Methods can share connections when `self.conn` is set
+- **Display Data**: call `show_page()` (public wrapper) or `_show_page()` (mixin method) for formatted output data
 - **Action Pattern**: Page actions use @register_action decorator
+
+### Mixin Architecture
+
+The Page class uses multiple inheritance with six specialized mixins, each providing focused functionality. The mixin system includes a sophisticated method registration and wrapper system that handles database connection management automatically.
+
+#### The Six Mixins
+
+1. **PageValidationMixin** (`page_validation.py`)
+   - **Purpose**: Name validation, move validation, duplicate checking
+   - **Key Methods**: `validate_name()`, `can_move_to_page()`, `check_children_recursive()`
+   - **Class Methods**: `allow_null_names()`, `allow_duplicate_names()`, `auto_link_name()`, `allow_inside_of()`
+   - **Instance Methods**: `allow_class_inside()`
+
+2. **PageHierarchyMixin** (`page_hierarchy.py`)
+   - **Purpose**: Parent-child relationships, breadcrumbs, move/copy operations
+   - **Key Methods**: `get_path()`, `get_children_data()`, `get_child_page_ids()`, `move_page()`, `copy_page()`
+   - **Static Methods**: `get_children_query()` - can be overridden by subclasses to customize child queries
+
+3. **PageContentMixin** (`page_content.py`)
+   - **Purpose**: CRUD operations, text processing, page data assembly
+   - **Key Methods**: `modify_name()`, `modify_text()`, `add_page()`, `delete_page()`, `get_page_data()`, `flag_page_modification()`
+   - **Class Hooks**: `add_page_class_information()` - called after page creation for class-specific setup
+   - **Instance Hooks**: `delete_page_class_information()` - called before page deletion for cleanup
+
+4. **PageImagesMixin** (`page_images.py`)
+   - **Purpose**: Image association management, ranking, copying/moving images
+   - **Key Methods**: `get_images_data()`, `add_image()`, `copy_images()`, `move_images()`, `set_image_rank()`, `remove_image()`
+   - **Internal Methods**: `_create_image_record()`, `_add_image_to_group()`, `_reorder_images()`
+
+5. **PageDisplayMixin** (`page_display.py`)
+   - **Purpose**: Display data preparation, child grouping, badge headers
+   - **Key Methods**: `show_page()`, `_get_children_by_class()`, `_get_children_for_class()`
+   - **Hooks**: `add_upper_content()`, `add_lower_content()`, `add_badge_headers()`, `get_child_row_field_type()`
+
+6. **PageAjaxMixin** (`page_ajax.py`)
+   - **Purpose**: AJAX-friendly JSON payload assembly for MCP backend
+   - **Key Methods**: `get_page()` - returns minimal JSON structure with available actions
+
+#### Method Registration System
+
+Each mixin registers its public methods using the `@register_page_mixin_methods` decorator:
+
+```python
+@register_page_mixin_methods
+def _register_validation_methods():
+    return {
+        'validate_name': {'mixin_method': '_validate_name', 'decorator': 'read'},
+        'can_move_to_page': {'mixin_method': '_can_move_to_page', 'decorator': 'read'},
+    }
+```
+
+**Registration Pattern**:
+- **Public Method Name**: The method name exposed to users (e.g., `validate_name`)
+- **Mixin Method Name**: The private method in the mixin (e.g., `_validate_name`)
+- **Decorator Type**: `'read'` = `@db_read`, `'write'` = `@db_write`
+
+All registered methods are collected in `page_method_registry.py` and used by the wrapper system.
+
+#### Wrapper Method System
+
+The `_create_wrapper_methods` class decorator automatically creates wrapper methods that handle database connection management. For each registered method, it creates three methods:
+
+1. **Decorated Version** (`page_dec_{method_name}`):
+   - Uses `@db_read` or `@db_write` decorator
+   - Creates and manages database connection automatically
+   - Used when `self.conn is None`
+
+2. **Connection Version** (`page_conn_{method_name}`):
+   - Uses existing `self.conn` connection
+   - No decorator (connection already established)
+   - Used when `self.conn` exists (for transaction support)
+
+3. **Public Wrapper** (`{method_name}`):
+   - Routes to appropriate version based on connection state
+   - Automatically resets connection after decorated version completes
+
+**Connection Management Flow**:
+```python
+# When self.conn is None:
+page.validate_name("test")
+  → wrapper checks: self.conn is None?
+  → calls page_dec_validate_name()
+  → @db_read creates connection
+  → calls _validate_name() (mixin method)
+  → resets self.conn = None
+
+# When self.conn exists (transaction):
+page.conn = existing_connection
+page.validate_name("test")
+  → wrapper checks: self.conn exists?
+  → calls page_conn_validate_name()
+  → directly calls _validate_name() (reuses connection)
+```
+
+**Benefits**:
+- **Automatic Connection Management**: Methods work with or without a connection
+- **Transaction Support**: Multiple operations can share a connection/transaction
+- **Clean API**: Public methods hide connection complexity
+- **Mixin Isolation**: Each mixin focuses on business logic, not connection management
+
+#### Mixin Method Implementation Pattern
+
+Mixin methods follow a consistent pattern:
+
+1. **Private Methods**: Mixin methods are prefixed with `_` (e.g., `_validate_name`)
+2. **Public Wrappers**: Wrapper system creates public methods (e.g., `validate_name`)
+3. **Error Handling**: Uses `is_error()` checks and `report_error()` for error coordination
+4. **Debug Integration**: Uses `trace_in()`, `trace_out()`, `log()`, `debug()`, `warn()`
+5. **Connection Usage**: Methods use `self.conn` directly (connection management handled by wrapper)
+
+**Example Mixin Method**:
+```python
+def _validate_name(self, name: str, page_class: str, exclude_id: Optional[int] = None) -> bool:
+    trace_in()
+    # Uses self.conn directly (connection provided by wrapper)
+    results = r_query(self.conn, "SELECT id FROM pages WHERE ...", ...)
+    trace_out()
+    return True
+```
+
+#### Extending the Mixin System
+
+To add a new mixin:
+
+1. **Create Mixin Class**: Create new mixin class with private methods
+2. **Register Methods**: Use `@register_page_mixin_methods` to register public methods
+3. **Add to Page Class**: Add mixin to Page class inheritance list
+4. **Specify Decorator Type**: Choose `'read'` or `'write'` for each method
+
+The wrapper system automatically handles the rest.
 
 ---
 
