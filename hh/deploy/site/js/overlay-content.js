@@ -13,6 +13,7 @@ export class OverlayContent {
         const container = document.createElement('div');
         const headers = this.props.headers || [];
         const contentItems = this.props.children || [];
+        console.log('OverlayContent.render:', { headerCount: headers.length, contentCount: contentItems.length, headers, contentTypes: contentItems.map(item => typeof item) });
         // Determine max length to iterate through both arrays
         const maxLength = Math.max(headers.length, contentItems.length);
         for (let i = 0; i < maxLength; i++) {

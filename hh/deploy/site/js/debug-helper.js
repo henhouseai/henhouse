@@ -63,7 +63,7 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
         const headerArray = [];
         const contentArray = [];
         // Box 1: Request info - always show if we have method/params (even if requestInfo wasn't on rpcResult)
-        const shouldShowRequest = requestInfo || (method && params !== undefined);
+        const shouldShowRequest = !!(requestInfo || (method && params !== undefined));
         console.log('Request section check:', { requestInfo: !!requestInfo, method, hasParams: params !== undefined, shouldShowRequest });
         if (shouldShowRequest) {
             const finalRequestInfo = requestInfo || { method: method, params: params || {} };
@@ -82,7 +82,7 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
         }
         // Box 2: Response data
         // Always show response data if we have debug data (even if null/undefined, show it)
-        const shouldShowResponse = responseData !== undefined || debugData;
+        const shouldShowResponse = !!(responseData !== undefined || debugData);
         console.log('Response section check:', { responseData: responseData !== undefined, hasDebugData: !!debugData, shouldShowResponse });
         if (shouldShowResponse) {
             headerArray.push('Response');
@@ -100,8 +100,9 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
         headerArray.push('');
         contentArray.push(debugElement);
         console.log('Final arrays:', { headerCount: headerArray.length, contentCount: contentArray.length, headers: headerArray });
+        console.log('Content items:', contentArray.map((item, i) => ({ index: i, type: typeof item, isString: typeof item === 'string', length: typeof item === 'string' ? item.length : 'N/A' })));
         // Create new overlay window for debug info - pass arrays with headers
-        overlayManager.show({
+        const overlay = overlayManager.show({
             header: 'Debug Information',
             content: contentArray,
             contentHeaders: headerArray,
@@ -110,6 +111,7 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
             showSubmit: false,
             className: 'overlay-debug-window'
         });
+        console.log('Overlay created:', { overlay, hasContent: !!overlay });
     }
 }
 /**

@@ -24,6 +24,8 @@ export class OverlayContent {
     const headers = this.props.headers || [];
     const contentItems = this.props.children || [];
     
+    console.log('OverlayContent.render:', { headerCount: headers.length, contentCount: contentItems.length, headers, contentTypes: contentItems.map(item => typeof item) });
+    
     // Determine max length to iterate through both arrays
     const maxLength = Math.max(headers.length, contentItems.length);
     
