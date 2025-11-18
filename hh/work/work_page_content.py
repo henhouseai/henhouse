@@ -331,9 +331,9 @@ class WorkPageContentMixin:
         # Validate JSON
         if meta_json and meta_json.strip():
             try:
-                # Parse to validate JSON, then stringify to ensure consistent format
-                parsed = json.loads(meta_json)
-                new_meta_str = json.dumps(parsed)
+                # Parse to validate JSON, but use original string if valid
+                json.loads(meta_json)
+                new_meta_str = meta_json
             except json.JSONDecodeError as e:
                 warn(f"Invalid JSON provided for meta: {str(e)}")
                 report_error("action", f"Invalid JSON for meta: {str(e)}")
@@ -347,9 +347,7 @@ class WorkPageContentMixin:
             log(f"Updating page {self.id} meta in database")
             affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
             if affected == 0:
-                # Entry should already exist - if UPDATE affects 0 rows, that's an error
-                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
-                report_error("action", f"No {table_name} entry found for page {self.id}")
+                log(f"No update needed for page {self.id} meta - value already set")
             else:
                 log(f"Successfully updated page {self.id} meta in database")
         if not is_error():
