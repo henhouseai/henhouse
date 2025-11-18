@@ -206,21 +206,33 @@ export class RPCClient {
         // Check if it's an RPCError with multiple errors
         let errorMessages = [];
         let debugData;
+        // Debug: Log the error structure to help diagnose issues
+        console.log('showError called with:', {
+            label,
+            errorType: typeof error,
+            isError: error instanceof Error,
+            hasErrors: error && typeof error === 'object' && 'errors' in error,
+            errorsArray: error && typeof error === 'object' && 'errors' in error ? error.errors : null,
+            errorKeys: error && typeof error === 'object' ? Object.keys(error) : [],
+            errorMessage: error instanceof Error ? error.message : String(error)
+        });
         // Check for RPCError with errors array
         if (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors) && error.errors.length > 0) {
             // RPCError with multiple errors - extract all of them
             const rpcError = error;
+            console.log('Extracting errors from RPCError:', rpcError.errors);
             errorMessages = rpcError.errors
                 .filter((err) => err && typeof err === 'object' && 'content' in err)
                 .map((err) => ({
                 type: 'error',
                 text: `${err.type || 'error'}: ${err.content || 'Unknown error'}`
             }));
+            console.log('Extracted error messages:', errorMessages);
             // If we couldn't extract any errors from the array, indicate extraction failure
             if (errorMessages.length === 0) {
                 errorMessages.push({
                     type: 'error',
-                    text: `Error extraction failed: Expected errors array but could not extract valid errors. Original error: ${rpcError.message || 'Unknown'}`
+                    text: `Error extraction failed: Expected errors array but could not extract valid errors. Original error: ${rpcError.message || 'Unknown'}. Errors array: ${JSON.stringify(rpcError.errors)}`
                 });
             }
             // Extract debug data if present
