@@ -65,10 +65,11 @@ class WorkPageContentMixin:
         """Get the database table name for this work entity class."""
         # Walk up the MRO to find the actual work entity class (not the mixin)
         for base in cls.__mro__:
-            # Skip mixins, object, and Page base classes
+            # Skip mixins (classes ending with Mixin), object, and base classes
             if (base not in (cls, WorkPageContentMixin, object) and 
                 hasattr(base, '__module__') and 
                 base.__module__ and
+                not base.__name__.endswith('Mixin') and  # Skip all mixin classes
                 ('work' in base.__module__ or 'work_docket' in base.__module__ or 'work_page' in base.__module__)):
                 class_name = base.__name__
                 return _camel_to_snake_plural(class_name)
