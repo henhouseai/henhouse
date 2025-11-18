@@ -559,9 +559,9 @@
 }
 
 /* Debug table dark theme with zebra striping */
-.overlay-debug-table tbody tr { background-color: #1a1a1a; color: #fff; }
+.overlay-debug-table tbody tr { background-color: #1a1a1a; }
 .overlay-debug-table tbody tr.even { background-color: #252525; }
-.overlay-debug-table tbody tr td { color: #fff; }
+.overlay-debug-table tbody tr td:not([class*="color-"]) { color: #fff; }
 
 /* RPC error box */
 .hh-error {

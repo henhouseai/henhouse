@@ -113,3 +113,34 @@ table.pageTableView td .color-pastel_lime { color: #D7FFAA !important; }
 table.pageTableView td.color-pastel_violet,
 table.pageTableView td .color-pastel_violet { color: #D7E7AA !important; }
 
+/* Support for overlay debug table - same pattern as pageTableView */
+.overlay-debug-table td.color-red { color: #FF0000 !important; }
+.overlay-debug-table td.color-orange { color: #FF8700 !important; }
+.overlay-debug-table td.color-yellow { color: #FFFF00 !important; }
+.overlay-debug-table td.color-green { color: #00FF00 !important; }
+.overlay-debug-table td.color-cyan { color: #00FFFF !important; }
+.overlay-debug-table td.color-blue { color: #0000FF !important; }
+.overlay-debug-table td.color-magenta { color: #FF00FF !important; }
+.overlay-debug-table td.color-gold { color: #FFAF00 !important; }
+.overlay-debug-table td.color-white { color: #FFFFFF !important; }
+.overlay-debug-table td.color-brown { color: #804000 !important; }
+.overlay-debug-table td.color-pink { color: #FFB8D1 !important; }
+.overlay-debug-table td.color-pastel_yellow { color: #FFFFD7 !important; }
+.overlay-debug-table td.color-pastel_cyan { color: #D7FFFF !important; }
+.overlay-debug-table td.color-pastel_pink { color: #FFD7FF !important; }
+.overlay-debug-table td.color-pastel_green { color: #D7FFD7 !important; }
+.overlay-debug-table td.color-pastel_blue { color: #D7FFFF !important; }
+.overlay-debug-table td.color-pastel_purple { color: #EBD7FF !important; }
+.overlay-debug-table td.color-pastel_orange { color: #FFE7D7 !important; }
+.overlay-debug-table td.color-pastel_red { color: #FFE7E7 !important; }
+.overlay-debug-table td.color-pastel_lavender { color: #F5D7FF !important; }
+.overlay-debug-table td.color-pastel_peach { color: #FFD1AF !important; }
+.overlay-debug-table td.color-pastel_mint { color: #AAFFAA !important; }
+.overlay-debug-table td.color-pastel_lilac { color: #D1AAFF !important; }
+.overlay-debug-table td.color-pastel_sky { color: #9FD7FF !important; }
+.overlay-debug-table td.color-pastel_rose { color: #FFE7E7 !important; }
+.overlay-debug-table td.color-pastel_aqua { color: #B8E7E7 !important; }
+.overlay-debug-table td.color-pastel_coral { color: #FFD7AA !important; }
+.overlay-debug-table td.color-pastel_lime { color: #D7FFAA !important; }
+.overlay-debug-table td.color-pastel_violet { color: #D7E7AA !important; }
+
