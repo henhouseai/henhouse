@@ -125,6 +125,21 @@ class WorkPageContentMixin:
         trace_out()
         return data
     
+    def get_child_page_data(self) -> Dict[str, Any]:
+        """Override to return simplified data for work page children: id, name, status, meta, sort_order, timestamps."""
+        trace_in()
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "status": self.status if hasattr(self, 'status') else 'todo',
+            "meta": self.meta if hasattr(self, 'meta') else '',
+            "sort_order": self.sort_order if hasattr(self, 'sort_order') else 0,
+            "started_ts": str(self.started_ts) if hasattr(self, 'started_ts') and self.started_ts else None,
+            "ended_ts": str(self.ended_ts) if hasattr(self, 'ended_ts') and self.ended_ts else None
+        }
+        trace_out()
+        return data
+    
     @classmethod
     def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
