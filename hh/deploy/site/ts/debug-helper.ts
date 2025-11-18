@@ -45,6 +45,16 @@ export function handleRPCResponseWithDebug(
         // Always use provided method/params as fallback
         requestInfo = { method, params: params !== undefined ? params : {} };
       }
+      
+      // Debug logging
+      console.log('handleRPCResponseWithDebug:', {
+        hasDebug: !!debugData,
+        hasResponseData: responseData !== undefined,
+        responseDataType: typeof responseData,
+        hasRequestInfo: !!requestInfo,
+        requestInfoSource: rpcResult.requestInfo ? 'rpcResult' : 'fallback',
+        rpcResultKeys: Object.keys(rpcResult)
+      });
     }
     // Also check if it's an error with debug attached (RPCError)
     else if ('debug' in rpcResult && rpcResult.debug) {
@@ -72,27 +82,32 @@ export function handleRPCResponseWithDebug(
     const headerArray: string[] = [];
     const contentArray: Array<string | HTMLElement> = [];
 
-    // Box 1: Request info
-    if (requestInfo) {
+    // Box 1: Request info - always show if we have method/params (even if requestInfo wasn't on rpcResult)
+    if (requestInfo || (method && params !== undefined)) {
+      const finalRequestInfo = requestInfo || { method: method!, params: params || {} };
       headerArray.push('Request');
       contentArray.push(`
         <div class="overlay-form-group">
           <label><strong>Tool:</strong></label>
-          <div>${escapeHtml(requestInfo.method)}</div>
+          <div>${escapeHtml(finalRequestInfo.method)}</div>
         </div>
         <div class="overlay-form-group">
           <label><strong>Arguments:</strong></label>
-          <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
+          <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(finalRequestInfo.params, null, 2))}</pre>
         </div>
       `);
     }
 
     // Box 2: Response data
-    if (responseData !== undefined) {
+    // Always show response data if we have debug data (even if null/undefined, show it)
+    if (responseData !== undefined || debugData) {
       headerArray.push('Response');
+      const responseContent = responseData !== undefined 
+        ? JSON.stringify(responseData, null, 2)
+        : '(no response data)';
       contentArray.push(`
         <div class="overlay-form-group">
-          <pre class="overlay-debug-response-params">${escapeHtml(JSON.stringify(responseData, null, 2))}</pre>
+          <pre class="overlay-debug-response-params">${escapeHtml(responseContent)}</pre>
         </div>
       `);
     }
