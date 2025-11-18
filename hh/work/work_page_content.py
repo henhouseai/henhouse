@@ -350,6 +350,17 @@ class WorkPageContentMixin:
             affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
             if affected == 0:
                 log(f"No update needed for page {self.id} meta - value already set")
+                # Check what's actually in the database to see if order matches
+                verify_query = f"SELECT meta FROM {table_name} WHERE page_id = %s"
+                verify_results = r_query(self.conn, verify_query, [self.id])
+                if verify_results:
+                    existing_meta = verify_results[0].get('meta') or ''
+                    log(f"Existing meta in database (first 200 chars): {existing_meta[:200]}")
+                    log(f"New meta being set (first 200 chars): {new_meta_str[:200]}")
+                    if existing_meta != new_meta_str:
+                        warn(f"Meta strings differ but UPDATE affected 0 rows! Existing length: {len(existing_meta)}, New length: {len(new_meta_str)}")
+                        warn(f"Existing meta full: {existing_meta}")
+                        warn(f"New meta full: {new_meta_str}")
             else:
                 log(f"Successfully updated page {self.id} meta in database")
                 # Verify what was actually saved by reading it back
