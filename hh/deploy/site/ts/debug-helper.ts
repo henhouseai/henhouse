@@ -46,8 +46,6 @@ export function handleRPCResponseWithDebug(
         requestInfo = { method, params: params !== undefined ? params : {} };
       }
       
-      // Debug logging
-      console.log('handleRPCResponseWithDebug: hasDebug=' + !!debugData + ', hasResponseData=' + (responseData !== undefined) + ', hasRequestInfo=' + !!requestInfo);
     }
     // Also check if it's an error with debug attached (RPCError)
     else if ('debug' in rpcResult && rpcResult.debug) {
@@ -77,7 +75,6 @@ export function handleRPCResponseWithDebug(
 
     // Box 1: Request info - always show if we have method/params (even if requestInfo wasn't on rpcResult)
     const shouldShowRequest = !!(requestInfo || (method && params !== undefined));
-    console.log('Request section check: shouldShowRequest=' + shouldShowRequest + ', hasRequestInfo=' + !!requestInfo + ', method=' + method);
     if (shouldShowRequest) {
       const finalRequestInfo = requestInfo || { method: method!, params: params || {} };
       headerArray.push('Request');
@@ -91,13 +88,11 @@ export function handleRPCResponseWithDebug(
           <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(finalRequestInfo.params, null, 2))}</pre>
         </div>
       `);
-      console.log('Request section added');
     }
 
     // Box 2: Response data
     // Always show response data if we have debug data (even if null/undefined, show it)
     const shouldShowResponse = !!(responseData !== undefined || debugData);
-    console.log('Response section check: shouldShowResponse=' + shouldShowResponse + ', hasResponseData=' + (responseData !== undefined) + ', hasDebugData=' + !!debugData);
     if (shouldShowResponse) {
       headerArray.push('Response');
       const responseContent = responseData !== undefined 
@@ -108,14 +103,11 @@ export function handleRPCResponseWithDebug(
           <pre class="overlay-debug-response-params">${escapeHtml(responseContent)}</pre>
         </div>
       `);
-      console.log('Response section added');
     }
 
     // Box 3: Debug table (no header - blank string means no header div)
     headerArray.push('');
     contentArray.push(debugElement);
-    
-    console.log('Final arrays: headerCount=' + headerArray.length + ', contentCount=' + contentArray.length + ', headers=' + headerArray.join(','));
 
     // Create new overlay window for debug info - pass arrays with headers
     const overlay = overlayManager.show({
@@ -127,8 +119,6 @@ export function handleRPCResponseWithDebug(
       showSubmit: false,
       className: 'overlay-debug-window'
     });
-    
-    console.log('Overlay created:', { overlay, hasContent: !!overlay });
   }
 }
 

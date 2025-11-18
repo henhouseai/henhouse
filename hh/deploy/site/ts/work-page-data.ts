@@ -299,7 +299,7 @@ export class WorkPageData extends PageData {
                 success: true,
                 _showMessage: 'Meta updated successfully',
                 _autoFade: !hasDebugData, // Disable auto-fade if debug data is present
-                // Don't return debug here - we already showed it via handleRPCResponseWithDebug
+                _debugAlreadyShown: hasDebugData // Signal that debug overlay was already shown
               };
             } else {
               // Server returned error - include debug data if present

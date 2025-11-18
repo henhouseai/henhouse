@@ -313,8 +313,10 @@ export class Overlay {
             }
             // Show debug table in separate overlay window if present
             // Only show if debug data exists and has entries (prevents empty debug overlays)
+            // Skip if handler already showed it via handleRPCResponseWithDebug
+            const debugAlreadyShown = result?._debugAlreadyShown === true;
             const requestInfo = result?.requestInfo;
-            if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
+            if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0 && !debugAlreadyShown) {
                 this.showDebugTable(debugData, requestInfo);
             }
             // Auto-close after success: wait 1-2 seconds, then slow fade out

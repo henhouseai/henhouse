@@ -24,8 +24,6 @@ export class OverlayContent {
     const headers = this.props.headers || [];
     const contentItems = this.props.children || [];
     
-    console.log('OverlayContent.render: headerCount=' + headers.length + ', contentCount=' + contentItems.length + ', headers=' + headers.join(','));
-    
     // Determine max length to iterate through both arrays
     const maxLength = Math.max(headers.length, contentItems.length);
     
@@ -33,17 +31,13 @@ export class OverlayContent {
       const headerText = headers[i];
       const contentItem = contentItems[i];
       
-      console.log('OverlayContent loop ' + i + ': headerText="' + headerText + '", hasContentItem=' + !!contentItem + ', type=' + typeof contentItem);
-      
       // Skip if no content item
       if (!contentItem) {
-        console.log(`  Skipping ${i} - no content item`);
         continue;
       }
       
       // Create header if header text exists and is not blank
       if (headerText !== undefined && headerText !== '') {
-        console.log(`  Creating header section for ${i} with header: "${headerText}"`);
         const headerDiv = document.createElement('div');
         headerDiv.className = 'overlayContentHeader';
         
@@ -97,10 +91,8 @@ export class OverlayContent {
         
         container.appendChild(headerDiv);
         container.appendChild(contentDiv);
-        console.log(`  Added header section ${i} to container`);
       } else {
         // No header - just create content div
-        console.log(`  Creating content-only section for ${i} (no header)`);
         const contentDiv = document.createElement('div');
         contentDiv.className = 'overlayContent';
         
@@ -115,11 +107,9 @@ export class OverlayContent {
         }
         
         container.appendChild(contentDiv);
-        console.log(`  Added content-only section ${i} to container`);
       }
     }
     
-    console.log('OverlayContent.render complete: childCount=' + container.children.length);
     return container;
   }
 }
