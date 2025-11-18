@@ -19,7 +19,9 @@ def _initialize_debug():
     warn = get_warn(True)
 
 @register_parser('modify_work_status')
-@register_parser('modify_work_meta')
+@register_parser('modify_work_meta_set_all')
+@register_parser('modify_work_meta_set_pair')
+@register_parser('modify_work_meta_remove_pair')
 @register_parser('modify_work_sort_order')
 def show_work_page() -> bool:
     return show_page()

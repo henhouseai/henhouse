@@ -54,7 +54,6 @@ def _camel_to_snake_plural(class_name: str) -> str:
 def _register_work_page_content_methods():
     return {
         'modify_work_status': {'mixin_method': '_modify_status', 'decorator': 'write'},
-        'modify_work_meta': {'mixin_method': '_modify_meta', 'decorator': 'write'},
         'modify_work_meta_set_pair': {'mixin_method': '_modify_meta_set_pair', 'decorator': 'write'},
         'modify_work_meta_remove_pair': {'mixin_method': '_modify_meta_remove_pair', 'decorator': 'write'},
         'modify_work_meta_set_all': {'mixin_method': '_modify_meta_set_all', 'decorator': 'write'},
@@ -240,26 +239,6 @@ class WorkPageContentMixin:
         if not is_error():
             self.status = status
             log(f"Successfully updated page {self.id} status to '{status}'")
-        trace_out()
-        return not is_error()
-    
-    def _modify_meta(self, meta: str) -> bool:
-        """Modify the meta field of this work entity."""
-        trace_in()
-        log(f"Starting meta modification for page {self.id}")
-        table_name = self.__class__.get_table_name()
-        if not is_error():
-            log(f"Updating page {self.id} meta in database")
-            affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (meta, self.id))
-            if affected == 0:
-                # Entry should already exist - if UPDATE affects 0 rows, that's an error
-                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
-                report_error("action", f"No {table_name} entry found for page {self.id}")
-            else:
-                log(f"Successfully updated page {self.id} meta in database")
-        if not is_error():
-            self.meta = meta
-            log(f"Successfully updated page {self.id} meta")
         trace_out()
         return not is_error()
     
