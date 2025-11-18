@@ -193,6 +193,11 @@
   text-align: left;
 }
 
+/* Remove padding from overlayContent when it contains a debug table */
+#overlayWindow div.overlayContent:has(.overlay-debug-table) {
+  padding: 0;
+}
+
 /* Overlay content header (for collapsible sections) */
 #overlayWindow div.overlayContentHeader {
   width: auto;
@@ -201,7 +206,7 @@
   background-color: var(--overlay-header-bg, var(--overlay-window, #fff));
   color: var(--overlay-header-text, #000);
   font-weight: bold;
-  border-bottom: 1px solid var(--overlay-content-border, #000);
+  border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
