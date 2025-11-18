@@ -210,7 +210,7 @@ export class WorkPageData extends PageData {
                     // Extract all key-value pairs from table
                     const tbody = document.querySelector(`#${tableId}-tbody`);
                     if (!tbody) {
-                        return { success: false, _showMessage: 'Table not found', _autoFade: true };
+                        throw new Error('Table not found');
                     }
                     const rows = tbody.querySelectorAll('tr');
                     const metaObj = {};
@@ -225,7 +225,7 @@ export class WorkPageData extends PageData {
                                 continue;
                             // Validate key (no spaces, JSON valid)
                             if (key.includes(' ')) {
-                                return { success: false, _showMessage: `Key "${key}" contains spaces. Keys must be JSON valid.`, _autoFade: true };
+                                throw new Error(`Key "${key}" contains spaces. Keys must be JSON valid (no spaces).`);
                             }
                             // Try to parse value as JSON, fall back to string
                             try {
@@ -244,29 +244,31 @@ export class WorkPageData extends PageData {
                             page_id: pageId,
                             meta: metaJson
                         });
+                        // Check for debug data in result
+                        const hasDebugData = result?.debug && Array.isArray(result.debug.entries) && result.debug.entries.length > 0;
                         if (result && result.success !== false) {
                             // Update internal data
                             this.updateFieldValue('meta', metaJson);
                             return {
                                 success: true,
                                 _showMessage: 'Meta updated successfully',
-                                _autoFade: true
+                                _autoFade: !hasDebugData, // Disable auto-fade if debug data is present
+                                debug: result.debug
                             };
                         }
                         else {
-                            return {
-                                success: false,
-                                _showMessage: result?.error || 'Failed to update meta',
-                                _autoFade: true
-                            };
+                            // Server returned error - include debug data if present
+                            throw new Error(result?.error || 'Failed to update meta');
                         }
                     }
                     catch (error) {
-                        return {
-                            success: false,
-                            _showMessage: error?.message || 'Failed to update meta',
-                            _autoFade: true
-                        };
+                        // RPC errors may have debug data attached
+                        const hasDebugData = error?.debug && Array.isArray(error.debug.entries) && error.debug.entries.length > 0;
+                        // Re-throw with debug data preserved
+                        if (hasDebugData) {
+                            error.debug = error.debug;
+                        }
+                        throw error;
                     }
                 }
             });
