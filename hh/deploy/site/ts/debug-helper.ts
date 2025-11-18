@@ -83,7 +83,9 @@ export function handleRPCResponseWithDebug(
     const contentArray: Array<string | HTMLElement> = [];
 
     // Box 1: Request info - always show if we have method/params (even if requestInfo wasn't on rpcResult)
-    if (requestInfo || (method && params !== undefined)) {
+    const shouldShowRequest = requestInfo || (method && params !== undefined);
+    console.log('Request section check:', { requestInfo: !!requestInfo, method, hasParams: params !== undefined, shouldShowRequest });
+    if (shouldShowRequest) {
       const finalRequestInfo = requestInfo || { method: method!, params: params || {} };
       headerArray.push('Request');
       contentArray.push(`
@@ -96,11 +98,14 @@ export function handleRPCResponseWithDebug(
           <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(finalRequestInfo.params, null, 2))}</pre>
         </div>
       `);
+      console.log('Request section added');
     }
 
     // Box 2: Response data
     // Always show response data if we have debug data (even if null/undefined, show it)
-    if (responseData !== undefined || debugData) {
+    const shouldShowResponse = responseData !== undefined || debugData;
+    console.log('Response section check:', { responseData: responseData !== undefined, hasDebugData: !!debugData, shouldShowResponse });
+    if (shouldShowResponse) {
       headerArray.push('Response');
       const responseContent = responseData !== undefined 
         ? JSON.stringify(responseData, null, 2)
@@ -110,11 +115,14 @@ export function handleRPCResponseWithDebug(
           <pre class="overlay-debug-response-params">${escapeHtml(responseContent)}</pre>
         </div>
       `);
+      console.log('Response section added');
     }
 
     // Box 3: Debug table (no header - blank string means no header div)
     headerArray.push('');
     contentArray.push(debugElement);
+    
+    console.log('Final arrays:', { headerCount: headerArray.length, contentCount: contentArray.length, headers: headerArray });
 
     // Create new overlay window for debug info - pass arrays with headers
     overlayManager.show({
