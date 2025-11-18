@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import json
 from typing import Dict, Any
 from hh.gateway.connection.connection import r_query, c_query, d_query, u_query
 from hh.gateway.connection.decorators import db_read, db_write
@@ -54,6 +55,9 @@ def _register_work_page_content_methods():
     return {
         'modify_work_status': {'mixin_method': '_modify_status', 'decorator': 'write'},
         'modify_work_meta': {'mixin_method': '_modify_meta', 'decorator': 'write'},
+        'modify_work_meta_set_pair': {'mixin_method': '_modify_meta_set_pair', 'decorator': 'write'},
+        'modify_work_meta_remove_pair': {'mixin_method': '_modify_meta_remove_pair', 'decorator': 'write'},
+        'modify_work_meta_set_all': {'mixin_method': '_modify_meta_set_all', 'decorator': 'write'},
         'modify_work_sort_order': {'mixin_method': '_modify_sort_order', 'decorator': 'write'},
     }
 
@@ -265,6 +269,137 @@ class WorkPageContentMixin:
                 log(f"Successfully updated page {self.id} meta in database")
         if not is_error():
             self.meta = meta
+            log(f"Successfully updated page {self.id} meta")
+        trace_out()
+        return not is_error()
+    
+    def _modify_meta_set_pair(self, key: str, value: str) -> bool:
+        """Set/add/update a single key-value pair in the meta JSON field."""
+        trace_in()
+        log(f"Setting meta key '{key}' for page {self.id}")
+        table_name = self.__class__.get_table_name()
+        
+        # Get current meta
+        current_meta_str = self.meta if hasattr(self, 'meta') and self.meta else '{}'
+        try:
+            current_meta = json.loads(current_meta_str) if current_meta_str else {}
+        except json.JSONDecodeError:
+            # If current meta is not valid JSON, start with empty dict
+            warn(f"Current meta for page {self.id} is not valid JSON, starting fresh")
+            current_meta = {}
+        
+        # Try to parse value as JSON, fall back to string
+        try:
+            parsed_value = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            parsed_value = value
+        
+        # Update the key
+        current_meta[key] = parsed_value
+        new_meta_str = json.dumps(current_meta)
+        
+        if not is_error():
+            log(f"Updating page {self.id} meta in database")
+            affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
+            if affected == 0:
+                # If no row exists, insert one
+                try:
+                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
+                           (self.id, self.status if hasattr(self, 'status') else 'todo', new_meta_str, self.sort_order if hasattr(self, 'sort_order') else 0))
+                    log(f"Created {table_name} entry for page {self.id}")
+                except Exception as e:
+                    warn(f"Failed to create {table_name} entry: {str(e)}")
+                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+            else:
+                log(f"Successfully updated page {self.id} meta in database")
+        if not is_error():
+            self.meta = new_meta_str
+            log(f"Successfully updated page {self.id} meta key '{key}'")
+        trace_out()
+        return not is_error()
+    
+    def _modify_meta_remove_pair(self, key: str) -> bool:
+        """Remove a single key from the meta JSON field."""
+        trace_in()
+        log(f"Removing meta key '{key}' for page {self.id}")
+        table_name = self.__class__.get_table_name()
+        
+        # Get current meta
+        current_meta_str = self.meta if hasattr(self, 'meta') and self.meta else '{}'
+        try:
+            current_meta = json.loads(current_meta_str) if current_meta_str else {}
+        except json.JSONDecodeError:
+            # If current meta is not valid JSON, nothing to remove
+            warn(f"Current meta for page {self.id} is not valid JSON, nothing to remove")
+            log("No valid meta to remove key from")
+            trace_out()
+            return True
+        
+        # Remove the key if it exists
+        if key in current_meta:
+            del current_meta[key]
+            new_meta_str = json.dumps(current_meta)
+            
+            if not is_error():
+                log(f"Updating page {self.id} meta in database")
+                affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
+                if affected == 0:
+                    # If no row exists, insert one
+                    try:
+                        c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
+                               (self.id, self.status if hasattr(self, 'status') else 'todo', new_meta_str, self.sort_order if hasattr(self, 'sort_order') else 0))
+                        log(f"Created {table_name} entry for page {self.id}")
+                    except Exception as e:
+                        warn(f"Failed to create {table_name} entry: {str(e)}")
+                        report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+                else:
+                    log(f"Successfully updated page {self.id} meta in database")
+            if not is_error():
+                self.meta = new_meta_str
+                log(f"Successfully removed key '{key}' from page {self.id} meta")
+        else:
+            log(f"Key '{key}' not found in meta, nothing to remove")
+        
+        trace_out()
+        return not is_error()
+    
+    def _modify_meta_set_all(self, meta_json: str) -> bool:
+        """Replace the entire meta JSON field with a new JSON object."""
+        trace_in()
+        log(f"Setting entire meta for page {self.id}")
+        table_name = self.__class__.get_table_name()
+        
+        # Validate JSON
+        if meta_json and meta_json.strip():
+            try:
+                # Parse to validate JSON, then stringify to ensure consistent format
+                parsed = json.loads(meta_json)
+                new_meta_str = json.dumps(parsed)
+            except json.JSONDecodeError as e:
+                warn(f"Invalid JSON provided for meta: {str(e)}")
+                report_error("action", f"Invalid JSON for meta: {str(e)}")
+                trace_out()
+                return False
+        else:
+            # Empty string means clear all meta
+            new_meta_str = '{}'
+        
+        if not is_error():
+            log(f"Updating page {self.id} meta in database")
+            affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
+            if affected == 0:
+                # If no row exists, insert one
+                try:
+                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
+                           (self.id, self.status if hasattr(self, 'status') else 'todo', new_meta_str, self.sort_order if hasattr(self, 'sort_order') else 0))
+                    log(f"Created {table_name} entry for page {self.id}")
+                except Exception as e:
+                    warn(f"Failed to create {table_name} entry: {str(e)}")
+                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+            else:
+                log(f"Successfully updated page {self.id} meta in database")
+        if not is_error():
+            self.meta = new_meta_str
             log(f"Successfully updated page {self.id} meta")
         trace_out()
         return not is_error()

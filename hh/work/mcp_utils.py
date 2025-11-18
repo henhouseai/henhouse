@@ -31,15 +31,55 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Modify Work Status'
 )
 @register_mcp_tool(
-    tool_name='modify_work_meta',
-    description='Modify the meta field of a work page (work docket, ask, task, or step).',
+    tool_name='modify_work_meta_set_pair',
+    description='Set/add/update a single key-value pair in the meta JSON field of a work page.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the work page'},
+            'key': {
+                'type': 'string',
+                'description': 'The key to set in the meta JSON object'
+            },
+            'value': {
+                'type': 'string',
+                'description': 'The value to set for the key (can be a JSON string for nested objects/arrays)'
+            }
+        },
+        'required': ['page_id', 'key', 'value']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='modify_work_meta_remove_pair',
+    description='Remove a single key from the meta JSON field of a work page.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the work page'},
+            'key': {
+                'type': 'string',
+                'description': 'The key to remove from the meta JSON object'
+            }
+        },
+        'required': ['page_id', 'key']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='modify_work_meta_set_all',
+    description='Replace the entire meta JSON field of a work page with a new JSON object. Use empty JSON {} to clear all meta.',
     inputSchema={
         'type': 'object',
         'properties': {
             'page_id': {'type': 'integer', 'description': 'The ID of the work page'},
             'meta': {
                 'type': 'string',
-                'description': 'The new meta JSON string for the work page'
+                'description': 'The complete meta JSON object as a string (use {} to clear all meta)'
             }
         },
         'required': ['page_id', 'meta']
@@ -48,7 +88,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
-    app_action_label='Modify Work Meta'
+    app_action_label='Modify Meta'
 )
 @register_mcp_tool(
     tool_name='modify_work_sort_order',
