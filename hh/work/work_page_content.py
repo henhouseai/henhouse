@@ -270,33 +270,113 @@ class WorkPageContentMixin:
         return not is_error()
     
     def _modify_sort_order(self, sort_order: int) -> bool:
-        """Modify the sort_order of this work entity."""
+        """Modify the sort_order of this work entity, reflowing all siblings within the same parent."""
         trace_in()
         log(f"Starting sort_order modification for page {self.id}: {self.sort_order} -> {sort_order}")
-        if sort_order == self.sort_order:
-            log("Sort order unchanged, no update needed")
-            trace_out()
-            return True
-        old_sort_order = self.sort_order
-        log(f"Old sort_order: {old_sort_order}, new sort_order: {sort_order}")
-        table_name = self.__class__.get_table_name()
+        
+        # Get parent page ID
+        parent_id = None
         if not is_error():
-            log(f"Updating page {self.id} sort_order in database: {old_sort_order} -> {sort_order}")
-            affected = u_query(self.conn, f"UPDATE {table_name} SET sort_order = %s WHERE page_id = %s", (sort_order, self.id))
-            if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
-                           (self.id, self.status if hasattr(self, 'status') else 'todo', self.meta if hasattr(self, 'meta') else None, sort_order))
-                    log(f"Created {table_name} entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create {table_name} entry: {str(e)}")
-                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+            parent_results = r_query(self.conn, "SELECT parent FROM pages WHERE id = %s", [self.id])
+            if parent_results and parent_results[0].get('parent') is not None:
+                parent_id = int(parent_results[0]['parent'])
             else:
-                log(f"Successfully updated page {self.id} sort_order in database")
-        if not is_error():
-            self.sort_order = sort_order
-            log(f"Successfully updated page {self.id} sort_order to {sort_order}")
+                warn(f"Could not determine parent for page {self.id}")
+                report_error("action", f"Could not determine parent for page {self.id}")
+        
+        if not is_error() and parent_id:
+            table_name = self.__class__.get_table_name()
+            class_name = self.class_name
+            
+            # Get current ordering of all siblings (same parent, same class)
+            if not is_error():
+                query = f"""
+                    SELECT {table_name}.page_id, {table_name}.sort_order 
+                    FROM {table_name} 
+                    INNER JOIN pages ON {table_name}.page_id = pages.id 
+                    WHERE pages.parent = %s AND pages.class = %s 
+                    ORDER BY {table_name}.sort_order
+                """
+                siblings = r_query(self.conn, query, [parent_id, class_name])
+                
+                if not siblings:
+                    warn(f"No siblings found for page {self.id} under parent {parent_id}")
+                    report_error("action", f"No siblings found for page {self.id}")
+            
+            if not is_error():
+                # Find the target entity in the list
+                target_found = None
+                target_index = None
+                for i, sibling in enumerate(siblings):
+                    if sibling['page_id'] == self.id:
+                        target_found = sibling
+                        target_index = i
+                        break
+                
+                if target_found is None:
+                    # Target not in siblings list - might not have a work entity entry yet
+                    # Create a minimal entry for it
+                    target_found = {'page_id': self.id, 'sort_order': 0}
+                    siblings.append(target_found)
+                    target_index = len(siblings) - 1
+                    log(f"Page {self.id} not found in siblings, adding to end")
+                
+                # Remove target from list
+                siblings_without_target = [s for s in siblings if s['page_id'] != self.id]
+                
+                # Clamp position: <= 0 or negative = beginning, too high = end
+                if sort_order <= 0:
+                    new_pos = 0
+                    log(f"Position {sort_order} clamped to beginning (0)")
+                elif sort_order > len(siblings_without_target):
+                    new_pos = len(siblings_without_target)
+                    log(f"Position {sort_order} clamped to end ({new_pos})")
+                else:
+                    new_pos = sort_order - 1  # Convert to 0-based
+                    log(f"Position {sort_order} -> index {new_pos}")
+                
+                # Insert target at new position
+                siblings_without_target.insert(new_pos, target_found)
+                new_order = siblings_without_target
+                
+                # Check if order actually changed
+                order_changed = False
+                if len(new_order) != len(siblings):
+                    order_changed = True
+                else:
+                    for i, sibling in enumerate(new_order):
+                        if sibling['page_id'] != siblings[i]['page_id']:
+                            order_changed = True
+                            break
+                
+                if not order_changed:
+                    log("Sort order unchanged after reflow, no update needed")
+                    trace_out()
+                    return True
+                
+                # Reflow all siblings to sequential order (1, 2, 3, 4...)
+                if not is_error():
+                    log(f"Reflowing {len(new_order)} siblings under parent {parent_id}")
+                    try:
+                        # Use transaction for atomic updates
+                        u_query(self.conn, "START TRANSACTION", [])
+                        for i, sibling in enumerate(new_order):
+                            new_sort_order = i + 1
+                            u_query(self.conn, f"UPDATE {table_name} SET sort_order = %s WHERE page_id = %s", 
+                                   (new_sort_order, sibling['page_id']))
+                        u_query(self.conn, "COMMIT", [])
+                        log(f"Successfully reflowed {len(new_order)} siblings to sequential order")
+                    except Exception as e:
+                        u_query(self.conn, "ROLLBACK", [])
+                        warn(f"Failed to reflow siblings: {str(e)}")
+                        report_error("action", f"Failed to reflow siblings: {str(e)}")
+                
+                if not is_error():
+                    # Update instance variable to new sort_order
+                    new_sort_order = new_pos + 1
+                    self.sort_order = new_sort_order
+                    log(f"Successfully updated page {self.id} sort_order to {new_sort_order} (position {sort_order})")
+        
         trace_out()
         return not is_error()
 

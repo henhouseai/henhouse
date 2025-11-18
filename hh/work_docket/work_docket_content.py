@@ -38,7 +38,7 @@ class WorkDocketContentMixin:
     @staticmethod
     def get_children_query(parent_id: int) -> tuple[str, list]:
         return (
-            "SELECT id FROM pages WHERE parent = %s AND class = 'work_docket' ORDER BY name",
+            "SELECT pages.id FROM pages INNER JOIN work_dockets ON pages.id = work_dockets.page_id WHERE pages.parent = %s AND pages.class = 'work_docket' ORDER BY work_dockets.sort_order",
             [parent_id]
         )
     
