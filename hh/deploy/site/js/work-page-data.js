@@ -212,9 +212,10 @@ export class WorkPageData extends PageData {
                     if (!tbody) {
                         throw new Error('Table not found');
                     }
-                    const rows = tbody.querySelectorAll('tr');
-                    const metaObj = {};
-                    for (const row of Array.from(rows)) {
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                    // Build as array of [key, value] pairs to preserve order
+                    const pairs = [];
+                    for (const row of rows) {
                         const keyInput = row.querySelector('.meta-key-input');
                         const valueInput = row.querySelector('.meta-value-input');
                         if (keyInput && valueInput) {
@@ -228,15 +229,22 @@ export class WorkPageData extends PageData {
                                 throw new Error(`Key "${key}" contains spaces. Keys must be JSON valid (no spaces).`);
                             }
                             // Try to parse value as JSON, fall back to string
+                            let parsedValue;
                             try {
-                                metaObj[key] = JSON.parse(value);
+                                parsedValue = JSON.parse(value);
                             }
                             catch (e) {
-                                metaObj[key] = value;
+                                parsedValue = value;
                             }
+                            pairs.push([key, parsedValue]);
                         }
                     }
-                    // Convert to JSON string
+                    // Build object from pairs array to preserve insertion order
+                    const metaObj = {};
+                    for (const [key, value] of pairs) {
+                        metaObj[key] = value;
+                    }
+                    // Convert to JSON string (should preserve insertion order in modern JS)
                     const metaJson = JSON.stringify(metaObj);
                     // Call MCP tool
                     try {

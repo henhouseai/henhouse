@@ -232,14 +232,9 @@ class WorkPageContentMixin:
             log(f"Updating page {self.id} status in database: '{old_status}' -> '{status}'")
             affected = u_query(self.conn, f"UPDATE {table_name} SET status = %s WHERE page_id = %s", (status, self.id))
             if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
-                           (self.id, status, self.meta if hasattr(self, 'meta') else None, self.sort_order if hasattr(self, 'sort_order') else 0))
-                    log(f"Created {table_name} entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create {table_name} entry: {str(e)}")
-                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+                # Entry should already exist - if UPDATE affects 0 rows, that's an error
+                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
+                report_error("action", f"No {table_name} entry found for page {self.id}")
             else:
                 log(f"Successfully updated page {self.id} status in database")
         if not is_error():
@@ -257,14 +252,9 @@ class WorkPageContentMixin:
             log(f"Updating page {self.id} meta in database")
             affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (meta, self.id))
             if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
-                           (self.id, self.status if hasattr(self, 'status') else 'todo', meta, self.sort_order if hasattr(self, 'sort_order') else 0))
-                    log(f"Created {table_name} entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create {table_name} entry: {str(e)}")
-                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+                # Entry should already exist - if UPDATE affects 0 rows, that's an error
+                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
+                report_error("action", f"No {table_name} entry found for page {self.id}")
             else:
                 log(f"Successfully updated page {self.id} meta in database")
         if not is_error():
@@ -302,14 +292,9 @@ class WorkPageContentMixin:
             log(f"Updating page {self.id} meta in database")
             affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
             if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
-                           (self.id, self.status if hasattr(self, 'status') else 'todo', new_meta_str, self.sort_order if hasattr(self, 'sort_order') else 0))
-                    log(f"Created {table_name} entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create {table_name} entry: {str(e)}")
-                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+                # Entry should already exist - if UPDATE affects 0 rows, that's an error
+                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
+                report_error("action", f"No {table_name} entry found for page {self.id}")
             else:
                 log(f"Successfully updated page {self.id} meta in database")
         if not is_error():
@@ -344,14 +329,9 @@ class WorkPageContentMixin:
                 log(f"Updating page {self.id} meta in database")
                 affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
                 if affected == 0:
-                    # If no row exists, insert one
-                    try:
-                        c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
-                               (self.id, self.status if hasattr(self, 'status') else 'todo', new_meta_str, self.sort_order if hasattr(self, 'sort_order') else 0))
-                        log(f"Created {table_name} entry for page {self.id}")
-                    except Exception as e:
-                        warn(f"Failed to create {table_name} entry: {str(e)}")
-                        report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+                    # Entry should already exist - if UPDATE affects 0 rows, that's an error
+                    warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
+                    report_error("action", f"No {table_name} entry found for page {self.id}")
                 else:
                     log(f"Successfully updated page {self.id} meta in database")
             if not is_error():
@@ -388,14 +368,9 @@ class WorkPageContentMixin:
             log(f"Updating page {self.id} meta in database")
             affected = u_query(self.conn, f"UPDATE {table_name} SET meta = %s WHERE page_id = %s", (new_meta_str, self.id))
             if affected == 0:
-                # If no row exists, insert one
-                try:
-                    c_query(self.conn, f"INSERT INTO {table_name} (page_id, status, meta, sort_order) VALUES (%s, %s, %s, %s)", 
-                           (self.id, self.status if hasattr(self, 'status') else 'todo', new_meta_str, self.sort_order if hasattr(self, 'sort_order') else 0))
-                    log(f"Created {table_name} entry for page {self.id}")
-                except Exception as e:
-                    warn(f"Failed to create {table_name} entry: {str(e)}")
-                    report_error("action", f"Failed to create {table_name} entry: {str(e)}")
+                # Entry should already exist - if UPDATE affects 0 rows, that's an error
+                warn(f"No {table_name} entry found for page {self.id} - entry should exist before modification")
+                report_error("action", f"No {table_name} entry found for page {self.id}")
             else:
                 log(f"Successfully updated page {self.id} meta in database")
         if not is_error():

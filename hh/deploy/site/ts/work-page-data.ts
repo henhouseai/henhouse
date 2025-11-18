@@ -233,10 +233,11 @@ export class WorkPageData extends PageData {
             throw new Error('Table not found');
           }
 
-          const rows = tbody.querySelectorAll('tr');
-          const metaObj: { [key: string]: any } = {};
+          const rows = Array.from(tbody.querySelectorAll('tr'));
+          // Build as array of [key, value] pairs to preserve order
+          const pairs: Array<[string, any]> = [];
 
-          for (const row of Array.from(rows)) {
+          for (const row of rows) {
             const keyInput = row.querySelector('.meta-key-input') as HTMLInputElement;
             const valueInput = row.querySelector('.meta-value-input') as HTMLInputElement;
             
@@ -253,15 +254,24 @@ export class WorkPageData extends PageData {
               }
               
               // Try to parse value as JSON, fall back to string
+              let parsedValue: any;
               try {
-                metaObj[key] = JSON.parse(value);
+                parsedValue = JSON.parse(value);
               } catch (e) {
-                metaObj[key] = value;
+                parsedValue = value;
               }
+              
+              pairs.push([key, parsedValue]);
             }
           }
 
-          // Convert to JSON string
+          // Build object from pairs array to preserve insertion order
+          const metaObj: { [key: string]: any } = {};
+          for (const [key, value] of pairs) {
+            metaObj[key] = value;
+          }
+
+          // Convert to JSON string (should preserve insertion order in modern JS)
           const metaJson = JSON.stringify(metaObj);
 
           // Call MCP tool
