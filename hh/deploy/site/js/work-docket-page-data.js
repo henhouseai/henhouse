@@ -1,28 +1,20 @@
 /**
  * WorkDocketPageData - Handles work docket pages with status, meta, and sort_order fields.
- * Dynamic fields (status, meta, sort_order) are automatically discovered by base class.
+ * Extends WorkPageData which provides shared work page functionality.
  */
-import { PageData } from './page-data.js';
-export class WorkDocketPageData extends PageData {
+import { WorkPageData } from './work-page-data.js';
+export class WorkDocketPageData extends WorkPageData {
     constructor(data) {
         super(data);
     }
     /**
-     * Override to provide field mappings for work docket specific fields
+     * Override to provide field mappings for work docket specific fields.
+     * Base WorkPageData already provides status mapping, so this is for future work-docket-specific fields.
      */
     getFieldMappings() {
         return [
-            ...super.getFieldMappings(), // Include base page mappings (name, text)
-            // Work docket specific mappings
-            {
-                fields: ['status'],
-                mcpTool: 'modify_status',
-                priority: 0,
-                buildParams: (fields, values, pageId) => ({
-                    page_id: pageId,
-                    status: values['status']
-                })
-            }
+            ...super.getFieldMappings() // Include base page mappings (name, text) and work page mappings (status)
+            // Work docket specific mappings can be added here in the future
         ];
     }
 }
