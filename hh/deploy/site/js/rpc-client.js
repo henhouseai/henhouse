@@ -206,28 +206,19 @@ export class RPCClient {
         // Check if it's an RPCError with multiple errors
         let errorMessages = [];
         let debugData;
-        // Debug: Log the error structure to help diagnose issues
-        console.log('showError called with:', {
-            label,
-            errorType: typeof error,
-            isError: error instanceof Error,
-            hasErrors: error && typeof error === 'object' && 'errors' in error,
-            errorsArray: error && typeof error === 'object' && 'errors' in error ? error.errors : null,
-            errorKeys: error && typeof error === 'object' ? Object.keys(error) : [],
-            errorMessage: error instanceof Error ? error.message : String(error)
-        });
-        // Check for RPCError with errors array
-        if (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors) && error.errors.length > 0) {
+        // Check for RPCError - need to check both 'errors' property and instanceof RPCError
+        // Also check if error.errors exists and has length
+        const hasErrorsArray = error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors) && error.errors.length > 0;
+        const isRPCError = error instanceof RPCError || hasErrorsArray;
+        if (isRPCError && hasErrorsArray) {
             // RPCError with multiple errors - extract all of them
             const rpcError = error;
-            console.log('Extracting errors from RPCError:', rpcError.errors);
             errorMessages = rpcError.errors
                 .filter((err) => err && typeof err === 'object' && 'content' in err)
                 .map((err) => ({
                 type: 'error',
                 text: `${err.type || 'error'}: ${err.content || 'Unknown error'}`
             }));
-            console.log('Extracted error messages:', errorMessages);
             // If we couldn't extract any errors from the array, indicate extraction failure
             if (errorMessages.length === 0) {
                 errorMessages.push({
