@@ -316,6 +316,7 @@ class PageContentMixin:
                 trace_out()
                 return False
         if not is_error():
+            debug(f"Triggering cache update for page {self.id} after text change")
             self._update_cache_after_text_change(text_value, preprocessed)
         if not is_error():
             # Update object property to match what was stored in database
@@ -396,13 +397,21 @@ class PageContentMixin:
                     cache_version = %s
                 WHERE id = %s
             """
-            u_query(
+            affected = u_query(
                 self.conn,
                 cache_sql,
                 (new_text, prepared_json, now, now, CACHE_VERSION, self.id),
                 use_secondary=True,
             )
-            debug(f"Updated cache entry for page {self.id} after text change")
+            if affected == 0:
+                warn(f"Cache update skipped for page {self.id}: no rows affected in cache DB")
+            else:
+                debug(
+                    f"Cache entry updated for page {self.id}: "
+                    f"text_len={0 if new_text is None else len(new_text)}, "
+                    f"prepared={'yes' if prepared_json else 'no'}, "
+                    f"rows={affected}"
+                )
         except Exception as exc:
             warn(f"Failed to update cache for page {self.id}: {exc}")
         trace_out()
