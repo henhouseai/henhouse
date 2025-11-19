@@ -659,6 +659,10 @@ def show_page() -> bool:
     if lower_content:
         render_lower_content_section(lower_content)
     extra_data = {k: v for k, v in source_data.items() if k not in ['page', 'children_by_class', 'images', 'badge_headers', 'upper_content', 'lower_content']}
+    cache_info = source_data.get('_cache_info')
+    if cache_info:
+        # Only keep cache info internally, don't render
+        debug(f"Cache info: {cache_info}")
     if extra_data:
         render_extra_data_section(extra_data)
     

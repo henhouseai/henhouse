@@ -11,7 +11,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
-from hh.page.page_registry import get_page, get_page_conn
+from hh.page.page_registry import get_page, get_page_conn, get_page_cached_payload
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -290,8 +290,8 @@ class PageContentMixin:
             return True
         # Validate text with TextProcessor
         processor = TextProcessor()
-        result = processor.process(text)
-        if result is None:
+        preprocessed = processor.preprocess(text)
+        if preprocessed is None:
             log(f"Text modification failed for page {self.id}: TextProcessor validation failed - parse errors detected in text (length: {len(text)})")
             trace_out()
             return False
@@ -312,6 +312,9 @@ class PageContentMixin:
                 report_error("action", "Failed to update links table")
                 trace_out()
                 return False
+        if not is_error():
+            from hh.page.page_registry import get_page_cached_payload
+            payload = get_page_cached_payload(self.conn, self.id)
         if not is_error():
             # Update object property to match what was stored in database
             self.text = None if text == "" else text
