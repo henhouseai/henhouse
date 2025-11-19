@@ -247,6 +247,11 @@ def with_connection(
                     if auto_transaction:
                         if is_error():
                             conn.rollback()
+                            if cache_conn and cache_conn is not conn:
+                                try:
+                                    cache_conn.rollback()
+                                except Exception:
+                                    pass
                             log("Transaction rolled back due to errors")
                             trace_out()
                             return False
@@ -258,6 +263,11 @@ def with_connection(
                                 warn("File operations failed, rolling back")
                                 _rollback_file_operations(conn)
                                 conn.rollback()
+                                if cache_conn and cache_conn is not conn:
+                                    try:
+                                        cache_conn.rollback()
+                                    except Exception:
+                                        pass
                                 log("Transaction rolled back due to file operation errors")
                                 trace_out()
                                 return False
@@ -266,12 +276,22 @@ def with_connection(
                                 warn("Errors detected after file operations, rolling back")
                                 _rollback_file_operations(conn)
                                 conn.rollback()
+                                if cache_conn and cache_conn is not conn:
+                                    try:
+                                        cache_conn.rollback()
+                                    except Exception:
+                                        pass
                                 log("Transaction rolled back due to errors after file operations")
                                 trace_out()
                                 return False
                             else:
                                 # All good, commit DB transaction
                                 conn.commit()
+                                if cache_conn and cache_conn is not conn:
+                                    try:
+                                        cache_conn.commit()
+                                    except Exception:
+                                        pass
                                 log("Transaction committed successfully after file operations")
                     duration_ms = int((time.time() - start_time) * 1000)
                     log(f"{func.__name__}: Function execution successful, duration={duration_ms}ms")
@@ -292,6 +312,11 @@ def with_connection(
                             conn.rollback()
                         except:
                             pass
+                        if cache_conn and cache_conn is not conn:
+                            try:
+                                cache_conn.rollback()
+                            except Exception:
+                                pass
                     code, retryable, source, extras = classify_exception(exc, conn)
                     message, _, _ = resolve_error(code)
                     if should_retry(code, retryable, attempt, actual_retries):

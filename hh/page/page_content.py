@@ -11,7 +11,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
-from hh.page.page_registry import get_page, get_page_conn
+from hh.page.page_registry import get_page, get_page_conn, invalidate_page_cache_entry
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -412,6 +412,7 @@ class PageContentMixin:
                     f"prepared={'yes' if prepared_json else 'no'}, "
                     f"rows={affected}"
                 )
+            invalidate_page_cache_entry(self.id)
         except Exception as exc:
             warn(f"Failed to update cache for page {self.id}: {exc}")
         trace_out()

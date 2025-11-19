@@ -275,3 +275,16 @@ def find_page(conn, link: str) -> Optional[Any]:
     trace_out()
     return None
 
+
+def invalidate_page_cache_entry(page_id: int) -> None:
+    trace_in()
+    removed_hot = False
+    removed_payload = False
+    if page_id in _page_cache:
+        del _page_cache[page_id]
+        removed_hot = True
+    if page_id in _cached_page_payloads:
+        del _cached_page_payloads[page_id]
+        removed_payload = True
+    debug(f"Invalidated page cache for {page_id}: hot={removed_hot}, payload={removed_payload}")
+    trace_out()
