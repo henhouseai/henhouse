@@ -2,6 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+import pymysql
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -9,6 +10,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.connection.decorators import root_read
+from hh.gateway.connection.connection import load_dsn
 from hh.deploy.utils import detect_project_context
 
 trace_in = lambda message=None: None
@@ -49,21 +51,44 @@ def init_db(conn, args: List[str] = None) -> bool:
     
     project_name, project_path = detect_project_context()
     log(f"Starting db initialization for project: {project_name}")
+    cache_db_name = f"{project_name}_cache"
     
-    # Step 2: Locate init.sql file
+    # Step 2: Locate init scripts
     init_sql_path = project_path / "hh" / "deploy" / "db" / "init.sql"
-    if not is_error():
-        if not init_sql_path.exists():
-            warn(f"init.sql file not found at: {init_sql_path}")
-            report_error("action", f"init.sql file not found at: {init_sql_path}")
-        else:
-            log(f"Using init.sql file: {init_sql_path}")
+    init_cache_sql_path = project_path / "hh" / "deploy" / "db" / "init_cache.sql"
+    for path in [init_sql_path, init_cache_sql_path]:
+        if not is_error():
+            if not path.exists():
+                warn(f"Required SQL file not found at: {path}")
+                report_error("action", f"SQL file not found at: {path}")
+            else:
+                log(f"Using SQL file: {path}")
     
-    # Step 3: Execute init.sql script
+    # Step 3: Ensure databases exist
     if not is_error():
+        create_db_cmds = [
+            f"CREATE DATABASE IF NOT EXISTS `{project_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+            f"CREATE DATABASE IF NOT EXISTS `{cache_db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        ]
+        for stmt in create_db_cmds:
+            result = subprocess.run(
+                ["mysql", "--user=root", f"--password={root_password}", "-e", stmt],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if result.returncode != 0:
+                warn(f"Failed to execute statement '{stmt}': {result.stderr}")
+                report_error("backend", f"Database creation failed: {result.stderr}")
+                break
+    
+    # Step 4: Execute init scripts
+    def run_sql_script(target_db: str, sql_path: Path, label: str) -> bool:
+        if is_error():
+            return False
         try:
-            mysql_cmd = ["mysql", f"--user=root", f"--password={root_password}", project_name ]
-            with open(init_sql_path, 'r') as sql_file:
+            mysql_cmd = ["mysql", "--user=root", f"--password={root_password}", target_db]
+            with open(sql_path, 'r') as sql_file:
                 result = subprocess.run(
                     mysql_cmd,
                     stdin=sql_file,
@@ -72,35 +97,66 @@ def init_db(conn, args: List[str] = None) -> bool:
                     text=True
                 )
             if result.returncode != 0:
-                warn(f"mysql execution failed with return code {result.returncode}")
-                warn(f"mysql stderr: {result.stderr}")
-                report_error("backend", f"DB initialization failed: {result.stderr}")
-            else:
-                log("DB initialization completed successfully")
+                warn(f"{label} execution failed with return code {result.returncode}")
+                warn(f"{label} stderr: {result.stderr}")
+                report_error("backend", f"{label} failed: {result.stderr}")
+                return False
+            log(f"{label} completed successfully")
+            return True
         except Exception as e:
-            warn(f"mysql execution failed: {str(e)}")
-            report_error("backend", f"mysql execution failed: {str(e)}")
+            warn(f"{label} execution failed: {str(e)}")
+            report_error("backend", f"{label} execution failed: {str(e)}")
+            return False
     
-    # Step 4: Verify tables were created
+    run_sql_script(project_name, init_sql_path, "Main DB initialization")
+    run_sql_script(cache_db_name, init_cache_sql_path, "Cache DB initialization")
+    
+    # Step 5: Verify tables were created
     created_tables = []
+    cache_tables = []
     if not is_error():
         try:
             with conn.cursor() as cursor:
                 cursor.execute("SHOW TABLES")
                 created_tables = cursor.fetchall()
-                log(f"Tables created after initialization: {len(created_tables)}")
+                log(f"Main DB tables after initialization: {len(created_tables)}")
         except Exception as e:
-            warn(f"Failed to verify table creation: {str(e)}")
-            report_error("backend", f"Failed to verify table creation: {str(e)}")
+            warn(f"Failed to verify main tables: {str(e)}")
+            report_error("backend", f"Failed to verify main tables: {str(e)}")
     
-    # Step 5: Prepare response data
+    if not is_error():
+        try:
+            dsn = load_dsn() or {}
+            host = dsn.get('host', 'localhost')
+            port = dsn.get('port', 3306)
+            cache_conn = pymysql.connect(
+                host=host,
+                port=port,
+                user='root',
+                password=root_password,
+                database=cache_db_name,
+                cursorclass=pymysql.cursors.DictCursor
+            )
+            with cache_conn.cursor() as cursor:
+                cursor.execute("SHOW TABLES")
+                cache_tables = cursor.fetchall()
+                log(f"Cache DB tables after initialization: {len(cache_tables)}")
+            cache_conn.close()
+        except Exception as e:
+            warn(f"Failed to verify cache tables: {str(e)}")
+            report_error("backend", f"Failed to verify cache tables: {str(e)}")
+    
+    # Step 6: Prepare response data
     if not is_error():
         try:
             result_data = {
                 "project_name": project_name,
                 "init_sql_file": str(init_sql_path),
+                "cache_sql_file": str(init_cache_sql_path),
                 "created_tables": len(created_tables),
-                "initialization_successful": len(created_tables) > 0
+                "cache_tables": len(cache_tables),
+                "cache_database": cache_db_name,
+                "initialization_successful": len(created_tables) > 0 and len(cache_tables) > 0
             }
             gateway.response.set_action_response(success_payload(result_data))
             log(f"Init db completed successfully: {len(created_tables)} tables created")

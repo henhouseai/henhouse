@@ -4,7 +4,12 @@ import time
 import pymysql
 from typing import Dict, List, Optional, Callable, Union, TypedDict
 from functools import wraps
-from hh.gateway.connection.connection import get_connection, validate_agent_identity
+from hh.gateway.connection.connection import (
+    get_connection,
+    validate_agent_identity,
+    HenhouseConnection,
+    load_cache_dsn
+)
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.response.json_standard import (
@@ -204,6 +209,7 @@ def with_connection(
             start_time = time.time()
             for attempt in range(actual_retries + 1):
                 conn = None
+                cache_conn = None
                 log(f"{func.__name__}: Connection attempt {attempt + 1}/{actual_retries + 1} - {', '.join(config_details)}")
                 try:
                     conn = get_connection(dict_cursor=dict_cursor)
@@ -211,6 +217,14 @@ def with_connection(
                         report_error("connection", "Could not connect to database")
                         trace_out()
                         return False
+                    try:
+                        cache_dsn = load_cache_dsn()
+                        if cache_dsn:
+                            cache_conn = get_connection(dict_cursor=dict_cursor, dsn_override=cache_dsn)
+                    except Exception as cache_exc:
+                        warn(f"Failed to establish cache connection: {cache_exc}")
+                        cache_conn = None
+                    wrapped_conn = HenhouseConnection(conn, cache_conn or conn)
                     if agent_validation and agent_id and badge_ts:
                         if not validate_agent_identity(conn, agent_id, badge_ts):
                             report_error("action", "Agent identity validation failed")
@@ -224,13 +238,11 @@ def with_connection(
                     import inspect
                     sig = inspect.signature(func)
                     params = list(sig.parameters.keys())
-                    
+
                     if params and params[0] == 'self':
-                        # This is a class method, call with self as first arg, conn as second
-                        result = func(args[0], conn, *args[1:], **kwargs)
+                        result = func(args[0], wrapped_conn, *args[1:], **kwargs)
                     else:
-                        # This is a regular function, call with conn as first arg
-                        result = func(conn, *args[1:], **kwargs)
+                        result = func(wrapped_conn, *args[1:], **kwargs)
                     
                     if auto_transaction:
                         if is_error():
@@ -294,6 +306,11 @@ def with_connection(
                     raise
                         
                 finally:
+                    if cache_conn:
+                        try:
+                            cache_conn.close()
+                        except:
+                            pass
                     if conn:
                         try:
                             conn.close()
@@ -429,6 +446,7 @@ def with_mysql_connection(
                         report_error("connection", "Could not connect to MySQL system as root")
                         trace_out()
                         return False
+                    wrapped_conn = HenhouseConnection(conn)
                     
                     if auto_transaction:
                         with conn.cursor() as cur:
@@ -438,13 +456,11 @@ def with_mysql_connection(
                     import inspect
                     sig = inspect.signature(func)
                     params = list(sig.parameters.keys())
-                    
+
                     if params and params[0] == 'self':
-                        # This is a class method, call with self as first arg, conn as second
-                        result = func(args[0], conn, *args[1:], **kwargs)
+                        result = func(args[0], wrapped_conn, *args[1:], **kwargs)
                     else:
-                        # This is a regular function, call with conn as first arg
-                        result = func(conn, *args[1:], **kwargs)
+                        result = func(wrapped_conn, *args[1:], **kwargs)
                     
                     if auto_transaction:
                         if is_error():
@@ -650,6 +666,7 @@ def with_root_connection(
                         report_error("connection", "Could not connect to database as root")
                         trace_out()
                         return False
+                    wrapped_conn = HenhouseConnection(conn)
                     
                     if auto_transaction:
                         with conn.cursor() as cur:
@@ -661,11 +678,9 @@ def with_root_connection(
                     params = list(sig.parameters.keys())
                     
                     if params and params[0] == 'self':
-                        # This is a class method, call with self as first arg, conn as second
-                        result = func(args[0], conn, *args[1:], **kwargs)
+                        result = func(args[0], wrapped_conn, *args[1:], **kwargs)
                     else:
-                        # This is a regular function, call with conn as first arg
-                        result = func(conn, *args[1:], **kwargs)
+                        result = func(wrapped_conn, *args[1:], **kwargs)
                     
                     if auto_transaction:
                         if is_error():

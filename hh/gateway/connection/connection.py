@@ -7,7 +7,7 @@ import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union, TypedDict
+from typing import Dict, List, Optional, Sequence, Union, TypedDict, Tuple
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.utils import detect_project_context
@@ -42,7 +42,7 @@ class JsonResponse(TypedDict, total=False):
     error: str
     hint: str
 
-def load_dsn() -> Optional[Dict[str, str]]:
+def load_dsn_pair() -> Tuple[Optional[Dict[str, str]], Optional[Dict[str, str]]]:
     trace_in()
     config = configparser.ConfigParser()
     
@@ -56,18 +56,76 @@ def load_dsn() -> Optional[Dict[str, str]]:
             'user': config.get('client', 'user', fallback='root'),
             'password': config.get('client', 'password', fallback=''),
             'database': config.get('client', 'database', fallback=project_name),
+            'port': config.getint('client', 'port', fallback=3306)
         }
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
         # Detect user tier level from DSN username and set in response
         _detect_and_set_user_tier_level(project_name, dsn['user'])
         
+        cache_dsn = {
+            'host': config.get('client', 'cache_host', fallback=dsn['host']),
+            'user': config.get('client', 'cache_user', fallback=dsn['user']),
+            'password': config.get('client', 'cache_password', fallback=dsn['password']),
+            'database': config.get('client', 'cache_database', fallback=f"{dsn['database']}_cache"),
+            'port': config.getint('client', 'cache_port', fallback=dsn['port'])
+        }
+        
         trace_out()
-        return dsn
+        return dsn, cache_dsn
     else:
         warn(f"Configuration file not found: {path}")
         trace_out()
-        return None
+        return None, None
+
+def load_dsn() -> Optional[Dict[str, str]]:
+    primary, _ = load_dsn_pair()
+    return primary
+
+def load_cache_dsn() -> Optional[Dict[str, str]]:
+    _, cache = load_dsn_pair()
+    return cache
+
+class HenhouseConnection:
+    """Wrapper that holds primary/secondary DB connections and proxies to primary."""
+    def __init__(self, primary, secondary=None):
+        object.__setattr__(self, '_primary', primary)
+        object.__setattr__(self, '_secondary', secondary or primary)
+
+    @property
+    def primary(self):
+        return object.__getattribute__(self, '_primary')
+
+    @property
+    def secondary(self):
+        return object.__getattribute__(self, '_secondary')
+
+    def get_connection(self, use_secondary: bool = False):
+        return self.secondary if use_secondary else self.primary
+
+    def __getattr__(self, item):
+        return getattr(self.primary, item)
+
+    def __setattr__(self, key, value):
+        setattr(self.primary, key, value)
+
+    # Convenience helpers so callers can do self.conn.r_query(...) later if desired
+    def r_query(self, sql: str, params=None, *, use_secondary: bool = False):
+        return r_query(self, sql, params, use_secondary=use_secondary)
+
+    def u_query(self, sql: str, params=None, *, use_secondary: bool = False):
+        return u_query(self, sql, params, use_secondary=use_secondary)
+
+    def c_query(self, sql: str, params=None, *, use_secondary: bool = False):
+        return c_query(self, sql, params, use_secondary=use_secondary)
+
+    def d_query(self, sql: str, params=None, *, use_secondary: bool = False):
+        return d_query(self, sql, params, use_secondary=use_secondary)
+
+def _unwrap_connection(conn, use_secondary: bool = False):
+    if isinstance(conn, HenhouseConnection):
+        return conn.get_connection(use_secondary=use_secondary)
+    return conn
 
 def _detect_and_set_user_tier_level(project_name: str, username: str) -> None:
     """Detect user tier level from DSN username and set it in Gateway response."""
@@ -110,9 +168,9 @@ def _detect_and_set_user_tier_level(project_name: str, username: str) -> None:
             log("Gateway or response not available for setting tier level")
         trace_out()
 
-def get_connection(dict_cursor: bool = True):
+def get_connection(dict_cursor: bool = True, dsn_override: Optional[Dict[str, Union[str, int]]] = None):
     trace_in()
-    dsn = load_dsn()
+    dsn = dsn_override or load_dsn()
     if not dsn:
         warn("Cannot create connection: DSN not available")
         trace_out()
@@ -135,13 +193,14 @@ def get_connection(dict_cursor: bool = True):
         return None
 
 
-def r_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
+def r_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> List[DatabaseRow]:
     trace_in()
-    conn._last_sql = sql
-    conn._last_params = list(params or [])
+    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
+    target_conn._last_sql = sql
+    target_conn._last_params = list(params or [])
     log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
     try:
-        with conn.cursor() as cur:
+        with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             rows = cur.fetchall()
             if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
@@ -160,16 +219,17 @@ def r_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
         trace_out()
         raise
     finally:
-        conn._last_sql = None
-        conn._last_params = None
+        target_conn._last_sql = None
+        target_conn._last_params = None
 
-def c_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+def c_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> int:
     trace_in()
-    conn._last_sql = sql
-    conn._last_params = list(params or [])
+    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
+    target_conn._last_sql = sql
+    target_conn._last_params = list(params or [])
     log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
     try:
-        with conn.cursor() as cur:
+        with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             lastrowid = cur.lastrowid
             log(f"c_query executed successfully: lastrowid={lastrowid}")
@@ -182,16 +242,17 @@ def c_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
         trace_out()
         raise
     finally:
-        conn._last_sql = None
-        conn._last_params = None
+        target_conn._last_sql = None
+        target_conn._last_params = None
 
-def u_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+def u_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> int:
     trace_in()
-    conn._last_sql = sql
-    conn._last_params = list(params or [])
+    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
+    target_conn._last_sql = sql
+    target_conn._last_params = list(params or [])
     log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
     try:
-        with conn.cursor() as cur:
+        with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             rowcount = cur.rowcount
             log(f"u_query executed successfully: {rowcount} rows affected")
@@ -204,16 +265,17 @@ def u_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
         trace_out()
         raise
     finally:
-        conn._last_sql = None
-        conn._last_params = None
+        target_conn._last_sql = None
+        target_conn._last_params = None
 
-def d_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+def d_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> int:
     trace_in()
-    conn._last_sql = sql
-    conn._last_params = list(params or [])
+    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
+    target_conn._last_sql = sql
+    target_conn._last_params = list(params or [])
     log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
     try:
-        with conn.cursor() as cur:
+        with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             rowcount = cur.rowcount
             log(f"d_query executed successfully: {rowcount} rows affected")
@@ -226,8 +288,8 @@ def d_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
         trace_out()
         raise
     finally:
-        conn._last_sql = None
-        conn._last_params = None
+        target_conn._last_sql = None
+        target_conn._last_params = None
 
 def iso_now() -> str:
     trace_in()
@@ -307,6 +369,7 @@ def validate_agent_identity(conn, agent_id: int, badge_ts: Optional[str]) -> boo
 def schedule_file_move(conn, from_path: str, to_path: str) -> None:
     """Schedule a file move operation to be executed after DB commit."""
     trace_in()
+    conn = _unwrap_connection(conn)
     if not hasattr(conn, '_file_operations'):
         conn._file_operations = []
     operation = {
@@ -324,6 +387,7 @@ def schedule_file_move(conn, from_path: str, to_path: str) -> None:
 def schedule_file_delete(conn, file_path: str) -> None:
     """Schedule a file delete operation (moves to /tmp) to be executed after DB commit."""
     trace_in()
+    conn = _unwrap_connection(conn)
     if not hasattr(conn, '_file_operations'):
         conn._file_operations = []
     # Generate unique temp filename
@@ -347,6 +411,7 @@ def schedule_file_delete(conn, file_path: str) -> None:
 def _execute_file_operations(conn) -> bool:
     """Execute all buffered file operations. Returns True if all succeed, False otherwise."""
     trace_in()
+    conn = _unwrap_connection(conn)
     if not hasattr(conn, '_file_operations') or not conn._file_operations:
         log("No file operations to execute")
         trace_out()
@@ -401,6 +466,7 @@ def _execute_file_operations(conn) -> bool:
 def _rollback_file_operations(conn) -> bool:
     """Rollback all completed file operations. Returns True if all rollbacks succeed."""
     trace_in()
+    conn = _unwrap_connection(conn)
     if not hasattr(conn, '_file_operations') or not conn._file_operations:
         log("No file operations to rollback")
         trace_out()

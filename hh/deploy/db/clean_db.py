@@ -2,6 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+import pymysql
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -9,6 +10,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.connection.decorators import root_read
+from hh.gateway.connection.connection import load_dsn
 from hh.deploy.utils import detect_project_context
 
 trace_in = lambda message=None: None
@@ -49,21 +51,25 @@ def clean_db(conn, args: List[str] = None) -> bool:
     
     project_name, project_path = detect_project_context()
     log(f"Starting db cleanup for project: {project_name}")
+    cache_db_name = f"{project_name}_cache"
     
-    # Step 2: Locate clean.sql file
+    # Step 2: Locate clean scripts
     clean_sql_path = project_path / "hh" / "deploy" / "db" / "clean.sql"
-    if not is_error():
-        if not clean_sql_path.exists():
-            warn(f"clean.sql file not found at: {clean_sql_path}")
-            report_error("action", f"clean.sql file not found at: {clean_sql_path}")
-        else:
-            log(f"Using clean.sql file: {clean_sql_path}")
+    clean_cache_sql_path = project_path / "hh" / "deploy" / "db" / "clean_cache.sql"
+    for path in [clean_sql_path, clean_cache_sql_path]:
+        if not is_error():
+            if not path.exists():
+                warn(f"Required SQL file not found at: {path}")
+                report_error("action", f"SQL file not found at: {path}")
+            else:
+                log(f"Using SQL file: {path}")
     
-    # Step 3: Execute clean.sql script
-    if not is_error():
+    def run_clean_script(target_db: str, sql_path: Path, label: str) -> bool:
+        if is_error():
+            return False
         try:
-            mysql_cmd = ["mysql", f"--user=root", f"--password={root_password}", project_name ]
-            with open(clean_sql_path, 'r') as sql_file:
+            mysql_cmd = ["mysql", "--user=root", f"--password={root_password}", target_db]
+            with open(sql_path, 'r') as sql_file:
                 result = subprocess.run(
                     mysql_cmd,
                     stdin=sql_file,
@@ -72,26 +78,55 @@ def clean_db(conn, args: List[str] = None) -> bool:
                     text=True
                 )
             if result.returncode != 0:
-                warn(f"mysql execution failed with return code {result.returncode}")
-                warn(f"mysql stderr: {result.stderr}")
-                report_error("backend", f"DB cleanup failed: {result.stderr}")
-            else:
-                log("DB cleanup completed successfully")
+                warn(f"{label} failed with return code {result.returncode}")
+                warn(f"{label} stderr: {result.stderr}")
+                report_error("backend", f"{label} failed: {result.stderr}")
+                return False
+            log(f"{label} completed successfully")
+            return True
         except Exception as e:
-            warn(f"mysql execution failed: {str(e)}")
-            report_error("backend", f"mysql execution failed: {str(e)}")
+            warn(f"{label} execution failed: {str(e)}")
+            report_error("backend", f"{label} execution failed: {str(e)}")
+            return False
+    
+    # Step 3: Execute clean scripts
+    run_clean_script(project_name, clean_sql_path, "Main DB cleanup")
+    run_clean_script(cache_db_name, clean_cache_sql_path, "Cache DB cleanup")
     
     # Step 4: Verify tables were dropped
     remaining_tables = []
+    cache_remaining_tables = []
     if not is_error():
         try:
             with conn.cursor() as cursor:
                 cursor.execute("SHOW TABLES")
                 remaining_tables = cursor.fetchall()
-                log(f"Remaining tables after cleanup: {len(remaining_tables)}")
+                log(f"Remaining tables after cleanup (main): {len(remaining_tables)}")
         except Exception as e:
-            warn(f"Failed to verify table cleanup: {str(e)}")
-            report_error("backend", f"Failed to verify table cleanup: {str(e)}")
+            warn(f"Failed to verify main table cleanup: {str(e)}")
+            report_error("backend", f"Failed to verify main table cleanup: {str(e)}")
+    
+    if not is_error():
+        try:
+            dsn = load_dsn() or {}
+            host = dsn.get('host', 'localhost')
+            port = dsn.get('port', 3306)
+            cache_conn = pymysql.connect(
+                host=host,
+                port=port,
+                user='root',
+                password=root_password,
+                database=cache_db_name,
+                cursorclass=pymysql.cursors.DictCursor
+            )
+            with cache_conn.cursor() as cursor:
+                cursor.execute("SHOW TABLES")
+                cache_remaining_tables = cursor.fetchall()
+                log(f"Remaining tables after cleanup (cache): {len(cache_remaining_tables)}")
+            cache_conn.close()
+        except Exception as e:
+            warn(f"Failed to verify cache table cleanup: {str(e)}")
+            report_error("backend", f"Failed to verify cache table cleanup: {str(e)}")
     
     # Step 5: Prepare response data
     if not is_error():
@@ -99,8 +134,10 @@ def clean_db(conn, args: List[str] = None) -> bool:
             result_data = {
                 "project_name": project_name,
                 "clean_sql_file": str(clean_sql_path),
+                "clean_cache_sql_file": str(clean_cache_sql_path),
                 "remaining_tables": len(remaining_tables),
-                "cleanup_successful": len(remaining_tables) == 0
+                "cache_remaining_tables": len(cache_remaining_tables),
+                "cleanup_successful": len(remaining_tables) == 0 and len(cache_remaining_tables) == 0
             }
             gateway.response.set_action_response(success_payload(result_data))
             log(f"Clean db completed successfully: {len(remaining_tables)} tables remaining")

@@ -152,23 +152,30 @@ connection = {
 - Stale reference detection automatically checks secondary connection when needed
 - No transaction locking concerns for read operations
 
-## Data Normalization Strategy
+## Data Normalization Status
 
-### Moving to JSON Fields
-- Identify tables that represent variants/extensions of base entities
-- Move variant-specific columns into JSON field in main table
-- Maintain indexed columns (id, parent, name) for relational queries
-- Store flexible/additional data in JSON for document-style access
-- **Implementation**: MySQL JSON field type supports direct key-level updates
-  - Can modify individual key-value pairs without reading entire JSON
-  - Can delete specific keys while preserving rest of structure
-  - No need to read whole JSON, modify programmatically, then write back
+### JSON Field Migration (Completed)
+- Variant-specific data for all current page subclasses now lives directly in `pages.metadata`.
+- Legacy tables removed: `work_dockets` still exists for historical reasons, but `source_code_files`, `mcp_requests`, and `mcp_action_requests` have been fully retired.
+- Page helpers (`get_metadata_value`, `set_metadata_value`, `_write_metadata_dict`) are the single interface for derived classes.
+- Existing subclasses migrated:
+  - WorkPage hierarchy (dockets/asks/tasks/steps)
+  - SourceCodeFile
+  - MCP Request
+  - MCP Action Request
+- Benefits realized:
+  - Fewer tables to manage and no join overhead for derived fields
+  - Easier to add future subclasses without schema changes
+  - JSON keys updated in-place via MySQL’s JSON operators
 
-### Benefits
-- Fewer tables to manage
-- Reduced join complexity
-- Faster queries for multi-entity displays (100+ items without 100+ joins)
-- Easier to add new variant types without schema changes
+Future derived classes should follow the same pattern; no additional schema work is required for metadata storage.
+
+## Cache Database Rollout
+
+- A dedicated cache schema now exists alongside the primary database. Deployment scripts (`init_db`, `add_db_users`, `import_db`, `export_db`) were updated to create and manage both `<project>` and `<project>_cache`.
+- New SQL file: `hh/deploy/db/init_cache.sql` defines the flattened cache tables (`pages`, `images`, `files`) that will eventually serve read traffic. Running `init_db` now executes both init scripts.
+- Database credentials support optional `cache_*` overrides (host, user, password, database). When unspecified, the system falls back to the primary DSN and automatically targets `<database>_cache` for the secondary connection.
+- Connection decorators hand out a wrapper containing both primary (main DB) and secondary (cache DB) connections so future read paths can switch to the cache transparently.
 
 ## Application Stack
 

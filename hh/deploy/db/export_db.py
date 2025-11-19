@@ -3,12 +3,14 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
+import pymysql
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.connection.decorators import root_read
+from hh.gateway.connection.connection import load_dsn
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
 
@@ -26,6 +28,35 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+def _collect_table_info(connection) -> List[Dict[str, Any]]:
+    info: List[Dict[str, Any]] = []
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        for table_row in tables:
+            table_name = list(table_row.values())[0]
+            cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
+            count_result = cursor.fetchone()
+            row_count = list(count_result.values())[0]
+            info.append({
+                "table_name": table_name,
+                "row_count": row_count
+            })
+    return info
+
+def _get_target_connection(db_name: str, root_password: str):
+    dsn = load_dsn() or {}
+    host = dsn.get('host', 'localhost')
+    port = dsn.get('port', 3306)
+    return pymysql.connect(
+        host=host,
+        port=port,
+        user='root',
+        password=root_password,
+        database=db_name,
+        cursorclass=pymysql.cursors.DictCursor
+    )
 
 @root_read
 @register_action('export_db')
@@ -53,25 +84,24 @@ def export_db(conn, args: List[str] = None) -> bool:
     table_info = []
     log(f"Export file: {export_filepath}")
     
+    target_db = gateway.get_arg('database')
+    cache_flag = gateway.get_arg('cache')
+    if not target_db:
+        if cache_flag:
+            target_db = f"{project_name}_cache"
+        else:
+            target_db = project_name
+    log(f"Target database for export: {target_db}")
+    
     # Step 1: Get table information
     if not is_error():
         try:
-            with conn.cursor() as cursor:
-                cursor.execute("SHOW TABLES")
-                tables = cursor.fetchall()
-                log(f"SHOW TABLES returned {len(tables)} tables")
-                for i, table_row in enumerate(tables):
-                    table_name = list(table_row.values())[0]
-                    log(f"Processing table {i+1}/{len(tables)}: {table_name} (from dict)")
-                    count_query = f"SELECT COUNT(*) FROM `{table_name}`"
-                    cursor.execute(count_query)
-                    count_result = cursor.fetchone()
-                    row_count = list(count_result.values())[0]
-                    log(f"Table {table_name}: {row_count} rows")
-                    table_info.append({
-                        "table_name": table_name,
-                        "row_count": row_count
-                    })
+            if target_db == project_name:
+                table_info = _collect_table_info(conn)
+            else:
+                target_conn = _get_target_connection(target_db, root_password)
+                table_info = _collect_table_info(target_conn)
+                target_conn.close()
             log(f"Table info collection completed: {len(table_info)} tables processed")
         except Exception as e:
             warn(f"Failed to get table information: {str(e)}")
@@ -79,7 +109,16 @@ def export_db(conn, args: List[str] = None) -> bool:
     
     # Step 2: Run mysqldump
     if not is_error():
-        mysqldump_cmd = ["mysqldump", f"--user=root", f"--password={root_password}", "--single-transaction", "--skip-add-drop-table", "--disable-keys", "--extended-insert", project_name]
+        mysqldump_cmd = [
+            "mysqldump",
+            f"--user=root",
+            f"--password={root_password}",
+            "--single-transaction",
+            "--skip-add-drop-table",
+            "--disable-keys",
+            "--extended-insert",
+            target_db
+        ]
         try:
             with open(export_filepath, 'w') as export_file:
                 # Add foreign key disable statements at the beginning
@@ -159,6 +198,7 @@ def export_db(conn, args: List[str] = None) -> bool:
             
             result_data = {
                 "project_name": project_name,
+                "database": target_db,
                 "export_file": str(export_filepath),
                 "export_size": export_size,
                 "table_count": len(table_info),

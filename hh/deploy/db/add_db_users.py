@@ -96,7 +96,7 @@ def get_tier_permissions(tier: str) -> List[str]:
     else:
         return ['SELECT']
 
-def check_and_update_permissions(conn, username: str, project_name: str, required_permissions: List[str]) -> Dict[str, Any]:
+def check_and_update_permissions(conn, username: str, db_name: str, required_permissions: List[str]) -> Dict[str, Any]:
     """Check and update permissions for an existing user."""
     trace_in()
     try:
@@ -130,7 +130,7 @@ def check_and_update_permissions(conn, username: str, project_name: str, require
                        Create_priv, Drop_priv, Index_priv, References_priv
                 FROM mysql.db 
                 WHERE User = %s AND Host = '%%' AND Db = %s
-            """, (username, project_name))
+            """, (username, db_name))
             db_results = cursor.fetchall()
             
             # Add database-specific privileges (these override global if more restrictive)
@@ -172,8 +172,8 @@ def check_and_update_permissions(conn, username: str, project_name: str, require
             debug(f"Granting missing permissions: {missing_permissions}")
             for permission in missing_permissions:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"GRANT {permission} ON {project_name}.* TO %s@'%%'", (username,))
-                    log(f"Granted {permission} to {username}")
+                    cursor.execute(f"GRANT {permission} ON {db_name}.* TO %s@'%%'", (username,))
+                    log(f"Granted {permission} on {db_name} to {username}")
         
         # Note: We don't revoke extra permissions to avoid breaking existing functionality
         if extra_permissions:
@@ -204,11 +204,15 @@ def check_and_update_permissions(conn, username: str, project_name: str, require
             "message": f"Permission check failed: {str(e)}"
         }
 
-def create_database_user(conn, project_name: str, tier: str, password: str) -> Dict[str, Any]:
+def create_database_user(conn, project_name: str, cache_db_name: str, tier: str, password: str) -> Dict[str, Any]:
     """Create a database user for the given tier."""
     trace_in()
     username = f"{project_name}_{tier}"
     permissions = get_tier_permissions(tier)
+    db_targets = [
+        ("main", project_name),
+        ("cache", cache_db_name)
+    ]
     
     debug(f"Starting database user creation for: {username}")
     debug(f"Project: {project_name}, Tier: {tier}")
@@ -238,8 +242,10 @@ def create_database_user(conn, project_name: str, tier: str, password: str) -> D
                 debug(f"ALTER USER password command executed successfully")
             
             # Check and update permissions for existing user
-            permission_status = check_and_update_permissions(conn, username, project_name, permissions)
-            debug(f"Permission check result: {permission_status}")
+            permission_status = {}
+            for label, db_target in db_targets:
+                permission_status[label] = check_and_update_permissions(conn, username, db_target, permissions)
+                debug(f"Permission check result for {label}: {permission_status[label]}")
             
             # Flush privileges after password change
             with conn.cursor() as cursor:
@@ -266,11 +272,12 @@ def create_database_user(conn, project_name: str, tier: str, password: str) -> D
         # Grant permissions
         debug(f"Granting permissions to {username}...")
         for permission in permissions:
-            debug(f"Granting {permission} permission on {project_name}.* to {username}")
-            with conn.cursor() as cursor:
-                cursor.execute(f"GRANT {permission} ON {project_name}.* TO %s@'%%'", (username,))
-                log(f"Granted {permission} to {username}")
-                debug(f"GRANT {permission} command executed successfully")
+            for _, target_db in db_targets:
+                debug(f"Granting {permission} permission on {target_db}.* to {username}")
+                with conn.cursor() as cursor:
+                    cursor.execute(f"GRANT {permission} ON {target_db}.* TO %s@'%%'", (username,))
+                    log(f"Granted {permission} on {target_db} to {username}")
+                    debug(f"GRANT {permission} command executed successfully for {target_db}")
         
         # Flush privileges
         debug("Flushing privileges...")
@@ -286,7 +293,7 @@ def create_database_user(conn, project_name: str, tier: str, password: str) -> D
             verify_result = cursor.fetchone()
             debug(f"User verification result: {verify_result}")
         
-        log(f"Successfully created database user {username} with permissions: {', '.join(permissions)}")
+        log(f"Successfully created database user {username} with permissions: {', '.join(permissions)} on main and cache databases")
         debug(f"Database user creation completed successfully for {username}")
         trace_out()
         return {
@@ -343,6 +350,7 @@ def add_db_users(conn) -> bool:
         debug(f"Project path: {project_path}")
         debug(f"Available tiers: {HENHOUSE_TIERS}")
         
+        cache_db_name = f"{project_name}_cache"
         # Create database users for each tier
         user_results = []
         
@@ -367,7 +375,7 @@ def add_db_users(conn) -> bool:
             
             # Create database user
             debug(f"Calling create_database_user for {project_name}_{tier}")
-            result = create_database_user(conn, project_name, tier, password)
+            result = create_database_user(conn, project_name, cache_db_name, tier, password)
             debug(f"create_database_user result: {result}")
             user_results.append(result)
         
