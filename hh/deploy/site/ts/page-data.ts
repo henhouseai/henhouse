@@ -420,6 +420,9 @@ export class PageData {
       } catch (error) {
         allSucceeded = false;
         const errorMessage = error instanceof Error ? error.message : String(error);
+        const detailedErrors = (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors))
+          ? (error as any).errors
+          : [];
         
         // Check for debug data in error (from RPCError)
         if (error && typeof error === 'object' && 'debug' in error) {
@@ -438,7 +441,8 @@ export class PageData {
           fields,
           success: false,
           error,
-          message: `Failed to update ${fields.join(', ')}: ${errorMessage}`
+          message: `Failed to update ${fields.join(', ')}: ${errorMessage}`,
+          detailedErrors
         };
         
         allOperations.push(operation);
@@ -446,8 +450,17 @@ export class PageData {
         // Add error message to overlay immediately
         if (overlay) {
           const currentMessages = (overlay as any)['state'].messages || [];
+          const newMessages = [{ type: 'error' as const, text: operation.message }];
+          if (detailedErrors.length > 0) {
+            detailedErrors.forEach((err: { type?: string; content: string }) => {
+              newMessages.push({
+                type: 'error' as const,
+                text: `${err.type || 'error'}: ${err.content}`
+              });
+            });
+          }
           overlay.setState({
-            messages: [...currentMessages, { type: 'error' as const, text: operation.message }]
+            messages: [...currentMessages, ...newMessages]
           });
         }
       }
