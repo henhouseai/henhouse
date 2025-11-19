@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Union, Any
+import json
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
@@ -563,7 +564,8 @@ def render_text_section(page_data: Dict[str, Union[str, int]]) -> None:
         trace_out()
         return False
     text_content = page_data.get('text')
-    if not gateway.is_no(block) and text_content is not None:
+    prepared_content = page_data.get('prepared_text')
+    if not gateway.is_no(block) and (text_content is not None or prepared_content):
         log("Rendering text content section with TextProcessor")
         # Determine final decorator based on backend and user preference
         use_json = gateway.request.get_arg('json') if gateway.request else False
@@ -571,10 +573,30 @@ def render_text_section(page_data: Dict[str, Union[str, int]]) -> None:
             final_decorator = 'mcp'
         else:
             final_decorator = gateway.backend
-        # Process text through TextProcessor
-        debug(f"Raw text: {text_content}, backend: {gateway.backend}, final_decorator: {final_decorator}")
-        processor = TextProcessor(final_decorator=final_decorator)
-        processed_text = processor.process(str(text_content))
+        processor = TextProcessor()
+        processed_text = ""
+        processed_payload = None
+        if prepared_content:
+            debug("Using prepared text from cache for rendering")
+            if isinstance(prepared_content, str):
+                try:
+                    processed_payload = json.loads(prepared_content)
+                except json.JSONDecodeError:
+                    warn("Failed to decode prepared_text JSON, falling back to live processing")
+            else:
+                processed_payload = prepared_content
+        if processed_payload is None:
+            debug("Prepared text unavailable, preprocessing raw text")
+            preprocessed = processor.preprocess(str(text_content))
+            if preprocessed is None:
+                processed_payload = None
+            else:
+                processed_payload = preprocessed
+        if processed_payload is not None:
+            processed_text = processor.postprocess(processed_payload, final_decorator=final_decorator)
+        else:
+            debug("Preprocessing failed, returning raw text")
+            processed_text = str(text_content)
         gateway.response.set_page_text(processed_text)
     trace_out()
 

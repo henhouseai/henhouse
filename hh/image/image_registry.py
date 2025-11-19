@@ -1,4 +1,6 @@
 from typing import Optional, List, Dict, Any
+import json
+import datetime as dt
 from hh.gateway.connection.connection import r_query
 from hh.gateway.connection.decorators import db_read
 from hh.gateway.connection.types import DatabaseConnection
@@ -22,6 +24,28 @@ def _initialize_debug():
     warn = get_warn(True)
 
 _image_cache: Dict[int, Any] = {}
+_cached_image_payloads: Dict[int, Dict[str, Any]] = {}
+
+
+def _deserialize_json(blob, default):
+    if blob in (None, '', b''):
+        return default
+    if isinstance(blob, (bytes, bytearray)):
+        blob = blob.decode('utf-8')
+    if isinstance(blob, str):
+        try:
+            return json.loads(blob)
+        except json.JSONDecodeError:
+            return default
+    if isinstance(blob, (dict, list)):
+        return blob
+    return default
+
+
+def _serialize_dt(value):
+    if isinstance(value, (dt.datetime, dt.date)):
+        return value.isoformat()
+    return value
 
 @db_read
 def get_image(conn, image_id: int) -> Optional[Image]:
@@ -78,5 +102,49 @@ def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional[Image]:
         log(f"Retrieved image {image_id} with explicit connection: {conn}")
         trace_out()
         return image_instance
+    trace_out()
+    return None
+
+
+@db_read
+def get_image_cached_payload(conn, image_id: int) -> Optional[Dict[str, Any]]:
+    trace_in()
+    if not image_id or image_id <= 0:
+        warn(f"Invalid image ID: {image_id}")
+        report_error("action", f"Invalid image ID: {image_id}")
+    if not is_error():
+        if image_id in _cached_image_payloads:
+            debug(f"Returning cached payload for image {image_id} from hot cache")
+            trace_out()
+            return _cached_image_payloads[image_id]
+    if not is_error():
+        query = """
+            SELECT id, caption, username, uploaded, visibility, viewCount,
+                   instances, pages, source_last_modified, cache_built_at, cache_version
+            FROM images
+            WHERE id = %s
+        """
+        results = r_query(conn, query, [image_id], use_secondary=True)
+        if not results:
+            debug(f"Cached image {image_id} not found in cache database")
+        else:
+            row = results[0]
+            payload = {
+                "id": row.get("id"),
+                "caption": row.get("caption"),
+                "username": row.get("username"),
+                "uploaded": _serialize_dt(row.get("uploaded")),
+                "visibility": row.get("visibility"),
+                "view_count": row.get("viewCount"),
+                "instances": _deserialize_json(row.get("instances"), []),
+                "pages": _deserialize_json(row.get("pages"), []),
+                "source_last_modified": _serialize_dt(row.get("source_last_modified")),
+                "cache_built_at": _serialize_dt(row.get("cache_built_at")),
+                "cache_version": row.get("cache_version"),
+            }
+            _cached_image_payloads[image_id] = payload
+            debug(f"Loaded cached payload for image {image_id} (cache version={payload.get('cache_version')})")
+            trace_out()
+            return payload
     trace_out()
     return None

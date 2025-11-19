@@ -40,34 +40,56 @@ class TextProcessor:
 
     def process(self, content: str) -> Optional[str]:
         trace_in()
-        if not content:
-            log("Empty content provided, returning empty string")
+        preprocessed = self.preprocess(content)
+        if preprocessed is None:
             trace_out()
-            return ""
-        log(f"Processing content: {repr(content[:500])}{'...' if len(content) > 500 else ''}")
+            return None
+        result = self.postprocess(preprocessed, final_decorator=self.final_decorator)
+        trace_out()
+        return result
+
+
+    def preprocess(self, content: str) -> Optional[List[Dict[str, Any]]]:
+        trace_in()
+        if content is None:
+            content = ""
+        if content == "":
+            log("Preprocessing empty content")
+        log(f"Preprocessing content: {repr(content[:500])}{'...' if len(content) > 500 else ''}")
         self._text = content
         self._len = len(content)
         self._pos = 0
-        # Reset error tracking and parsed elements
         self._parse_errors = []
         self._parsed_elements = []
         elements = self._parse_unparsed_text()
         log(f"Parsed {len(elements)} elements")
-        # Store parsed elements for potential links table update
         self._parsed_elements = elements
-        # Check for parse errors - report each one separately
         if self._parse_errors:
             for error_msg in self._parse_errors:
                 warn(error_msg)
                 report_error("link_resolution", error_msg)
             trace_out()
             return None
-        result_parts: List[str] = []
+        processed_elements: List[Dict[str, Any]] = []
         for i, element in enumerate(elements):
-            log(f"Processing element {i}: {element.get('type', 'unknown')}")
-            result_parts.append(self._process_element(element))
+            log(f"Preparing element {i}: {element.get('type', 'unknown')}")
+            processed_elements.append(self._prepare_element_json(element))
+        trace_out()
+        return processed_elements
+
+
+    def postprocess(self, preprocessed_elements: List[Dict[str, Any]], final_decorator: Optional[str] = None) -> str:
+        trace_in()
+        if not preprocessed_elements:
+            log("Postprocessing empty element list")
+            trace_out()
+            return ""
+        decorator_name = final_decorator if final_decorator is not None else self.final_decorator
+        result_parts: List[str] = []
+        for element in preprocessed_elements:
+            result_parts.append(self._apply_final_decorator(decorator_name, element))
         result = "".join(result_parts)
-        log(f"Final result: {repr(result[:500])}{'...' if len(result) > 500 else ''}")
+        log(f"Postprocess result length: {len(result)}")
         trace_out()
         return result
 
@@ -406,12 +428,16 @@ class TextProcessor:
     # ============ Generation ============
 
     def _process_element(self, element: Dict[str, Any]) -> str:
-        # Generate base JSON from element
+        base_json = self._prepare_element_json(element)
+        result = self._apply_final_decorator(self.final_decorator, base_json)
+        log(f"Element processing complete: {element.get('type', 'unknown')} -> {type(result).__name__}")
+        return result
+
+
+    def _prepare_element_json(self, element: Dict[str, Any]) -> Dict[str, Any]:
         base_json = self._generate_element_json(element)
-        # Apply global first decorator
         if self.first_decorator:
             base_json = self._apply_decorator(self.first_decorator, base_json, {})
-        # Apply decorators in reverse order (right-to-left chaining)
         decorators = element.get("decorators", [])
         for i, (name, args) in enumerate(reversed(decorators)):
             base_json = self._apply_decorator(name, base_json, args)
@@ -423,10 +449,7 @@ class TextProcessor:
                 log(f"Chain complete: {len(decorators)} decorators applied to empty input")
             else:
                 log(f"Chain complete: {len(decorators)} decorators applied to {base_type} base element")
-        # Apply global final decorator (may be None)
-        result = self._apply_final_decorator(self.final_decorator, base_json)
-        log(f"Element processing complete: {element.get('type', 'unknown')} -> {type(result).__name__}")
-        return result
+        return base_json
 
 
     def _generate_element_json(self, element: Dict[str, Any]) -> Dict[str, Any]:
