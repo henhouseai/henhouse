@@ -4,8 +4,11 @@ import signal
 import sys
 import time
 
+from hh.deploy.cache.rebuild_cache import run_cache_rebuild_batch
+
 PROJECT_NAME = "__PROJECT_NAME__"
 SLEEP_INTERVAL_SECONDS = 5
+CACHE_BATCH_LIMIT = 2  # Keep batches very small to avoid long-running transactions
 
 
 def configure_logging():
@@ -22,8 +25,36 @@ def handle_shutdown(signum, frame):  # noqa: D401, ANN001
 
 
 def process_maintenance_jobs():
-    """Placeholder for future queue/daemon logic."""
-    logging.debug("Maintenance worker idle loop - implement queue processing")
+    """Run cache maintenance batch and log the outcome."""
+    try:
+        result = run_cache_rebuild_batch(
+            limit=CACHE_BATCH_LIMIT,
+            include_pages=True,
+            include_images=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logging.exception("Cache rebuild batch failed: %s", exc)
+        return
+
+    pages_processed = result.get("pages_processed", 0)
+    images_processed = result.get("images_processed", 0)
+    pages_remaining = result.get("pages_remaining")
+    images_remaining = result.get("images_remaining")
+
+    if pages_processed or images_processed:
+        logging.info(
+            "Cache rebuild batch: pages=%s images=%s remaining_pages=%s remaining_images=%s",
+            pages_processed,
+            images_processed,
+            pages_remaining,
+            images_remaining,
+        )
+    else:
+        logging.debug(
+            "Cache rebuild idle: remaining_pages=%s remaining_images=%s",
+            pages_remaining,
+            images_remaining,
+        )
 
 
 def main():

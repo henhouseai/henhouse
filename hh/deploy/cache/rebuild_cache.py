@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Dict, List, Optional, Tuple
 
-from hh.gateway.connection.connection import load_dsn_pair, r_query, u_query
+from hh.gateway.connection.connection import HenhouseConnection, get_connection, load_dsn_pair, r_query, u_query
 from hh.gateway.connection.decorators import db_read
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
@@ -157,6 +157,93 @@ def _parse_limit_arg(raw_value: Optional[str]) -> int:
         return default_limit
 
 
+def _perform_cache_rebuild(
+    primary_conn,
+    cache_conn,
+    cache_db: str,
+    limit: int,
+    include_pages: bool,
+    include_images: bool,
+) -> Dict[str, Any]:
+    errors: List[Dict[str, Any]] = []
+    processed_pages: List[int] = []
+    processed_images: List[int] = []
+
+    try:
+        if include_pages:
+            stale_pages = _fetch_stale_page_ids(primary_conn, cache_db, limit)
+            log(f"Found {len(stale_pages)} stale pages (limit {limit})")
+            processed_pages = _rebuild_pages(cache_conn, stale_pages, errors)
+
+        if include_images:
+            stale_images = _fetch_stale_image_ids(primary_conn, cache_db, limit)
+            log(f"Found {len(stale_images)} stale images (limit {limit})")
+            processed_images = _rebuild_images(cache_conn, stale_images, errors)
+
+        # Flush cache-side writes
+        try:
+            cache_side = (
+                cache_conn.get_connection(use_secondary=True)
+                if hasattr(cache_conn, "get_connection")
+                else cache_conn
+            )
+            cache_side.commit()
+        except Exception:
+            pass
+
+        data: Dict[str, Any] = {
+            "operation": "rebuild_cache",
+            "cache_database": cache_db,
+            "limit": limit,
+            "pages_processed": len(processed_pages),
+            "images_processed": len(processed_images),
+            "pages_remaining": _count_stale_pages(primary_conn, cache_db) if include_pages else 0,
+            "images_remaining": _count_stale_images(primary_conn, cache_db) if include_images else 0,
+            "processed_page_ids": processed_pages,
+            "processed_image_ids": processed_images,
+            "errors": errors,
+        }
+        log(
+            f"Cache rebuild complete: pages={len(processed_pages)}, images={len(processed_images)}, "
+            f"errors={len(errors)}"
+        )
+        return data
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Cache rebuild failed: {exc}")
+        raise
+
+
+def run_cache_rebuild_batch(
+    *, limit: int = 25, include_pages: bool = True, include_images: bool = True
+) -> Dict[str, Any]:
+    """
+    Run a cache rebuild batch outside the gateway context (e.g., maintenance worker).
+    """
+    primary_dsn, cache_dsn = load_dsn_pair()
+    if not primary_dsn or not cache_dsn:
+        raise RuntimeError("Primary or cache DSN missing; cannot rebuild cache")
+
+    cache_db = cache_dsn.get("database")
+    if not cache_db:
+        raise RuntimeError("Cache database name missing from DSN")
+
+    primary_conn = None
+    cache_only_conn = None
+    try:
+        primary_conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
+        cache_only_conn = get_connection(dict_cursor=True, dsn_override=cache_dsn)
+        if not primary_conn or not cache_only_conn:
+            raise RuntimeError("Failed to open database connections for cache rebuild")
+
+        combined_conn = HenhouseConnection(primary_conn, cache_only_conn)
+        return _perform_cache_rebuild(primary_conn, combined_conn, cache_db, limit, include_pages, include_images)
+    finally:
+        if cache_only_conn:
+            cache_only_conn.close()
+        if primary_conn:
+            primary_conn.close()
+
+
 @register_action("rebuild_cache")
 @register_command("rebuild_cache")
 @db_read
@@ -194,54 +281,14 @@ def rebuild_cache(conn) -> bool:
     primary_conn = conn.primary if hasattr(conn, "primary") else conn
     cache_conn = conn
 
-    errors: List[Dict[str, Any]] = []
-    processed_pages: List[int] = []
-    processed_images: List[int] = []
-
     try:
-        if include_pages:
-            stale_pages = _fetch_stale_page_ids(primary_conn, cache_db, limit)
-            log(f"Found {len(stale_pages)} stale pages (limit {limit})")
-            processed_pages = _rebuild_pages(cache_conn, stale_pages, errors)
-
-        if include_images:
-            stale_images = _fetch_stale_image_ids(primary_conn, cache_db, limit)
-            log(f"Found {len(stale_images)} stale images (limit {limit})")
-            processed_images = _rebuild_images(cache_conn, stale_images, errors)
-
-        # Flush cache-side writes
-        try:
-            cache_side = (
-                cache_conn.get_connection(use_secondary=True)
-                if hasattr(cache_conn, "get_connection")
-                else cache_conn
-            )
-            cache_side.commit()
-        except Exception:
-            pass
-
-        data = {
-            "operation": "rebuild_cache",
-            "cache_database": cache_db,
-            "limit": limit,
-            "pages_processed": len(processed_pages),
-            "images_processed": len(processed_images),
-            "pages_remaining": _count_stale_pages(primary_conn, cache_db) if include_pages else 0,
-            "images_remaining": _count_stale_images(primary_conn, cache_db) if include_images else 0,
-            "processed_page_ids": processed_pages,
-            "processed_image_ids": processed_images,
-            "errors": errors,
-        }
-        gateway.response.set_action_response(success_payload(data))
-        log(
-            f"Cache rebuild complete: pages={len(processed_pages)}, images={len(processed_images)}, "
-            f"errors={len(errors)}"
-        )
-        trace_out()
-        return True
+        data = _perform_cache_rebuild(primary_conn, cache_conn, cache_db, limit, include_pages, include_images)
     except Exception as exc:  # noqa: BLE001
-        warn(f"Cache rebuild failed: {exc}")
         report_error("backend", f"Cache rebuild failed: {exc}")
         trace_out()
         return False
+
+    gateway.response.set_action_response(success_payload(data))
+    trace_out()
+    return True
 

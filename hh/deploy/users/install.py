@@ -514,6 +514,17 @@ def setup_core_groups(project_name: str) -> None:
                 log(f"Group {deploy_group_name} already exists")
             else:
                 raise
+
+        # Create admin group
+        admin_group_name = f"{project_name}_admin"
+        try:
+            subprocess.run(['groupadd', admin_group_name], check=True, capture_output=True)
+            log(f"Created group: {admin_group_name}")
+        except subprocess.CalledProcessError as e:
+            if "already exists" in e.stderr.decode():
+                log(f"Group {admin_group_name} already exists")
+            else:
+                raise
         
         trace_out()
     except Exception as e:
