@@ -5,7 +5,7 @@ import sys
 import time
 
 PROJECT_NAME = "__PROJECT_NAME__"
-SLEEP_INTERVAL_SECONDS = 30
+SLEEP_INTERVAL_SECONDS = 5
 
 
 def configure_logging():
