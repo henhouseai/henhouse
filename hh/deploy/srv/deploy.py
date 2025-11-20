@@ -302,17 +302,6 @@ def deploy() -> bool:
             warn(f"Failed to deploy extra files: {e}")
             report_error("backend", f"Failed to deploy extra files: {e}")
 
-    # Restart daemons after permissions/logs are in place
-    if not is_error():
-        try:
-            log("Starting Flask daemons after deployment")
-            run_flask_start(project_name, start_port)
-            log("Starting maintenance daemon after deployment")
-            run_maintenance_start(project_name)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Failed to restart daemons after deployment: {e}")
-            report_error("backend", f"Failed to restart daemons after deployment: {e}")
-
     # Deploy context folders and files
     if not is_error():
         context_deployed = []
@@ -516,6 +505,18 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to set up logs permissions: {e}")
             report_error("backend", f"Failed to set up logs permissions: {e}")
+
+    # Restart daemons after permissions/logs are in place
+    if not is_error():
+        try:
+            log("Starting Flask daemons after deployment")
+            daemon_results = run_flask_start(project_name, start_port)
+            log("Starting maintenance daemon after deployment")
+            maint_result = run_maintenance_start(project_name)
+            log(f"Daemon restart summary: Flask={daemon_results['summary']}, Maintenance={maint_result.get('status')}")
+        except Exception as e:  # noqa: BLE001
+            warn(f"Failed to restart daemons after deployment: {e}")
+            report_error("backend", f"Failed to restart daemons after deployment: {e}")
 
 
     # Final result
