@@ -51,6 +51,7 @@ def install() -> bool:
         user_key = gateway.get_arg('user_key')
         remove_users = gateway.get_arg('remove_user')
         hen_script_name = gateway.get_arg('hen') or 'hen'  # Default to 'hen' if not specified
+        clean_install = gateway.get_arg('clean')
 
         project_name, project_path = detect_project_context()
         log(f"Starting {project_name} system initialization")
@@ -88,6 +89,13 @@ def install() -> bool:
         
         log(f"Project: {project_name} at {project_path}")
         log(f"Using script name: {hen_script_name}")
+
+        # Optional clean flag to remove existing git metadata before reinstall
+        if clean_install:
+            git_dir = project_path / '.git'
+            if git_dir.exists():
+                shutil.rmtree(git_dir)
+                log("Removed existing .git directory for clean install")
         
         # Auto-scan project owner's keys
         if not project_owner:
