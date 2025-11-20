@@ -63,6 +63,13 @@ def setup_logrotate(project_name: str) -> None:
     finally:
         trace_out()
 
+def _demote_user(pw_record):
+    def result():
+        os.setgid(pw_record.pw_gid)
+        os.setuid(pw_record.pw_uid)
+    return result
+
+
 def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any]:
     """Start Flask daemon for specific tier."""
     trace_in()
@@ -109,30 +116,36 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
             except Exception as e:
                 warn(f"Failed to kill PID {pid}: {e}")
         
-        # Start Flask daemon as the appropriate Unix user
-        # Flask app now handles its own logging internally, so no need for shell redirection
-        cmd = f'sudo -u {user} bash -c "cd /srv/{project_name} && nohup python3 {app_path} < /dev/null &> /dev/null &"'
-        debug(f"Running command: {cmd}")
-        
-        # Use Popen for background processes to avoid timeout issues
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        debug(f"Started process with PID: {process.pid}")
-        
-        # Give it a moment for the Flask daemon to start
+        # Prepare environment and spawn process without sudo shell
+        pw_record = pwd.getpwnam(user)
+        env = os.environ.copy()
+        env.setdefault('HOME', pw_record.pw_dir)
+        try:
+            process = subprocess.Popen(
+                ['python3', app_path],
+                cwd=f"/srv/{project_name}",
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=_demote_user(pw_record),
+                start_new_session=True,
+                env=env,
+            )
+            debug(f"Started process with PID: {process.pid}")
+        except Exception as exc:
+            warn(f"Failed to launch Flask daemon for {tier}: {exc}")
+            trace_out()
+            return {'tier': tier, 'status': 'error', 'error': str(exc)}
+
         time.sleep(1)
-        
-        # Check if the Flask daemon is actually running (via ps)
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        debug(f"Process check for '{project_name}_{tier}.py'")
-        
-        if f'{project_name}_{tier}.py' in check_result.stdout:
+        try:
+            os.kill(process.pid, 0)
             result_status = 'restarted' if killed_any else 'started'
-            result = {'tier': tier, 'status': result_status, 'port': port, 'user': user}
+            result = {'tier': tier, 'status': result_status, 'port': port, 'user': user, 'pid': process.pid}
             log(f"Started Flask daemon for {tier} tier on port {port}")
-        else:
-            result = {'tier': tier, 'status': 'failed', 'error': 'Process not found running'}
-            warn(f"Flask daemon for {tier} tier failed to start")
+        except OSError:
+            result = {'tier': tier, 'status': 'failed', 'error': 'Process not running after spawn'}
+            warn(f"Flask daemon for {tier} tier failed to start (pid {process.pid} exited)")
         
         trace_out()
         return result
