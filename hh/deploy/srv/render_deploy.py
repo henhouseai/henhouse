@@ -43,6 +43,8 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
         deployment_cleaned = source_data.get('deployment_cleaned', False)
         cache_cleaned = source_data.get('cache_cleaned', {})
         flask_deployed = source_data.get('flask_deployed', [])
+        flask_restart = source_data.get('flask_restart', {})
+        maintenance_restart = source_data.get('maintenance_restart', {})
         context_deployed = source_data.get('context_deployed', [])
         js_count = source_data.get('js_count', 0)
         css_count = source_data.get('css_count', 0)
@@ -115,6 +117,19 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                     'flask_deployed',
                     value=safe_str(app)
                 )
+        if not gateway.is_no('flask') and flask_restart:
+            daemons = flask_restart.get('daemons', [])
+            for daemon in daemons:
+                tier = daemon.get('tier', 'unknown')
+                status = daemon.get('status', 'unknown')
+                error = daemon.get('error')
+                message = f"{tier}: {status}"
+                if error:
+                    message += f" ({error})"
+                deploy_data.add_row(
+                    'flask_restart',
+                    value=safe_str(message)
+                )
         
         # Context deployment - show each folder
         if not gateway.is_no('context'):
@@ -157,6 +172,17 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                 'cache_permissions',
                 value='Yes' if cache_permissions_set else 'No'
             )
+        if not gateway.is_no('maintenance'):
+            maint_status = maintenance_restart.get('status')
+            if maint_status:
+                detail = maint_status
+                error = maintenance_restart.get('error')
+                if error:
+                    detail += f" ({error})"
+                deploy_data.add_row(
+                    'maintenance_restart',
+                    value=safe_str(detail)
+                )
         
         debug(f"Final deploy_data: {deploy_data.num_rows()} items")
         debug(f"Deploy data structure: {deploy_data}")
@@ -165,7 +191,21 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
             deploy_data,
             FieldConfig()
                 .add_header('project_header')
-                .add_simple(['project_info', 'code_deployed', 'deployment_cleaned', 'cache_cleaned', 'flask_deployed', 'context_deployed', 'js_count', 'css_count', 'misc_count', 'ownership_set', 'cache_permissions']),
+                .add_simple([
+                    'project_info',
+                    'code_deployed',
+                    'deployment_cleaned',
+                    'cache_cleaned',
+                    'flask_deployed',
+                    'flask_restart',
+                    'context_deployed',
+                    'js_count',
+                    'css_count',
+                    'misc_count',
+                    'ownership_set',
+                    'cache_permissions',
+                    'maintenance_restart',
+                ]),
             table_overrides={'margin_l': 4},
             block_type=block
         ))

@@ -287,6 +287,9 @@ def deploy() -> bool:
             warn(f"Failed to deploy maintenance worker: {e}")
             report_error("backend", f"Failed to deploy maintenance worker: {e}")
 
+    flask_restart_info = {}
+    maintenance_restart_info = {}
+
     # Deploy extra top-level files (config-driven)
     if not is_error():
         try:
@@ -510,10 +513,10 @@ def deploy() -> bool:
     if not is_error():
         try:
             log("Starting Flask daemons after deployment")
-            daemon_results = run_flask_start(project_name, start_port)
+            flask_restart_info = run_flask_start(project_name, start_port)
             log("Starting maintenance daemon after deployment")
-            maint_result = run_maintenance_start(project_name)
-            log(f"Daemon restart summary: Flask={daemon_results['summary']}, Maintenance={maint_result.get('status')}")
+            maintenance_restart_info = run_maintenance_start(project_name)
+            log(f"Daemon restart summary: Flask={flask_restart_info.get('summary')}, Maintenance={maintenance_restart_info.get('status')}")
         except Exception as e:  # noqa: BLE001
             warn(f"Failed to restart daemons after deployment: {e}")
             report_error("backend", f"Failed to restart daemons after deployment: {e}")
@@ -540,6 +543,8 @@ def deploy() -> bool:
             "ownership_set": ownership_set,
             "cache_permissions_set": cache_permissions_set,
             "logs_permissions_set": logs_permissions_set,
+            "flask_restart": flask_restart_info,
+            "maintenance_restart": maintenance_restart_info,
             "status": "deployed"
         }
         gateway.response.set_action_response(success_payload(result_data))
