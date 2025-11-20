@@ -302,7 +302,7 @@ def deploy() -> bool:
             warn(f"Failed to deploy extra files: {e}")
             report_error("backend", f"Failed to deploy extra files: {e}")
 
-    # Restart daemons after deployment
+    # Restart daemons after permissions/logs are in place
     if not is_error():
         try:
             log("Starting Flask daemons after deployment")
