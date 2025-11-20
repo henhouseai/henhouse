@@ -6,6 +6,7 @@ from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.image.image_method_registry import register_image_mixin_methods
+from hh.image.image_registry import invalidate_image_cache_entry
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -60,7 +61,7 @@ class ImageContentMixin:
             self.caption = caption
             log(f"Successfully updated image {self.id} caption to '{caption}'")
             self.clear_cached_image_state()
-            _invalidate_image_cache_entry(self.id)
+            invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
@@ -77,7 +78,7 @@ class ImageContentMixin:
                 self.visibility = visibility
                 log(f"Successfully updated visibility for image {self.id}")
                 self.clear_cached_image_state()
-                _invalidate_image_cache_entry(self.id)
+                invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
@@ -96,7 +97,7 @@ class ImageContentMixin:
                 self.view_count = (self.view_count or 0) + increment
                 log(f"Successfully updated view count for image {self.id}")
                 self.clear_cached_image_state()
-                _invalidate_image_cache_entry(self.id)
+                invalidate_image_cache_entry(self.id)
         
         trace_out()
         return not is_error()
@@ -119,7 +120,7 @@ class ImageContentMixin:
             d_query(self.conn, "DELETE FROM image_instances WHERE image_id = %s", [self.id])
             d_query(self.conn, "DELETE FROM images WHERE id = %s", [self.id])
             log(f"Successfully deleted image {self.id}")
-            _invalidate_image_cache_entry(self.id)
+            invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
@@ -221,8 +222,3 @@ class ImageContentMixin:
         except Exception as e:
             warn(f"Failed to check if file is shared: {str(e)}")
             return False
-
-
-def _invalidate_image_cache_entry(image_id: int) -> None:
-    from hh.image.image_registry import invalidate_image_cache_entry
-    invalidate_image_cache_entry(image_id)

@@ -1,4 +1,6 @@
-from typing import Optional, List, Dict, Any
+from __future__ import annotations
+
+from typing import Optional, List, Dict, Any, Type, TYPE_CHECKING
 import json
 import datetime as dt
 from hh.gateway.connection.connection import r_query
@@ -6,7 +8,9 @@ from hh.gateway.connection.decorators import db_read
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.image.image import Image
+
+if TYPE_CHECKING:
+    from hh.image.image import Image
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -74,7 +78,8 @@ def _hydrate_image_from_cache(image_obj: Image, cache_row: Optional[Dict[str, An
     return True
 
 
-def get_image(conn, image_id: int) -> Optional[Image]:
+@db_read
+def get_image(conn, image_id: int) -> Optional["Image"]:
     trace_in()
     if not image_id or image_id <= 0:
         warn(f"Invalid image ID: {image_id}")
@@ -92,6 +97,7 @@ def get_image(conn, image_id: int) -> Optional[Image]:
             warn(f"Image {image_id} not found")
             report_error("action", f"Image {image_id} not found")
     if not is_error():
+        from hh.image.image import Image
         try:
             image_instance = Image(image_id=image_id)
         except Exception as e:
@@ -109,7 +115,7 @@ def get_image(conn, image_id: int) -> Optional[Image]:
     return None
 
 
-def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional[Image]:
+def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional["Image"]:
     """Get image with explicit connection - no caching, creates new instance"""
     trace_in()
     if not image_id or image_id <= 0:
@@ -122,6 +128,7 @@ def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional[Image]:
             warn(f"Image {image_id} not found")
             report_error("action", f"Image {image_id} not found")
     if not is_error():
+        from hh.image.image import Image
         try:
             image_instance = Image(image_id=image_id, conn=conn)
         except Exception as e:

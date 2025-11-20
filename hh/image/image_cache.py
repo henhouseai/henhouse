@@ -15,6 +15,7 @@ from hh.gateway.registry.debug import (
 )
 from hh.gateway.error.error_store import report_error, is_error
 from hh.image.image_method_registry import register_image_mixin_methods
+from hh.image.image_registry import invalidate_image_cache_entry
 
 
 trace_in = lambda message=None: None
@@ -165,8 +166,7 @@ class ImageCacheMixin:
             trace_out()
             return False
 
-        _invalidate_image_cache_entry(self.id)
-        _invalidate_image_cache_entry(self.id)
+        invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
@@ -185,9 +185,3 @@ class ImageCacheMixin:
         if isinstance(value, (dt.datetime, dt.date)):
             return value.isoformat()
         return value
-
-
-def _invalidate_image_cache_entry(image_id: int) -> None:
-    from hh.image.image_registry import invalidate_image_cache_entry
-    invalidate_image_cache_entry(image_id)
-

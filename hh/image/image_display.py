@@ -65,7 +65,12 @@ class ImageDisplayMixin:
                     "usage": usage_data,
                     "instances": instances_data,
                 }
-                self.refresh_cached_image(cache_payload)
+                original_conn = self.conn
+                self.conn = None
+                try:
+                    self.refresh_cached_image(cache_payload)
+                finally:
+                    self.conn = original_conn
 
         if not is_error():
             extra_actions = self._check_extra_actions()
