@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error
+from hh.gateway.gateway import get_gateway
 from hh.page.page_method_registry import register_page_mixin_methods
 from hh.tp.tp import TextProcessor
 
@@ -67,7 +68,11 @@ class PageDisplayMixin:
     def _show_page(self, conn=None) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and self.cached_children_by_class is not None
-        if cache_ready:
+        lightweight = False
+        gateway = get_gateway()
+        if gateway and gateway.backend == "mcp":
+            lightweight = True
+        if cache_ready and not lightweight:
             debug(f"Page {self.id}: serving show_page payload from cache")
             page_data = self.get_page_data()
             if self.cached_prepared_text is not None:
@@ -84,7 +89,10 @@ class PageDisplayMixin:
             trace_out()
             return response_data
 
-        debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
+        if lightweight:
+            debug(f"Page {self.id}: cache miss or stale entry; rebuilding lightweight payload")
+        else:
+            debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
         page_data = self.get_page_data()
         images_data = self.get_images_data()
         children_by_class = self._get_children_by_class()
@@ -107,14 +115,21 @@ class PageDisplayMixin:
             page_data = dict(page_data)
             page_data['prepared_text'] = prepared_payload
 
-        response_data = {
-            "page": page_data,
-            "children_by_class": children_by_class,
-            "images": images_data,
-            "badge_headers": badge_headers,
-            "upper_content": upper_content,
-            "lower_content": lower_content,
-        }
+        if lightweight:
+            response_data = {
+                "page": page_data,
+                "images": images_data,
+                "children_by_class": children_by_class,
+            }
+        else:
+            response_data = {
+                "page": page_data,
+                "children_by_class": children_by_class,
+                "images": images_data,
+                "badge_headers": badge_headers,
+                "upper_content": upper_content,
+                "lower_content": lower_content,
+            }
 
         self.cached_children_by_class = children_by_class
         self.cached_images = images_data
@@ -131,7 +146,10 @@ class PageDisplayMixin:
             self.conn = original_conn
 
         total_children = sum(len(group['children']) for group in children_by_class.values())
-        log(f"Assembled display data for page {self.id}: {total_children} children in {len(children_by_class)} classes, {len(images_data)} images")
+        if lightweight:
+            log(f"Assembled lightweight display data for page {self.id}: {total_children} children in {len(children_by_class)} classes, {len(images_data)} images")
+        else:
+            log(f"Assembled display data for page {self.id}: {total_children} children in {len(children_by_class)} classes, {len(images_data)} images")
         trace_out()
         return response_data
 

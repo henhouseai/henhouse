@@ -37,32 +37,6 @@ def show_page() -> bool:
         trace_out()
         return False
     
-    # For MCP backend, use get_page instead of show_page
-    if gateway.backend == "mcp":
-        log("MCP backend detected, using get_page instead of show_page")
-        if not gateway.is_set('id'):
-            warn("No page id provided")
-            report_error("action", "Page ID is required")
-        if not is_error():
-            page_id = gateway.get_arg('id')
-            log(f"Using page ID: {page_id}")
-            try:
-                page_id = int(page_id)
-            except ValueError:
-                warn(f"Invalid page ID: {page_id}")
-                report_error("action", "Page ID must be a number")
-            if not is_error():
-                page_obj = get_page(page_id=page_id)
-                if not page_obj:
-                    warn(f"Page {page_id} not found")
-                    report_error("action", f"Page {page_id} not found")
-        if not is_error():
-            response_data = page_obj.get_page()
-            gateway.response.set_action_response(success_payload(response_data))
-            log("Successfully assembled get_page payload for MCP backend")
-        trace_out()
-        return not is_error()
-    
     # HTTP backend - use show_page logic
     if not gateway.is_set('id') and not gateway.is_set('name') and not gateway.is_set('link'):
         warn("No page identifier provided")
