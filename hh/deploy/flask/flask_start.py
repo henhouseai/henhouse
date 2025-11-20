@@ -120,6 +120,8 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
         pw_record = pwd.getpwnam(user)
         env = os.environ.copy()
         env.setdefault('HOME', pw_record.pw_dir)
+        env.setdefault('PROJECT_NAME', project_name)
+        env.setdefault('HENHOUSE_CONFIG', f"/home/{user}/.henhouse.cnf")
         try:
             process = subprocess.Popen(
                 ['python3', app_path],
