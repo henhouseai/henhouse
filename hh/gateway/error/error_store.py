@@ -102,25 +102,6 @@ class GlobalErrorStore:
             trace_out()
             return has_any_errors
     
-    def clear_errors(self, error_type: str = None):
-        with self._lock:
-            trace_in()
-            log(f"Clearing errors - type filter: {error_type}, total errors before: {len(self._errors)}")
-            if error_type:
-                try:
-                    error_type_enum = ErrorType(error_type)
-                    before_count = len(self._errors)
-                    self._errors = [e for e in self._errors if e.error_type != error_type_enum]
-                    cleared_count = before_count - len(self._errors)
-                    log(f"Cleared {cleared_count} errors of type {error_type}")
-                except ValueError:
-                    warn(f"Unknown error type '{error_type}' in clear_errors")
-            else:
-                before_count = len(self._errors)
-                self._errors.clear()
-                log(f"Cleared all {before_count} errors")
-            trace_out()
-
 _global_error_store = GlobalErrorStore()
 
 def report_error(error_type: str, content: Union[str, Dict[str, Any]]):
@@ -139,11 +120,6 @@ def get_errors(error_type: str = None) -> List[ErrorEntry]:
     result = _global_error_store.get_errors(error_type)
     trace_out()
     return result
-
-def clear_errors(error_type: str = None):
-    trace_in()
-    _global_error_store.clear_errors(error_type)
-    trace_out()
 
 def get_error_count(error_type: str = None) -> int:
     trace_in()
