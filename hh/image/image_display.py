@@ -35,27 +35,43 @@ class ImageDisplayMixin:
 
     def show_image(self) -> Dict[str, Any]:
         trace_in()
-        image_data = {}
-        usage_data = []
-        instances_data = []
-        extra_actions = []
-        if not is_error():
-            # Get basic image data
+        cache_ready = getattr(self, 'cache_hydrated', False) and getattr(self, 'cached_usage', None) is not None
+        response_data = {}
+        extra_actions: List[Dict[str, Any]] = []
+
+        if cache_ready:
+            debug(f"Image {self.id}: serving show_image payload from cache")
             image_data = self.get_image_data()
-            log(f"Retrieved image data for image {self.id}")
-        if not is_error():
-            # Get usage data (pages that use this image)
-            usage_data = self._get_usage_data()
-            log(f"Retrieved usage data: {len(usage_data)} pages using image {self.id}")
-        if not is_error():
-            # Get instances data (different sizes/variants)
+            usage_data = self.cached_usage or []
             instances_data = self.get_instances_data()
-            log(f"Retrieved instances data: {len(instances_data)} instances for image {self.id}")
+        else:
+            image_data = {}
+            usage_data = []
+            instances_data = []
+            if not is_error():
+                image_data = self.get_image_data()
+                log(f"Retrieved image data for image {self.id}")
+            if not is_error():
+                usage_data = self._get_usage_data()
+                log(f"Retrieved usage data: {len(usage_data)} pages using image {self.id}")
+            if not is_error():
+                instances_data = self.get_instances_data()
+                log(f"Retrieved instances data: {len(instances_data)} instances for image {self.id}")
+            if not is_error():
+                self.cached_usage = usage_data
+                self.cache_hydrated = True
+                cache_payload = {
+                    "image": image_data,
+                    "usage": usage_data,
+                    "instances": instances_data,
+                }
+                self.refresh_cached_image(cache_payload)
+
         if not is_error():
-            # Check for any extra actions or unexpected conditions
             extra_actions = self._check_extra_actions()
             if extra_actions:
                 log(f"Found {len(extra_actions)} extra actions for image {self.id}")
+
         response_data = {
             "image": image_data,
             "usage": usage_data,

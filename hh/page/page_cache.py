@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any
 import json
 import datetime as dt
+from decimal import Decimal
 
 from hh.gateway.connection.connection import r_query, u_query, c_query
 from hh.gateway.registry.debug import (
@@ -251,7 +252,26 @@ class PageCacheMixin:
         return self._dump_json(metadata)
 
     def _dump_json(self, value: Any) -> str:
-        return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(',', ':'),
+            default=self._json_default,
+        )
+
+    def _json_default(self, value: Any):
+        if isinstance(value, (dt.datetime, dt.date)):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                return value.decode('utf-8')
+            except Exception:
+                return value.decode('utf-8', errors='ignore')
+        if isinstance(value, set):
+            return list(value)
+        return value
 
     def _clear_cached_payload_state(self) -> None:
         trace_in()

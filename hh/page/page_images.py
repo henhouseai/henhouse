@@ -100,6 +100,8 @@ class PageImagesMixin:
             log(f"Image creation completed successfully")
         else:
             log("Image creation encountered problems")
+        if image_id and not is_error():
+            self.flag_page_modification("images updated")
         trace_out()
         return image_id
 
@@ -188,6 +190,8 @@ class PageImagesMixin:
         except Exception as e:
             warn(f"Failed to reorder images in page {self.id}: {str(e)}")
             report_error("action", f"Failed to reorder images: {str(e)}")
+        if not is_error():
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
@@ -225,6 +229,8 @@ class PageImagesMixin:
                     warn(f"Failed to set image {image_id} rank to {target_rank_for_image}")
                     report_error("action", f"Failed to set image {image_id} rank to {target_rank_for_image}")
         
+        if not is_error() and copied_count > 0:
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
@@ -295,6 +301,8 @@ class PageImagesMixin:
                     report_error("action", f"Failed to set image {image_id} rank to {target_rank_for_image}")
         
         log(f"Successfully moved {moved_count} image instances to page {self.id}")
+        if not is_error() and moved_count > 0:
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
@@ -379,6 +387,8 @@ class PageImagesMixin:
             if not is_error():
                 log(f"Successfully reordered image {image_id} to rank {new_rank} in page {self.id}")
         
+        if not is_error():
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
@@ -416,6 +426,7 @@ class PageImagesMixin:
                 report_error("action", f"Failed to load image {image_id}")
         if not is_error():
             log(f"Successfully removed image {image_id} (rank {image_rank}) from page {self.id}")
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
@@ -451,6 +462,7 @@ class PageImagesMixin:
                     else:
                         warn(f"Failed to load image {image_id} for usage check")
                         report_error("action", f"Failed to load image {image_id}")
-        
+        if not is_error():
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()

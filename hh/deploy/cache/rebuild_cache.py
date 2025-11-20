@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from hh.gateway.connection.connection import load_dsn_pair, r_query, u_query
@@ -20,7 +19,6 @@ from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.response.json_standard import success_payload
 from hh.image.image_registry import get_image_conn
 from hh.page.page_registry import get_page_conn
-from hh.tp.tp import TextProcessor
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -29,16 +27,6 @@ debug = lambda message: None
 warn = lambda message: None
 
 CACHE_VERSION = "v1"
-
-
-def _json_default(value: Any):
-    if isinstance(value, (dt.datetime, dt.date)):
-        return value.isoformat()
-    return str(value)
-
-
-def _json_dumps(payload: Any) -> str:
-    return json.dumps(payload, ensure_ascii=False, default=_json_default)
 
 
 @register_debug_init
@@ -126,151 +114,14 @@ def _count_stale_images(conn, cache_db: str) -> int:
     return rows[0]["cnt"] if rows else 0
 
 
-def _store_page_cache(conn, page_obj, payload: Dict[str, Any]) -> None:
-    page_block = payload.get("page", {}) or {}
-    children_by_class = payload.get("children_by_class", {}) or {}
-    images_data = payload.get("images", []) or []
-    file_payload = {
-        "upper_content": payload.get("upper_content", []) or [],
-        "lower_content": payload.get("lower_content", []) or [],
-    }
-    badge_payload = payload.get("badge_headers", {}) or {}
-
-    metadata_snapshot = _json_dumps(page_obj.metadata or {})
-    children_json = _json_dumps(children_by_class)
-    images_json = _json_dumps(images_data)
-    file_json = _json_dumps(file_payload)
-    links_json = _json_dumps(badge_payload)
-
-    prepared_structure = None
-    prepared_json = None
-    try:
-        processor = TextProcessor()
-        prepared_structure = processor.preprocess(page_block.get("text") or "")
-        if prepared_structure is not None:
-            prepared_json = _json_dumps(prepared_structure)
-            page_block["prepared_text"] = prepared_structure
-    except Exception as exc:
-        warn(f"Failed to preprocess text for page {page_obj.id}: {exc}")
-        prepared_structure = None
-        prepared_json = None
-
-    source_last_modified = page_obj.last_modified or dt.datetime.utcnow()
-    now = dt.datetime.utcnow()
-
-    sql = """
-        INSERT INTO pages (
-            id, parent_id, class, name, link, text, metadata, prepared_text,
-            children_summary, image_summary, file_summary, links_out,
-            source_last_modified, cache_built_at, cache_version
-        ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s
-        )
-        ON DUPLICATE KEY UPDATE
-            parent_id = VALUES(parent_id),
-            class = VALUES(class),
-            name = VALUES(name),
-            link = VALUES(link),
-            text = VALUES(text),
-            metadata = VALUES(metadata),
-            prepared_text = VALUES(prepared_text),
-            children_summary = VALUES(children_summary),
-            image_summary = VALUES(image_summary),
-            file_summary = VALUES(file_summary),
-            links_out = VALUES(links_out),
-            source_last_modified = VALUES(source_last_modified),
-            cache_built_at = VALUES(cache_built_at),
-            cache_version = VALUES(cache_version)
-    """
-    params = (
-        page_obj.id,
-        page_obj.parent,
-        page_obj.class_name,
-        page_obj.name,
-        page_obj.link,
-        page_block.get("text"),
-        metadata_snapshot,
-        prepared_json,
-        children_json,
-        images_json,
-        file_json,
-        links_json,
-        source_last_modified,
-        now,
-        CACHE_VERSION,
-    )
-    u_query(conn, sql, params, use_secondary=True)
-
-
-def _store_image_cache(conn, source_conn, image_id: int) -> None:
-    image_obj = get_image_conn(source_conn, image_id)
-    if not image_obj:
-        raise RuntimeError(f"Image {image_id} could not be loaded")
-    # Ensure instances are loaded for snapshot accuracy
-    image_obj.load_instances()
-    image_data = image_obj.get_image_data()
-    instances_json = _json_dumps(image_data.get("instances", []))
-    usage_rows = r_query(
-        source_conn,
-        """
-            SELECT page_id, image_rank
-            FROM image_groups
-            WHERE image_id = %s
-            ORDER BY image_rank
-        """,
-        [image_id],
-    )
-    pages_json = _json_dumps(usage_rows)
-    source_last_modified = image_data.get("uploaded") or dt.datetime.utcnow()
-    now = dt.datetime.utcnow()
-
-    sql = """
-        INSERT INTO images (
-            id, caption, username, uploaded, visibility, viewCount,
-            instances, pages, source_last_modified, cache_built_at, cache_version
-        ) VALUES (
-            %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s
-        )
-        ON DUPLICATE KEY UPDATE
-            caption = VALUES(caption),
-            username = VALUES(username),
-            uploaded = VALUES(uploaded),
-            visibility = VALUES(visibility),
-            viewCount = VALUES(viewCount),
-            instances = VALUES(instances),
-            pages = VALUES(pages),
-            source_last_modified = VALUES(source_last_modified),
-            cache_built_at = VALUES(cache_built_at),
-            cache_version = VALUES(cache_version)
-    """
-    params = (
-        image_id,
-        image_data.get("caption"),
-        image_data.get("username"),
-        image_data.get("uploaded"),
-        image_data.get("visibility"),
-        image_data.get("view_count"),
-        instances_json,
-        pages_json,
-        source_last_modified,
-        now,
-        CACHE_VERSION,
-    )
-    u_query(conn, sql, params, use_secondary=True)
-
-
-def _rebuild_pages(conn, primary_conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
+def _rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
     processed = []
     for page_id in page_ids:
         try:
-            page_obj = get_page_conn(primary_conn, page_id)
+            page_obj = get_page_conn(conn, page_id)
             if not page_obj:
                 raise RuntimeError(f"Page {page_id} not found")
-            payload = page_obj.show_page()
-            _store_page_cache(conn, page_obj, payload)
+            page_obj.show_page()
             processed.append(page_id)
             log(f"Cached page {page_id}")
         except Exception as exc:  # noqa: BLE001
@@ -279,11 +130,14 @@ def _rebuild_pages(conn, primary_conn, page_ids: List[int], errors: List[Dict[st
     return processed
 
 
-def _rebuild_images(conn, primary_conn, image_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
+def _rebuild_images(conn, image_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
     processed = []
     for image_id in image_ids:
         try:
-            _store_image_cache(conn, primary_conn, image_id)
+            image_obj = get_image_conn(conn, image_id)
+            if not image_obj:
+                raise RuntimeError(f"Image {image_id} could not be loaded")
+            image_obj.show_image()
             processed.append(image_id)
             log(f"Cached image {image_id}")
         except Exception as exc:  # noqa: BLE001
@@ -348,12 +202,12 @@ def rebuild_cache(conn) -> bool:
         if include_pages:
             stale_pages = _fetch_stale_page_ids(primary_conn, cache_db, limit)
             log(f"Found {len(stale_pages)} stale pages (limit {limit})")
-            processed_pages = _rebuild_pages(cache_conn, primary_conn, stale_pages, errors)
+            processed_pages = _rebuild_pages(cache_conn, stale_pages, errors)
 
         if include_images:
             stale_images = _fetch_stale_image_ids(primary_conn, cache_db, limit)
             log(f"Found {len(stale_images)} stale images (limit {limit})")
-            processed_images = _rebuild_images(cache_conn, primary_conn, stale_images, errors)
+            processed_images = _rebuild_images(cache_conn, stale_images, errors)
 
         # Flush cache-side writes
         try:

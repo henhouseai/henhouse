@@ -24,7 +24,6 @@ def _initialize_debug():
     warn = get_warn(True)
 
 _image_cache: Dict[int, Any] = {}
-_cached_image_payloads: Dict[int, Dict[str, Any]] = {}
 
 
 def _deserialize_json(blob, default):
@@ -48,6 +47,33 @@ def _serialize_dt(value):
     return value
 
 @db_read
+def _get_cache_row(conn, image_id: int) -> Optional[Dict[str, Any]]:
+    query = """
+        SELECT id, caption, username, uploaded, visibility, viewCount,
+               instances, pages, source_last_modified, cache_built_at, cache_version
+        FROM images
+        WHERE id = %s
+    """
+    results = r_query(conn, query, [image_id], use_secondary=True)
+    return results[0] if results else None
+
+
+def _hydrate_image_from_cache(image_obj: Image, cache_row: Optional[Dict[str, Any]]) -> bool:
+    if not cache_row:
+        return False
+
+    instances = _deserialize_json(cache_row.get('instances'), [])
+    usage = _deserialize_json(cache_row.get('pages'), [])
+
+    image_obj.instances = instances.copy()
+    image_obj.cached_usage = usage
+    image_obj.cache_source_last_modified = _serialize_dt(cache_row.get('source_last_modified'))
+    image_obj.cache_built_at = _serialize_dt(cache_row.get('cache_built_at'))
+    image_obj.cache_hydrated = True
+    debug(f"Hydrated image {image_obj.id} from cache (built_at={image_obj.cache_built_at})")
+    return True
+
+
 def get_image(conn, image_id: int) -> Optional[Image]:
     trace_in()
     if not image_id or image_id <= 0:
@@ -72,6 +98,9 @@ def get_image(conn, image_id: int) -> Optional[Image]:
             warn(f"Failed to create image {image_id}: {str(e)}")
             report_error("backend", f"Failed to create image {image_id}: {str(e)}")
     if not is_error():
+        cache_row = _get_cache_row(conn, image_id)
+        if cache_row:
+            _hydrate_image_from_cache(image_instance, cache_row)
         _image_cache[image_id] = image_instance
         log(f"Retrieved image {image_id}: '{image_instance.caption}'")
         trace_out()
@@ -99,6 +128,9 @@ def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional[Image]:
             warn(f"Failed to retrieve image {image_id}: {str(e)}")
             report_error("backend", f"Failed to retrieve image {image_id}: {str(e)}")
     if not is_error():
+        cache_row = _get_cache_row(conn, image_id)
+        if cache_row:
+            _hydrate_image_from_cache(image_instance, cache_row)
         log(f"Retrieved image {image_id} with explicit connection: {conn}")
         trace_out()
         return image_instance
@@ -107,44 +139,11 @@ def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional[Image]:
 
 
 @db_read
-def get_image_cached_payload(conn, image_id: int) -> Optional[Dict[str, Any]]:
+def invalidate_image_cache_entry(image_id: int) -> None:
     trace_in()
-    if not image_id or image_id <= 0:
-        warn(f"Invalid image ID: {image_id}")
-        report_error("action", f"Invalid image ID: {image_id}")
-    if not is_error():
-        if image_id in _cached_image_payloads:
-            debug(f"Returning cached payload for image {image_id} from hot cache")
-            trace_out()
-            return _cached_image_payloads[image_id]
-    if not is_error():
-        query = """
-            SELECT id, caption, username, uploaded, visibility, viewCount,
-                   instances, pages, source_last_modified, cache_built_at, cache_version
-            FROM images
-            WHERE id = %s
-        """
-        results = r_query(conn, query, [image_id], use_secondary=True)
-        if not results:
-            debug(f"Cached image {image_id} not found in cache database")
-        else:
-            row = results[0]
-            payload = {
-                "id": row.get("id"),
-                "caption": row.get("caption"),
-                "username": row.get("username"),
-                "uploaded": _serialize_dt(row.get("uploaded")),
-                "visibility": row.get("visibility"),
-                "view_count": row.get("viewCount"),
-                "instances": _deserialize_json(row.get("instances"), []),
-                "pages": _deserialize_json(row.get("pages"), []),
-                "source_last_modified": _serialize_dt(row.get("source_last_modified")),
-                "cache_built_at": _serialize_dt(row.get("cache_built_at")),
-                "cache_version": row.get("cache_version"),
-            }
-            _cached_image_payloads[image_id] = payload
-            debug(f"Loaded cached payload for image {image_id} (cache version={payload.get('cache_version')})")
-            trace_out()
-            return payload
+    removed = False
+    if image_id in _image_cache:
+        del _image_cache[image_id]
+        removed = True
+    debug(f"Invalidated image cache for {image_id}: hot={removed}")
     trace_out()
-    return None

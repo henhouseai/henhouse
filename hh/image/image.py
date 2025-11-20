@@ -11,6 +11,7 @@ from hh.image.image_content import ImageContentMixin
 from hh.image.image_instances import ImageInstancesMixin
 from hh.image.image_usage import ImageUsageMixin
 from hh.image.image_display import ImageDisplayMixin
+from hh.image.image_cache import ImageCacheMixin
 from hh.image.image_method_registry import get_image_method_registry
 
 trace_in = lambda message=None: None
@@ -73,7 +74,14 @@ def _create_wrapper_methods(cls):
     return cls
 
 @_create_wrapper_methods
-class Image(ImageValidationMixin, ImageContentMixin, ImageInstancesMixin, ImageUsageMixin, ImageDisplayMixin):
+class Image(
+    ImageValidationMixin,
+    ImageContentMixin,
+    ImageInstancesMixin,
+    ImageUsageMixin,
+    ImageDisplayMixin,
+    ImageCacheMixin,
+):
 
     def __init__(self, image_id: int, conn: DatabaseConnection = None):
         debug(f"Initializing Image with id={image_id} and conn={conn}")
@@ -99,6 +107,10 @@ class Image(ImageValidationMixin, ImageContentMixin, ImageInstancesMixin, ImageU
         self.visibility = None
         self.view_count = None
         self.instances = []
+        self.cached_usage = None
+        self.cache_built_at = None
+        self.cache_source_last_modified = None
+        self.cache_hydrated = False
         query = "SELECT * FROM images WHERE id = %s"
         results = r_query(conn, query, [image_id])
         if not results:
