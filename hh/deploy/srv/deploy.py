@@ -35,7 +35,16 @@ from hh.deploy.conf.js_whitelist import JS_WHITELIST
 from hh.deploy.conf.css_whitelist import CSS_WHITELIST
 from hh.deploy.conf.py_whitelist import PY_WHITELIST
 from hh.deploy.conf.misc_whitelist import MISC_WHITELIST
-from hh.deploy.conf.deploy_whitelist import DEPLOY_WHITELIST, EXTRA_DEPLOY_FILES, FLASK_APP_SOURCE
+from hh.deploy.conf.deploy_whitelist import (
+    DEPLOY_WHITELIST,
+    EXTRA_DEPLOY_FILES,
+    FLASK_APP_SOURCE,
+    MAINTENANCE_APP_SOURCE,
+)
+from hh.deploy.flask.flask_start import run_flask_start
+from hh.deploy.flask.flask_stop import run_flask_stop
+from hh.deploy.maintenance.maintenance_start import run_maintenance_start
+from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
 
 @register_action('deploy')
 @register_command('deploy')
@@ -66,6 +75,17 @@ def deploy() -> bool:
     source = current_path
     dest = Path(f'/srv/{project_name}')
     log(f"Deploying from {source} to {dest} (starting port: {start_port})")
+
+    # Stop running daemons prior to deployment
+    if not is_error():
+        try:
+            log("Stopping maintenance daemon prior to deployment")
+            run_maintenance_stop(project_name)
+            log("Stopping Flask daemons prior to deployment")
+            run_flask_stop(project_name)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Failed to stop daemons before deployment: {e}")
+            report_error("backend", f"Failed to stop daemons before deployment: {e}")
 
     # Preserve git folder by temporarily moving it out, then restore after cleanup
     git_dir = dest / 'git'
@@ -250,6 +270,23 @@ def deploy() -> bool:
             warn(f"Failed to deploy Flask apps: {e}")
             report_error("backend", f"Failed to deploy Flask apps: {e}")
 
+    # Deploy maintenance worker script
+    if not is_error():
+        try:
+            maint_source = source / MAINTENANCE_APP_SOURCE
+            if maint_source.exists():
+                maint_dest = dest / f'{project_name}_maintenance.py'
+                content = maint_source.read_text()
+                content = content.replace('__PROJECT_NAME__', project_name)
+                with open(maint_dest, 'w') as f:
+                    f.write(content)
+                log(f"Deployed maintenance worker: {maint_dest}")
+            else:
+                log("Maintenance worker template not found, skipping deployment")
+        except Exception as e:
+            warn(f"Failed to deploy maintenance worker: {e}")
+            report_error("backend", f"Failed to deploy maintenance worker: {e}")
+
     # Deploy extra top-level files (config-driven)
     if not is_error():
         try:
@@ -264,6 +301,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to deploy extra files: {e}")
             report_error("backend", f"Failed to deploy extra files: {e}")
+
+    # Restart daemons after deployment
+    if not is_error():
+        try:
+            log("Starting Flask daemons after deployment")
+            run_flask_start(project_name, start_port)
+            log("Starting maintenance daemon after deployment")
+            run_maintenance_start(project_name)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Failed to restart daemons after deployment: {e}")
+            report_error("backend", f"Failed to restart daemons after deployment: {e}")
 
     # Deploy context folders and files
     if not is_error():

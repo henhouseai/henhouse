@@ -1,6 +1,5 @@
 import os
 import subprocess
-from pathlib import Path
 from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -9,7 +8,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-import pwd
+from hh.deploy.utils import detect_project_context
 import signal
 
 trace_in = lambda message=None: None
@@ -26,33 +25,6 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-def detect_project_name() -> str:
-    """Detect project name from current directory."""
-    trace_in()
-    try:
-        cwd = os.getcwd()
-        if cwd.startswith('/srv/'):
-            parts = cwd.split('/')
-            if len(parts) >= 3:
-                project_name = parts[2]
-                trace_out()
-                return project_name
-        else:
-            current_path = Path(cwd)
-            while current_path != current_path.parent:
-                hh_dir = current_path / 'hh'
-                if hh_dir.exists() and hh_dir.is_dir():
-                    project_name = current_path.name
-                    trace_out()
-                    return project_name
-                current_path = current_path.parent
-        trace_out()
-        return "henhouse"
-    except Exception as e:
-        warn(f"Failed to detect project name: {e}")
-        trace_out()
-        return "henhouse"
 
 def remove_logrotate(project_name: str) -> None:
     """Remove logrotate config for Flask daemon logs."""
@@ -127,6 +99,34 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
         trace_out()
         return result
 
+def run_flask_stop(project_name: str) -> Dict[str, Any]:
+    trace_in()
+    results = []
+    for tier in HENHOUSE_TIERS:
+        result = stop_flask_daemon(project_name, tier)
+        results.append(result)
+
+    stopped_count = sum(1 for r in results if r.get('status') == 'stopped')
+    not_running_count = sum(1 for r in results if r.get('status') == 'not_running')
+    failed_count = sum(1 for r in results if r.get('status') == 'error')
+
+    if stopped_count > 0 or not_running_count == len(HENHOUSE_TIERS):
+        remove_logrotate(project_name)
+
+    data = {
+        "project_name": project_name,
+        "daemons": results,
+        "summary": {
+            "total": len(HENHOUSE_TIERS),
+            "stopped": stopped_count,
+            "not_running": not_running_count,
+            "failed": failed_count,
+        },
+    }
+    trace_out()
+    return data
+
+
 @register_action('flask_stop')
 @register_command('flask_stop')
 def flask_stop() -> bool:
@@ -137,44 +137,21 @@ def flask_stop() -> bool:
         trace_out()
         return False
     
-    # Detect project name
-    project_name = detect_project_name()
+    project_name, _ = detect_project_context()
     log(f"Project: {project_name}")
     
-    # Stop Flask daemons for each tier
-    results = []
-    
-    for tier in HENHOUSE_TIERS:
-        result = stop_flask_daemon(project_name, tier)
-        results.append(result)
-    
-    # Build response
-    stopped_count = sum(1 for r in results if r.get('status') == 'stopped')
-    not_running_count = sum(1 for r in results if r.get('status') == 'not_running')
-    failed_count = sum(1 for r in results if r.get('status') == 'error')
-    
-    # Remove logrotate config for Flask logs
-    if stopped_count > 0 or not_running_count == len(HENHOUSE_TIERS):
-        remove_logrotate(project_name)
-    
-    result_data = {
-        "project_name": project_name,
-        "daemons": results,
-        "summary": {
-            "total": len(HENHOUSE_TIERS),
-            "stopped": stopped_count,
-            "not_running": not_running_count,
-            "failed": failed_count
-        }
-    }
-    
+    result_data = run_flask_stop(project_name)
     gateway.response.set_action_response(success_payload(result_data))
     
-    if failed_count > 0:
-        warn(f"Flask daemon stop completed with {failed_count} failures")
-        report_error("action", f"Flask daemon stop: {failed_count} failed")
+    if result_data['summary']['failed'] > 0:
+        warn(f"Flask daemon stop completed with {result_data['summary']['failed']} failures")
+        report_error("action", f"Flask daemon stop: {result_data['summary']['failed']} failed")
     
-    log(f"Flask daemon stop completed: {stopped_count} stopped, {not_running_count} not running")
+    log(
+        f"Flask daemon stop completed: "
+        f"{result_data['summary']['stopped']} stopped, "
+        f"{result_data['summary']['not_running']} not running"
+    )
     
     # Clear registry cache
     from hh.deploy.cache.cache_cleanup_registry import clean_all_caches

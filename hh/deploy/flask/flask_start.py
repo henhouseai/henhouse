@@ -1,8 +1,7 @@
 import os
 import subprocess
 import time
-from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -11,6 +10,7 @@ from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.flask.flask_stop import remove_logrotate
+from hh.deploy.utils import detect_project_context
 import pwd
 import signal
 
@@ -28,33 +28,6 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-def detect_project_name() -> str:
-    """Detect project name from current directory."""
-    trace_in()
-    try:
-        cwd = os.getcwd()
-        if cwd.startswith('/srv/'):
-            parts = cwd.split('/')
-            if len(parts) >= 3:
-                project_name = parts[2]
-                trace_out()
-                return project_name
-        else:
-            current_path = Path(cwd)
-            while current_path != current_path.parent:
-                hh_dir = current_path / 'hh'
-                if hh_dir.exists() and hh_dir.is_dir():
-                    project_name = current_path.name
-                    trace_out()
-                    return project_name
-                current_path = current_path.parent
-        trace_out()
-        return "henhouse"
-    except Exception as e:
-        warn(f"Failed to detect project name: {e}")
-        trace_out()
-        return "henhouse"
 
 def setup_logrotate(project_name: str) -> None:
     """Configure logrotate for Flask daemon logs."""
@@ -170,6 +143,34 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
         trace_out()
         return result
 
+def run_flask_start(project_name: str, start_port: int = 5001) -> Dict[str, Any]:
+    trace_in()
+    remove_logrotate(project_name)
+    results = []
+    for i, tier in enumerate(HENHOUSE_TIERS):
+        port = start_port + i
+        result = start_flask_daemon(project_name, tier, port)
+        results.append(result)
+
+    started_count = sum(1 for r in results if r.get('status') in {'started', 'restarted', 'already_running'})
+    failed_count = sum(1 for r in results if r.get('status') in {'failed', 'error'})
+
+    if started_count > 0:
+        setup_logrotate(project_name)
+
+    result_data = {
+        "project_name": project_name,
+        "daemons": results,
+        "summary": {
+            "total": len(HENHOUSE_TIERS),
+            "started": started_count,
+            "failed": failed_count,
+        },
+    }
+    trace_out()
+    return result_data
+
+
 @register_action('flask_start')
 @register_command('flask_start')
 def flask_start() -> bool:
@@ -188,46 +189,22 @@ def flask_start() -> bool:
         return False
     
     # Detect project name
-    project_name = detect_project_name()
+    project_name, _ = detect_project_context()
     log(f"Project: {project_name}")
     
-    # Remove any existing logrotate config and restart the service before starting
-    remove_logrotate(project_name)
-    
-    # Start Flask daemons for each tier
-    results = []
     start_port = 5001  # Starting from 5001
-    
-    for i, tier in enumerate(HENHOUSE_TIERS):
-        port = start_port + i
-        result = start_flask_daemon(project_name, tier, port)
-        results.append(result)
-    
-    # Build response
-    started_count = sum(1 for r in results if r.get('status') == 'started' or r.get('status') == 'already_running')
-    failed_count = sum(1 for r in results if r.get('status') == 'failed' or r.get('status') == 'error')
-    
-    # Configure logrotate for Flask logs
-    if started_count > 0:
-        setup_logrotate(project_name)
-    
-    result_data = {
-        "project_name": project_name,
-        "daemons": results,
-        "summary": {
-            "total": len(HENHOUSE_TIERS),
-            "started": started_count,
-            "failed": failed_count
-        }
-    }
+    result_data = run_flask_start(project_name, start_port)
     
     gateway.response.set_action_response(success_payload(result_data))
     
-    if failed_count > 0:
-        warn(f"Flask daemon startup completed with {failed_count} failures")
-        report_error("action", f"Flask daemon startup: {failed_count} failed")
+    if result_data['summary']['failed'] > 0:
+        warn(f"Flask daemon startup completed with {result_data['summary']['failed']} failures")
+        report_error("action", f"Flask daemon startup: {result_data['summary']['failed']} failed")
     
-    log(f"Flask daemon startup completed: {started_count}/{len(HENHOUSE_TIERS)} started")
+    log(
+        f"Flask daemon startup completed: "
+        f"{result_data['summary']['started']}/{len(HENHOUSE_TIERS)} started"
+    )
     
     # Clear registry cache
     from hh.deploy.cache.cache_cleanup_registry import clean_all_caches

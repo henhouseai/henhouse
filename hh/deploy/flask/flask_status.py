@@ -1,6 +1,5 @@
 import os
 import subprocess
-from pathlib import Path
 from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -9,6 +8,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.utils import detect_project_context
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,33 +24,6 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-def detect_project_name() -> str:
-    """Detect project name from current directory."""
-    trace_in()
-    try:
-        cwd = os.getcwd()
-        if cwd.startswith('/srv/'):
-            parts = cwd.split('/')
-            if len(parts) >= 3:
-                project_name = parts[2]
-                trace_out()
-                return project_name
-        else:
-            current_path = Path(cwd)
-            while current_path != current_path.parent:
-                hh_dir = current_path / 'hh'
-                if hh_dir.exists() and hh_dir.is_dir():
-                    project_name = current_path.name
-                    trace_out()
-                    return project_name
-                current_path = current_path.parent
-        trace_out()
-        return "henhouse"
-    except Exception as e:
-        warn(f"Failed to detect project name: {e}")
-        trace_out()
-        return "henhouse"
 
 def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str, Any]:
     """Get status of Flask daemon for specific tier."""
@@ -115,7 +88,7 @@ def flask_status() -> bool:
         return False
     
     # Detect project name
-    project_name = detect_project_name()
+    project_name, _ = detect_project_context()
     log(f"Project: {project_name}")
     
     # Get status for Flask daemons for each tier

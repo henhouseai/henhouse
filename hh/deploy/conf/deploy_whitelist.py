@@ -11,6 +11,7 @@ DEPLOY_WHITELIST: List[str] = [
 
 # Flask app source file (deployed with tier-specific modifications)
 FLASK_APP_SOURCE: str = 'hh/deploy/flask/app.py'
+MAINTENANCE_APP_SOURCE: str = 'hh/deploy/maintenance/worker.py'
 
 # Top-level project files to deploy into /srv/{project}
 # This lets us manage subprocess entrypoints (etc.) declaratively

@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error
 from hh.gateway.gateway import get_gateway
+from hh.gateway.registry.mcp_whitelist import MCPWhitelist
 from hh.page.page_method_registry import register_page_mixin_methods
 from hh.tp.tp import TextProcessor
 
@@ -121,6 +122,16 @@ class PageDisplayMixin:
                 "images": images_data,
                 "children_by_class": children_by_class,
             }
+            if gateway and gateway.backend == "mcp" and gateway.response:
+                try:
+                    user_tier_level = gateway.response.get_user_tier_level()
+                    app_actions = MCPWhitelist.get_app_actions(user_tier_level)
+                    if app_actions:
+                        for action in app_actions:
+                            action['source'] = 'hot_cache'
+                        response_data['available_actions'] = app_actions
+                except Exception as exc:
+                    warn(f"Failed to load MCP actions: {exc}")
         else:
             response_data = {
                 "page": page_data,
