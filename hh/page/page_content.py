@@ -404,7 +404,7 @@ class PageContentMixin:
                 use_secondary=True,
             )
             if affected == 0:
-                warn(f"Cache update skipped for page {self.id}: no rows affected in cache DB")
+                debug(f"Cache update skipped for page {self.id}: no rows affected in cache DB")
             else:
                 debug(
                     f"Cache entry updated for page {self.id}: "
