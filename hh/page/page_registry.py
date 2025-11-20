@@ -26,7 +26,6 @@ def _initialize_debug():
     warn = get_warn(True)
 
 _page_cache: Dict[int, Any] = {}
-_cached_page_payloads: Dict[int, Dict[str, Any]] = {}
 
 
 def _deserialize_json_blob(blob, default):
@@ -50,46 +49,65 @@ def _serialize_dt(value):
     return value
 
 
-def _build_cached_page_payload(row: Dict[str, Any]) -> Dict[str, Any]:
-    metadata = _deserialize_json_blob(row.get('metadata'), {})
-    children_by_class = _deserialize_json_blob(row.get('children_summary'), {})
-    images = _deserialize_json_blob(row.get('image_summary'), [])
-    file_summary = _deserialize_json_blob(row.get('file_summary'), {})
-    badge_headers = _deserialize_json_blob(row.get('links_out'), {})
-    prepared_text = _deserialize_json_blob(row.get('prepared_text'), None)
+def _get_cache_row(conn, page_id: int) -> Optional[Dict[str, Any]]:
+    query = """
+        SELECT id, parent_id, class, name, link, text, metadata,
+               prepared_text, children_summary, image_summary, file_summary, links_out,
+               source_last_modified, cache_built_at, cache_version
+        FROM pages
+        WHERE id = %s
+    """
+    results = r_query(conn, query, [page_id], use_secondary=True)
+    return results[0] if results else None
 
-    upper_content = file_summary.get('upper_content', []) if isinstance(file_summary, dict) else []
-    lower_content = file_summary.get('lower_content', []) if isinstance(file_summary, dict) else []
 
-    page_block = {
-        "id": row.get('id'),
-        "name": row.get('name'),
-        "link": row.get('link'),
-        "parent": row.get('parent_id'),
-        "class": row.get('class'),
-        "visibility": None,
-        "text": row.get('text'),
-        "prepared_text": prepared_text,
-        "metadata": metadata,
-        "last_modified": _serialize_dt(row.get('source_last_modified')),
-        "cache_built_at": _serialize_dt(row.get('cache_built_at')),
-        "cache_version": row.get('cache_version'),
-    }
+def _normalize_dt(value: Any) -> Optional[dt.datetime]:
+    if value is None:
+        return None
+    if isinstance(value, dt.datetime):
+        return value
+    if isinstance(value, dt.date):
+        return dt.datetime.combine(value, dt.time.min)
+    if isinstance(value, str):
+        try:
+            return dt.datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
-    payload = {
-        "page": page_block,
-        "children_by_class": children_by_class or {},
-        "images": images or [],
-        "badge_headers": badge_headers or {},
-        "upper_content": upper_content,
-        "lower_content": lower_content,
-        "_cache_info": {
-            "source_last_modified": _serialize_dt(row.get('source_last_modified')),
-            "cache_built_at": _serialize_dt(row.get('cache_built_at')),
-            "version": row.get('cache_version'),
-        }
-    }
-    return payload
+
+def _hydrate_page_from_cache(page_obj, cache_row: Optional[Dict[str, Any]]) -> bool:
+    if not cache_row:
+        return False
+    cache_built_at = cache_row.get('cache_built_at')
+    cache_built_at_dt = _normalize_dt(cache_built_at)
+    last_modified_dt = _normalize_dt(page_obj.last_modified)
+
+    if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
+        debug(f"Cache for page {page_obj.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
+        return False
+
+    metadata = _deserialize_json_blob(cache_row.get('metadata'), {})
+    if metadata:
+        page_obj.metadata = metadata
+
+    page_obj.cached_prepared_text = _deserialize_json_blob(cache_row.get('prepared_text'), None)
+    page_obj.cached_children_by_class = _deserialize_json_blob(cache_row.get('children_summary'), {})
+    page_obj.cached_images = _deserialize_json_blob(cache_row.get('image_summary'), [])
+    file_summary = _deserialize_json_blob(cache_row.get('file_summary'), {})
+    page_obj.cached_file_summary = file_summary if isinstance(file_summary, dict) else {}
+    page_obj.cached_upper_content = (
+        page_obj.cached_file_summary.get('upper_content', []) if isinstance(page_obj.cached_file_summary, dict) else []
+    )
+    page_obj.cached_lower_content = (
+        page_obj.cached_file_summary.get('lower_content', []) if isinstance(page_obj.cached_file_summary, dict) else []
+    )
+    page_obj.cached_badge_headers = _deserialize_json_blob(cache_row.get('links_out'), {})
+    page_obj.cache_source_last_modified = _serialize_dt(cache_row.get('source_last_modified'))
+    page_obj.cache_built_at = _serialize_dt(cache_row.get('cache_built_at'))
+    page_obj.cache_hydrated = True
+    debug(f"Hydrated page {page_obj.id} from cache (built_at={page_obj.cache_built_at})")
+    return True
 
 def _load_mcp_utils_for_page_class(PageClass: type) -> None:
     """Dynamically import mcp_utils module for a page class and all its parent classes for HTTP or MCP backend."""
@@ -172,6 +190,9 @@ def get_page(conn, page_id: int) -> Optional[Any]:
             warn(f"Failed to create page {page_id}: {str(e)}")
             report_error("backend", f"Failed to create page {page_id}: {str(e)}")
     if not is_error():
+        cache_row = _get_cache_row(conn, page_id)
+        if cache_row:
+            _hydrate_page_from_cache(page_instance, cache_row)
         _page_cache[page_id] = page_instance
         log(f"Retrieved page {page_id}: '{page_instance.name}' (class: {page_class_name})")
         trace_out()
@@ -219,38 +240,6 @@ def get_page_conn(conn, page_id: int) -> Optional[Any]:
 
 
 @db_read
-def get_page_cached_payload(conn, page_id: int) -> Optional[Dict[str, Any]]:
-    trace_in()
-    if not page_id or page_id <= 0:
-        warn(f"Invalid page ID: {page_id}")
-        report_error("action", f"Invalid page ID: {page_id}")
-    if not is_error():
-        if page_id in _cached_page_payloads:
-            debug(f"Returning cached payload for page {page_id} from hot cache")
-            trace_out()
-            return _cached_page_payloads[page_id]
-    if not is_error():
-        query = """
-            SELECT id, parent_id, class, name, link, text, metadata,
-                   prepared_text, children_summary, image_summary, file_summary, links_out,
-                   source_last_modified, cache_built_at, cache_version
-            FROM pages
-            WHERE id = %s
-        """
-        results = r_query(conn, query, [page_id], use_secondary=True)
-        if not results:
-            debug(f"Cached page {page_id} not found in cache database")
-        else:
-            payload = _build_cached_page_payload(results[0])
-            _cached_page_payloads[page_id] = payload
-            debug(f"Loaded cached payload for page {page_id} (cache version={payload['_cache_info']['version']})")
-            trace_out()
-            return payload
-    trace_out()
-    return None
-
-
-@db_read
 def find_page(conn, link: str) -> Optional[Any]:
     trace_in()
     if not link:
@@ -279,12 +268,8 @@ def find_page(conn, link: str) -> Optional[Any]:
 def invalidate_page_cache_entry(page_id: int) -> None:
     trace_in()
     removed_hot = False
-    removed_payload = False
     if page_id in _page_cache:
         del _page_cache[page_id]
         removed_hot = True
-    if page_id in _cached_page_payloads:
-        del _cached_page_payloads[page_id]
-        removed_payload = True
-    debug(f"Invalidated page cache for {page_id}: hot={removed_hot}, payload={removed_payload}")
+    debug(f"Invalidated page cache for {page_id}: hot={removed_hot}")
     trace_out()

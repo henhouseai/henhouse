@@ -63,7 +63,13 @@ class PageValidationMixin:
         return True
     
 
-    def _validate_name(self, name: str, page_class: str, exclude_id: Optional[int] = None) -> bool:
+    def _validate_name(
+        self,
+        name: str,
+        page_class: str,
+        exclude_id: Optional[int] = None,
+        error_on_invalid: bool = True,
+    ) -> bool:
         """Validate a page name. Uses parent's connection and parent_id, but checks new page's class settings."""
         trace_in()
         from hh.page.page_class_registry import get_page_class
@@ -73,33 +79,34 @@ class PageValidationMixin:
             report_error("action", f"Page class '{page_class}' not found")
             trace_out()
             return False
-        
+
+        def fail(warn_msg: str, log_msg: Optional[str] = None) -> bool:
+            if error_on_invalid:
+                warn(warn_msg)
+            else:
+                debug(f"[validate_name suppressed] {warn_msg}")
+            if log_msg:
+                log(log_msg)
+            trace_out()
+            return False
+
         log(f"Validating name: '{name}' for parent {self.parent}, page_class: {page_class}, exclude_id: {exclude_id}")
         if not name or len(name) == 0:
             if not NewPageClass.allow_null_names():
-                warn("Page name cannot be empty")
-                log("Validation failed: empty name not allowed")
-                trace_out()
-                return False
+                return fail("Page name cannot be empty", "Validation failed: empty name not allowed")
             else:
                 log("Validation passed: empty name allowed")
                 trace_out()
                 return True
         if len(name) > 255:
-            warn(f"Page name too long: {len(name)} characters (max 255)")
-            log(f"Validation failed: name too long ({len(name)} chars)")
-            trace_out()
-            return False
+            return fail(
+                f"Page name too long: {len(name)} characters (max 255)",
+                f"Validation failed: name too long ({len(name)} chars)",
+            )
         if name and name.isdigit():
-            warn("Page name cannot be all digits")
-            log("Validation failed: name is all digits")
-            trace_out()
-            return False
+            return fail("Page name cannot be all digits", "Validation failed: name is all digits")
         if name and any(char in name for char in ['{', '}', '[', ']']):
-            warn(f"Page name contains illegal characters: {name}")
-            log("Validation failed: illegal characters")
-            trace_out()
-            return False
+            return fail(f"Page name contains illegal characters: {name}", "Validation failed: illegal characters")
         if name and not NewPageClass.allow_duplicate_names():
             log(f"Checking for duplicate names under parent {self.parent}")
             if exclude_id:
@@ -110,10 +117,10 @@ class PageValidationMixin:
                               (self.parent, name))
             if results:
                 existing_page_id = results[0]['id']
-                warn(f"Page name '{name}' already exists under parent {self.parent} (page ID: {existing_page_id})")
-                log(f"Validation failed: duplicate name found (existing page {existing_page_id})")
-                trace_out()
-                return False
+                return fail(
+                    f"Page name '{name}' already exists under parent {self.parent} (page ID: {existing_page_id})",
+                    f"Validation failed: duplicate name found (existing page {existing_page_id})",
+                )
             log("Duplicate name check passed")
         if name and NewPageClass.auto_link_name():
             log(f"Checking for duplicate links (auto_link_name enabled)")
@@ -123,10 +130,10 @@ class PageValidationMixin:
                 results = r_query(self.conn, "SELECT id FROM pages WHERE link = %s", (name,))
             if results:
                 existing_page_id = results[0]['id']
-                warn(f"Page link '{name}' already exists (page ID: {existing_page_id})")
-                log(f"Validation failed: duplicate link found (existing page {existing_page_id})")
-                trace_out()
-                return False
+                return fail(
+                    f"Page link '{name}' already exists (page ID: {existing_page_id})",
+                    f"Validation failed: duplicate link found (existing page {existing_page_id})",
+                )
             log("Duplicate link check passed")
         log(f"Name validation successful for '{name}'")
         trace_out()

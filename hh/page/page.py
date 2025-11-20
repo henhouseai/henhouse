@@ -17,6 +17,7 @@ from hh.page.page_content import PageContentMixin
 from hh.page.page_images import PageImagesMixin
 from hh.page.page_display import PageDisplayMixin
 from hh.page.page_ajax import PageAjaxMixin
+from hh.page.page_cache import PageCacheMixin
 from hh.page.page_method_registry import get_page_method_registry
 from hh.page.page_class_registry import register_page_class
 
@@ -82,7 +83,15 @@ def _create_wrapper_methods(cls):
 
 @register_page_class('page')
 @_create_wrapper_methods
-class Page(PageValidationMixin, PageHierarchyMixin, PageContentMixin, PageImagesMixin, PageDisplayMixin, PageAjaxMixin):
+class Page(
+    PageValidationMixin,
+    PageHierarchyMixin,
+    PageContentMixin,
+    PageImagesMixin,
+    PageDisplayMixin,
+    PageAjaxMixin,
+    PageCacheMixin,
+):
 
     def __init__(self, id: int, conn: DatabaseConnection = None):
         debug(f"Initializing Page with id={id} and conn={conn}")
@@ -112,6 +121,16 @@ class Page(PageValidationMixin, PageHierarchyMixin, PageContentMixin, PageImages
         self.username = None
         self.comments = None
         self.metadata = {}
+        self.cached_prepared_text = None
+        self.cached_children_by_class = None
+        self.cached_images = None
+        self.cached_file_summary = None
+        self.cached_badge_headers = None
+        self.cached_upper_content = None
+        self.cached_lower_content = None
+        self.cache_built_at = None
+        self.cache_source_last_modified = None
+        self.cache_hydrated = False
         query = "SELECT * FROM pages WHERE id = %s"
         results = r_query(conn, query, [page_id])
         if not results:

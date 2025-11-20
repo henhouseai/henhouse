@@ -237,6 +237,7 @@ class WorkPageContentMixin:
         if self._write_metadata_dict(metadata):
             self.status = status
             log(f"Successfully updated page {self.id} status to '{status}'")
+            self.flag_page_modification("status changed")
         trace_out()
         return not is_error()
     
@@ -265,6 +266,7 @@ class WorkPageContentMixin:
             self.meta_dict = sorted_meta
             self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
             log(f"Successfully updated page {self.id} meta key '{key}'")
+            self.flag_page_modification("meta updated")
         trace_out()
         return not is_error()
     
@@ -290,6 +292,7 @@ class WorkPageContentMixin:
                 self.meta_dict = sorted_meta
                 self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
                 log(f"Successfully removed key '{key}' from page {self.id} meta")
+                self.flag_page_modification("meta updated")
         else:
             log(f"Key '{key}' not found in meta, nothing to remove")
         trace_out()
@@ -323,6 +326,7 @@ class WorkPageContentMixin:
             self.meta_dict = sorted_meta
             self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
             log(f"Successfully updated page {self.id} meta")
+            self.flag_page_modification("meta updated")
         trace_out()
         return not is_error()
     
@@ -420,6 +424,7 @@ class WorkPageContentMixin:
                         self.sort_order = new_sort
                 if not is_error():
                     log(f"Successfully updated ordering for {len(new_order)} siblings")
+                    self.flag_page_modification("sort order changed")
         
         trace_out()
         return not is_error()

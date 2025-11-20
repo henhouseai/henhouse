@@ -188,7 +188,7 @@ class PageHierarchyMixin:
                     # Use validate_name on the target parent page (use self's class since that's what the copied page will be)
                     target_page = get_page(page_id=target_page_id)
                     if target_page:
-                        if target_page.validate_name(name, self.class_name):
+                        if target_page.validate_name(name, self.class_name, error_on_invalid=False):
                             good_name = True
                             log(f"Name '{name}' is valid")
                         else:

@@ -6,7 +6,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.page.page_registry import get_page, find_page, get_page_cached_payload
+from hh.page.page_registry import get_page, find_page
 from hh.image.image_registry import get_image
 #from hh.page.page import Page
 #from hh.image.image import Image
@@ -72,7 +72,7 @@ def show_page() -> bool:
         page_id = gateway.get_arg('id')
         page_name = gateway.get_arg('name')
         page_link = gateway.get_arg('link')
-        cached_payload = None
+        search_term = None
         # Determine which parameter was provided
         if page_id:
             log(f"Using page ID: {page_id}")
@@ -82,15 +82,10 @@ def show_page() -> bool:
                 warn(f"Invalid page ID: {page_id}")
                 report_error("action", "Page ID must be a number")
             if not is_error():
-                cached_payload = get_page_cached_payload(page_id=page_id)
-                if cached_payload:
-                    debug(f"show_page cache hit for page {page_id}")
-                else:
-                    debug(f"show_page cache miss for page {page_id}, loading live data")
-                    page = get_page(page_id=page_id)
-                    if not page:
-                        warn(f"Page {page_id} not found")
-                        report_error("action", f"Page {page_id} not found")
+                page = get_page(page_id=page_id)
+                if not page:
+                    warn(f"Page {page_id} not found")
+                    report_error("action", f"Page {page_id} not found")
         elif page_name or page_link:
             # Use name as alias for link
             search_term = page_name if page_name else page_link
@@ -101,15 +96,8 @@ def show_page() -> bool:
                 report_error("action", f"No page found with name/link: {search_term}")
 
     if not is_error():
-        response_data = None
-        used_cache = False
-        if 'cached_payload' in locals() and cached_payload:
-            gateway.response.set_action_response(success_payload(cached_payload))
-            response_data = cached_payload
-            used_cache = True
-        else:
-            response_data = page.show_page()
-            gateway.response.set_action_response(success_payload(response_data))
+        response_data = page.show_page()
+        gateway.response.set_action_response(success_payload(response_data))
         # Seed page basics in one combined payload (avoid overwriting)
         resolved_id = page_id if page_id else getattr(page, 'id', None)
         page_block = (response_data or {}).get('page') or {}
@@ -121,7 +109,7 @@ def show_page() -> bool:
         children_summary = response_data.get('children_by_class', {}) if response_data else {}
         total_children = sum(len(group['children']) for group in children_summary.values())
         if resolved_id:
-            if used_cache:
+            if getattr(page, 'cache_hydrated', False):
                 log(f"Successfully loaded page {resolved_id} from cache with {total_children} children")
             else:
                 log(f"Successfully loaded page {resolved_id} with {total_children} children")

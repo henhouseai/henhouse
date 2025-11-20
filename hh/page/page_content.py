@@ -11,7 +11,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
-from hh.page.page_registry import get_page, get_page_conn, invalidate_page_cache_entry
+from hh.page.page_registry import get_page, get_page_conn
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -41,9 +41,6 @@ def _register_content_methods():
         'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
         'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
     }
-
-
-CACHE_VERSION = "v1"
 
 
 class PageContentMixin:
@@ -317,7 +314,7 @@ class PageContentMixin:
                 return False
         if not is_error():
             debug(f"Triggering cache update for page {self.id} after text change")
-            self._update_cache_after_text_change(text_value, preprocessed)
+            self.refresh_cached_page(text_value, preprocessed)
         if not is_error():
             # Update object property to match what was stored in database
             self.text = None if text == "" else text
@@ -382,41 +379,6 @@ class PageContentMixin:
                 report_error("action", f"Failed to delete page {self.id}")
         trace_out()
         return not is_error()
-
-    def _update_cache_after_text_change(self, new_text: Optional[str], preprocessed_payload: Optional[List[Dict[str, Any]]]) -> None:
-        trace_in()
-        try:
-            prepared_json = json.dumps(preprocessed_payload, ensure_ascii=False) if preprocessed_payload is not None else None
-            now = dt.datetime.utcnow()
-            cache_sql = """
-                UPDATE pages
-                SET text = %s,
-                    prepared_text = %s,
-                    source_last_modified = %s,
-                    cache_built_at = %s,
-                    cache_version = %s
-                WHERE id = %s
-            """
-            affected = u_query(
-                self.conn,
-                cache_sql,
-                (new_text, prepared_json, now, now, CACHE_VERSION, self.id),
-                use_secondary=True,
-            )
-            if affected == 0:
-                debug(f"Cache update skipped for page {self.id}: no rows affected in cache DB")
-            else:
-                debug(
-                    f"Cache entry updated for page {self.id}: "
-                    f"text_len={0 if new_text is None else len(new_text)}, "
-                    f"prepared={'yes' if prepared_json else 'no'}, "
-                    f"rows={affected}"
-                )
-            invalidate_page_cache_entry(self.id)
-        except Exception as exc:
-            warn(f"Failed to update cache for page {self.id}: {exc}")
-        trace_out()
-
 
     def _add_page(self, page_class: str = 'page', name: Optional[str] = None) -> int:
         trace_in()
@@ -593,5 +555,6 @@ class PageContentMixin:
             self.username = db_user
             self.comments = comments
             log(f"Updated page {self.id} modification flags: {comments}")
+            self.clear_cached_payload_state()
         trace_out()
         return not is_error()

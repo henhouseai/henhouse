@@ -271,6 +271,7 @@ class SourceCodeFileContentMixin:
         if self._write_metadata_dict(metadata):
             self.file_path = path
             log(f"Successfully updated page {self.id} file path to '{path}'")
+            self.flag_page_modification("file path changed")
         trace_out()
         return not is_error()
     
@@ -286,6 +287,7 @@ class SourceCodeFileContentMixin:
         if self._write_metadata_dict(metadata):
             self.language = language
             log(f"Successfully updated page {self.id} language to '{language}'")
+            self.flag_page_modification("language changed")
         trace_out()
         return not is_error()
 

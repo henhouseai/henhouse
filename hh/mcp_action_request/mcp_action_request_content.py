@@ -315,6 +315,7 @@ class McpActionRequestContentMixin:
         if self._write_metadata_dict(metadata):
             self._sync_from_metadata(metadata)
             log(f"Updated MCP action request metadata for page {self.id}")
+            self.flag_page_modification("action request updated")
 
         trace_out()
         return not is_error()

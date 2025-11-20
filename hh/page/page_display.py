@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error
 from hh.page.page_method_registry import register_page_mixin_methods
+from hh.tp.tp import TextProcessor
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -65,23 +66,70 @@ class PageDisplayMixin:
 
     def _show_page(self, conn=None) -> Dict[str, Any]:
         trace_in()
-        # Get base page data
+        cache_ready = getattr(self, 'cache_hydrated', False) and self.cached_children_by_class is not None
+        if cache_ready:
+            debug(f"Page {self.id}: serving show_page payload from cache")
+            page_data = self.get_page_data()
+            if self.cached_prepared_text is not None:
+                page_data = dict(page_data)
+                page_data['prepared_text'] = self.cached_prepared_text
+            response_data = {
+                "page": page_data,
+                "children_by_class": self.cached_children_by_class or {},
+                "images": self.cached_images or [],
+                "badge_headers": self.cached_badge_headers or {},
+                "upper_content": self.cached_upper_content or [],
+                "lower_content": self.cached_lower_content or [],
+            }
+            trace_out()
+            return response_data
+
+        debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
         page_data = self.get_page_data()
         images_data = self.get_images_data()
-        # Get children grouped by class (equivalent to legacy displayChildPages)
         children_by_class = self._get_children_by_class()
-        # Call display hooks (equivalent to legacy index() hook calls)
         badge_headers = self.add_badge_headers()
         upper_content = self.add_upper_content()
         lower_content = self.add_lower_content()
+
+        prepared_payload = self.cached_prepared_text
+        if prepared_payload is None:
+            prepared_payload = self.get_cached_prepared_text_if_current()
+        if prepared_payload is None:
+            processor = TextProcessor()
+            prepared_payload = processor.preprocess(self.text or "")
+            if prepared_payload is None:
+                warn(f"Failed to preprocess text for page {self.id} while rebuilding cache")
+            else:
+                self.cached_prepared_text = prepared_payload
+
+        if prepared_payload is not None:
+            page_data = dict(page_data)
+            page_data['prepared_text'] = prepared_payload
+
         response_data = {
             "page": page_data,
-            "children_by_class": children_by_class,  # Grouped by class
+            "children_by_class": children_by_class,
             "images": images_data,
             "badge_headers": badge_headers,
             "upper_content": upper_content,
-            "lower_content": lower_content
+            "lower_content": lower_content,
         }
+
+        self.cached_children_by_class = children_by_class
+        self.cached_images = images_data
+        self.cached_badge_headers = badge_headers
+        self.cached_upper_content = upper_content
+        self.cached_lower_content = lower_content
+        self.cache_hydrated = True
+
+        original_conn = self.conn
+        self.conn = None
+        try:
+            self.refresh_cached_page(self.text, prepared_payload, cache_payload=response_data)
+        finally:
+            self.conn = original_conn
+
         total_children = sum(len(group['children']) for group in children_by_class.values())
         log(f"Assembled display data for page {self.id}: {total_children} children in {len(children_by_class)} classes, {len(images_data)} images")
         trace_out()
