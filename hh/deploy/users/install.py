@@ -199,7 +199,7 @@ def check_existing_setup(project_name: str) -> List[str]:
                 pass
         
         # Check for existing project groups
-        project_groups = [project_name, f"{project_name}_deploy"]
+        project_groups = [project_name, f"{project_name}_deploy", f"{project_name}_admin"]
         for group in project_groups:
             try:
                 grp.getgrnam(group)
@@ -367,13 +367,17 @@ def create_fresh_users(passwords: List[str], user_key: Optional[str], project_na
     trace_in()
     log("Creating fresh users")
     user_data = []
+    admin_tier = 'admin' if 'admin' in HENHOUSE_TIERS else None
     for idx, tier in enumerate(HENHOUSE_TIERS):
         user = f"{project_name}_{tier}"
         password = passwords[idx]
         try:
-            result = subprocess.run([
-                'useradd', '-r', '-s', '/bin/bash', '-m', '-d', f'/home/{user}', user
-            ], capture_output=True, text=True)
+            useradd_cmd = ['useradd', '-r', '-s', '/bin/bash', '-m', '-d', f'/home/{user}']
+            if tier == admin_tier:
+                admin_group_name = f"{project_name}_{admin_tier}"
+                useradd_cmd.extend(['-g', admin_group_name])
+            useradd_cmd.append(user)
+            result = subprocess.run(useradd_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise subprocess.CalledProcessError(result.returncode, ['useradd'], result.stdout, result.stderr)
             subprocess.run([
