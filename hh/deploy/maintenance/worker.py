@@ -318,7 +318,7 @@ def _process_job_queue():
         if not handler:
             logging.error("Unknown maintenance job type '%s'", job["job_type"])
             update_maintenance_job(
-                job["id"],
+                job_id=job["id"],
                 status="error",
                 error_message=f"Unknown job type {job['job_type']}",
             )
@@ -346,7 +346,7 @@ def _process_job_queue():
         error_message = handler_result.get("message") or "maintenance handler failed"
 
         update_maintenance_job(
-            job["id"],
+            job_id=job["id"],
             status=status,
             progress=progress_payload,
             error_message=error_message,
@@ -357,7 +357,7 @@ def _process_job_queue():
         if job:
             try:
                 update_maintenance_job(
-                    job["id"],
+                    job_id=job["id"],
                     status="error",
                     progress=job.get("progress"),
                     error_message=str(exc),
