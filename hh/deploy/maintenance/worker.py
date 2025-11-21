@@ -77,9 +77,7 @@ def _summarize_errors(payload: Dict[str, Any], fallback: str = "") -> str:
     return fallback or "maintenance action reported an error"
 
 
-def _build_regex_text_args(job: Dict[str, Any]) -> list[str]:
-    progress = job.get("progress") or {}
-    last_page_id = progress.get("last_page_id", 0)
+def _build_regex_text_args(job: Dict[str, Any], resolution_id: int) -> list[str]:
     payload = job.get("payload") or {}
     page_id = payload.get("page_id")
     old_name = payload.get("old_name")
@@ -87,15 +85,13 @@ def _build_regex_text_args(job: Dict[str, Any]) -> list[str]:
     args = [
         "regex_text",
         "--page_id",
-        str(page_id),
+        str(page_id) if page_id is not None else "0",
         "--old_name",
         old_name,
         "--new_name",
         new_name,
-        "--last_page_id",
-        str(last_page_id),
-        "--batch_limit",
-        str(NAME_JOB_BATCH_LIMIT),
+        "--resolution_id",
+        str(resolution_id),
     ]
     return args
 
@@ -111,14 +107,11 @@ def _run_regex_text_command(args: list[str], include_log: bool = False) -> Dict[
         output = exc.output.strip()
         payload_json = _extract_json_dict(output)
         message = _summarize_errors(payload_json or {}, fallback=output[:500])
-        progress = {}
-        if payload_json:
-            progress = _extract_result_block(payload_json)
         return {
             "success": False,
             "message": message,
             "raw_output": output,
-            "progress": progress,
+            "result": _extract_result_block(payload_json) if payload_json else {},
         }
 
     payload_json = _extract_json_dict(result_text)
@@ -128,32 +121,20 @@ def _run_regex_text_command(args: list[str], include_log: bool = False) -> Dict[
             "success": False,
             "message": f"Invalid maintenance output: {snippet}",
             "raw_output": result_text,
-            "progress": {},
+            "result": {},
         }
     if payload_json.get("status") == "error":
         message = _summarize_errors(payload_json)
-        progress = _extract_result_block(payload_json)
         return {
             "success": False,
             "message": message,
             "raw_output": result_text,
-            "progress": progress,
+            "result": _extract_result_block(payload_json),
         }
 
-    progress = _extract_result_block(payload_json)
-    done = bool(progress.get("done"))
-    last_page_id = progress.get("last_page_id")
-    processed = progress.get("processed")
-    logging.info(
-        "Maintenance regex_text progress: processed=%s last_page_id=%s done=%s",
-        processed,
-        last_page_id,
-        done,
-    )
     return {
         "success": True,
-        "status": "done" if done else "running",
-        "progress": progress,
+        "result": _extract_result_block(payload_json),
         "raw_output": result_text,
     }
 
@@ -274,6 +255,26 @@ def _log_orphan_counts(conn):
         logging.exception("Failed to check orphan counts: %s", exc)
 
 
+@db_read
+def _get_referencing_page_ids(conn, source_page_id: int, last_page_id: int, batch_limit: int):
+    rows = r_query(
+        conn,
+        """
+        SELECT DISTINCT id
+        FROM links
+        WHERE resolution_id = %s
+          AND link NOT REGEXP '^[0-9]+$'
+          AND id > %s
+        ORDER BY id
+        LIMIT %s
+        """,
+        (source_page_id, last_page_id, batch_limit + 1),
+    )
+    ids = [row["id"] for row in rows[:batch_limit]]
+    has_more = len(rows) > batch_limit
+    return ids, has_more
+
+
 def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
     payload = job.get("payload") or {}
     progress = job.get("progress") or {}
@@ -292,38 +293,84 @@ def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
             "error_message": message,
         }
 
-    args = _build_regex_text_args(job)
-    first_attempt = _run_regex_text_command(args)
-    if first_attempt["success"]:
+    last_page_id = progress.get("last_page_id", 0)
+    pages_processed = progress.get("pages_processed", 0)
+    pages_modified = progress.get("pages_modified", 0)
+
+    resolution_ids, has_more = _get_referencing_page_ids(page_id, last_page_id, NAME_JOB_BATCH_LIMIT)
+    if not resolution_ids:
+        logging.info(
+            "No referencing pages remaining for maintenance job %s (page_id=%s)",
+            job["id"],
+            page_id,
+        )
+        done_progress = {
+            "last_page_id": last_page_id,
+            "pages_processed": pages_processed,
+            "pages_modified": pages_modified,
+            "batch_count": 0,
+            "done": True,
+        }
         return {
-            "status": first_attempt["status"],
-            "progress": first_attempt.get("progress") or progress,
+            "status": "done",
+            "progress": done_progress,
             "error_message": None,
         }
 
-    logging.error("Maintenance job %s failed: %s", job["id"], first_attempt.get("message"))
-    retry_attempt = _run_regex_text_command(args, include_log=True)
-    if retry_attempt["success"]:
-        logging.info("Maintenance job %s recovered after retry with -log", job["id"])
-        return {
-            "status": retry_attempt["status"],
-            "progress": retry_attempt.get("progress") or progress,
-            "error_message": None,
-        }
+    batch_count = 0
+    batch_modified = 0
+    last_processed_id = last_page_id
 
-    combined_progress = (
-        retry_attempt.get("progress")
-        or first_attempt.get("progress")
-        or progress
-    )
-    detailed_error = retry_attempt.get("raw_output") or first_attempt.get("raw_output") or ""
-    message = retry_attempt.get("message") or first_attempt.get("message") or "maintenance handler failed"
-    if detailed_error and detailed_error not in message:
-        message = f"{message}\n{detailed_error}"
+    for resolution_id in resolution_ids:
+        args = _build_regex_text_args(job, resolution_id)
+        first_attempt = _run_regex_text_command(args)
+        attempt_result = first_attempt
+        if not first_attempt["success"]:
+            logging.error("Maintenance job %s failed for page %s: %s", job["id"], resolution_id, first_attempt.get("message"))
+            retry_attempt = _run_regex_text_command(args, include_log=True)
+            if retry_attempt["success"]:
+                logging.info("Maintenance job %s recovered for page %s after retry with -log", job["id"], resolution_id)
+                attempt_result = retry_attempt
+            else:
+                combined_progress = {
+                    "last_page_id": last_processed_id,
+                    "pages_processed": pages_processed,
+                    "pages_modified": pages_modified,
+                    "batch_count": batch_count,
+                    "done": False,
+                }
+                detailed_error = retry_attempt.get("raw_output") or first_attempt.get("raw_output") or ""
+                message = retry_attempt.get("message") or first_attempt.get("message") or "maintenance handler failed"
+                if detailed_error and detailed_error not in message:
+                    message = f"{message}\n{detailed_error}"
+                return {
+                    "status": "error",
+                    "progress": combined_progress,
+                    "error_message": message.strip(),
+                }
+
+        batch_count += 1
+        pages_processed += 1
+        result_block = attempt_result.get("result") or {}
+        if result_block.get("processed") or result_block.get("modified"):
+            batch_modified += 1
+            pages_modified += 1
+        last_processed_id = resolution_id
+
+    done = not has_more
+    progress_payload = {
+        "last_page_id": last_processed_id,
+        "pages_processed": pages_processed,
+        "pages_modified": pages_modified,
+        "batch_count": batch_count,
+        "batch_modified": batch_modified,
+        "done": done,
+    }
+    status = "done" if done else "running"
     return {
-        "status": "error",
-        "progress": combined_progress,
-        "error_message": message.strip(),
+        "status": status,
+        "progress": progress_payload,
+        "error_message": None,
     }
 
 

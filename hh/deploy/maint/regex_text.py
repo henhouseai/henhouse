@@ -38,9 +38,8 @@ def regex_text() -> bool:
         return False
 
     page_id_arg = gateway.get_arg("page_id")
-    if not page_id_arg:
-        report_error("request", "Missing required argument: page_id")
-    else:
+    page_id: Optional[int] = None
+    if page_id_arg:
         try:
             page_id = int(page_id_arg)
             if page_id <= 0:
@@ -49,48 +48,50 @@ def regex_text() -> bool:
         except (ValueError, TypeError):
             report_error("request", f"Invalid page_id: {page_id_arg}")
             page_id = None
+
+    resolution_id_arg = gateway.get_arg("resolution_id")
+    resolution_id: Optional[int] = None
+    if not resolution_id_arg:
+        report_error("request", "Missing required argument: resolution_id")
+    else:
+        try:
+            resolution_id = int(resolution_id_arg)
+            if resolution_id <= 0:
+                report_error("request", f"Invalid resolution_id: {resolution_id} (must be > 0)")
+                resolution_id = None
+        except (ValueError, TypeError):
+            report_error("request", f"Invalid resolution_id: {resolution_id_arg}")
+            resolution_id = None
     
     old_name = gateway.get_arg("old_name")
     new_name = gateway.get_arg("new_name")
     
-    last_page_id_arg = gateway.get_arg("last_page_id") or "0"
-    try:
-        last_page_id = int(last_page_id_arg)
-        if last_page_id < 0:
-            report_error("request", f"Invalid last_page_id: {last_page_id} (must be >= 0)")
-            last_page_id = 0
-    except (ValueError, TypeError):
-        last_page_id = 0
-    
-    batch_limit_arg = gateway.get_arg("batch_limit") or "25"
-    try:
-        batch_limit = int(batch_limit_arg)
-        if batch_limit <= 0:
-            batch_limit = 25
-    except (ValueError, TypeError):
-        batch_limit = 25
-
     if not old_name or not new_name:
         report_error("request", "Both old_name and new_name are required")
+
+    if resolution_id_arg and resolution_id is None:
+        # error already recorded
+        pass
 
     if is_error():
         trace_out()
         return False
 
-    log(f"Loading page {page_id} for maintenance name change")
-    page_obj = get_page(page_id=page_id)
+    log(
+        f"Loading resolution page {resolution_id} for maintenance rename "
+        f"(source page={page_id}, {old_name} -> {new_name})"
+    )
+    page_obj = get_page(page_id=resolution_id)
     if not page_obj:
-        warn(f"Page {page_id} could not be loaded")
-        report_error("registry", f"Page {page_id} could not be loaded")
+        warn(f"Page {resolution_id} could not be loaded")
+        report_error("registry", f"Page {resolution_id} could not be loaded")
         trace_out()
         return False
 
-    log(f"Processing name change: {old_name} -> {new_name} (last_page_id={last_page_id}, batch_limit={batch_limit})")
-    result = page_obj.maintenance_process_name_change(
+    log(f"Processing maintenance rename for resolution page {resolution_id}")
+    result = page_obj.regex_text(
         old_name=old_name,
         new_name=new_name,
-        last_page_id=last_page_id,
-        batch_limit=batch_limit,
     )
 
     gateway.response.set_action_response(
@@ -98,13 +99,17 @@ def regex_text() -> bool:
             {
                 "operation": "regex_text",
                 "page_id": page_id,
+                "resolution_id": resolution_id,
                 "old_name": old_name,
                 "new_name": new_name,
                 "result": result,
             }
         )
     )
-    log(f"Maintenance name change completed: processed={result.get('processed')}, done={result.get('done')}")
+    log(
+        f"Maintenance rename for resolution page {resolution_id} completed: "
+        f"processed={result.get('processed')}, modified={result.get('modified')}"
+    )
     trace_out()
     return not is_error()
 

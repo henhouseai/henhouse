@@ -1,7 +1,6 @@
 from typing import Dict, Any, List, Optional, Union
 import datetime as dt
 import json
-import re
 from copy import deepcopy
 from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
 from hh.gateway.connection.decorators import db_read, db_write
@@ -40,7 +39,6 @@ def _register_content_methods():
         'get_page_data': {'mixin_method': '_get_page_data', 'decorator': 'read'},
         'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
         'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
-        'maintenance_process_name_change': {'mixin_method': '_maintenance_process_name_change', 'decorator': 'write'},
     }
 
 
@@ -229,76 +227,6 @@ class PageContentMixin:
             log(f"Successfully updated page {self.id} name to '{name_value}'")
         trace_out()
         return not is_error()
-
-    @staticmethod
-    def _maintenance_replace_name_tokens(text: str, old_name: str, new_name: str) -> str:
-        if not text or not old_name or not new_name:
-            return text
-        replacements = [
-            (f"[[{old_name}]]", f"[[{new_name}]]"),
-            (f"[[{old_name}][", f"[[{new_name}]["),
-            (f"{{{{{old_name}}}}}", f"{{{{{new_name}}}}}"),
-            (f"{{{{{old_name}}}{{", f"{{{{{new_name}}}{{"),
-        ]
-        updated = text
-        for pattern, replacement in replacements:
-            updated = re.sub(re.escape(pattern), replacement, updated)
-        return updated
-
-    def _maintenance_process_name_change(
-        self,
-        *,
-        old_name: str,
-        new_name: str,
-        last_page_id: int = 0,
-        batch_limit: int = 25,
-    ) -> Dict[str, Any]:
-        trace_in()
-        result = {"processed": 0, "last_page_id": last_page_id, "done": False}
-        if not old_name or not new_name:
-            result["done"] = True
-            trace_out()
-            return result
-
-        limit = max(1, batch_limit)
-        rows = r_query(
-            self.conn,
-            """
-            SELECT DISTINCT id
-            FROM links
-            WHERE resolution_id = %s
-              AND link NOT REGEXP '^[0-9]+$'
-              AND id > %s
-            ORDER BY id
-            LIMIT %s
-            """,
-            (self.id, last_page_id, limit),
-        )
-
-        if not rows:
-            result["done"] = True
-            trace_out()
-            return result
-
-        for row in rows:
-            ref_page_id = row["id"]
-            ref_page = get_page_conn(self.conn, ref_page_id)
-            if not ref_page:
-                warn(f"Referenced page {ref_page_id} not found during rename maintenance")
-                result["last_page_id"] = ref_page_id
-                continue
-
-            existing_text = ref_page.text or ""
-            updated_text = self._maintenance_replace_name_tokens(existing_text, old_name, new_name)
-            if updated_text != existing_text:
-                if not ref_page.modify_text(updated_text):
-                    raise RuntimeError(f"Failed to update text for referenced page {ref_page_id}")
-
-            result["processed"] += 1
-            result["last_page_id"] = ref_page_id
-
-        trace_out()
-        return result
 
 
     def _modify_text(self, text: str) -> bool:

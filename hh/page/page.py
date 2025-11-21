@@ -14,6 +14,7 @@ from hh.tp.tp import TextProcessor
 from hh.page.page_validation import PageValidationMixin
 from hh.page.page_hierarchy import PageHierarchyMixin
 from hh.page.page_content import PageContentMixin
+from hh.page.page_maintenance import PageMaintenanceMixin
 from hh.page.page_images import PageImagesMixin
 from hh.page.page_display import PageDisplayMixin
 from hh.page.page_ajax import PageAjaxMixin
@@ -87,6 +88,7 @@ class Page(
     PageValidationMixin,
     PageHierarchyMixin,
     PageContentMixin,
+    PageMaintenanceMixin,
     PageImagesMixin,
     PageDisplayMixin,
     PageAjaxMixin,
