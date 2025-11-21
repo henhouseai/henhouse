@@ -526,5 +526,13 @@ class PageContentMixin:
             self.comments = comments
             log(f"Updated page {self.id} modification flags: {comments}")
             self.clear_cached_payload_state()
+        if not is_error():
+            # If this is not a "child page modified" comment, also flag the parent
+            # This prevents infinite recursion up the tree
+            if comments != "child page modified":
+                if self.parent and self.parent != 0:
+                    parent_page = get_page(page_id=self.parent)
+                    if parent_page:
+                        parent_page.flag_page_modification("child page modified")
         trace_out()
         return not is_error()
