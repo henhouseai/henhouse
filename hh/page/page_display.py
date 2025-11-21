@@ -32,10 +32,16 @@ def _register_display_methods():
 class PageDisplayMixin:
     
     def add_upper_content(self) -> List[str]:
+        if hasattr(self, 'cached_upper_content') and self.cached_upper_content is not None:
+            debug(f"Page {self.id}: returning cached upper_content")
+            return self.cached_upper_content
         return []
     
 
     def add_lower_content(self) -> List[str]:
+        if hasattr(self, 'cached_lower_content') and self.cached_lower_content is not None:
+            debug(f"Page {self.id}: returning cached lower_content")
+            return self.cached_lower_content
         return []
 
 
@@ -47,6 +53,9 @@ class PageDisplayMixin:
 
 
     def add_badge_headers(self) -> Dict[str, Any]:
+        if hasattr(self, 'cached_badge_headers') and self.cached_badge_headers is not None:
+            debug(f"Page {self.id}: returning cached badge_headers")
+            return self.cached_badge_headers
         badge_headers = {}
         page_data = self.get_page_data()
         # Calculate children count from children_by_class
@@ -74,22 +83,7 @@ class PageDisplayMixin:
         if gateway and gateway.backend == "mcp":
             lightweight = True
         if cache_ready and not lightweight:
-            debug(f"Page {self.id}: serving show_page payload from cache")
-            page_data = self.get_page_data()
-            if self.cached_prepared_text is not None:
-                page_data = dict(page_data)
-                page_data['prepared_text'] = self.cached_prepared_text
-            response_data = {
-                "page": page_data,
-                "children_by_class": self.cached_children_by_class or {},
-                "images": self.cached_images or [],
-                "badge_headers": self.cached_badge_headers or {},
-                "upper_content": self.cached_upper_content or [],
-                "lower_content": self.cached_lower_content or [],
-            }
-            trace_out()
-            return response_data
-
+            debug(f"Page {self.id}: cache available, methods will check cache independently")
         if lightweight:
             debug(f"Page {self.id}: cache miss or stale entry; rebuilding lightweight payload")
         else:
@@ -166,6 +160,9 @@ class PageDisplayMixin:
 
 
     def _get_children_by_class(self) -> Dict[str, Dict[str, Any]]:
+        if hasattr(self, 'cached_children_by_class') and self.cached_children_by_class is not None:
+            debug(f"Page {self.id}: returning cached children_by_class")
+            return self.cached_children_by_class
         from hh.gateway.connection.connection import r_query
         from hh.page.page_registry import get_page
         trace_in()
