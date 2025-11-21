@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from hh.deploy.maint.job_queue import update_maintenance_job
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command
@@ -74,8 +73,6 @@ def regex_text() -> bool:
     if not old_name or not new_name:
         report_error("request", "Both old_name and new_name are required")
 
-    job_id = gateway.get_arg("job_id")
-
     if is_error():
         trace_out()
         return False
@@ -95,14 +92,6 @@ def regex_text() -> bool:
         last_page_id=last_page_id,
         batch_limit=batch_limit,
     )
-
-    if job_id and (result["processed"] or result["done"]):
-        log(f"Updating maintenance job {job_id}: processed={result.get('processed')}, done={result.get('done')}")
-        update_maintenance_job(
-            job_id=int(job_id),
-            status="done" if result["done"] else "running",
-            progress=result,
-        )
 
     gateway.response.set_action_response(
         success_payload(

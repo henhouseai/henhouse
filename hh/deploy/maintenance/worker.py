@@ -46,6 +46,14 @@ def _extract_text_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
+def _extract_result_block(payload_json: Dict[str, Any]) -> Dict[str, Any]:
+    text_payload = _extract_text_payload(payload_json)
+    result_block = text_payload.get("result")
+    if isinstance(result_block, dict):
+        return result_block
+    return {}
+
+
 def _summarize_errors(payload: Dict[str, Any], fallback: str = "") -> str:
     errors = payload.get("errors")
     if isinstance(errors, dict):
@@ -67,6 +75,87 @@ def _summarize_errors(payload: Dict[str, Any], fallback: str = "") -> str:
         if message:
             return str(message)
     return fallback or "maintenance action reported an error"
+
+
+def _build_regex_text_args(job: Dict[str, Any]) -> list[str]:
+    progress = job.get("progress") or {}
+    last_page_id = progress.get("last_page_id", 0)
+    payload = job.get("payload") or {}
+    page_id = payload.get("page_id")
+    old_name = payload.get("old_name")
+    new_name = payload.get("new_name")
+    args = [
+        "regex_text",
+        "--page_id",
+        str(page_id),
+        "--old_name",
+        old_name,
+        "--new_name",
+        new_name,
+        "--last_page_id",
+        str(last_page_id),
+        "--batch_limit",
+        str(NAME_JOB_BATCH_LIMIT),
+    ]
+    return args
+
+
+def _run_regex_text_command(args: list[str], include_log: bool = False) -> Dict[str, Any]:
+    cmd_args = list(args)
+    if include_log and "-log" not in cmd_args:
+        cmd_args.insert(1, "-log")
+    command = ["python3", f"/srv/{PROJECT_NAME}/maintenance_client.py"] + cmd_args
+    try:
+        result_text = check_output(command, stderr=STDOUT, text=True)
+    except CalledProcessError as exc:
+        output = exc.output.strip()
+        payload_json = _extract_json_dict(output)
+        message = _summarize_errors(payload_json or {}, fallback=output[:500])
+        progress = {}
+        if payload_json:
+            progress = _extract_result_block(payload_json)
+        return {
+            "success": False,
+            "message": message,
+            "raw_output": output,
+            "progress": progress,
+        }
+
+    payload_json = _extract_json_dict(result_text)
+    if not payload_json:
+        snippet = result_text.strip()[:500]
+        return {
+            "success": False,
+            "message": f"Invalid maintenance output: {snippet}",
+            "raw_output": result_text,
+            "progress": {},
+        }
+    if payload_json.get("status") == "error":
+        message = _summarize_errors(payload_json)
+        progress = _extract_result_block(payload_json)
+        return {
+            "success": False,
+            "message": message,
+            "raw_output": result_text,
+            "progress": progress,
+        }
+
+    progress = _extract_result_block(payload_json)
+    done = bool(progress.get("done"))
+    last_page_id = progress.get("last_page_id")
+    processed = progress.get("processed")
+    logging.info(
+        "Maintenance regex_text progress: processed=%s last_page_id=%s done=%s",
+        processed,
+        last_page_id,
+        done,
+    )
+    return {
+        "success": True,
+        "status": "done" if done else "running",
+        "progress": progress,
+        "raw_output": result_text,
+    }
 
 
 def configure_logging():
@@ -198,106 +287,43 @@ def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
         message = f"Job {job['id']} missing rename payload"
         logging.warning(message)
         return {
-            "success": False,
-            "done": True,
+            "status": "error",
             "progress": progress,
-            "message": message,
+            "error_message": message,
         }
 
-    last_page_id = progress.get("last_page_id", 0)
-    args = [
-        "regex_text",
-        "--page_id",
-        str(page_id),
-        "--old_name",
-        old_name,
-        "--new_name",
-        new_name,
-        "--last_page_id",
-        str(last_page_id),
-        "--batch_limit",
-        str(NAME_JOB_BATCH_LIMIT),
-    ]
-    if job.get("id"):
-        args.extend(["--job_id", str(job["id"])])
-
-    try:
-        result_text = check_output(
-            ["python3", f"/srv/{PROJECT_NAME}/maintenance_client.py"] + args,
-            stderr=STDOUT,
-            text=True,
-        )
-    except CalledProcessError as exc:
-        output = exc.output.strip()
-        logging.error("Maintenance job %s failed: %s", job["id"], output)
-        payload_json = _extract_json_dict(output)
-        message = _summarize_errors(payload_json or {}, fallback=output[:500])
-        new_progress = progress
-        if payload_json:
-            text_payload = _extract_text_payload(payload_json)
-            result_block = text_payload.get("result")
-            if isinstance(result_block, dict) and result_block:
-                new_progress = result_block
+    args = _build_regex_text_args(job)
+    first_attempt = _run_regex_text_command(args)
+    if first_attempt["success"]:
         return {
-            "success": False,
-            "done": False,
-            "progress": new_progress,
-            "message": message,
+            "status": first_attempt["status"],
+            "progress": first_attempt.get("progress") or progress,
+            "error_message": None,
         }
 
-    payload_json = _extract_json_dict(result_text)
-    if not payload_json:
-        snippet = result_text.strip()[:500]
-        logging.error("Maintenance job %s returned invalid output: %s", job["id"], snippet)
+    logging.error("Maintenance job %s failed: %s", job["id"], first_attempt.get("message"))
+    retry_attempt = _run_regex_text_command(args, include_log=True)
+    if retry_attempt["success"]:
+        logging.info("Maintenance job %s recovered after retry with -log", job["id"])
         return {
-            "success": False,
-            "done": False,
-            "progress": progress,
-            "message": f"Invalid maintenance output: {snippet}",
+            "status": retry_attempt["status"],
+            "progress": retry_attempt.get("progress") or progress,
+            "error_message": None,
         }
 
-    if payload_json.get("status") == "error":
-        errors = payload_json.get("errors")
-        if errors:
-            # Log full error details
-            if isinstance(errors, list):
-                for error in errors:
-                    error_type = error.get("type", "unknown")
-                    error_content = error.get("content", "no content")
-                    logging.error("Maintenance job %s error [%s]: %s", job["id"], error_type, error_content)
-            elif isinstance(errors, dict):
-                for key, value in errors.items():
-                    logging.error("Maintenance job %s error [%s]: %s", job["id"], key, value)
-        message = _summarize_errors(payload_json)
-        text_payload = _extract_text_payload(payload_json)
-        result_block = text_payload.get("result")
-        new_progress = result_block if isinstance(result_block, dict) else progress
-        return {
-            "success": False,
-            "done": False,
-            "progress": new_progress,
-            "message": message,
-        }
-
-    text_payload = _extract_text_payload(payload_json)
-    result_block = text_payload.get("result") or {}
-    if not isinstance(result_block, dict):
-        result_block = {}
-    done = bool(result_block.get("done"))
-    last_page_id = result_block.get("last_page_id")
-    processed = result_block.get("processed")
-    logging.info(
-        "Maintenance job %s progress: processed=%s last_page_id=%s done=%s",
-        job["id"],
-        processed,
-        last_page_id,
-        done,
+    combined_progress = (
+        retry_attempt.get("progress")
+        or first_attempt.get("progress")
+        or progress
     )
+    detailed_error = retry_attempt.get("raw_output") or first_attempt.get("raw_output") or ""
+    message = retry_attempt.get("message") or first_attempt.get("message") or "maintenance handler failed"
+    if detailed_error and detailed_error not in message:
+        message = f"{message}\n{detailed_error}"
     return {
-        "success": True,
-        "done": done,
-        "progress": result_block or progress,
-        "message": None,
+        "status": "error",
+        "progress": combined_progress,
+        "error_message": message.strip(),
     }
 
 
@@ -328,22 +354,16 @@ def _process_job_queue():
         handler_result = handler(job)
         if not isinstance(handler_result, dict):
             handler_result = {
-                "success": False,
-                "done": False,
+                "status": "error",
                 "progress": job.get("progress"),
-                "message": "Handler returned invalid response",
+                "error_message": "Handler returned invalid response",
             }
 
+        status = handler_result.get("status") or "running"
         progress_payload = handler_result.get("progress") or job.get("progress") or {}
         if not isinstance(progress_payload, dict):
             progress_payload = {}
-        if handler_result.get("success"):
-            if handler_result.get("message"):
-                logging.info("Maintenance job %s: %s", job["id"], handler_result["message"])
-            return
-
-        status = "done" if handler_result.get("done") else "error"
-        error_message = handler_result.get("message") or "maintenance handler failed"
+        error_message = handler_result.get("error_message")
 
         update_maintenance_job(
             job_id=job["id"],
@@ -351,6 +371,17 @@ def _process_job_queue():
             progress=progress_payload,
             error_message=error_message,
         )
+
+        if status == "error":
+            logging.error(
+                "Maintenance job %s marked as error: %s",
+                job["id"],
+                error_message or "maintenance handler failed",
+            )
+        elif status == "done":
+            logging.info("Maintenance job %s completed", job["id"])
+        else:
+            logging.debug("Maintenance job %s progress updated", job["id"])
 
     except Exception as exc:  # noqa: BLE001
         logging.exception("Maintenance job processing failed: %s", exc)
