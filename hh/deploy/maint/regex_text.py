@@ -99,7 +99,7 @@ def regex_text() -> bool:
     if job_id and (result["processed"] or result["done"]):
         log(f"Updating maintenance job {job_id}: processed={result.get('processed')}, done={result.get('done')}")
         update_maintenance_job(
-            int(job_id),
+            job_id=int(job_id),
             status="done" if result["done"] else "running",
             progress=result,
         )

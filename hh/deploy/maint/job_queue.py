@@ -133,7 +133,6 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
 def update_maintenance_job(
     conn,
     job_id: int,
-    *,
     status: Optional[str] = None,
     progress: Optional[Dict[str, Any]] = None,
     error_message: Optional[str] = None,
