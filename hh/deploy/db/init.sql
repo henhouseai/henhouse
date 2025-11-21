@@ -371,6 +371,24 @@ CREATE TABLE IF NOT EXISTS `keywords` (
   CONSTRAINT `keywords_ibfk_1` FOREIGN KEY (`created_by_agent_id`) REFERENCES `agents` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `maintenance_jobs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `job_type` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('pending','running','done','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `payload_json` json NOT NULL,
+  `progress_json` json DEFAULT NULL,
+  `priority` int NOT NULL DEFAULT 0,
+  `attempts` int NOT NULL DEFAULT 0,
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  `started_at` datetime(6) DEFAULT NULL,
+  `completed_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_status_priority` (`status`,`priority`,`created_at`),
+  KEY `idx_job_type` (`job_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `sidecar_file_blobs` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `sidecar_file_id` bigint NOT NULL,

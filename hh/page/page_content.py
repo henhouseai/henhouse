@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Optional, Union
 import datetime as dt
-import re
 import json
+import re
 from copy import deepcopy
 from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
 from hh.gateway.connection.decorators import db_read, db_write
@@ -9,6 +9,7 @@ from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+from hh.deploy.maintenance.job_queue import enqueue_maintenance_job
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
 from hh.page.page_registry import get_page, get_page_conn
@@ -210,75 +211,109 @@ class PageContentMixin:
             modification_type = 'name and link' if self.auto_link_name() else 'name'
             log(f"Flagging page modification: {modification_type} changed")
             self.flag_page_modification(f"{modification_type} changed")
-        if not is_error() and old_name is not None:
-            # Only update links if we had an old name (skip if clearing name from None)
-            # Update all pages that link to this renamed page
-            debug(f"DEBUG: Starting link processing for page {self.id} (old_name: '{old_name}', new_name: '{name_value}')")
-            debug(f"DEBUG: Looking for pages that reference page {self.id} (old_name: '{old_name}', new_name: '{name_value}')")
-            results = r_query(self.conn, """
-                SELECT id, link FROM links 
-                WHERE resolution_id = %s 
-                AND link NOT REGEXP '^[0-9]+$'
-            """, (self.id,))
-            debug(f"DEBUG: Found {len(results)} pages referencing '{old_name}': {results}")
-            if len(results) == 0:
-                debug(f"DEBUG: No pages found that reference '{old_name}', skipping link processing")
-            else:
-                debug(f"DEBUG: Processing {len(results)} pages that reference '{old_name}'")
-            for i, link_data in enumerate(results):
-                page_id = link_data['id']
-                link_text = link_data['link']
-                if not is_error():
-                    debug(f"DEBUG: Processing page {i+1}/{len(results)}: page_id={page_id}, link_text='{link_text}'")
-                    # Get page text and update it
-                    text_results = r_query(self.conn, "SELECT text FROM pages WHERE id = %s", (page_id,))
-                    if text_results:
-                        text = text_results[0]['text'] if text_results[0]['text'] is not None else ""
-                        debug(f"DEBUG: Retrieved text for page {page_id}: {repr(text[:100])}{'...' if len(text) > 100 else ''}")
-                        # Apply regex replacements (only if new name is not None)
-                        if name_value is not None:
-                            debug(f"DEBUG: Applying regex replacements for page {page_id}...")
-                            new_text = text  # Initialize new_text before regex operations
-                            debug(f"DEBUG: Pattern 1: [[{old_name}]] -> [[{name_value}]]")
-                            new_text = re.sub(re.escape(f"[[{old_name}]]"), f"[[{name_value}]]", new_text)
-                            debug(f"DEBUG: Pattern 2: [[{old_name}][ -> [[{name_value}][")
-                            new_text = re.sub(re.escape(f"[[{old_name}]["), f"[[{name_value}][", new_text)
-                            debug(f"DEBUG: Pattern 3: {{{{{old_name}}}}} -> {{{{{name_value}}}}}")
-                            new_text = re.sub(re.escape(f"{{{{{old_name}}}}}"), f"{{{{{name_value}}}}}", new_text)
-                            debug(f"DEBUG: Pattern 4: {{{{{old_name}}}{{ -> {{{{{name_value}}}{{")
-                            new_text = re.sub(re.escape(f"{{{{{old_name}}}{{"), f"{{{{{name_value}}}{{", new_text)
-                            debug(f"DEBUG: After regex processing for page {page_id}: {repr(new_text[:100])}{'...' if len(new_text) > 100 else ''}")
-                            # Update page text if changed
-                            if new_text != text:
-                                debug(f"DEBUG: Text changed for page {page_id}, updating database...")
-                                affected = u_query(self.conn, "UPDATE pages SET text = %s WHERE id = %s", (new_text, page_id))
-                                if affected == 0:
-                                    warn(f"Failed to update page {page_id} text - no rows affected")
-                                    report_error("action", f"Failed to update page {page_id} text")
-                                else:
-                                    debug(f"DEBUG: Successfully updated page {page_id} text in database")
-                            else:
-                                debug(f"DEBUG: Text unchanged for page {page_id}, no database update needed")
-                        else:
-                            debug(f"DEBUG: Skipping regex replacements - new name is None")
-                        # Update links table
-                        debug(f"DEBUG: Updating links table for page {page_id}: link_text '{link_text}' -> '{name_value}'")
-                        affected = u_query(self.conn, """
-                            UPDATE links SET link = %s 
-                            WHERE id = %s AND link = %s AND resolution_id = %s
-                        """, (name_value, page_id, link_text, self.id))
-                        if affected == 0:
-                            warn(f"Failed to update links table for page {page_id}")
-                            report_error("action", f"Failed to update links table for page {page_id}")
-                        else:
-                            debug(f"DEBUG: Successfully updated links table for page {page_id}")
-                    else:
-                        debug(f"DEBUG: No text found for page {page_id}, skipping")
+        if not is_error() and old_name and name_value:
+            try:
+                job_id = enqueue_maintenance_job(
+                    self.conn,
+                    "page_name_update",
+                    {
+                        "page_id": self.id,
+                        "old_name": old_name,
+                        "new_name": name_value,
+                    },
+                )
+                log(f"Enqueued maintenance job {job_id} for page {self.id} name change")
+            except Exception as exc:  # noqa: BLE001
+                warn(f"Failed to enqueue maintenance job for page {self.id}: {exc}")
         if not is_error():
             self.name = name_value
             log(f"Successfully updated page {self.id} name to '{name_value}'")
         trace_out()
         return not is_error()
+
+    @staticmethod
+    def _maintenance_replace_name_tokens(text: str, old_name: str, new_name: str) -> str:
+        if not text or not old_name or not new_name:
+            return text
+        replacements = [
+            (f"[[{old_name}]]", f"[[{new_name}]]"),
+            (f"[[{old_name}][", f"[[{new_name}]["),
+            (f"{{{{{old_name}}}}}", f"{{{{{new_name}}}}}"),
+            (f"{{{{{old_name}}}{{", f"{{{{{new_name}}}{{"),
+        ]
+        updated = text
+        for pattern, replacement in replacements:
+            updated = re.sub(re.escape(pattern), replacement, updated)
+        return updated
+
+    def maintenance_process_name_change(
+        self,
+        *,
+        old_name: str,
+        new_name: str,
+        last_page_id: int = 0,
+        batch_limit: int = 25,
+    ) -> Dict[str, Any]:
+        trace_in()
+        result = {"processed": 0, "last_page_id": last_page_id, "done": False}
+        if not old_name or not new_name:
+            result["done"] = True
+            trace_out()
+            return result
+
+        limit = max(1, batch_limit)
+        rows = r_query(
+            self.conn,
+            """
+            SELECT DISTINCT id
+            FROM links
+            WHERE resolution_id = %s
+              AND link NOT REGEXP '^[0-9]+$'
+              AND id > %s
+            ORDER BY id
+            LIMIT %s
+            """,
+            (self.id, last_page_id, limit),
+        )
+
+        if not rows:
+            result["done"] = True
+            trace_out()
+            return result
+
+        for row in rows:
+            ref_page_id = row["id"]
+            ref_page = get_page_conn(self.conn, ref_page_id)
+            if not ref_page:
+                warn(f"Referenced page {ref_page_id} not found during rename maintenance")
+                result["last_page_id"] = ref_page_id
+                continue
+
+            existing_text = ref_page.text or ""
+            updated_text = self._maintenance_replace_name_tokens(existing_text, old_name, new_name)
+            if updated_text != existing_text:
+                if not ref_page.modify_text(updated_text):
+                    raise RuntimeError(f"Failed to update text for referenced page {ref_page_id}")
+
+            affected = u_query(
+                self.conn,
+                """
+                UPDATE links
+                SET link = %s
+                WHERE id = %s
+                  AND resolution_id = %s
+                  AND link NOT REGEXP '^[0-9]+$'
+                """,
+                (new_name, ref_page_id, self.id),
+            )
+            if affected == 0:
+                warn(f"Links table update affected 0 rows for page {ref_page_id}")
+
+            result["processed"] += 1
+            result["last_page_id"] = ref_page_id
+
+        trace_out()
+        return result
 
 
     def _modify_text(self, text: str) -> bool:

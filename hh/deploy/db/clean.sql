@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS `entity_refs`;
 DROP TABLE IF EXISTS `entity_tags`;
 DROP TABLE IF EXISTS `keyword_aliases`;
 DROP TABLE IF EXISTS `keywords`;
+DROP TABLE IF EXISTS `maintenance_jobs`;
 DROP TABLE IF EXISTS `sidecar_file_blobs`;
 DROP TABLE IF EXISTS `sidecar_files`;
 DROP TABLE IF EXISTS `step_sidecar_link`;
