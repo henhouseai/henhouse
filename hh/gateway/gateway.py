@@ -26,6 +26,7 @@ def _initialize_debug():
 
 from hh.gateway.request.request import Request
 from hh.gateway.registry.registry import CommandRegistry
+from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 
 __all__ = [
     "get_gateway",
@@ -57,23 +58,15 @@ class Gateway:
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
         # Lazy load and instantiate appropriate Response subclass based on backend
         self.backend = backend
-        if backend == "http":
-            from hh.gateway.response.response_http import ResponseHTTP
-            self.response = ResponseHTTP()
-            log("Initialized HTTP response handler")
-        elif backend == "parser":
-            from hh.gateway.response.response_parser import ResponseParser
-            self.response = ResponseParser()
-            log("Initialized parser response handler")
-        elif backend == "mcp":
-            from hh.gateway.response.response_mcp import ResponseMCP
-            self.response = ResponseMCP()
-            log("Initialized MCP response handler")
-        else:
-            # Default to parser for unknown backends (backward compatibility)
-            from hh.gateway.response.response_parser import ResponseParser
-            self.response = ResponseParser()
+        response_path = BACKEND_RESPONSE_MODULES.get(backend)
+        if response_path is None:
+            response_path = BACKEND_RESPONSE_MODULES.get("parser")
             log(f"Unknown backend '{backend}', defaulting to parser response handler")
+        module_name, class_name = response_path.rsplit(".", 1)
+        module = __import__(module_name, fromlist=[class_name])
+        ResponseClass = getattr(module, class_name)
+        self.response = ResponseClass()
+        log(f"Initialized {backend} response handler: {response_path}")
         
         if not is_error():
             self.request = Request(raw_argv)

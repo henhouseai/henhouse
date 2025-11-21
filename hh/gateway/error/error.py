@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Union
-from hh.gateway.registry.registry import register_parser, register_http, register_mcp
+from hh.gateway.registry.registry import register_parser, register_http, register_mcp, register_maintenance
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
@@ -252,5 +252,35 @@ def mcp_error() -> bool:
     }
     
     log(f"MCP error handler completed successfully with {len(errors_data)} errors")
+    trace_out()
+    return True
+
+
+@register_maintenance('maintenance_error')
+def maintenance_error() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return False
+
+    global_errors = get_errors()
+    if not global_errors:
+        log("No errors to display")
+        trace_out()
+        return True
+
+    errors_data = [
+        {
+            "type": error.error_type.value,
+            "content": error.content,
+            "timestamp": error.timestamp,
+        }
+        for error in global_errors
+    ]
+
+    gateway.response.error_output = {"errors": errors_data}
+    log(f"Maintenance error handler completed with {len(errors_data)} errors")
     trace_out()
     return True

@@ -295,20 +295,6 @@ class PageContentMixin:
                 if not ref_page.modify_text(updated_text):
                     raise RuntimeError(f"Failed to update text for referenced page {ref_page_id}")
 
-            affected = u_query(
-                self.conn,
-                """
-                UPDATE links
-                SET link = %s
-                WHERE id = %s
-                  AND resolution_id = %s
-                  AND link NOT REGEXP '^[0-9]+$'
-                """,
-                (new_name, ref_page_id, self.id),
-            )
-            if affected == 0:
-                warn(f"Links table update affected 0 rows for page {ref_page_id}")
-
             result["processed"] += 1
             result["last_page_id"] = ref_page_id
 

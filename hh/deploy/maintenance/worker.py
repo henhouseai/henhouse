@@ -3,12 +3,12 @@ import os
 import signal
 import sys
 import time
+from subprocess import CalledProcessError, check_output, STDOUT
 from typing import Any, Dict, Optional
 
 from hh.deploy.cache.rebuild_cache import run_cache_rebuild_batch
-from hh.gateway.connection.connection import HenhouseConnection, get_connection, load_dsn_pair
 from hh.deploy.maint.job_queue import claim_next_maintenance_job, update_maintenance_job
-from hh.page.page_registry import get_page_conn
+from hh.gateway.connection.connection import HenhouseConnection, get_connection, load_dsn_pair, r_query
 
 PROJECT_NAME = "__PROJECT_NAME__"
 SLEEP_INTERVAL_SECONDS = 5
@@ -92,7 +92,87 @@ def _close_connection_bundle(bundle: Optional[Dict[str, Any]]) -> None:
         logging.exception("Failed to close cache connection")
 
 
-def _process_page_name_job(connections: Dict[str, Any], job: Dict[str, Any]) -> bool:
+def _log_orphan_counts():
+    primary_dsn, _ = load_dsn_pair()
+    if not primary_dsn:
+        logging.warning("Cannot check orphans: missing DSN")
+        return
+    conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
+    if not conn:
+        logging.warning("Cannot check orphans: failed to open connection")
+        return
+    try:
+        orphan_pages = r_query(
+            conn,
+            """
+            SELECT COUNT(*) AS cnt
+            FROM pages child
+            LEFT JOIN pages parent ON parent.id = child.parent
+            WHERE child.parent <> 0 AND parent.id IS NULL
+            """,
+        )[0]["cnt"]
+
+        orphan_link_sources = r_query(
+            conn,
+            """
+            SELECT COUNT(*) AS cnt
+            FROM links l
+            LEFT JOIN pages p ON p.id = l.id
+            WHERE p.id IS NULL
+            """,
+        )[0]["cnt"]
+
+        orphan_link_targets = r_query(
+            conn,
+            """
+            SELECT COUNT(*) AS cnt
+            FROM links l
+            LEFT JOIN pages p ON p.id = l.resolution_id
+            WHERE p.id IS NULL
+            """,
+        )[0]["cnt"]
+
+        orphan_image_pages = r_query(
+            conn,
+            """
+            SELECT COUNT(*) AS cnt
+            FROM image_links il
+            LEFT JOIN pages p ON p.id = il.id
+            WHERE p.id IS NULL
+            """,
+        )[0]["cnt"]
+
+        orphan_image_targets = r_query(
+            conn,
+            """
+            SELECT COUNT(*) AS cnt
+            FROM image_links il
+            LEFT JOIN images i ON i.id = il.resolution_id
+            WHERE i.id IS NULL
+            """,
+        )[0]["cnt"]
+
+        if orphan_pages:
+            logging.warning("Orphan pages detected (child missing parent): %s", orphan_pages)
+        if orphan_link_sources or orphan_link_targets:
+            logging.warning(
+                "Orphan links detected: source_missing=%s target_missing=%s",
+                orphan_link_sources,
+                orphan_link_targets,
+            )
+        if orphan_image_pages or orphan_image_targets:
+            logging.warning(
+                "Orphan image links detected: page_missing=%s image_missing=%s",
+                orphan_image_pages,
+                orphan_image_targets,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logging.exception("Failed to check orphan counts: %s", exc)
+    finally:
+        conn.close()
+
+
+def _process_page_name_job(job: Dict[str, Any]) -> bool:
     payload = job.get("payload") or {}
     progress = job.get("progress") or {}
     job["progress"] = progress
@@ -106,33 +186,33 @@ def _process_page_name_job(connections: Dict[str, Any], job: Dict[str, Any]) -> 
         return True
 
     last_page_id = progress.get("last_page_id", 0)
-    page_obj = get_page_conn(connections["henhouse"], page_id)
-    if not page_obj:
-        logging.warning("Source page %s not found for rename job; marking done", page_id)
-        return True
+    args = [
+        "regex_text",
+        "--page_id",
+        str(page_id),
+        "--old_name",
+        old_name,
+        "--new_name",
+        new_name,
+        "--last_page_id",
+        str(last_page_id),
+        "--batch_limit",
+        str(NAME_JOB_BATCH_LIMIT),
+        "--job_id",
+        str(job["id"]),
+    ]
 
-    result = page_obj.maintenance_process_name_change(
-        old_name=old_name,
-        new_name=new_name,
-        last_page_id=last_page_id,
-        batch_limit=NAME_JOB_BATCH_LIMIT,
-    )
-
-    processed = result.get("processed", 0)
-    progress["last_page_id"] = result.get("last_page_id", last_page_id)
-    if processed:
-        progress["processed_count"] = progress.get("processed_count", 0) + processed
-        logging.info(
-            "Page name job %s processed %s references (last_page_id=%s)",
-            job["id"],
-            processed,
-            progress["last_page_id"],
+    try:
+        result_text = check_output(
+            ["python3", f"/srv/{PROJECT_NAME}/maintenance_client.py"] + args,
+            stderr=STDOUT,
+            text=True,
         )
-
-    if result.get("done"):
-        logging.info("Page name job %s complete", job["id"])
-        return True
-    return False
+        logging.info("Maintenance job %s output: %s", job["id"], result_text.strip())
+        return '"done": true' in result_text.lower()
+    except CalledProcessError as exc:
+        logging.error("Maintenance job %s failed: %s", job["id"], exc.output)
+        return False
 
 
 JOB_HANDLERS = {
@@ -167,14 +247,7 @@ def _process_job_queue():
             return
 
         logging.info("Processing maintenance job %s (%s)", job["id"], job["job_type"])
-        job_complete = handler(connections, job)
-        new_status = "done" if job_complete else "running"
-        update_maintenance_job(
-            connections["primary"],
-            job["id"],
-            status=new_status,
-            progress=job.get("progress"),
-        )
+        job_complete = handler(job)
         connections["primary"].commit()
     except Exception as exc:  # noqa: BLE001
         connections["primary"].rollback()
@@ -200,6 +273,7 @@ def _process_job_queue():
 def process_maintenance_jobs():
     """Run cache maintenance and queued maintenance work."""
     _run_cache_batch()
+    _log_orphan_counts()
     _process_job_queue()
 
 
