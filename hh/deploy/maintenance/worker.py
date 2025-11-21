@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from hh.deploy.cache.rebuild_cache import run_cache_rebuild_batch
 from hh.gateway.connection.connection import HenhouseConnection, get_connection, load_dsn_pair
-from hh.deploy.maintenance.job_queue import claim_next_maintenance_job, update_maintenance_job
+from hh.deploy.maint.job_queue import claim_next_maintenance_job, update_maintenance_job
 from hh.page.page_registry import get_page_conn
 
 PROJECT_NAME = "__PROJECT_NAME__"

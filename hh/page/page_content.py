@@ -9,7 +9,7 @@ from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.deploy.maintenance.job_queue import enqueue_maintenance_job
+from hh.deploy.maint.job_queue import enqueue_maintenance_job
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
 from hh.page.page_registry import get_page, get_page_conn

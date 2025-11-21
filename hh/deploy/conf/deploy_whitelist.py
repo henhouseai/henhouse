@@ -6,7 +6,7 @@ from typing import List
 DEPLOY_WHITELIST: List[str] = [
     'cache',      # Cache cleanup registry and utilities
     'conf',       # Configuration whitelists (CSS/JS includes)
-    'maintenance/job_queue.py',  # Maintenance helpers shared with deployment scripts
+    'maint',      # Maintenance helpers shared with deployment scripts
     'utils.py'    # General deployment utilities (used by cache and other modules)
 ]
 
