@@ -130,7 +130,6 @@ class Page(
         self.cached_images = None
         self.cached_files = None
         self.cached_file_summary = None
-        self.cached_badge_headers = None
         self.cached_upper_content = None
         self.cached_lower_content = None
         self.cache_built_at = None

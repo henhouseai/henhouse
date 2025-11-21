@@ -65,7 +65,6 @@ class PageCacheMixin:
             "children_by_class": self.cached_children_by_class or {},
             "images": self.cached_images or [],
             "files": self.cached_files or [],
-            "badge_headers": self.cached_badge_headers or {},
             "upper_content": self.cached_upper_content or [],
             "lower_content": self.cached_lower_content or [],
             "_cache_info": {
@@ -181,7 +180,6 @@ class PageCacheMixin:
         children_json = None
         images_json = None
         file_summary_json = None
-        links_json = None
         if cache_payload:
             children_json = self._dump_json(cache_payload.get("children_by_class", {}) or {})
             images_json = self._dump_json(cache_payload.get("images", []) or [])
@@ -191,7 +189,6 @@ class PageCacheMixin:
                 "lower_content": cache_payload.get("lower_content", []) or [],
             }
             file_summary_json = self._dump_json(file_summary)
-            links_json = self._dump_json(cache_payload.get("badge_headers", {}) or {})
         try:
             affected = u_query(
                 self.conn,
@@ -205,7 +202,6 @@ class PageCacheMixin:
                         children_summary = %s,
                         image_summary = %s,
                         file_summary = %s,
-                        links_out = %s,
                         parent_id = %s,
                         class = %s,
                         source_last_modified = %s,
@@ -222,7 +218,6 @@ class PageCacheMixin:
                     children_json,
                     images_json,
                     file_summary_json,
-                    links_json,
                     self.parent,
                     self.class_name,
                     now,
@@ -282,7 +277,6 @@ class PageCacheMixin:
         self.cached_images = None
         self.cached_files = None
         self.cached_file_summary = None
-        self.cached_badge_headers = None
         self.cached_upper_content = None
         self.cached_lower_content = None
         self.cache_built_at = None

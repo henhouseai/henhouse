@@ -104,7 +104,6 @@ def _hydrate_page_from_cache(page_obj, cache_row: Optional[Dict[str, Any]]) -> b
         page_obj.cached_files = None
         page_obj.cached_upper_content = []
         page_obj.cached_lower_content = []
-    page_obj.cached_badge_headers = _deserialize_json_blob(cache_row.get('links_out'), {})
     page_obj.cache_source_last_modified = _serialize_dt(cache_row.get('source_last_modified'))
     page_obj.cache_built_at = _serialize_dt(cache_row.get('cache_built_at'))
     page_obj.cache_hydrated = True

@@ -53,9 +53,6 @@ class PageDisplayMixin:
 
 
     def add_badge_headers(self) -> Dict[str, Any]:
-        if hasattr(self, 'cached_badge_headers') and self.cached_badge_headers is not None:
-            debug(f"Page {self.id}: returning cached badge_headers")
-            return self.cached_badge_headers
         badge_headers = {}
         page_data = self.get_page_data()
         # Calculate children count from children_by_class
@@ -142,7 +139,6 @@ class PageDisplayMixin:
         self.cached_children_by_class = children_by_class
         self.cached_images = images_data
         self.cached_files = files_data
-        self.cached_badge_headers = badge_headers
         self.cached_upper_content = upper_content
         self.cached_lower_content = lower_content
         self.cache_hydrated = True
