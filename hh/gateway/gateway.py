@@ -143,7 +143,7 @@ class Gateway:
             self.debug_system = "table"
         
         # MCP backend/flag check LAST - always uses debug_mcp
-        if self.request.get_arg("mcp") or self.backend == "mcp":
+        if self.request.get_arg("mcp") or self.backend == "mcp" or self.backend == "maintenance":
             self.debug_system = "mcp"
         
         # Set debug backend and resolve function
