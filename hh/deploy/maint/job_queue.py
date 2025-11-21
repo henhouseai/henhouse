@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict, Optional
 
 from hh.gateway.connection.connection import r_query, u_query
+from hh.gateway.connection.decorators import db_write
 from hh.gateway.registry.debug import (
     get_debug,
     get_log,
@@ -56,29 +57,6 @@ def _load_json(value: Any) -> Dict[str, Any]:
     return {}
 
 
-def enqueue_maintenance_job(
-    conn,
-    job_type: str,
-    payload: Dict[str, Any],
-    priority: int = 0,
-) -> int:
-    trace_in()
-    payload_json = _dump_json(payload)
-    u_query(
-        conn,
-        """
-        INSERT INTO maintenance_jobs (job_type, status, payload_json, priority)
-        VALUES (%s, 'pending', %s, %s)
-        """,
-        (job_type, payload_json, priority),
-    )
-    job_id_rows = r_query(conn, "SELECT LAST_INSERT_ID() AS job_id")
-    job_id = int(job_id_rows[0]["job_id"]) if job_id_rows else 0
-    debug(f"Enqueued maintenance job {job_id}: type={job_type}, priority={priority}")
-    trace_out()
-    return job_id
-
-
 def _deserialize_job(row: Dict[str, Any]) -> Dict[str, Any]:
     job = dict(row)
     job["payload"] = _load_json(job.pop("payload_json", None))
@@ -86,23 +64,7 @@ def _deserialize_job(row: Dict[str, Any]) -> Dict[str, Any]:
     return job
 
 
-def _select_job_by_status(conn, status: str) -> Optional[Dict[str, Any]]:
-    rows = r_query(
-        conn,
-        f"""
-        SELECT {_JOB_COLUMNS}
-        FROM maintenance_jobs
-        WHERE status = %s
-        ORDER BY priority DESC, created_at ASC
-        LIMIT 1
-        """,
-        (status,),
-    )
-    if not rows:
-        return None
-    return _deserialize_job(rows[0])
-
-
+@db_write
 def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
     """
     Claim the next available job (pending jobs preferred, then running).
@@ -111,7 +73,17 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
     trace_in()
     attempts = 0
     while attempts < 5:
-        pending_job = _select_job_by_status(conn, "pending")
+        rows = r_query(
+            conn,
+            f"""
+            SELECT {_JOB_COLUMNS}
+            FROM maintenance_jobs
+            WHERE status = 'pending'
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 1
+            """,
+        )
+        pending_job = _deserialize_job(rows[0]) if rows else None
         if not pending_job:
             break
         affected = u_query(
@@ -138,7 +110,17 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
                 return job
         attempts += 1
 
-    running_job = _select_job_by_status(conn, "running")
+    rows = r_query(
+        conn,
+        f"""
+        SELECT {_JOB_COLUMNS}
+        FROM maintenance_jobs
+        WHERE status = 'running'
+        ORDER BY priority DESC, created_at ASC
+        LIMIT 1
+        """,
+    )
+    running_job = _deserialize_job(rows[0]) if rows else None
     if running_job:
         trace_out()
         return running_job
@@ -147,6 +129,7 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
     return None
 
 
+@db_write
 def update_maintenance_job(
     conn,
     job_id: int,

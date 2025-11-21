@@ -9,7 +9,6 @@ from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.deploy.maint.job_queue import enqueue_maintenance_job
 from hh.tp.tp import TextProcessor
 from hh.page.page_method_registry import register_page_mixin_methods
 from hh.page.page_registry import get_page, get_page_conn
@@ -213,8 +212,7 @@ class PageContentMixin:
             self.flag_page_modification(f"{modification_type} changed")
         if not is_error() and old_name and name_value:
             try:
-                job_id = enqueue_maintenance_job(
-                    self.conn,
+                job_id = self.enqueue_maintenance_job(
                     "page_name_update",
                     {
                         "page_id": self.id,
@@ -556,6 +554,26 @@ class PageContentMixin:
         return data
     
     
+    def enqueue_maintenance_job(
+        self,
+        job_type: str,
+        payload: Dict[str, Any],
+        priority: int = 0,
+    ) -> int:
+        trace_in()
+        payload_json = json.dumps(payload or {}, ensure_ascii=False, separators=(",", ":"))
+        job_id = c_query(
+            self.conn,
+            """
+            INSERT INTO maintenance_jobs (job_type, status, payload_json, priority)
+            VALUES (%s, 'pending', %s, %s)
+            """,
+            (job_type, payload_json, priority),
+        )
+        debug(f"Enqueued maintenance job {job_id}: type={job_type}, priority={priority}")
+        trace_out()
+        return job_id
+
     def _flag_page_modification(self, comments: str) -> bool:
         """Standardized method to update page modification audit trail"""
         trace_in()

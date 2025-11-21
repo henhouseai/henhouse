@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Optional
 
 from hh.deploy.maint.job_queue import update_maintenance_job
-from hh.gateway.connection.decorators import db_write
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command
@@ -30,8 +29,7 @@ def _initialize_debug():
 
 @register_command("regex_text")
 @register_action("regex_text")
-@db_write
-def regex_text(conn) -> bool:
+def regex_text() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -101,7 +99,6 @@ def regex_text(conn) -> bool:
     if job_id and (result["processed"] or result["done"]):
         log(f"Updating maintenance job {job_id}: processed={result.get('processed')}, done={result.get('done')}")
         update_maintenance_job(
-            conn,
             int(job_id),
             status="done" if result["done"] else "running",
             progress=result,

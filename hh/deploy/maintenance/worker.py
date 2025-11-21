@@ -9,7 +9,8 @@ from typing import Any, Dict, Optional
 
 from hh.deploy.cache.rebuild_cache import run_cache_rebuild_batch
 from hh.deploy.maint.job_queue import claim_next_maintenance_job, update_maintenance_job
-from hh.gateway.connection.connection import HenhouseConnection, get_connection, load_dsn_pair, r_query
+from hh.gateway.connection.connection import r_query
+from hh.gateway.connection.decorators import db_read
 
 PROJECT_NAME = "__PROJECT_NAME__"
 SLEEP_INTERVAL_SECONDS = 5
@@ -113,46 +114,8 @@ def _run_cache_batch():
         )
 
 
-def _open_connection_bundle() -> Optional[Dict[str, Any]]:
-    primary_dsn, cache_dsn = load_dsn_pair()
-    if not primary_dsn or not cache_dsn:
-        logging.warning("Maintenance worker could not detect DSN pair")
-        return None
-    primary_conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
-    cache_conn = get_connection(dict_cursor=True, dsn_override=cache_dsn)
-    if not primary_conn or not cache_conn:
-        logging.warning("Failed to open maintenance worker database connections")
-        if primary_conn:
-            primary_conn.close()
-        if cache_conn:
-            cache_conn.close()
-        return None
-    hen_conn = HenhouseConnection(primary_conn, cache_conn)
-    return {"primary": primary_conn, "cache": cache_conn, "henhouse": hen_conn}
-
-
-def _close_connection_bundle(bundle: Optional[Dict[str, Any]]) -> None:
-    if not bundle:
-        return
-    try:
-        bundle["primary"].close()
-    except Exception:  # noqa: BLE001
-        logging.exception("Failed to close primary connection")
-    try:
-        bundle["cache"].close()
-    except Exception:  # noqa: BLE001
-        logging.exception("Failed to close cache connection")
-
-
-def _log_orphan_counts():
-    primary_dsn, _ = load_dsn_pair()
-    if not primary_dsn:
-        logging.warning("Cannot check orphans: missing DSN")
-        return
-    conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
-    if not conn:
-        logging.warning("Cannot check orphans: failed to open connection")
-        return
+@db_read
+def _log_orphan_counts(conn):
     try:
         orphan_pages = r_query(
             conn,
@@ -220,8 +183,6 @@ def _log_orphan_counts():
             )
     except Exception as exc:  # noqa: BLE001
         logging.exception("Failed to check orphan counts: %s", exc)
-    finally:
-        conn.close()
 
 
 def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -346,13 +307,9 @@ JOB_HANDLERS = {
 
 
 def _process_job_queue():
-    connections = _open_connection_bundle()
-    if not connections:
-        return
-
     job: Optional[Dict[str, Any]] = None
     try:
-        job = claim_next_maintenance_job(connections["primary"])
+        job = claim_next_maintenance_job()
         if not job:
             logging.debug("Maintenance job queue idle")
             return
@@ -361,7 +318,6 @@ def _process_job_queue():
         if not handler:
             logging.error("Unknown maintenance job type '%s'", job["job_type"])
             update_maintenance_job(
-                connections["primary"],
                 job["id"],
                 status="error",
                 error_message=f"Unknown job type {job['job_type']}",
@@ -390,7 +346,6 @@ def _process_job_queue():
         error_message = handler_result.get("message") or "maintenance handler failed"
 
         update_maintenance_job(
-            connections["primary"],
             job["id"],
             status=status,
             progress=progress_payload,
@@ -402,7 +357,6 @@ def _process_job_queue():
         if job:
             try:
                 update_maintenance_job(
-                    connections["primary"],
                     job["id"],
                     status="error",
                     progress=job.get("progress"),
@@ -410,8 +364,6 @@ def _process_job_queue():
                 )
             except Exception:  # noqa: BLE001
                 logging.exception("Failed to mark job %s as error", job["id"])
-    finally:
-        _close_connection_bundle(connections)
 
 
 def process_maintenance_jobs():
