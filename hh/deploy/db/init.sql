@@ -864,6 +864,7 @@ CREATE TABLE IF NOT EXISTS `files` (
   `id` int NOT NULL AUTO_INCREMENT,
   `file_name` varchar(255) NOT NULL,
   `file_path` varchar(1024) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
   `mime_type` varchar(128) DEFAULT NULL,
   `size_bytes` bigint DEFAULT NULL,
   `username` varchar(255) DEFAULT NULL,
