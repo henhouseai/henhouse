@@ -341,17 +341,18 @@ def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
                     "pages_processed": pages_processed,
                     "pages_modified": pages_modified,
                     "batch_count": batch_count,
+                    "batch_modified": batch_modified,
                     "done": False,
                 }
                 detailed_error = retry_attempt.get("raw_output") or first_attempt.get("raw_output") or ""
                 message = retry_attempt.get("message") or first_attempt.get("message") or "maintenance handler failed"
                 if detailed_error and detailed_error not in message:
                     message = f"{message}\n{detailed_error}"
-        return {
+                return {
                     "status": "error",
                     "progress": combined_progress,
                     "error_message": message.strip(),
-        }
+                }
 
         batch_count += 1
         pages_processed += 1
