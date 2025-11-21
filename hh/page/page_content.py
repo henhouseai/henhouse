@@ -40,6 +40,7 @@ def _register_content_methods():
         'get_page_data': {'mixin_method': '_get_page_data', 'decorator': 'read'},
         'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
         'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
+        'maintenance_process_name_change': {'mixin_method': '_maintenance_process_name_change', 'decorator': 'write'},
     }
 
 
@@ -244,7 +245,7 @@ class PageContentMixin:
             updated = re.sub(re.escape(pattern), replacement, updated)
         return updated
 
-    def maintenance_process_name_change(
+    def _maintenance_process_name_change(
         self,
         *,
         old_name: str,
