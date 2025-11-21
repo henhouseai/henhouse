@@ -470,7 +470,3 @@ class PageFilesMixin:
             self.cached_files = None
         if hasattr(self, "cached_file_summary"):
             self.cached_file_summary = None
-        if hasattr(self, "cached_upper_content"):
-            self.cached_upper_content = None
-        if hasattr(self, "cached_lower_content"):
-            self.cached_lower_content = None

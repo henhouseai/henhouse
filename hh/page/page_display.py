@@ -136,13 +136,6 @@ class PageDisplayMixin:
                 "lower_content": lower_content,
             }
 
-        self.cached_children_by_class = children_by_class
-        self.cached_images = images_data
-        self.cached_files = files_data
-        self.cached_upper_content = upper_content
-        self.cached_lower_content = lower_content
-        self.cache_hydrated = True
-
         original_conn = self.conn
         self.conn = None
         try:

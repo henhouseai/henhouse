@@ -65,8 +65,6 @@ class PageCacheMixin:
             "children_by_class": self.cached_children_by_class or {},
             "images": self.cached_images or [],
             "files": self.cached_files or [],
-            "upper_content": self.cached_upper_content or [],
-            "lower_content": self.cached_lower_content or [],
             "_cache_info": {
                 "source_last_modified": self.cache_source_last_modified,
                 "cache_built_at": self.cache_built_at,
@@ -185,8 +183,6 @@ class PageCacheMixin:
             images_json = self._dump_json(cache_payload.get("images", []) or [])
             file_summary = {
                 "files": cache_payload.get("files", []) or [],
-                "upper_content": cache_payload.get("upper_content", []) or [],
-                "lower_content": cache_payload.get("lower_content", []) or [],
             }
             file_summary_json = self._dump_json(file_summary)
         try:
@@ -277,8 +273,6 @@ class PageCacheMixin:
         self.cached_images = None
         self.cached_files = None
         self.cached_file_summary = None
-        self.cached_upper_content = None
-        self.cached_lower_content = None
         self.cache_built_at = None
         self.cache_source_last_modified = None
         self.cache_hydrated = False
