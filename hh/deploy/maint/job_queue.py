@@ -86,32 +86,35 @@ def _deserialize_job(row: Dict[str, Any]) -> Dict[str, Any]:
     return job
 
 
-def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
-    """
-    Claim the next available job (pending jobs preferred, then running).
-    Row is locked until caller commits or rolls back.
-    """
-    trace_in()
+def _select_job_by_status(conn, status: str) -> Optional[Dict[str, Any]]:
     rows = r_query(
         conn,
         f"""
         SELECT {_JOB_COLUMNS}
         FROM maintenance_jobs
-        WHERE status IN ('pending', 'running')
-        ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
-                 priority DESC,
-                 created_at ASC
+        WHERE status = %s
+        ORDER BY priority DESC, created_at ASC
         LIMIT 1
-        FOR UPDATE SKIP LOCKED
         """,
+        (status,),
     )
     if not rows:
-        trace_out()
         return None
-    job = _deserialize_job(rows[0])
+    return _deserialize_job(rows[0])
 
-    if job["status"] == "pending":
-        u_query(
+
+def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
+    """
+    Claim the next available job (pending jobs preferred, then running).
+    Uses optimistic updates instead of explicit row locks.
+    """
+    trace_in()
+    attempts = 0
+    while attempts < 5:
+        pending_job = _select_job_by_status(conn, "pending")
+        if not pending_job:
+            break
+        affected = u_query(
             conn,
             """
             UPDATE maintenance_jobs
@@ -119,19 +122,29 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
                 attempts = attempts + 1,
                 started_at = COALESCE(started_at, NOW(6)),
                 updated_at = NOW(6)
-            WHERE id = %s
+            WHERE id = %s AND status = 'pending'
             """,
-            (job["id"],),
+            (pending_job["id"],),
         )
-        refreshed = r_query(
-            conn,
-            f"SELECT {_JOB_COLUMNS} FROM maintenance_jobs WHERE id = %s FOR UPDATE",
-            (job["id"],),
-        )
-        if refreshed:
-            job = _deserialize_job(refreshed[0])
+        if affected:
+            refreshed = r_query(
+                conn,
+                f"SELECT {_JOB_COLUMNS} FROM maintenance_jobs WHERE id = %s",
+                (pending_job["id"],),
+            )
+            if refreshed:
+                job = _deserialize_job(refreshed[0])
+                trace_out()
+                return job
+        attempts += 1
+
+    running_job = _select_job_by_status(conn, "running")
+    if running_job:
+        trace_out()
+        return running_job
+
     trace_out()
-    return job
+    return None
 
 
 def update_maintenance_job(
