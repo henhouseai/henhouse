@@ -28,9 +28,20 @@ class ResponseMaintenance(Response):
     def get_output(self) -> str:
         import json
 
+        # Check if error_output is set (indicates error mode) - modeled after MCP
+        if self.error_output and "errors" in self.error_output:
+            # Format error response using pre-set error data
+            error_response = {
+                "status": "error",
+                "data": None,
+                "errors": self.error_output["errors"]
+            }
+            if self.debug_output:
+                error_response["debug"] = self.debug_output
+            return json.dumps(error_response, ensure_ascii=False)
+
+        # Success response
         base_payload = dict(self.payload)
-        if self.error_output:
-            base_payload["status"] = "error"
         if base_payload.get("errors") is None:
             base_payload.pop("errors", None)
         if base_payload.get("debug") is None:

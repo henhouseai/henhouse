@@ -296,6 +296,17 @@ def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     if payload_json.get("status") == "error":
+        errors = payload_json.get("errors")
+        if errors:
+            # Log full error details
+            if isinstance(errors, list):
+                for error in errors:
+                    error_type = error.get("type", "unknown")
+                    error_content = error.get("content", "no content")
+                    logging.error("Maintenance job %s error [%s]: %s", job["id"], error_type, error_content)
+            elif isinstance(errors, dict):
+                for key, value in errors.items():
+                    logging.error("Maintenance job %s error [%s]: %s", job["id"], key, value)
         message = _summarize_errors(payload_json)
         text_payload = _extract_text_payload(payload_json)
         result_block = text_payload.get("result")
