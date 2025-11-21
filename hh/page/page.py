@@ -16,6 +16,7 @@ from hh.page.page_hierarchy import PageHierarchyMixin
 from hh.page.page_content import PageContentMixin
 from hh.page.page_maintenance import PageMaintenanceMixin
 from hh.page.page_images import PageImagesMixin
+from hh.page.page_files import PageFilesMixin
 from hh.page.page_display import PageDisplayMixin
 from hh.page.page_ajax import PageAjaxMixin
 from hh.page.page_cache import PageCacheMixin
@@ -89,6 +90,7 @@ class Page(
     PageHierarchyMixin,
     PageContentMixin,
     PageMaintenanceMixin,
+    PageFilesMixin,
     PageImagesMixin,
     PageDisplayMixin,
     PageAjaxMixin,
@@ -126,6 +128,7 @@ class Page(
         self.cached_prepared_text = None
         self.cached_children_by_class = None
         self.cached_images = None
+        self.cached_files = None
         self.cached_file_summary = None
         self.cached_badge_headers = None
         self.cached_upper_content = None

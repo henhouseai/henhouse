@@ -28,6 +28,8 @@ from hh.render.config.config_registry import register_label
 @register_label('page_path',                         'Path:',                      '🔸')
 @register_label('images_header',                     'Images:',                    '🎨')
 @register_label('image_item',                        'Image:',                     '🎨')
+@register_label('files_header',                      'Files:',                     '📁')
+@register_label('file_item',                         'File:',                      '📄')
 @register_label('extra_data_header',                  'Action Details:',           'ℹ️')
 @register_label('extra_data_item',                    'Detail:',                   '📋')
 @register_label('extra_data_moved_image_id',          'Moved Image ID:',           '🎨')

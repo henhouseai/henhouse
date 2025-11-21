@@ -90,6 +90,7 @@ class PageDisplayMixin:
             debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
         page_data = self.get_page_data()
         images_data = self.get_images_data()
+        files_data = self.get_files_data()
         children_by_class = self._get_children_by_class()
         badge_headers = self.add_badge_headers()
         upper_content = self.add_upper_content()
@@ -115,6 +116,7 @@ class PageDisplayMixin:
                 "page": page_data,
                 "images": images_data,
                 "children_by_class": children_by_class,
+                "files": files_data,
             }
             if gateway and gateway.backend == "mcp" and gateway.response:
                 try:
@@ -131,6 +133,7 @@ class PageDisplayMixin:
                 "page": page_data,
                 "children_by_class": children_by_class,
                 "images": images_data,
+                "files": files_data,
                 "badge_headers": badge_headers,
                 "upper_content": upper_content,
                 "lower_content": lower_content,
@@ -138,6 +141,7 @@ class PageDisplayMixin:
 
         self.cached_children_by_class = children_by_class
         self.cached_images = images_data
+        self.cached_files = files_data
         self.cached_badge_headers = badge_headers
         self.cached_upper_content = upper_content
         self.cached_lower_content = lower_content
@@ -151,10 +155,19 @@ class PageDisplayMixin:
             self.conn = original_conn
 
         total_children = sum(len(group['children']) for group in children_by_class.values())
+        file_count = len(files_data)
         if lightweight:
-            log(f"Assembled lightweight display data for page {self.id}: {total_children} children in {len(children_by_class)} classes, {len(images_data)} images")
+            log(
+                f"Assembled lightweight display data for page {self.id}: "
+                f"{total_children} children in {len(children_by_class)} classes, "
+                f"{len(images_data)} images, {file_count} files"
+            )
         else:
-            log(f"Assembled display data for page {self.id}: {total_children} children in {len(children_by_class)} classes, {len(images_data)} images")
+            log(
+                f"Assembled display data for page {self.id}: "
+                f"{total_children} children in {len(children_by_class)} classes, "
+                f"{len(images_data)} images, {file_count} files"
+            )
         trace_out()
         return response_data
 

@@ -68,7 +68,7 @@ class ImageCacheMixin:
             trace_out()
             return True
 
-        now = dt.datetime.utcnow()
+        now = dt.datetime.now()
         try:
             c_query(
                 self.conn,
@@ -123,7 +123,7 @@ class ImageCacheMixin:
 
         instances_json = self._dump_json(instances_data)
         usage_json = self._dump_json(usage_data)
-        now = dt.datetime.utcnow()
+        now = dt.datetime.now()
         payload_last_modified = image_block.get("last_modified") or self.last_modified
         source_last_modified = (
             payload_last_modified

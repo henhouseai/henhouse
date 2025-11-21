@@ -484,6 +484,60 @@ def render_images_section(images_data: List[Dict[str, Any]]) -> None:
     trace_out()
 
 
+def render_files_section(files_data: List[Dict[str, Any]]) -> None:
+    trace_in()
+    block = 'files'
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return False
+    if not gateway.is_no(block) and files_data:
+        log(f"Rendering files section with {len(files_data)} files")
+        files_rows = TableData()
+        files_rows.add_row(
+            'files_header',
+            label='Files',
+            rank='Rank',
+            id='ID',
+            name='Name',
+            description='Description',
+            uploaded='Uploaded',
+            size='Size',
+            path='Path',
+        )
+        for file_entry in files_data:
+            file_id = file_entry.get('id')
+            size_bytes = file_entry.get('size_bytes')
+            size_display = f"{size_bytes:,} B" if isinstance(size_bytes, int) else 'N/A'
+            file_path = file_entry.get('file_path') or ''
+            files_rows.add_row(
+                'file_item',
+                rank=str(file_entry.get('file_rank', 'N/A')),
+                id=str(file_id) if file_id is not None else 'N/A',
+                name=safe_str(file_entry.get('file_name', 'unnamed')),
+                description=safe_str(file_entry.get('description', '')),
+                uploaded=safe_str(file_entry.get('uploaded', 'N/A')),
+                size=size_display,
+                path=safe_str(file_path),
+            )
+            if file_path:
+                files_rows.add_file_link_to_column('name', file_path)
+                files_rows.add_file_link_to_column('path', file_path)
+        if files_rows.num_rows() > 0:
+            files_block = render_block(
+                files_rows,
+                FieldConfig()
+                    .add_header('files_header')
+                    .add_simple(['file_item']),
+                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                block_type=block,
+                table_id='file_group',
+            )
+            gateway.response.set_lower_content(files_block)
+    trace_out()
+
+
 def render_extra_data_section(extra_data: Dict[str, Any]) -> None:
     trace_in()
     block = 'extra_data'
@@ -652,14 +706,30 @@ def show_page() -> bool:
     
     children_by_class = source_data.get('children_by_class', {})
     images_data = source_data.get('images', [])
+    files_data = source_data.get('files', [])
     if images_data:
         render_images_section(images_data)
+    if files_data:
+        render_files_section(files_data)
     if children_by_class:
         render_children_by_class_section(children_by_class)
     lower_content = source_data.get('lower_content', [])
     if lower_content:
         render_lower_content_section(lower_content)
-    extra_data = {k: v for k, v in source_data.items() if k not in ['page', 'children_by_class', 'images', 'badge_headers', 'upper_content', 'lower_content']}
+    extra_data = {
+        k: v
+        for k, v in source_data.items()
+        if k
+        not in [
+            'page',
+            'children_by_class',
+            'images',
+            'files',
+            'badge_headers',
+            'upper_content',
+            'lower_content',
+        ]
+    }
     if extra_data:
         render_extra_data_section(extra_data)
     

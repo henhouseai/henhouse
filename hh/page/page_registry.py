@@ -96,12 +96,14 @@ def _hydrate_page_from_cache(page_obj, cache_row: Optional[Dict[str, Any]]) -> b
     page_obj.cached_images = _deserialize_json_blob(cache_row.get('image_summary'), [])
     file_summary = _deserialize_json_blob(cache_row.get('file_summary'), {})
     page_obj.cached_file_summary = file_summary if isinstance(file_summary, dict) else {}
-    page_obj.cached_upper_content = (
-        page_obj.cached_file_summary.get('upper_content', []) if isinstance(page_obj.cached_file_summary, dict) else []
-    )
-    page_obj.cached_lower_content = (
-        page_obj.cached_file_summary.get('lower_content', []) if isinstance(page_obj.cached_file_summary, dict) else []
-    )
+    if isinstance(page_obj.cached_file_summary, dict):
+        page_obj.cached_files = page_obj.cached_file_summary.get('files')
+        page_obj.cached_upper_content = page_obj.cached_file_summary.get('upper_content', [])
+        page_obj.cached_lower_content = page_obj.cached_file_summary.get('lower_content', [])
+    else:
+        page_obj.cached_files = None
+        page_obj.cached_upper_content = []
+        page_obj.cached_lower_content = []
     page_obj.cached_badge_headers = _deserialize_json_blob(cache_row.get('links_out'), {})
     page_obj.cache_source_last_modified = _serialize_dt(cache_row.get('source_last_modified'))
     page_obj.cache_built_at = _serialize_dt(cache_row.get('cache_built_at'))

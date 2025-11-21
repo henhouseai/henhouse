@@ -43,6 +43,10 @@ class PageImagesMixin:
 
     def _get_images_data(self) -> List[Dict[str, Any]]:
         trace_in()
+        if hasattr(self, 'cached_images') and self.cached_images is not None:
+            debug(f"Page {self.id}: returning cached images")
+            trace_out()
+            return self.cached_images
         images_data = []
         if not is_error():
             try:

@@ -64,6 +64,7 @@ class PageCacheMixin:
             "page": page_data,
             "children_by_class": self.cached_children_by_class or {},
             "images": self.cached_images or [],
+            "files": self.cached_files or [],
             "badge_headers": self.cached_badge_headers or {},
             "upper_content": self.cached_upper_content or [],
             "lower_content": self.cached_lower_content or [],
@@ -96,7 +97,7 @@ class PageCacheMixin:
             return True
 
         metadata_json = self._serialize_metadata()
-        now = dt.datetime.utcnow()
+        now = dt.datetime.now()
         try:
             c_query(
                 self.conn,
@@ -176,7 +177,7 @@ class PageCacheMixin:
             if preprocessed_payload is not None
             else None
         )
-        now = dt.datetime.utcnow()
+        now = dt.datetime.now()
         children_json = None
         images_json = None
         file_summary_json = None
@@ -185,6 +186,7 @@ class PageCacheMixin:
             children_json = self._dump_json(cache_payload.get("children_by_class", {}) or {})
             images_json = self._dump_json(cache_payload.get("images", []) or [])
             file_summary = {
+                "files": cache_payload.get("files", []) or [],
                 "upper_content": cache_payload.get("upper_content", []) or [],
                 "lower_content": cache_payload.get("lower_content", []) or [],
             }
@@ -278,6 +280,7 @@ class PageCacheMixin:
         self.cached_prepared_text = None
         self.cached_children_by_class = None
         self.cached_images = None
+        self.cached_files = None
         self.cached_file_summary = None
         self.cached_badge_headers = None
         self.cached_upper_content = None
