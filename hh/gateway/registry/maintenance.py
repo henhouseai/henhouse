@@ -1,27 +1,24 @@
-"""Maintenance backend registry utilities."""
+"""
+Auto-generated Maintenance Wrapper Functions
+This module dynamically generates boilerplate wrapper functions with @register_maintenance decorators
+based on discovered maintenance tools from the backend cache.
 
+The exec block contains @register_maintenance decorators that will be discovered by the registry system
+when this module is imported.
+"""
 from __future__ import annotations
-
-from typing import Set
-
+from pathlib import Path
+import json
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error
 from hh.gateway.registry.registry import register_maintenance
-from hh.gateway.registry.debug import (
-    get_trace_in,
-    get_trace_out,
-    get_log,
-    get_debug,
-    get_warn,
-    register_debug_init,
-)
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
-
 
 @register_debug_init
 def _initialize_debug():
@@ -32,9 +29,9 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-
+# Boilerplate wrapper function template
 def _maintenance_wrapper_template(tool_name: str) -> bool:
-    """Shared backend wrapper: ensure action response exists for maintenance backend."""
+    """Boilerplate maintenance wrapper - passes through action_response."""
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -42,25 +39,74 @@ def _maintenance_wrapper_template(tool_name: str) -> bool:
         trace_out()
         return False
     if not gateway.response.has_action_response():
+        warn("No action response available")
         report_error("backend", "No action response available")
         trace_out()
         return False
-    log(f"Maintenance backend '{tool_name}' confirmed action response")
+    # action_response is already set, ResponseMaintenance.get_output() will handle serialization
+    log(f"Maintenance backend {tool_name} confirmed action_response available")
     trace_out()
     return True
 
+# Dynamically generate wrapper functions with @register_maintenance decorators using exec
+# This exec block will be discovered by the registry system when this module is imported
+# Scan for register_maintenance_tool() calls to discover tools (same pattern as MCP scans for decorators)
+_wrapper_code = ""
+all_tools = set()
 
-_registered_tools: Set[str] = set()
+def _scan_for_maintenance_tools() -> set:
+    """Scan codebase for register_maintenance_tool() calls."""
+    trace_in()
+    found_tools = set()
+    try:
+        import hh
+        hh_path = Path(hh.__file__).parent
+        for py_file in hh_path.rglob("*.py"):
+            if py_file.name.startswith("cache_"):
+                continue
+            try:
+                with open(py_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Look for register_maintenance_tool("tool_name") calls
+                    import re
+                    matches = re.findall(r'register_maintenance_tool\(["\']([^"\']+)["\']\)', content)
+                    for tool_name in matches:
+                        found_tools.add(tool_name)
+                        log(f"Found maintenance tool: {tool_name} in {py_file.relative_to(hh_path)}")
+            except Exception as e:
+                warn(f"Error reading {py_file}: {e}")
+    except Exception as e:
+        warn(f"Error scanning for maintenance tools: {e}")
+    trace_out()
+    return found_tools
 
+# Scan for tools
+all_tools = _scan_for_maintenance_tools()
+
+for tool_name in all_tools:
+    # Convert tool_name to valid Python function name (replace hyphens with underscores)
+    func_name = tool_name.replace('-', '_')
+    _wrapper_code += f"""
+@register_maintenance('{tool_name}')
+def {func_name}() -> bool:
+    \"\"\"Maintenance wrapper for {tool_name}.\"\"\"
+    return _maintenance_wrapper_template('{tool_name}')
+"""
+
+if _wrapper_code:
+    exec(_wrapper_code)
+    log(f"Generated {len(all_tools)} maintenance wrapper functions")
+
+
+# Keep register_maintenance_tool for backwards compatibility - it just triggers cache discovery
+_registered_tools: set = set()
 
 def register_maintenance_tool(tool_name: str) -> None:
-    """Register a maintenance backend handler using the shared wrapper."""
-    if tool_name in _registered_tools:
-        return
-
-    @register_maintenance(tool_name)
-    def _wrapper() -> bool:
-        return _maintenance_wrapper_template(tool_name)
-
-    _registered_tools.add(tool_name)
+    """Register a maintenance tool - triggers cache discovery, wrappers generated via exec()."""
+    # This function is called by action files to register tools
+    # The actual wrapper generation happens via exec() above using cache data
+    # This just ensures the tool is tracked for cache purposes
+    if tool_name not in _registered_tools:
+        _registered_tools.add(tool_name)
+        log(f"Registered maintenance tool: {tool_name} (wrapper will be generated from cache)")
 
