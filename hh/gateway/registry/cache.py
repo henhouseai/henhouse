@@ -342,7 +342,7 @@ def cleanup_gateway_registry_cache():
     trace_in()
     
     # Remove all cache JSON files in both repo and deployment cache directories
-    cache_files = ['action-reg.json', 'http-reg.json', 'base-reg.json', 'mcp-reg.json', 'parser-reg.json']
+    cache_files = ['base-reg.json'] + [f"{backend}-reg.json" for backend in BACKEND_TYPES]
     removed_files = []
     
     # Build candidate cache dirs: local and deployed

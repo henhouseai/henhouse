@@ -38,6 +38,10 @@ Thumbs.db
 
 # Cache files
 *-reg.json
+hh/gateway/registry/cache/mcp-whitelist-admin.json
+hh/gateway/registry/cache/mcp-whitelist-guest.json
+hh/gateway/registry/cache/mcp-whitelist-root.json
+hh/gateway/registry/cache/mcp-whitelist-verified.json
 *.cycle.json
 *.tsv
 page-classes.json
