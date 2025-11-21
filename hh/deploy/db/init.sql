@@ -829,6 +829,8 @@ CREATE TABLE IF NOT EXISTS `images` (
   `caption` varchar(255) DEFAULT NULL,
   `username` varchar(255) NOT NULL,
   `uploaded` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime DEFAULT NULL,
+  `comments` varchar(255) DEFAULT NULL,
   `visibility` int NOT NULL DEFAULT '1',
   `viewCount` int NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
@@ -856,6 +858,34 @@ CREATE TABLE IF NOT EXISTS `image_instances` (
   `filesize` int NOT NULL,
   KEY `idx_image_id` (`image_id`),
   CONSTRAINT `fk_image_instances_image` FOREIGN KEY (`image_id`) REFERENCES `images` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `files` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `file_name` varchar(255) NOT NULL,
+  `file_path` varchar(1024) NOT NULL,
+  `mime_type` varchar(128) DEFAULT NULL,
+  `size_bytes` bigint DEFAULT NULL,
+  `username` varchar(255) DEFAULT NULL,
+  `uploaded` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime DEFAULT NULL,
+  `comments` varchar(255) DEFAULT NULL,
+  `visibility` int NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`),
+  KEY `idx_file_path` (`file_path`(255)),
+  KEY `idx_uploaded` (`uploaded`),
+  KEY `idx_visibility` (`visibility`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `file_groups` (
+  `page_id` int NOT NULL,
+  `file_id` int NOT NULL,
+  `file_rank` int NOT NULL,
+  PRIMARY KEY (`page_id`, `file_id`, `file_rank`),
+  KEY `idx_file` (`file_id`),
+  KEY `idx_page_rank` (`page_id`, `file_rank`),
+  CONSTRAINT `fk_file_groups_page` FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_file_groups_file` FOREIGN KEY (`file_id`) REFERENCES `files` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `links` (

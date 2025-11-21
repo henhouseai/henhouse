@@ -31,6 +31,7 @@ def _register_content_methods():
         'update_view_count': {'mixin_method': '_update_view_count', 'decorator': 'write'},
         'delete_from_database': {'mixin_method': '_delete_from_database', 'decorator': 'write'},
         'get_image_data': {'mixin_method': '_get_image_data', 'decorator': 'read'},
+        'flag_image_modification': {'mixin_method': '_flag_image_modification', 'decorator': 'write'},
     }
 
 class ImageContentMixin:
@@ -62,6 +63,7 @@ class ImageContentMixin:
             log(f"Successfully updated image {self.id} caption to '{caption}'")
             self.clear_cached_image_state()
             invalidate_image_cache_entry(self.id)
+            self.flag_image_modification("caption updated")
         trace_out()
         return not is_error()
 
@@ -79,6 +81,7 @@ class ImageContentMixin:
                 log(f"Successfully updated visibility for image {self.id}")
                 self.clear_cached_image_state()
                 invalidate_image_cache_entry(self.id)
+                self.flag_image_modification("visibility updated")
         trace_out()
         return not is_error()
 
@@ -99,6 +102,38 @@ class ImageContentMixin:
                 self.clear_cached_image_state()
                 invalidate_image_cache_entry(self.id)
         
+        trace_out()
+        return not is_error()
+
+
+    def _flag_image_modification(self, comments: str) -> bool:
+        trace_in()
+        note = comments or ""
+        now = dt.datetime.now()
+        if not is_error():
+            user_results = r_query(self.conn, "SELECT USER() as db_user")
+            db_user = user_results[0]['db_user'] if user_results else 'unknown'
+        if not is_error():
+            affected = u_query(
+                self.conn,
+                """
+                UPDATE images
+                SET last_modified = %s,
+                    username = %s,
+                    comments = %s
+                WHERE id = %s
+                """,
+                (now, db_user, note, self.id),
+            )
+            if affected == 0:
+                warn(f"Failed to flag modification for image {self.id} - no rows affected")
+                report_error("action", f"Failed to flag modification for image {self.id}")
+        if not is_error():
+            self.last_modified = now
+            self.username = db_user
+            self.comments = note
+            self.clear_cached_image_state()
+            invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
@@ -157,6 +192,8 @@ class ImageContentMixin:
             "caption": self.caption,
             "username": self.username,
             "uploaded": self.uploaded,
+            "last_modified": self.last_modified,
+            "comments": self.comments,
             "visibility": self.visibility,
             "view_count": self.view_count,
             "instances": self.instances,

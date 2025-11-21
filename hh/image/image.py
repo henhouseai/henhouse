@@ -105,6 +105,8 @@ class Image(
         self.username = None
         self.uploaded = None
         self.visibility = None
+        self.last_modified = None
+        self.comments = None
         self.view_count = None
         self.instances = []
         self.cached_usage = None
@@ -124,6 +126,8 @@ class Image(
         self.uploaded = image_data.get('uploaded')
         self.visibility = image_data.get('visibility')
         self.view_count = image_data.get('viewCount')
+        self.last_modified = image_data.get('last_modified')
+        self.comments = image_data.get('comments')
         log(f"Loaded image {image_id}: {self.caption}")
         trace_out()
   

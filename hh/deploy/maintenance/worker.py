@@ -7,15 +7,231 @@ import time
 from subprocess import CalledProcessError, check_output, STDOUT
 from typing import Any, Dict, Optional
 
-from hh.deploy.cache.rebuild_cache import run_cache_rebuild_batch
+import json
+import logging
+import os
+import signal
+import sys
+import time
+from subprocess import CalledProcessError, check_output, STDOUT
+from typing import Any, Dict, Optional
+
 from hh.deploy.maint.job_queue import claim_next_maintenance_job, update_maintenance_job
-from hh.gateway.connection.connection import r_query
+from hh.gateway.connection.connection import (
+    HenhouseConnection,
+    get_connection,
+    load_dsn_pair,
+    r_query,
+)
 from hh.gateway.connection.decorators import db_read
+from hh.image.image_registry import get_image_conn
+from hh.page.page_registry import get_page_conn
 
 PROJECT_NAME = "__PROJECT_NAME__"
 SLEEP_INTERVAL_SECONDS = 5
 CACHE_BATCH_LIMIT = 2  # Keep batches very small to avoid long-running transactions
 NAME_JOB_BATCH_LIMIT = int(os.getenv("MAINTENANCE_NAME_BATCH", "25"))
+CACHE_VERSION = "v1"
+
+
+def _qualify_cache_table(cache_db: str, table: str) -> str:
+    safe_db = cache_db.replace("`", "")
+    safe_table = table.replace("`", "")
+    return f"`{safe_db}`.`{safe_table}`"
+
+
+def _fetch_stale_page_ids(conn, cache_db: str, limit: int) -> list[int]:
+    cache_pages = _qualify_cache_table(cache_db, "pages")
+    rows = r_query(
+        conn,
+        f"""
+        SELECT p.id
+        FROM pages p
+        LEFT JOIN {cache_pages} cp ON cp.id = p.id
+        WHERE cp.id IS NULL
+           OR (p.last_modified IS NOT NULL
+               AND (cp.source_last_modified IS NULL OR cp.source_last_modified < p.last_modified))
+        ORDER BY p.last_modified DESC
+        LIMIT %s
+        """,
+        [limit],
+    )
+    return [row["id"] for row in rows]
+
+
+def _count_stale_pages(conn, cache_db: str) -> int:
+    cache_pages = _qualify_cache_table(cache_db, "pages")
+    rows = r_query(
+        conn,
+        f"""
+        SELECT COUNT(*) AS cnt
+        FROM pages p
+        LEFT JOIN {cache_pages} cp ON cp.id = p.id
+        WHERE cp.id IS NULL
+           OR (p.last_modified IS NOT NULL
+               AND (cp.source_last_modified IS NULL OR cp.source_last_modified < p.last_modified))
+        """,
+    )
+    return rows[0]["cnt"] if rows else 0
+
+
+def _fetch_stale_image_ids(conn, cache_db: str, limit: int) -> list[int]:
+    cache_images = _qualify_cache_table(cache_db, "images")
+    rows = r_query(
+        conn,
+        f"""
+        SELECT i.id
+        FROM images i
+        LEFT JOIN {cache_images} ci ON ci.id = i.id
+        WHERE ci.id IS NULL
+           OR (
+                ci.source_last_modified IS NULL
+                OR (
+                    COALESCE(i.last_modified, i.uploaded) IS NOT NULL
+                    AND ci.source_last_modified < COALESCE(i.last_modified, i.uploaded)
+                )
+             )
+        ORDER BY COALESCE(i.last_modified, i.uploaded) DESC
+        LIMIT %s
+        """,
+        [limit],
+    )
+    return [row["id"] for row in rows]
+
+
+def _count_stale_images(conn, cache_db: str) -> int:
+    cache_images = _qualify_cache_table(cache_db, "images")
+    rows = r_query(
+        conn,
+        f"""
+        SELECT COUNT(*) AS cnt
+        FROM images i
+        LEFT JOIN {cache_images} ci ON ci.id = i.id
+        WHERE ci.id IS NULL
+           OR (
+                ci.source_last_modified IS NULL
+                OR (
+                    COALESCE(i.last_modified, i.uploaded) IS NOT NULL
+                    AND ci.source_last_modified < COALESCE(i.last_modified, i.uploaded)
+                )
+             )
+        """,
+    )
+    return rows[0]["cnt"] if rows else 0
+
+
+def _rebuild_pages(conn, page_ids: list[int], errors: list[dict[str, Any]]) -> list[int]:
+    processed: list[int] = []
+    for page_id in page_ids:
+        try:
+            page_obj = get_page_conn(conn, page_id)
+            if not page_obj:
+                raise RuntimeError(f"Page {page_id} not found")
+            page_obj.show_page()
+            processed.append(page_id)
+            logging.info("Cached page %s", page_id)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Failed to cache page %s: %s", page_id, exc)
+            errors.append({"entity": "page", "id": page_id, "error": str(exc)})
+    return processed
+
+
+def _rebuild_images(conn, image_ids: list[int], errors: list[dict[str, Any]]) -> list[int]:
+    processed: list[int] = []
+    for image_id in image_ids:
+        try:
+            image_obj = get_image_conn(conn, image_id)
+            if not image_obj:
+                raise RuntimeError(f"Image {image_id} could not be loaded")
+            image_obj.show_image()
+            processed.append(image_id)
+            logging.info("Cached image %s", image_id)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Failed to cache image %s: %s", image_id, exc)
+            errors.append({"entity": "image", "id": image_id, "error": str(exc)})
+    return processed
+
+
+def _perform_cache_rebuild(
+    primary_conn,
+    cache_conn,
+    cache_db: str,
+    limit: int,
+    include_pages: bool,
+    include_images: bool,
+) -> Dict[str, Any]:
+    errors: list[Dict[str, Any]] = []
+    processed_pages: list[int] = []
+    processed_images: list[int] = []
+
+    if include_pages:
+        stale_pages = _fetch_stale_page_ids(primary_conn, cache_db, limit)
+        logging.debug("Found %s stale pages (limit %s)", len(stale_pages), limit)
+        processed_pages = _rebuild_pages(cache_conn, stale_pages, errors)
+
+    if include_images:
+        stale_images = _fetch_stale_image_ids(primary_conn, cache_db, limit)
+        logging.debug("Found %s stale images (limit %s)", len(stale_images), limit)
+        processed_images = _rebuild_images(cache_conn, stale_images, errors)
+
+    # Flush cache-side writes
+    try:
+        cache_side = (
+            cache_conn.get_connection(use_secondary=True)
+            if hasattr(cache_conn, "get_connection")
+            else cache_conn
+        )
+        cache_side.commit()
+    except Exception:
+        pass
+
+    data: Dict[str, Any] = {
+        "operation": "rebuild_cache",
+        "cache_database": cache_db,
+        "limit": limit,
+        "pages_processed": len(processed_pages),
+        "images_processed": len(processed_images),
+        "pages_remaining": _count_stale_pages(primary_conn, cache_db) if include_pages else 0,
+        "images_remaining": _count_stale_images(primary_conn, cache_db) if include_images else 0,
+        "processed_page_ids": processed_pages,
+        "processed_image_ids": processed_images,
+        "errors": errors,
+    }
+    logging.info(
+        "Cache rebuild complete: pages=%s images=%s errors=%s",
+        len(processed_pages),
+        len(processed_images),
+        len(errors),
+    )
+    return data
+
+
+def _run_cache_rebuild_batch(
+    *, limit: int = 25, include_pages: bool = True, include_images: bool = True
+) -> Dict[str, Any]:
+    primary_dsn, cache_dsn = load_dsn_pair()
+    if not primary_dsn or not cache_dsn:
+        raise RuntimeError("Primary or cache DSN missing; cannot rebuild cache")
+
+    cache_db = cache_dsn.get("database")
+    if not cache_db:
+        raise RuntimeError("Cache database name missing from DSN")
+
+    primary_conn = None
+    cache_only_conn = None
+    try:
+        primary_conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
+        cache_only_conn = get_connection(dict_cursor=True, dsn_override=cache_dsn)
+        if not primary_conn or not cache_only_conn:
+            raise RuntimeError("Failed to open database connections for cache rebuild")
+
+        combined_conn = HenhouseConnection(primary_conn, cache_only_conn)
+        return _perform_cache_rebuild(primary_conn, combined_conn, cache_db, limit, include_pages, include_images)
+    finally:
+        if cache_only_conn:
+            cache_only_conn.close()
+        if primary_conn:
+            primary_conn.close()
 
 
 def _extract_json_dict(output: str) -> Optional[Dict[str, Any]]:
@@ -154,7 +370,7 @@ def handle_shutdown(signum, frame):  # noqa: D401, ANN001
 
 def _run_cache_batch():
     try:
-        result = run_cache_rebuild_batch(
+        result = _run_cache_rebuild_batch(
             limit=CACHE_BATCH_LIMIT,
             include_pages=True,
             include_images=True,

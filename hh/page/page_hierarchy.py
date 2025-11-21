@@ -148,6 +148,7 @@ class PageHierarchyMixin:
             report_error("action", "Move validation failed")
             trace_out()
             return False
+        original_parent = self.parent
         if not is_error():
             # Perform the actual move
             affected = u_query(self.conn, "UPDATE pages SET parent = %s WHERE id = %s", (target_page_id, self.id))
@@ -158,6 +159,16 @@ class PageHierarchyMixin:
             # Update object property and audit trail
             self.parent = target_page_id
             self.flag_page_modification("page moved")
+            # Flag old parent so cache sees removals
+            if original_parent and original_parent != 0 and original_parent != target_page_id:
+                old_parent = get_page(page_id=original_parent)
+                if old_parent:
+                    old_parent.flag_page_modification("child moved out")
+            # Flag new parent for additions
+            if target_page_id and target_page_id != 0:
+                new_parent = get_page(page_id=target_page_id)
+                if new_parent:
+                    new_parent.flag_page_modification("child moved in")
             log(f"Successfully moved page {self.id} to parent {target_page_id}")
         trace_out()
         return not is_error()

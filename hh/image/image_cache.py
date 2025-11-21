@@ -74,21 +74,23 @@ class ImageCacheMixin:
                 self.conn,
                 """
                     INSERT INTO images (
-                        id, caption, username, uploaded, visibility, viewCount,
+                        id, caption, username, uploaded, last_modified, comments, visibility, viewCount,
                         instances, pages, source_last_modified, cache_built_at, cache_version
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     self.id,
                     self.caption,
                     self.username,
                     self.uploaded,
+                    self.last_modified or self.uploaded or now,
+                    self.comments,
                     self.visibility if self.visibility is not None else 1,
                     self.view_count if self.view_count is not None else 0,
                     self._dump_json(self.instances or []),
                     self._dump_json([]),
-                    now,
+                    self.last_modified or self.uploaded or now,
                     now,
                     CACHE_VERSION,
                 ),
@@ -122,7 +124,14 @@ class ImageCacheMixin:
         instances_json = self._dump_json(instances_data)
         usage_json = self._dump_json(usage_data)
         now = dt.datetime.utcnow()
-        source_last_modified = image_block.get("uploaded") or self.uploaded or now
+        payload_last_modified = image_block.get("last_modified") or self.last_modified
+        source_last_modified = (
+            payload_last_modified
+            or image_block.get("uploaded")
+            or self.uploaded
+            or now
+        )
+        comments_value = image_block.get("comments", self.comments)
 
         try:
             u_query(
@@ -132,6 +141,8 @@ class ImageCacheMixin:
                     SET caption = %s,
                         username = %s,
                         uploaded = %s,
+                        last_modified = %s,
+                        comments = %s,
                         visibility = %s,
                         viewCount = %s,
                         instances = %s,
@@ -145,6 +156,8 @@ class ImageCacheMixin:
                     image_block.get("caption", self.caption),
                     image_block.get("username", self.username),
                     image_block.get("uploaded", self.uploaded),
+                    payload_last_modified or source_last_modified,
+                    comments_value,
                     image_block.get("visibility", self.visibility if self.visibility is not None else 1),
                     image_block.get("view_count", self.view_count if self.view_count is not None else 0),
                     instances_json,

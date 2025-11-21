@@ -96,6 +96,8 @@ class PageImagesMixin:
             if not image.process_upload(uploaded_file_path=file_path, filename=f"image_{image_id}"):
                 warn(f"Failed to process image {image_id}")
                 report_error("action", f"Failed to process image {image_id}")
+            else:
+                image.flag_image_modification("image uploaded")
         if image_id:
             log(f"Image creation completed successfully")
         else:
@@ -115,9 +117,9 @@ class PageImagesMixin:
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
         if not is_error():
             image_id = c_query(self.conn, """
-                INSERT INTO images (caption, username, uploaded, visibility, viewCount)
-                VALUES (%s, %s, NOW(), 1, 0)
-            """, (caption, db_user))
+                INSERT INTO images (caption, username, uploaded, last_modified, comments, visibility, viewCount)
+                VALUES (%s, %s, NOW(), NOW(), %s, 1, 0)
+            """, (caption, db_user, "image created"))
             log(f"Created image record {image_id}")
         trace_out()
         return image_id
@@ -138,6 +140,7 @@ class PageImagesMixin:
             """, (self.id, image_id, rank))
             if new_id is not None:
                 log(f"Successfully added image {image_id} to page {self.id} with rank {rank}")
+                self._flag_related_image(image_id, f"added to page {self.id}")
             else:
                 warn(f"Failed to add image {image_id} to page {self.id}")
                 report_error("action", f"Failed to add image {image_id} to page {self.id}")
@@ -159,6 +162,7 @@ class PageImagesMixin:
                 report_error("action", f"Failed to reorder images after removal")
             if not is_error():
                 log(f"Successfully removed image {image_id} from page {self.id}")
+                self._flag_related_image(image_id, f"removed from page {self.id}")
         trace_out()
         return not is_error()
 
@@ -265,6 +269,7 @@ class PageImagesMixin:
                 if affected == 0:
                     warn(f"Failed to remove image {image_id} (rank {source_rank}) from source page {source_page_id}")
                     continue
+                self._flag_related_image(image_id, f"removed from page {source_page_id}")
                 # Add to this page
                 if self._add_image_to_group(image_id):
                     moved_count += 1
@@ -427,6 +432,7 @@ class PageImagesMixin:
         if not is_error():
             log(f"Successfully removed image {image_id} (rank {image_rank}) from page {self.id}")
             self.flag_page_modification("images updated")
+            self._flag_related_image(image_id, f"removed from page {self.id}")
         trace_out()
         return not is_error()
 
@@ -466,3 +472,13 @@ class PageImagesMixin:
             self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
+
+
+    def _flag_related_image(self, image_id: int, comment: str) -> None:
+        if is_error() or not image_id:
+            return
+        image = get_image_conn(self.conn, image_id=image_id)
+        if not image:
+            warn(f"Failed to load image {image_id} for modification flag")
+            return
+        image.flag_image_modification(comment)

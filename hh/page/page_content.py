@@ -400,6 +400,8 @@ class PageContentMixin:
             else:
                 # Call the classmethod on the new page's class
                 NewPageClass.add_page_class_information(new_page_id, self.conn)
+            # Flag parent modification so cache system sees the hierarchy change
+            self.flag_page_modification("child added")
         if new_page_id:
             log("Page creation completed successfully")
         else:
