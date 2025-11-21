@@ -297,7 +297,11 @@ def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
     pages_processed = progress.get("pages_processed", 0)
     pages_modified = progress.get("pages_modified", 0)
 
-    resolution_ids, has_more = _get_referencing_page_ids(page_id, last_page_id, NAME_JOB_BATCH_LIMIT)
+    resolution_ids, has_more = _get_referencing_page_ids(
+        source_page_id=page_id,
+        last_page_id=last_page_id,
+        batch_limit=NAME_JOB_BATCH_LIMIT,
+    )
     if not resolution_ids:
         logging.info(
             "No referencing pages remaining for maintenance job %s (page_id=%s)",
@@ -343,11 +347,11 @@ def _process_page_name_job(job: Dict[str, Any]) -> Dict[str, Any]:
                 message = retry_attempt.get("message") or first_attempt.get("message") or "maintenance handler failed"
                 if detailed_error and detailed_error not in message:
                     message = f"{message}\n{detailed_error}"
-                return {
+        return {
                     "status": "error",
                     "progress": combined_progress,
                     "error_message": message.strip(),
-                }
+        }
 
         batch_count += 1
         pages_processed += 1
