@@ -197,12 +197,13 @@ def _perform_cache_rebuild(
         "processed_image_ids": processed_images,
         "errors": errors,
     }
-    logging.info(
-        "Cache rebuild complete: pages=%s images=%s errors=%s",
-        len(processed_pages),
-        len(processed_images),
-        len(errors),
-    )
+    if processed_pages or processed_images or errors:
+        logging.info(
+            "Cache rebuild complete: pages=%s images=%s errors=%s",
+            len(processed_pages),
+            len(processed_images),
+            len(errors),
+        )
     return data
 
 
