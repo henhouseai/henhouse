@@ -43,10 +43,12 @@ class PageImagesMixin:
 
     def _get_images_data(self) -> List[Dict[str, Any]]:
         trace_in()
-        if hasattr(self, 'cached_images') and self.cached_images is not None:
+        # Check if field is already populated
+        if hasattr(self, 'images') and self.images:
             debug(f"Page {self.id}: returning cached images")
             trace_out()
-            return self.cached_images
+            return self.images
+        # Field is empty, need to hydrate from database
         images_data = []
         if not is_error():
             try:
@@ -62,6 +64,8 @@ class PageImagesMixin:
                     image_rank = row['image_rank']
                     image = get_image(image_id=image_id)
                     if image:
+                        # Ensure instances are fully loaded before getting image_data
+                        image.get_instances()
                         image_data = image.get_image_data()
                         image_data['image_rank'] = image_rank  # Add rank from image_groups
                         images_data.append(image_data)
@@ -72,6 +76,11 @@ class PageImagesMixin:
             except Exception as e:
                 warn(f"Failed to load images for page {self.id}: {str(e)}")
                 report_error("backend", f"Failed to load images: {str(e)}")
+        self.images = images_data
+        # Only flag cache refresh if we actually found images (data changed)
+        # If we just confirmed there are no images (empty array), no need to refresh
+        if images_data:
+            self._flag_cache_refresh()
         trace_out()
         return images_data
 

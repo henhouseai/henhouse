@@ -62,9 +62,10 @@ DROP TABLE IF EXISTS `pages`;
 DROP TABLE IF EXISTS `image_groups`;
 DROP TABLE IF EXISTS `images`;
 DROP TABLE IF EXISTS `image_instances`;
+DROP TABLE IF EXISTS `files`;
+DROP TABLE IF EXISTS `file_groups`;
 DROP TABLE IF EXISTS `links`;
 DROP TABLE IF EXISTS `image_links`;
-DROP TABLE IF EXISTS `access_logs`;
 
 
 SET FOREIGN_KEY_CHECKS = 1;

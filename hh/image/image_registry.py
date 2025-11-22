@@ -30,7 +30,7 @@ def _initialize_debug():
 _image_cache: Dict[int, Any] = {}
 
 
-def _deserialize_json(blob, default):
+def _deserialize_json_blob(blob, default):
     if blob in (None, '', b''):
         return default
     if isinstance(blob, (bytes, bytearray)):
@@ -45,16 +45,24 @@ def _deserialize_json(blob, default):
     return default
 
 
-def _serialize_dt(value):
-    if isinstance(value, (dt.datetime, dt.date)):
-        return value.isoformat()
-    return value
+def _normalize_dt(value: Any) -> Optional[dt.datetime]:
+    if value is None:
+        return None
+    if isinstance(value, dt.datetime):
+        return value
+    if isinstance(value, dt.date):
+        return dt.datetime.combine(value, dt.time.min)
+    if isinstance(value, str):
+        try:
+            return dt.datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 @db_read
 def _get_cache_row(conn, image_id: int) -> Optional[Dict[str, Any]]:
     query = """
-        SELECT id, caption, username, uploaded, visibility, viewCount,
-               instances, pages, source_last_modified, cache_built_at, cache_version
+        SELECT id, instances, pages, cache_built_at
         FROM images
         WHERE id = %s
     """
@@ -65,14 +73,24 @@ def _get_cache_row(conn, image_id: int) -> Optional[Dict[str, Any]]:
 def _hydrate_image_from_cache(image_obj: Image, cache_row: Optional[Dict[str, Any]]) -> bool:
     if not cache_row:
         return False
+    
+    # Check staleness using main database timestamps (both loaded from main DB in do_init)
+    cache_built_at_dt = _normalize_dt(image_obj.cache_built_at)
+    last_modified_dt = _normalize_dt(image_obj.last_modified)
 
-    instances = _deserialize_json(cache_row.get('instances'), [])
-    usage = _deserialize_json(cache_row.get('pages'), [])
+    if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
+        debug(f"Cache for image {image_obj.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
+        return False
+    
+    # If cache_built_at is NULL in main DB, cache doesn't exist yet
+    if cache_built_at_dt is None:
+        debug(f"Cache for image {image_obj.id} does not exist (cache_built_at is NULL)")
+        return False
 
-    image_obj.instances = instances.copy()
-    image_obj.cached_usage = usage
-    image_obj.cache_source_last_modified = _serialize_dt(cache_row.get('source_last_modified'))
-    image_obj.cache_built_at = _serialize_dt(cache_row.get('cache_built_at'))
+    # Load expensive pre-computed data from cache database directly into live fields
+    image_obj.instances = _deserialize_json_blob(cache_row.get('instances'), [])
+    # Use cached_usage for now to match existing code, but this should be renamed to pages
+    image_obj.cached_usage = _deserialize_json_blob(cache_row.get('pages'), [])
     image_obj.cache_hydrated = True
     debug(f"Hydrated image {image_obj.id} from cache (built_at={image_obj.cache_built_at})")
     return True
@@ -116,17 +134,11 @@ def get_image(conn, image_id: int) -> Optional["Image"]:
 
 
 def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional["Image"]:
-    """Get image with explicit connection - no caching, creates new instance"""
+    """Get image with explicit connection - also hydrates from cache"""
     trace_in()
     if not image_id or image_id <= 0:
         warn(f"Invalid image ID: {image_id}")
         report_error("action", f"Invalid image ID: {image_id}")
-    if not is_error():
-        query = "SELECT id FROM images WHERE id = %s"
-        results = r_query(conn, query, [image_id])
-        if not results:
-            warn(f"Image {image_id} not found")
-            report_error("action", f"Image {image_id} not found")
     if not is_error():
         from hh.image.image import Image
         try:
@@ -138,7 +150,7 @@ def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional["Image"]
         cache_row = _get_cache_row(conn, image_id)
         if cache_row:
             _hydrate_image_from_cache(image_instance, cache_row)
-        log(f"Retrieved image {image_id} with explicit connection: {conn}")
+        log(f"Retrieved image {image_id} with explicit connection: '{image_instance.caption if image_instance else 'N/A'}'")
         trace_out()
         return image_instance
     trace_out()

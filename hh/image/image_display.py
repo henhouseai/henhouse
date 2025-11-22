@@ -131,6 +131,9 @@ class ImageDisplayMixin:
             except Exception as e:
                 warn(f"Failed to get usage data for image {self.id}: {str(e)}")
                 report_error("backend", f"Failed to get usage data: {str(e)}")
+        # Flag that cache needs refresh since we just hydrated
+        if usage_data:  # Only flag if actual usage data was found
+            self._flag_cache_refresh()
         trace_out()
         return usage_data
 

@@ -813,6 +813,7 @@ CREATE TABLE IF NOT EXISTS `pages` (
   `parent` int DEFAULT NULL,
   `class` varchar(255) DEFAULT NULL,
   `last_modified` datetime DEFAULT NULL,
+  `cache_built_at` datetime DEFAULT NULL,
   `username` varchar(255) DEFAULT NULL,
   `comments` varchar(255) DEFAULT NULL,
   `visibility` int NOT NULL DEFAULT '1',
@@ -830,6 +831,7 @@ CREATE TABLE IF NOT EXISTS `images` (
   `username` varchar(255) NOT NULL,
   `uploaded` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime DEFAULT NULL,
+  `cache_built_at` datetime DEFAULT NULL,
   `comments` varchar(255) DEFAULT NULL,
   `visibility` int NOT NULL DEFAULT '1',
   `viewCount` int NOT NULL DEFAULT '0',
@@ -870,6 +872,7 @@ CREATE TABLE IF NOT EXISTS `files` (
   `username` varchar(255) DEFAULT NULL,
   `uploaded` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime DEFAULT NULL,
+  `cache_built_at` datetime DEFAULT NULL,
   `comments` varchar(255) DEFAULT NULL,
   `visibility` int NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
@@ -903,21 +906,6 @@ CREATE TABLE IF NOT EXISTS `image_links` (
   `resolution_id` int NOT NULL,
   KEY `id` (`id`),
   KEY `resolution_id` (`resolution_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `access_logs` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `ip_address` varchar(45) NOT NULL,
-  `request_timestamp` datetime NOT NULL,
-  `http_method` varchar(10) NOT NULL,
-  `request_uri` varchar(2048) NOT NULL,
-  `user_agent` varchar(512) DEFAULT NULL,
-  `referrer` varchar(2048) DEFAULT NULL,
-  `response_status` int NOT NULL,
-  `http_auth_username` varchar(255) DEFAULT NULL,
-  `post_id` varchar(16) DEFAULT NULL,
-  `post_action` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -37,6 +37,7 @@ def _register_content_methods():
         'delete_page': {'mixin_method': '_delete_page', 'decorator': 'write'},
         'add_page': {'mixin_method': '_add_page', 'decorator': 'write'},
         'get_page_data': {'mixin_method': '_get_page_data', 'decorator': 'read'},
+        'get_prepared_text': {'mixin_method': '_get_prepared_text', 'decorator': 'read'},
         'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
         'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
     }
@@ -145,7 +146,7 @@ class PageContentMixin:
         return result
     
     @classmethod
-    def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
         Hook called after page creation to add class-specific data.
         This is a classmethod (like PHP's static method) so it can be called on the class
@@ -154,7 +155,7 @@ class PageContentMixin:
         pass
     
 
-    def delete_page_class_information(self):
+    def _delete_page_class_information(self):
         pass
 
 
@@ -228,6 +229,26 @@ class PageContentMixin:
         trace_out()
         return not is_error()
 
+    def _get_prepared_text(self) -> Optional[List[Dict[str, Any]]]:
+        """
+        Get the prepared text for this page. Checks cached prepared_text first, then processes if needed.
+        """
+        trace_in()
+        # Check if field is already populated
+        if hasattr(self, 'prepared_text') and self.prepared_text is not None:
+            trace_out()
+            return self.prepared_text
+        # Field is empty, need to process text
+        processor = TextProcessor()
+        prepared = processor.preprocess(self.text or "")
+        if prepared is not None:
+            self.prepared_text = prepared
+            # Only flag cache refresh if we actually processed text content
+            # If we just confirmed there's no text (empty list), no need to refresh
+            if prepared:
+                self._flag_cache_refresh()
+        trace_out()
+        return prepared
 
     def _modify_text(self, text: str) -> bool:
         trace_in()
@@ -261,8 +282,10 @@ class PageContentMixin:
                 trace_out()
                 return False
         if not is_error():
-            debug(f"Triggering cache update for page {self.id} after text change")
-            self.refresh_cached_page(text_value, preprocessed)
+            # Update prepared_text field with the newly processed text
+            self.prepared_text = preprocessed
+            # Flag that cache needs refresh
+            self._flag_cache_refresh()
         if not is_error():
             # Update object property to match what was stored in database
             self.text = None if text == "" else text
@@ -319,7 +342,7 @@ class PageContentMixin:
                     report_error("action", f"Failed to delete image_groups for page {self.id}")
         if not is_error():
             # Call hook to clean up class-specific data before deleting
-            self.delete_page_class_information()
+            self._delete_page_class_information()
         if not is_error():
             success = self._delete_from_database()
             if not success:
@@ -399,7 +422,7 @@ class PageContentMixin:
                 report_error("action", f"Page class '{page_class}' not found")
             else:
                 # Call the classmethod on the new page's class
-                NewPageClass.add_page_class_information(new_page_id, self.conn)
+                NewPageClass._add_page_class_information(new_page_id, self.conn)
             # Flag parent modification so cache system sees the hierarchy change
             self.flag_page_modification("child added")
         if new_page_id:
@@ -465,14 +488,13 @@ class PageContentMixin:
             "comments": self.comments
         }
         # Add breadcrumb path if available
-        if hasattr(self, '_get_path'):
-            path_data = self._get_path()
-            if path_data:
-                data['path'] = path_data
+        path_data = self._get_path()
+        if path_data:
+            data['path'] = path_data
         trace_out()
         return data
     
-    def get_child_page_data(self) -> Dict[str, Any]:
+    def _get_child_page_data(self) -> Dict[str, Any]:
         """Return simplified data for child pages in tables: id, name, parent, class."""
         trace_in()
         data = {
@@ -525,7 +547,6 @@ class PageContentMixin:
             self.username = db_user
             self.comments = comments
             log(f"Updated page {self.id} modification flags: {comments}")
-            self.clear_cached_payload_state()
         if not is_error():
             # If this is not a "child page modified" comment, also flag the parent
             # This prevents infinite recursion up the tree

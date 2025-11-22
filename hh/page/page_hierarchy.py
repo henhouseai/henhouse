@@ -39,7 +39,7 @@ def _register_hierarchy_methods():
 class PageHierarchyMixin:
 
     @staticmethod
-    def get_children_query(parent_id: int) -> tuple[str, list]:
+    def _get_children_query(parent_id: int) -> tuple[str, list]:
         # Default: only return children of class 'page', sorted by name
         return (
             "SELECT id FROM pages WHERE parent = %s AND class = 'page' ORDER BY name",
@@ -47,15 +47,24 @@ class PageHierarchyMixin:
         )
 
 
-    def copy_page_class_information(self, new_page_id: int):
+    def _copy_page_class_information(self, new_page_id: int):
         pass
     
-    def get_display_name(self) -> str:
+    def _get_display_name(self) -> str:
         """
         Get the display name for this page, with fallback logic.
         Override this method in subclasses to provide custom display names.
+        Checks cached display_name first, then computes if needed.
         """
-        return self.name or f"Page {self.id}"
+        # Check if field is already populated
+        if hasattr(self, 'display_name') and self.display_name:
+            return self.display_name
+        # Field is empty, compute it
+        display_name = self.name or f"Page {self.id}"
+        self.display_name = display_name
+        # Flag that cache needs refresh since we just computed
+        self._flag_cache_refresh()
+        return display_name
 
     def _get_path(self) -> List[Dict[str, Any]]:
         trace_in()
@@ -66,7 +75,7 @@ class PageHierarchyMixin:
             level += 1
             path.append({
                 "id": current_page.id,
-                "name": current_page.get_display_name(),
+                "name": current_page._get_display_name(),
                 "class": current_page.class_name
             })
             # Get parent page
@@ -80,7 +89,7 @@ class PageHierarchyMixin:
             level += 1
             path.append({
                 "id": current_page.id,
-                "name": current_page.get_display_name(),
+                "name": current_page._get_display_name(),
                 "class": current_page.class_name
             })
         # Reverse to get root -> current order
@@ -117,7 +126,7 @@ class PageHierarchyMixin:
         trace_in()
         child_ids = []
         if not is_error():
-            query, params = self.get_children_query(self.id)
+            query, params = self._get_children_query(self.id)
             results = r_query(self.conn, query, params)
             if results:
                 child_ids = [row['id'] for row in results]
@@ -227,7 +236,7 @@ class PageHierarchyMixin:
                 if new_page:
                     new_page.modify_text(self.text)
             # Call class-specific copy logic hook
-            self.copy_page_class_information(new_page_id)
+            self._copy_page_class_information(new_page_id)
             # Recursively copy children if requested
             if recursive:
                 self._copy_children_recursive(new_page_id, max_depth)

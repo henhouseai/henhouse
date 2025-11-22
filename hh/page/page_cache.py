@@ -5,6 +5,8 @@ import datetime as dt
 from decimal import Decimal
 
 from hh.gateway.connection.connection import r_query, u_query, c_query
+from hh.gateway.connection.types import DatabaseConnection
+from hh.gateway.connection.decorators import db_write
 from hh.gateway.registry.debug import (
     get_trace_in,
     get_trace_out,
@@ -15,7 +17,6 @@ from hh.gateway.registry.debug import (
 )
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_method_registry import register_page_mixin_methods
-from hh.page.page_registry import invalidate_page_cache_entry
 from hh.tp.tp import TextProcessor
 
 trace_in = lambda message=None: None
@@ -35,50 +36,16 @@ def _initialize_page_cache_debug():
     warn = get_warn(True)
 
 
-CACHE_VERSION = "v1"
-
-
-@register_page_mixin_methods
-def _register_cache_methods():
-    return {
-        'refresh_cached_page': {'mixin_method': '_refresh_cached_page', 'decorator': 'write'},
-        'ensure_cache_entry': {'mixin_method': '_ensure_cache_entry', 'decorator': 'write'},
-        'load_cached_payload': {'mixin_method': '_load_cached_payload', 'decorator': 'read'},
-        'clear_cached_payload_state': {'mixin_method': '_clear_cached_payload_state', 'decorator': 'read'},
-        'get_cached_prepared_text_if_current': {'mixin_method': '_get_cached_prepared_text_if_current', 'decorator': 'read'},
-    }
+# Cache methods are not registered as mixin methods - they're called internally by the wrapper system
 
 
 class PageCacheMixin:
 
-    def _load_cached_payload(self) -> Optional[Dict[str, Any]]:
-        trace_in()
-        if not getattr(self, "cache_hydrated", False):
-            trace_out()
-            return None
-        page_data = self.get_page_data()
-        if self.cached_prepared_text is not None:
-            page_data = dict(page_data)
-            page_data["prepared_text"] = self.cached_prepared_text
-        payload = {
-            "page": page_data,
-            "children_by_class": self.cached_children_by_class or {},
-            "images": self.cached_images or [],
-            "files": self.cached_files or [],
-            "_cache_info": {
-                "source_last_modified": self.cache_source_last_modified,
-                "cache_built_at": self.cache_built_at,
-                "version": CACHE_VERSION,
-            },
-        }
-        trace_out()
-        return payload
-
-    def _ensure_cache_entry(self) -> bool:
+    def _ensure_cache_entry(self, conn: DatabaseConnection) -> bool:
         trace_in()
         try:
             existing = r_query(
-                self.conn,
+                conn,
                 "SELECT 1 FROM pages WHERE id = %s",
                 (self.id,),
                 use_secondary=True,
@@ -93,47 +60,17 @@ class PageCacheMixin:
             trace_out()
             return True
 
-        metadata_json = self._serialize_metadata()
         now = dt.datetime.now()
         try:
             c_query(
-                self.conn,
+                conn,
                 """
-                    INSERT INTO pages (
-                        id,
-                        parent_id,
-                        class,
-                        name,
-                        link,
-                        text,
-                        metadata,
-                        prepared_text,
-                        children_summary,
-                        image_summary,
-                        file_summary,
-                        links_out,
-                        source_last_modified,
-                        cache_built_at,
-                        cache_version
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO pages (id, cache_built_at)
+                    VALUES (%s, %s)
                 """,
                 (
                     self.id,
-                    self.parent,
-                    self.class_name,
-                    self.name,
-                    self.link,
-                    self.text,
-                    metadata_json,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
                     now,
-                    now,
-                    CACHE_VERSION,
                 ),
                 use_secondary=True,
             )
@@ -147,94 +84,125 @@ class PageCacheMixin:
         trace_out()
         return True
 
-    def _refresh_cached_page(
-        self,
-        new_text: Optional[str] = None,
-        preprocessed_payload: Optional[List[Dict[str, Any]]] = None,
-        cache_payload: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+    def _flag_cache_refresh(self) -> None:
+        """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
+        self._cache_needs_refresh = True
+
+    @db_write
+    def _refresh_cached_page_with_write_conn(self, conn: DatabaseConnection) -> bool:
+        """Helper method decorated with @db_write to get a write connection for cache refresh.
+        Used when original operation was a read operation."""
+        self.conn = conn
+        return self._refresh_cached_page(conn)
+
+    def _refresh_cached_page(self, conn: DatabaseConnection) -> bool:
+        """Refresh the cache database with all 5 derived fields. Called by wrapper system at end of method calls.
+        Takes conn as explicit parameter - must be provided by caller."""
         trace_in()
-        if not self._ensure_cache_entry():
+        debug(f"_refresh_cached_page: Starting for page {self.id}, conn={conn}")
+        if conn is None:
+            warn(f"_refresh_cached_page: conn is None for page {self.id}")
+            trace_out()
+            return False
+        # If self.conn is None, set it to the supplied connection so internal methods can use it
+        if self.conn is None:
+            self.conn = conn
+        if not self._ensure_cache_entry(conn):
+            debug(f"_refresh_cached_page: Failed to ensure cache entry for page {self.id}")
             trace_out()
             return False
 
-        metadata_json = self._serialize_metadata()
-        if preprocessed_payload is None:
-            source_text = new_text if new_text is not None else (self.text or "")
-            if source_text is not None:
-                processor = TextProcessor()
-                generated = processor.preprocess(source_text)
-                if generated is not None:
-                    preprocessed_payload = generated
-                    debug(f"Generated prepared text for page {self.id} inside refresh_cached_page")
-                else:
-                    warn(f"Failed to preprocess text for page {self.id} while refreshing cache")
-        prepared_json = (
-            json.dumps(preprocessed_payload, ensure_ascii=False)
-            if preprocessed_payload is not None
-            else None
-        )
+        # Ensure all 5 fields are populated by calling their internal mixin methods
+        # The getters check if field is populated first, and only hydrate if empty
+        # This ensures we always have fully hydrated data to cache
+        
+        if not self.display_name:
+            self.display_name = self._get_display_name()
+        
+        if self.prepared_text is None:
+            self.prepared_text = self._get_prepared_text()
+        
+        children = self._get_children_by_class()
+        self.children_by_class = children if children else {}
+        
+        if not self.images:
+            self.images = self._get_images_data()
+        
+        if not self.files:
+            self.files = self._get_files_data()
+        
+        # Serialize all data
+        display_name_str = self.display_name
+        prepared_json = self._dump_json(self.prepared_text) if self.prepared_text is not None else None
+        children_json = self._dump_json(self.children_by_class) if self.children_by_class else None
+        images_json = self._dump_json(self.images) if self.images else None
+        files_json = self._dump_json(self.files) if self.files else None
+        
         now = dt.datetime.now()
-        children_json = None
-        images_json = None
-        file_summary_json = None
-        if cache_payload:
-            children_json = self._dump_json(cache_payload.get("children_by_class", {}) or {})
-            images_json = self._dump_json(cache_payload.get("images", []) or [])
-            file_summary = {
-                "files": cache_payload.get("files", []) or [],
-            }
-            file_summary_json = self._dump_json(file_summary)
+        
         try:
+            # Update cache database
             affected = u_query(
-                self.conn,
+                conn,
                 """
                     UPDATE pages
-                    SET text = %s,
+                    SET display_name = %s,
                         prepared_text = %s,
-                        name = %s,
-                        link = %s,
-                        metadata = %s,
                         children_summary = %s,
                         image_summary = %s,
                         file_summary = %s,
-                        parent_id = %s,
-                        class = %s,
-                        source_last_modified = %s,
-                        cache_built_at = %s,
-                        cache_version = %s
+                        links_out = %s,
+                        cache_built_at = %s
                     WHERE id = %s
                 """,
                 (
-                    new_text,
+                    display_name_str,
                     prepared_json,
-                    self.name,
-                    self.link,
-                    metadata_json,
                     children_json,
                     images_json,
-                    file_summary_json,
-                    self.parent,
-                    self.class_name,
+                    files_json,
+                    self._dump_json({}),  # links_out - currently not used, store empty dict
                     now,
-                    now,
-                    CACHE_VERSION,
                     self.id,
                 ),
                 use_secondary=True,
             )
-            debug(
-                f"Refreshed cache for page {self.id}: rows={affected}, "
-                f"text_len={0 if new_text is None else len(new_text)}, "
-                f"prepared={'yes' if prepared_json else 'no'}"
-            )
+            # Update main database cache_built_at
+            if affected > 0:
+                u_query(
+                    conn,
+                    """
+                        UPDATE pages
+                        SET cache_built_at = %s
+                        WHERE id = %s
+                    """,
+                    (now, self.id),
+                    use_secondary=False,
+                )
+                
+                # Verify the data was actually written by reading it back
+                verify_check = r_query(
+                    conn,
+                    "SELECT display_name, cache_built_at FROM pages WHERE id = %s",
+                    (self.id,),
+                    use_secondary=True,
+                )
+                if verify_check:
+                    debug(f"_refresh_cached_page: Verification - cache entry has display_name='{verify_check[0].get('display_name')}', cache_built_at={verify_check[0].get('cache_built_at')}")
+                else:
+                    warn(f"_refresh_cached_page: Verification failed - cache entry not found after UPDATE")
+            else:
+                warn(f"_refresh_cached_page: UPDATE affected 0 rows for page {self.id} - cache entry may not exist")
+            
+            debug(f"Refreshed cache for page {self.id}: rows={affected}")
         except Exception as exc:
             warn(f"Failed to update cache for page {self.id}: {exc}")
             report_error("connection", f"Failed to update cache for page {self.id}")
             trace_out()
             return False
 
-        invalidate_page_cache_entry(self.id)
+        self._cache_needs_refresh = False  # Reset flag after refresh
+        
         trace_out()
         return not is_error()
 
@@ -265,63 +233,4 @@ class PageCacheMixin:
         if isinstance(value, set):
             return list(value)
         return value
-
-    def _clear_cached_payload_state(self) -> None:
-        trace_in()
-        self.cached_prepared_text = None
-        self.cached_children_by_class = None
-        self.cached_images = None
-        self.cached_files = None
-        self.cached_file_summary = None
-        self.cache_built_at = None
-        self.cache_source_last_modified = None
-        self.cache_hydrated = False
-        trace_out()
-
-    def _get_cached_prepared_text_if_current(self) -> Optional[List[Dict[str, Any]]]:
-        trace_in()
-        try:
-            row = r_query(
-                self.conn,
-                """
-                    SELECT text, prepared_text
-                    FROM pages
-                    WHERE id = %s
-                """,
-                (self.id,),
-                use_secondary=True,
-            )
-        except Exception as exc:
-            warn(f"Failed to load cached prepared text for page {self.id}: {exc}")
-            trace_out()
-            return None
-
-        if not row:
-            trace_out()
-            return None
-
-        cache_row = row[0]
-        cached_text = cache_row.get('text') or ""
-        current_text = (self.text or "")
-        if cached_text != current_text:
-            debug(f"Cached text mismatch for page {self.id}; forcing reprocess")
-            trace_out()
-            return None
-
-        prepared_blob = cache_row.get('prepared_text')
-        if prepared_blob in (None, '', b''):
-            trace_out()
-            return None
-
-        if isinstance(prepared_blob, (bytes, bytearray)):
-            prepared_blob = prepared_blob.decode('utf-8')
-
-        try:
-            prepared_payload = json.loads(prepared_blob) if isinstance(prepared_blob, str) else prepared_blob
-            trace_out()
-            return prepared_payload
-        except (ValueError, TypeError):
-            warn(f"Failed to decode cached prepared text for page {self.id}")
-            trace_out()
-            return None
 

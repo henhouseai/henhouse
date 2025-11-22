@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from hh.gateway.connection.connection import r_query, u_query, d_query
 from hh.gateway.error.error_store import report_error, is_error
@@ -40,6 +40,7 @@ def _register_content_methods():
         "delete_from_database": {"mixin_method": "_delete_from_database", "decorator": "write"},
         "get_file_data": {"mixin_method": "_get_file_data", "decorator": "read"},
         "modify_description": {"mixin_method": "_modify_description", "decorator": "write"},
+        "get_usage_data": {"mixin_method": "_get_usage_data", "decorator": "read"},
     }
 
 
@@ -128,4 +129,53 @@ class FileContentMixin:
         if new_path:
             log(f"File {self.id} moved to deleted path {new_path}")
             self.file_path = new_path
+
+    def _get_usage_data(self) -> List[Dict[str, Any]]:
+        trace_in()
+        usage_data = []
+        if not is_error():
+            try:
+                query = """
+                    SELECT 
+                        fg.page_id,
+                        p.name as page_name,
+                        p.class as page_class,
+                        COUNT(*) as usage_count,
+                        GROUP_CONCAT(fg.file_rank ORDER BY fg.file_rank SEPARATOR ', ') as ranks
+                    FROM file_groups fg
+                    JOIN pages p ON fg.page_id = p.id
+                    WHERE fg.file_id = %s
+                    GROUP BY fg.page_id, p.name, p.class
+                    ORDER BY p.name
+                """
+                results = r_query(self.conn, query, [self.id])
+                for row in results:
+                    page_id = row['page_id']
+                    page_name = row['page_name'] or f"Page {page_id}"
+                    page_class = row['page_class']
+                    usage_count = row['usage_count']
+                    ranks_str = row['ranks']
+                    # Get the page path for breadcrumb display
+                    from hh.page.page_registry import get_page
+                    page = get_page(page_id=page_id)
+                    path_data = page.get_path() if page else []
+                    usage_item = {
+                        'page_id': page_id,
+                        'page_name': page_name,
+                        'page_class': page_class,
+                        'usage_count': usage_count,
+                        'ranks': ranks_str,
+                        'path': path_data
+                    }
+                    usage_data.append(usage_item)
+                    log(f"Found usage: page {page_id} ({page_name}) - {usage_count} times (ranks {ranks_str})")
+                log(f"Found {len(usage_data)} pages using file {self.id}")
+            except Exception as e:
+                warn(f"Failed to get usage data for file {self.id}: {str(e)}")
+                report_error("backend", f"Failed to get usage data: {str(e)}")
+        # Flag that cache needs refresh since we just hydrated
+        if usage_data:  # Only flag if actual usage data was found
+            self._flag_cache_refresh()
+        trace_out()
+        return usage_data
 

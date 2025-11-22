@@ -110,14 +110,14 @@ class McpRequestContentMixin:
         self.status = status if isinstance(status, str) and status in self.VALID_STATUSES else 'pending'
 
     @staticmethod
-    def get_children_query(parent_id: int) -> tuple[str, list]:
+    def _get_children_query(parent_id: int) -> tuple[str, list]:
         """Return query to get mcp_request children."""
         return (
             "SELECT id FROM pages WHERE parent = %s AND class = 'mcp_request' ORDER BY id",
             [parent_id]
         )
 
-    def get_display_name(self) -> str:
+    def _get_display_name(self) -> str:
         """
         Override to return status-based display name when name is None.
         """
@@ -127,8 +127,8 @@ class McpRequestContentMixin:
         status = self.status if hasattr(self, 'status') else 'pending'
         return f"MCP Request ({status})"
 
-    def do_init(self, conn: DatabaseConnection, page_id: int):
-        super().do_init(conn, page_id)
+    def _do_init(self, conn: DatabaseConnection, page_id: int):
+        super()._do_init(conn, page_id)
 
         if is_error() or not conn:
             return
@@ -146,7 +146,7 @@ class McpRequestContentMixin:
         trace_out()
 
     @classmethod
-    def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         trace_in()
         gateway = get_gateway()
         if not gateway:
@@ -184,7 +184,7 @@ class McpRequestContentMixin:
         log(f"Initialized metadata for MCP request page {new_page_id}")
         trace_out()
 
-    def delete_page_class_information(self):
+    def _delete_page_class_information(self):
         trace_in()
         # Metadata stored directly with page; nothing to clean up.
         trace_out()
@@ -208,8 +208,8 @@ class McpRequestContentMixin:
         )
         return data
 
-    def add_badge_headers(self) -> Dict[str, Any]:
-        badge_headers = super().add_badge_headers()
+    def _add_badge_headers(self) -> Dict[str, Any]:
+        badge_headers = super()._add_badge_headers()
         badge_headers['page_summary']['status'] = self.status
         badge_headers['mcp_request_counts'] = {
             "create_request": self.create_request,
@@ -223,7 +223,7 @@ class McpRequestContentMixin:
         }
         return badge_headers
 
-    def add_lower_content(self) -> list[str]:
+    def _add_lower_content(self) -> list[str]:
         lines: list[str] = []
         if self.input_request:
             pretty = self._pretty_json(self.input_request)
@@ -233,7 +233,7 @@ class McpRequestContentMixin:
             lines.append(f"Output Response:\n{pretty}")
         return lines
 
-    def get_child_page_data(self) -> Dict[str, Any]:
+    def _get_child_page_data(self) -> Dict[str, Any]:
         """Override to return simplified data for mcp_request children: id, status, total_actions."""
         trace_in()
         total_actions = (
@@ -248,7 +248,7 @@ class McpRequestContentMixin:
         trace_out()
         return data
 
-    def get_child_row_field_type(self) -> str:
+    def _get_child_row_field_type(self) -> str:
         """Return field type for mcp_request rows."""
         return 'mcp_request'
 

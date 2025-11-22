@@ -63,9 +63,9 @@ class WorkPageContentMixin:
             return {}
         return {key: data[key] for key in sorted(data.keys(), key=lambda k: k.lower())}
     
-    def do_init(self, conn: DatabaseConnection, page_id: int):
-        # Call parent's do_init first to load base page data
-        super().do_init(conn, page_id)
+    def _do_init(self, conn: DatabaseConnection, page_id: int):
+        # Call parent's _do_init first to load base page data
+        super()._do_init(conn, page_id)
         
         # Only proceed if parent initialization succeeded and we have a connection
         if is_error() or not conn:
@@ -123,7 +123,7 @@ class WorkPageContentMixin:
         trace_out()
         return data
     
-    def get_child_page_data(self) -> Dict[str, Any]:
+    def _get_child_page_data(self) -> Dict[str, Any]:
         """Override to return simplified data for work page children: id, name, sort_order, meta, timestamps."""
         trace_in()
         data = {
@@ -138,7 +138,7 @@ class WorkPageContentMixin:
         return data
     
     @classmethod
-    def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
         Hook called after page creation to initialize metadata for work entities.
         """
@@ -216,7 +216,7 @@ class WorkPageContentMixin:
         new_page.reset_connection()
         trace_out()
     
-    def delete_page_class_information(self):
+    def _delete_page_class_information(self):
         """
         Hook called before page deletion to remove work-specific metadata if desired.
         """

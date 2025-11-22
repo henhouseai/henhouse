@@ -35,10 +35,10 @@ class PageAjaxMixin:
         trace_in()
         page_data = self.get_page_data()
         images_data = self.get_images_data()
-        children_by_class = self._get_children_by_class() if hasattr(self, '_get_children_by_class') else {}
+        children_by_class = self._get_children_by_class()
         
         # Add path data if available
-        if 'path' not in page_data and hasattr(self, '_get_path'):
+        if 'path' not in page_data:
             path_data = self._get_path()
             if path_data:
                 page_data['path'] = path_data

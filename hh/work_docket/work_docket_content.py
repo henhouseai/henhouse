@@ -36,7 +36,7 @@ class WorkDocketContentMixin:
     # _modify_status, _modify_meta, _modify_sort_order are all handled by WorkPage base class
     
     @staticmethod
-    def get_children_query(parent_id: int) -> tuple[str, list]:
+    def _get_children_query(parent_id: int) -> tuple[str, list]:
         return (
             """
             SELECT pages.id
@@ -51,7 +51,7 @@ class WorkDocketContentMixin:
             [parent_id]
         )
     
-    def get_child_row_field_type(self) -> str:
+    def _get_child_row_field_type(self) -> str:
         """Return field type based on status for work docket rows."""
         status = self.status if hasattr(self, 'status') else 'todo'
         return f'work_docket_{status}'

@@ -52,11 +52,11 @@ def _register_file_methods():
 class PageFilesMixin:
     def _get_files_data(self) -> List[Dict[str, Any]]:
         trace_in()
-        cached_files = getattr(self, "cached_files", None)
-        if cached_files is not None:
+        # Check if field is already populated
+        if hasattr(self, 'files') and self.files:
             trace_out()
-            return cached_files
-
+            return self.files
+        # Field is empty, need to hydrate from database
         files: List[Dict[str, Any]] = []
         if not is_error():
             rows = r_query(
@@ -98,12 +98,11 @@ class PageFilesMixin:
                         "visibility": row["visibility"],
                     }
                 )
-        self.cached_files = files
-        summary = getattr(self, "cached_file_summary", {}) or {}
-        if not isinstance(summary, dict):
-            summary = {}
-        summary["files"] = files
-        self.cached_file_summary = summary
+        self.files = files
+        # Only flag cache refresh if we actually found files (data changed)
+        # If we just confirmed there are no files (empty array), no need to refresh
+        if files:
+            self._flag_cache_refresh()
         trace_out()
         return files
 
@@ -466,7 +465,7 @@ class PageFilesMixin:
         return results[0]["cnt"] if results else 0
 
     def _reset_cached_files(self) -> None:
-        if hasattr(self, "cached_files"):
-            self.cached_files = None
-        if hasattr(self, "cached_file_summary"):
-            self.cached_file_summary = None
+        """Reset files field and flag cache refresh."""
+        if hasattr(self, "files"):
+            self.files = []
+        self._flag_cache_refresh()

@@ -692,7 +692,7 @@ def show_page() -> bool:
     page_data = source_data.get('page', {})
     
     # Render all sections - response classes handle output format differences
-    cache_info = source_data.pop('_cache_info', None)
+    cache_built_at = source_data.pop('cache_built_at', None)
     render_path_section(page_data)
     badge_headers = source_data.get('badge_headers', {})
     if badge_headers:
@@ -728,6 +728,7 @@ def show_page() -> bool:
             'badge_headers',
             'upper_content',
             'lower_content',
+            'cache_built_at',
         ]
     }
     if extra_data:

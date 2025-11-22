@@ -51,9 +51,7 @@ def _serialize_dt(value):
 
 def _get_cache_row(conn, page_id: int) -> Optional[Dict[str, Any]]:
     query = """
-        SELECT id, parent_id, class, name, link, text, metadata,
-               prepared_text, children_summary, image_summary, file_summary, links_out,
-               source_last_modified, cache_built_at, cache_version
+        SELECT id, display_name, prepared_text, children_summary, image_summary, file_summary, links_out, cache_built_at
         FROM pages
         WHERE id = %s
     """
@@ -76,35 +74,63 @@ def _normalize_dt(value: Any) -> Optional[dt.datetime]:
     return None
 
 
+def _get_page_class_and_load_utils(conn, page_id: int) -> Optional[type]:
+    """Helper to get PageClass and load mcp_utils. Returns PageClass or None if error."""
+    query = "SELECT class FROM pages WHERE id = %s"
+    results = r_query(conn, query, [page_id])
+    if not results:
+        warn(f"Page {page_id} not found")
+        report_error("action", f"Page {page_id} not found")
+        return None
+    
+    page_class_name = results[0].get('class', 'page')
+    # Get the appropriate Page subclass from registry
+    PageClass = get_page_class(page_class_name)
+    if PageClass is None:
+        # Fall back to base Page class
+        log(f"Page class '{page_class_name}' not found in registry, using base Page class")
+        from hh.page.page import Page
+        PageClass = Page
+    else:
+        log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
+    # Load mcp_utils for HTTP backend requests (works for both registered and base Page class)
+    _load_mcp_utils_for_page_class(PageClass)
+    return PageClass
+
+
 def _hydrate_page_from_cache(page_obj, cache_row: Optional[Dict[str, Any]]) -> bool:
     if not cache_row:
         return False
-    cache_built_at = cache_row.get('cache_built_at')
-    cache_built_at_dt = _normalize_dt(cache_built_at)
+    
+    # Check staleness using main database timestamps (both loaded from main DB in do_init)
+    cache_built_at_dt = _normalize_dt(page_obj.cache_built_at)
     last_modified_dt = _normalize_dt(page_obj.last_modified)
 
     if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
         debug(f"Cache for page {page_obj.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
         return False
+    
+    # If cache_built_at is NULL in main DB, cache doesn't exist yet
+    if cache_built_at_dt is None:
+        debug(f"Cache for page {page_obj.id} does not exist (cache_built_at is NULL)")
+        return False
 
-    metadata = _deserialize_json_blob(cache_row.get('metadata'), {})
-    if metadata:
-        page_obj.metadata = metadata
-
-    page_obj.cached_prepared_text = _deserialize_json_blob(cache_row.get('prepared_text'), None)
-    page_obj.cached_children_by_class = _deserialize_json_blob(cache_row.get('children_summary'), {})
-    page_obj.cached_images = _deserialize_json_blob(cache_row.get('image_summary'), [])
-    file_summary = _deserialize_json_blob(cache_row.get('file_summary'), {})
-    page_obj.cached_file_summary = file_summary if isinstance(file_summary, dict) else {}
-    if isinstance(page_obj.cached_file_summary, dict):
-        page_obj.cached_files = page_obj.cached_file_summary.get('files')
-    else:
-        page_obj.cached_files = None
-    page_obj.cache_source_last_modified = _serialize_dt(cache_row.get('source_last_modified'))
-    page_obj.cache_built_at = _serialize_dt(cache_row.get('cache_built_at'))
+    # Load expensive pre-computed data from cache database directly into the 5 derived fields
+    page_obj.display_name = cache_row.get('display_name')
+    page_obj.prepared_text = _deserialize_json_blob(cache_row.get('prepared_text'), None)
+    page_obj.children_by_class = _deserialize_json_blob(cache_row.get('children_summary'), {})
+    page_obj.images = _deserialize_json_blob(cache_row.get('image_summary'), [])
+    page_obj.files = _deserialize_json_blob(cache_row.get('file_summary'), [])
     page_obj.cache_hydrated = True
     debug(f"Hydrated page {page_obj.id} from cache (built_at={page_obj.cache_built_at})")
     return True
+
+
+def _try_hydrate_page_from_cache(conn, page_instance) -> None:
+    """Helper to attempt cache hydration for a page instance."""
+    cache_row = _get_cache_row(conn, page_instance.id)
+    if cache_row:
+        _hydrate_page_from_cache(page_instance, cache_row)
 
 def _load_mcp_utils_for_page_class(PageClass: type) -> None:
     """Dynamically import mcp_utils module for a page class and all its parent classes for HTTP or MCP backend."""
@@ -162,36 +188,17 @@ def get_page(conn, page_id: int) -> Optional[Any]:
             trace_out()
             return _page_cache[page_id]
     if not is_error():
-        query = "SELECT class FROM pages WHERE id = %s"
-        results = r_query(conn, query, [page_id])
-        if not results:
-            warn(f"Page {page_id} not found")
-            report_error("action", f"Page {page_id} not found")
-    if not is_error():
-        page_class_name = results[0].get('class', 'page')
-        # Get the appropriate Page subclass from registry
-        PageClass = get_page_class(page_class_name)
-        if PageClass is None:
-            # Fall back to base Page class
-            log(f"Page class '{page_class_name}' not found in registry, using base Page class")
-            from hh.page.page import Page
-            PageClass = Page
-        else:
-            log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
-        # Load mcp_utils for HTTP backend requests (works for both registered and base Page class)
-        _load_mcp_utils_for_page_class(PageClass)
-    if not is_error():
+        PageClass = _get_page_class_and_load_utils(conn, page_id)
+    if not is_error() and PageClass:
         try:
             page_instance = PageClass(id=page_id)
         except Exception as e:
             warn(f"Failed to create page {page_id}: {str(e)}")
             report_error("backend", f"Failed to create page {page_id}: {str(e)}")
     if not is_error():
-        cache_row = _get_cache_row(conn, page_id)
-        if cache_row:
-            _hydrate_page_from_cache(page_instance, cache_row)
+        _try_hydrate_page_from_cache(conn, page_instance)
         _page_cache[page_id] = page_instance
-        log(f"Retrieved page {page_id}: '{page_instance.name}' (class: {page_class_name})")
+        log(f"Retrieved page {page_id}: '{page_instance.name}' (class: {page_instance.class_name})")
         trace_out()
         return page_instance
     trace_out()
@@ -204,32 +211,16 @@ def get_page_conn(conn, page_id: int) -> Optional[Any]:
         warn(f"Invalid page ID: {page_id}")
         report_error("action", f"Invalid page ID: {page_id}")
     if not is_error():
-        query = "SELECT class FROM pages WHERE id = %s"
-        results = r_query(conn, query, [page_id])
-        if not results:
-            warn(f"Page {page_id} not found")
-            report_error("action", f"Page {page_id} not found")
-    if not is_error():
-        page_class_name = results[0].get('class', 'page')
-        # Get the appropriate Page subclass from registry
-        PageClass = get_page_class(page_class_name)
-        if PageClass is None:
-            # Fall back to base Page class
-            log(f"Page class '{page_class_name}' not found in registry, using base Page class")
-            from hh.page.page import Page
-            PageClass = Page
-        else:
-            log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
-        # Load mcp_utils for HTTP backend requests (works for both registered and base Page class)
-        _load_mcp_utils_for_page_class(PageClass)
-    if not is_error():
+        PageClass = _get_page_class_and_load_utils(conn, page_id)
+    if not is_error() and PageClass:
         try:
             page_instance = PageClass(id=page_id, conn=conn)
         except Exception as e:
             warn(f"Failed to create page {page_id}: {str(e)}")
             report_error("backend", f"Failed to create page {page_id}: {str(e)}")
     if not is_error():
-        log(f"Created page {page_id} with explicit connection: '{page_instance.name}' (class: {page_class_name})")
+        _try_hydrate_page_from_cache(conn, page_instance)
+        log(f"Created page {page_id} with explicit connection: '{page_instance.name}' (class: {page_instance.class_name})")
         trace_out()
         return page_instance
     trace_out()

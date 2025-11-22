@@ -61,6 +61,9 @@ class ImageInstancesMixin:
     def _get_instances(self) -> List[Dict[str, Any]]:
         if not self.instances:  # Load on-demand if not already loaded
             self.instances = self._load_instances()
+            # Flag that cache needs refresh since we just hydrated
+            if self.instances:  # Only flag if actual instances were loaded
+                self._flag_cache_refresh()
         return self.instances.copy()
 
 

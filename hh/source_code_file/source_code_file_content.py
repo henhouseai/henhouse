@@ -40,7 +40,7 @@ def _register_source_code_file_content_methods():
 
 class SourceCodeFileContentMixin:
     
-    def get_display_name(self) -> str:
+    def _get_display_name(self) -> str:
         """
         Override to return filename from file_path when name is None.
         Extracts just the filename (last part after slashes) for display in breadcrumbs.
@@ -58,11 +58,11 @@ class SourceCodeFileContentMixin:
                 return filename
         
         # Fallback to default behavior
-        return super().get_display_name()
+        return super()._get_display_name()
     
-    def do_init(self, conn: DatabaseConnection, page_id: int):
-        # Call parent's do_init first to load base page data
-        super().do_init(conn, page_id)
+    def _do_init(self, conn: DatabaseConnection, page_id: int):
+        # Call parent's _do_init first to load base page data
+        super()._do_init(conn, page_id)
         
         # Only proceed if parent initialization succeeded and we have a connection
         if is_error() or not conn:
@@ -85,7 +85,7 @@ class SourceCodeFileContentMixin:
         trace_out()
     
     @staticmethod
-    def get_children_query(parent_id: int) -> tuple[str, list]:
+    def _get_children_query(parent_id: int) -> tuple[str, list]:
         return (
             "SELECT id FROM pages WHERE parent = %s AND class = 'source_code_file' ORDER BY name",
             [parent_id]
@@ -102,7 +102,7 @@ class SourceCodeFileContentMixin:
         trace_out()
         return data
     
-    def get_child_page_data(self) -> Dict[str, Any]:
+    def _get_child_page_data(self) -> Dict[str, Any]:
         """Override to return simplified data for source_code_file children: id, file_path, num_lines."""
         trace_in()
         data = {
@@ -143,31 +143,31 @@ class SourceCodeFileContentMixin:
         
         return 'source_code_file'
     
-    def add_lower_content(self) -> List[str]:
+    def _add_lower_content(self) -> List[str]:
         # Call super() first to check cache
-        content = super().add_lower_content()
+        content = super()._add_lower_content()
         
         # If super() returned cached content, use it; otherwise read file
         if not content:
             # No cache - fetch fresh content
-            if not self.file_path:
-                debug("add_lower_content: No file_path set, returning empty list")
-                return []
-            
-            # Construct full path using detected project name
-            project_name, _ = detect_project_context()
-            if project_name:
-                full_path = f'/srv/{project_name}/context/{self.file_path}'
-                debug(f"add_lower_content: Constructed full path: {self.file_path} -> {full_path}")
-            else:
-                warn("add_lower_content: Could not detect project name, using stored path as-is")
-                full_path = self.file_path
-            
-            debug(f"add_lower_content: Checking for file at path: {full_path}")
-            if os.path.exists(full_path):
-                debug(f"add_lower_content: File exists at {full_path}, attempting to read")
-                try:
-                    with open(full_path, 'r', encoding='utf-8') as f:
+        if not self.file_path:
+            debug("add_lower_content: No file_path set, returning empty list")
+            return []
+        
+        # Construct full path using detected project name
+        project_name, _ = detect_project_context()
+        if project_name:
+            full_path = f'/srv/{project_name}/context/{self.file_path}'
+            debug(f"add_lower_content: Constructed full path: {self.file_path} -> {full_path}")
+        else:
+            warn("add_lower_content: Could not detect project name, using stored path as-is")
+            full_path = self.file_path
+        
+        debug(f"add_lower_content: Checking for file at path: {full_path}")
+        if os.path.exists(full_path):
+            debug(f"add_lower_content: File exists at {full_path}, attempting to read")
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
                         file_content = f.read()
                         debug(f"add_lower_content: Successfully read file {full_path} ({len(file_content)} characters)")
                         content = [file_content]
@@ -180,11 +180,11 @@ class SourceCodeFileContentMixin:
                 return []
         
         # Process content for current backend
-        # Check if backend is HTTP - only do Pygments highlighting for HTTP
-        gateway = get_gateway()
-        is_http_backend = gateway and gateway.backend == "http"
-        
-        if is_http_backend:
+                    # Check if backend is HTTP - only do Pygments highlighting for HTTP
+                    gateway = get_gateway()
+                    is_http_backend = gateway and gateway.backend == "http"
+                    
+                    if is_http_backend:
             # HTTP backend: Process content through Pygments
             # Extract raw content from list (should be single string)
             if content and len(content) > 0:
@@ -192,37 +192,37 @@ class SourceCodeFileContentMixin:
                 debug(f"add_lower_content: Processing content through Pygments for HTTP backend")
                 
                 # First content div: file path
-                file_info = f'<div class="contentHeader">{self.file_path}</div>'
-                
-                # Use Pygments for syntax highlighting
-                language = self.language.strip() if self.language else ''
-                if language:
-                    try:
-                        lexer = get_lexer_by_name(language)
-                        debug(f"add_lower_content: Using lexer '{language}' for syntax highlighting")
-                    except ClassNotFound:
-                        warn(f"add_lower_content: Unknown language '{language}', falling back to text")
-                        lexer = get_lexer_by_name('text')
-                else:
-                    debug("add_lower_content: No language specified, using text lexer")
-                    lexer = get_lexer_by_name('text')
-                
-                formatter = HtmlFormatter()
+                        file_info = f'<div class="contentHeader">{self.file_path}</div>'
+                        
+                        # Use Pygments for syntax highlighting
+                        language = self.language.strip() if self.language else ''
+                        if language:
+                            try:
+                                lexer = get_lexer_by_name(language)
+                                debug(f"add_lower_content: Using lexer '{language}' for syntax highlighting")
+                            except ClassNotFound:
+                                warn(f"add_lower_content: Unknown language '{language}', falling back to text")
+                                lexer = get_lexer_by_name('text')
+                        else:
+                            debug("add_lower_content: No language specified, using text lexer")
+                            lexer = get_lexer_by_name('text')
+                        
+                        formatter = HtmlFormatter()
                 highlighted_content = highlight(raw_content, lexer, formatter)
-                debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
-                
-                # Second content div: highlighted source code
-                source_code = f'<div class="content">{highlighted_content}</div>'
-                
-                return [file_info, source_code]
-        else:
+                        debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
+                        
+                        # Second content div: highlighted source code
+                        source_code = f'<div class="content">{highlighted_content}</div>'
+                        
+                        return [file_info, source_code]
+                    else:
             # Non-HTTP backend: Return content as-is (from cache or fresh read)
             debug(f"add_lower_content: Non-HTTP backend ({gateway.backend if gateway else 'unknown'}), returning content as-is")
             return content
     
-    def add_badge_headers(self) -> Dict[str, Any]:
+    def _add_badge_headers(self) -> Dict[str, Any]:
         trace_in()
-        badge_headers = super().add_badge_headers()
+        badge_headers = super()._add_badge_headers()
         if 'page_summary' in badge_headers:
             # Convert None to blank string if needed
             file_path_value = '' if self.file_path is None else self.file_path
@@ -235,7 +235,7 @@ class SourceCodeFileContentMixin:
         return badge_headers
     
     @classmethod
-    def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
         Hook called after page creation to add source_code_files table entry.
         This is a classmethod (like PHP's static method) so it can be called on the class
@@ -264,7 +264,7 @@ class SourceCodeFileContentMixin:
         
         trace_out()
     
-    def delete_page_class_information(self):
+    def _delete_page_class_information(self):
         """
         Hook called before page deletion to remove source_code_files table entry.
         This is an instance method (like PHP) because it's called on the page being deleted.

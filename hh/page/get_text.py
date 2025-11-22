@@ -54,19 +54,15 @@ def get_text() -> bool:
             report_error("action", f"Page {page_id} not found")
     if not is_error():
         raw_text = ""
-        prepared_payload = getattr(page, 'cached_prepared_text', None)
         raw_text = (page.text or "") if page else ""
         log(f"Processing text for page {page_id} (length: {len(raw_text)})")
-        processor = TextProcessor()
-        if prepared_payload is None:
-            prepared_payload = processor.preprocess(raw_text)
-            if prepared_payload is not None:
-                page.cached_prepared_text = prepared_payload
-                page.refresh_cached_page(raw_text or None, prepared_payload)
+        # Use get_prepared_text() which will check cache, process if needed, and set flag
+        prepared_payload = page.get_prepared_text()
         if prepared_payload is None:
             warn(f"Text processing failed for page {page_id}")
             report_error("action", "Text processing failed - validation errors detected")
         else:
+            processor = TextProcessor()
             processed_text = processor.postprocess(prepared_payload, final_decorator='http')
             response_data = {
                 'page_id': page_id,

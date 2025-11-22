@@ -26,7 +26,7 @@ warn = lambda message: None
 
 
 @register_debug_init
-def _initialize_image_cache_debug():
+def _initialize_file_cache_debug():
     global trace_in, trace_out, log, debug, warn
     trace_in = get_trace_in(True)
     trace_out = get_trace_out(True)
@@ -36,24 +36,24 @@ def _initialize_image_cache_debug():
 
 
 # Cache methods are NOT registered in the mixin registry - they are called directly
-# by the wrapper system in image.py, similar to page_cache.py
+# by the wrapper system in file.py, similar to page_cache.py
 
 
-class ImageCacheMixin:
+class FileCacheMixin:
 
-    def _ensure_image_cache_entry(self, conn: DatabaseConnection) -> bool:
+    def _ensure_file_cache_entry(self, conn: DatabaseConnection) -> bool:
         """Ensure cache entry exists in cache database. Only creates if missing."""
         trace_in()
         try:
             existing = r_query(
                 conn,
-                "SELECT 1 FROM images WHERE id = %s",
+                "SELECT 1 FROM files WHERE id = %s",
                 (self.id,),
                 use_secondary=True,
             )
         except Exception as exc:
-            warn(f"Failed to check cache entry for image {self.id}: {exc}")
-            report_error("connection", f"Failed to verify cache for image {self.id}")
+            warn(f"Failed to check cache entry for file {self.id}: {exc}")
+            report_error("connection", f"Failed to verify cache for file {self.id}")
             trace_out()
             return False
 
@@ -66,21 +66,20 @@ class ImageCacheMixin:
             c_query(
                 conn,
                 """
-                    INSERT INTO images (id, instances, pages, cache_built_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO files (id, pages, cache_built_at)
+                    VALUES (%s, %s, %s)
                 """,
                 (
                     self.id,
-                    self._dump_json([]),  # Empty instances initially
                     self._dump_json([]),  # Empty pages initially
                     now,
                 ),
                 use_secondary=True,
             )
-            debug(f"Created cache entry for image {self.id}")
+            debug(f"Created cache entry for file {self.id}")
         except Exception as exc:
-            warn(f"Failed to insert cache entry for image {self.id}: {exc}")
-            report_error("connection", f"Failed to create cache entry for image {self.id}")
+            warn(f"Failed to insert cache entry for file {self.id}: {exc}")
+            report_error("connection", f"Failed to create cache entry for file {self.id}")
             trace_out()
             return False
 
@@ -92,43 +91,39 @@ class ImageCacheMixin:
         self._cache_needs_refresh = True
 
     @db_write
-    def _refresh_cached_image_with_write_conn(self, conn: DatabaseConnection) -> bool:
+    def _refresh_cached_file_with_write_conn(self, conn: DatabaseConnection) -> bool:
         """Helper method decorated with @db_write to get a write connection for cache refresh.
         Used when original operation was a read operation."""
         self.conn = conn
-        return self._refresh_cached_image(conn)
+        return self._refresh_cached_file(conn)
 
-    def _refresh_cached_image(self, conn: DatabaseConnection) -> bool:
-        """Refresh the cache database with instances and pages (usage) fields. Called by wrapper system at end of method calls.
+    def _refresh_cached_file(self, conn: DatabaseConnection) -> bool:
+        """Refresh the cache database with pages (usage) field. Called by wrapper system at end of method calls.
         Takes conn as explicit parameter - must be provided by caller."""
         trace_in()
-        debug(f"_refresh_cached_image: Starting for image {self.id}, conn={conn}")
+        debug(f"_refresh_cached_file: Starting for file {self.id}, conn={conn}")
         if conn is None:
-            warn(f"_refresh_cached_image: conn is None for image {self.id}")
+            warn(f"_refresh_cached_file: conn is None for file {self.id}")
             trace_out()
             return False
         # If self.conn is None, set it to the supplied connection so internal methods can use it
         if self.conn is None:
             self.conn = conn
-        if not self._ensure_image_cache_entry(conn):
-            debug(f"_refresh_cached_image: Failed to ensure cache entry for image {self.id}")
+        if not self._ensure_file_cache_entry(conn):
+            debug(f"_refresh_cached_file: Failed to ensure cache entry for file {self.id}")
             trace_out()
             return False
 
-        # Ensure both fields are populated by calling their internal mixin methods
-        # The getters check if field is populated first, and only hydrate if empty
+        # Ensure pages field is populated by calling internal mixin method
+        # The getter checks if field is populated first, and only hydrates if empty
         # This ensures we always have fully hydrated data to cache
         
-        if not self.instances:
-            self.instances = self._get_instances()
-        
-        # Get usage data if cached_usage is empty
-        if not self.cached_usage:
-            self.cached_usage = self._get_usage_data()
+        # Get usage data if pages is empty
+        if not self.pages:
+            self.pages = self._get_usage_data()
         
         # Serialize all data
-        instances_json = self._dump_json(self.instances) if self.instances else None
-        usage_json = self._dump_json(self.cached_usage) if self.cached_usage else None
+        pages_json = self._dump_json(self.pages) if self.pages else None
         
         now = dt.datetime.now()
         
@@ -137,15 +132,13 @@ class ImageCacheMixin:
             affected = u_query(
                 conn,
                 """
-                    UPDATE images
-                    SET instances = %s,
-                        pages = %s,
+                    UPDATE files
+                    SET pages = %s,
                         cache_built_at = %s
                     WHERE id = %s
                 """,
                 (
-                    instances_json,
-                    usage_json,
+                    pages_json,
                     now,
                     self.id,
                 ),
@@ -156,7 +149,7 @@ class ImageCacheMixin:
                 u_query(
                     conn,
                     """
-                        UPDATE images
+                        UPDATE files
                         SET cache_built_at = %s
                         WHERE id = %s
                     """,
@@ -167,21 +160,21 @@ class ImageCacheMixin:
                 # Verify the data was actually written by reading it back
                 verify_check = r_query(
                     conn,
-                    "SELECT cache_built_at FROM images WHERE id = %s",
+                    "SELECT cache_built_at FROM files WHERE id = %s",
                     (self.id,),
                     use_secondary=True,
                 )
                 if verify_check:
-                    debug(f"_refresh_cached_image: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
+                    debug(f"_refresh_cached_file: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
                 else:
-                    warn(f"_refresh_cached_image: Verification failed - cache entry not found after UPDATE")
+                    warn(f"_refresh_cached_file: Verification failed - cache entry not found after UPDATE")
             else:
-                warn(f"_refresh_cached_image: UPDATE affected 0 rows for image {self.id} - cache entry may not exist")
+                warn(f"_refresh_cached_file: UPDATE affected 0 rows for file {self.id} - cache entry may not exist")
             
-            debug(f"Refreshed cache for image {self.id}: rows={affected}, instances={len(self.instances) if self.instances else 0}, usage={len(self.cached_usage) if self.cached_usage else 0}")
+            debug(f"Refreshed cache for file {self.id}: rows={affected}, usage={len(self.pages) if self.pages else 0}")
         except Exception as exc:
-            warn(f"Failed to update cache for image {self.id}: {exc}")
-            report_error("connection", f"Failed to update cache for image {self.id}")
+            warn(f"Failed to update cache for file {self.id}: {exc}")
+            report_error("connection", f"Failed to update cache for file {self.id}")
             trace_out()
             return False
 
@@ -191,9 +184,15 @@ class ImageCacheMixin:
         return not is_error()
 
     def _dump_json(self, value: Any) -> str:
-        return json.dumps(value, ensure_ascii=False, separators=(',', ':'), default=self._json_default)
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(',', ':'),
+            default=self._json_default,
+        )
 
     def _json_default(self, value: Any):
         if isinstance(value, (dt.datetime, dt.date)):
             return value.isoformat()
         return value
+
