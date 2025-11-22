@@ -46,12 +46,34 @@ def count_stale_images(conn) -> int:
 
 def rebuild_images(conn, image_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
     """Rebuild cache for a list of image IDs."""
+    from hh.gateway.connection.connection import r_query
+    from hh.gateway.error.error_store import is_error, clear_errors
+    
     processed: List[int] = []
     for image_id in image_ids:
         try:
+            # Clear any previous errors
+            clear_errors()
+            
+            # Verify image exists first
+            verify = r_query(conn, "SELECT id FROM images WHERE id = %s", [image_id])
+            if not verify:
+                logging.warning("Image %s does not exist in database (skipping)", image_id)
+                errors.append({"entity": "image", "id": image_id, "error": "Image does not exist in database"})
+                continue
+            
             image_obj = get_image_conn(conn, image_id)
-            if not image_obj:
-                raise RuntimeError(f"Image {image_id} could not be loaded")
+            if not image_obj or is_error():
+                error_msg = f"Image {image_id} could not be loaded"
+                if is_error():
+                    from hh.gateway.error.error_store import get_errors
+                    errs = get_errors()
+                    if errs:
+                        error_msg = f"Image {image_id} could not be loaded: {errs}"
+                logging.warning("Failed to load image %s: %s", image_id, error_msg)
+                errors.append({"entity": "image", "id": image_id, "error": error_msg})
+                continue
+            
             image_obj.show_image()
             processed.append(image_id)
             logging.info("Cached image %s", image_id)
