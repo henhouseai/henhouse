@@ -50,34 +50,48 @@ def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> Li
     from hh.gateway.error.error_store import is_error, get_errors
     
     processed: List[int] = []
+    logging.info("Starting page cache rebuild for %s pages: %s", len(page_ids), page_ids)
+    
     for page_id in page_ids:
         try:
-            # Verify page exists first
-            verify = r_query(conn, "SELECT id FROM pages WHERE id = %s", [page_id])
-            if not verify:
-                logging.warning("Page %s does not exist in database (skipping)", page_id)
-                errors.append({"entity": "page", "id": page_id, "error": "Page does not exist in database"})
-                continue
+            logging.debug("Processing page %s...", page_id)
             
-            page_obj = get_page_conn(conn, page_id)
-            if not page_obj:
-                error_msg = f"Page {page_id} could not be loaded"
-                if is_error():
-                    errs = get_errors()
-                    if errs:
-                        # Get the most recent error message
-                        error_contents = [str(e.content) for e in errs[-3:]]  # Last 3 errors
-                        error_msg = f"Page {page_id} could not be loaded: {'; '.join(error_contents)}"
-                logging.warning("Failed to load page %s: %s", page_id, error_msg)
+            # Verify page exists first
+            verify = r_query(conn, "SELECT id, class, name FROM pages WHERE id = %s", [page_id])
+            if not verify:
+                error_msg = f"Page {page_id} does not exist in database"
+                logging.warning("%s (skipping)", error_msg)
                 errors.append({"entity": "page", "id": page_id, "error": error_msg})
                 continue
             
+            page_info = verify[0]
+            page_class = page_info.get('class', 'unknown')
+            page_name = page_info.get('name', 'unnamed')
+            logging.debug("Page %s exists: class=%s, name=%s", page_id, page_class, page_name)
+            
+            page_obj = get_page_conn(conn, page_id)
+            if not page_obj:
+                error_msg = f"Page {page_id} (class={page_class}, name={page_name}) could not be loaded"
+                if is_error():
+                    errs = get_errors()
+                    if errs:
+                        # Get all error messages, not just last 3
+                        error_contents = [f"{e.error_type.value}: {e.content}" for e in errs]
+                        error_msg = f"{error_msg}. Errors: {'; '.join(error_contents)}"
+                logging.error("%s", error_msg)
+                errors.append({"entity": "page", "id": page_id, "error": error_msg})
+                continue
+            
+            logging.debug("Page %s loaded successfully, calling show_page()...", page_id)
             page_obj.show_page()
             processed.append(page_id)
-            logging.info("Cached page %s", page_id)
+            logging.info("Successfully cached page %s (class=%s, name=%s)", page_id, page_class, page_name)
         except Exception as exc:  # noqa: BLE001
-            logging.warning("Failed to cache page %s: %s", page_id, exc)
-            errors.append({"entity": "page", "id": page_id, "error": str(exc)})
+            error_msg = f"Exception while caching page {page_id}: {type(exc).__name__}: {exc}"
+            logging.exception(error_msg)
+            errors.append({"entity": "page", "id": page_id, "error": error_msg})
+    
+    logging.info("Page cache rebuild complete: processed=%s, errors=%s", len(processed), len(errors))
     return processed
 
 

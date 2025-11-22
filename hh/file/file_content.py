@@ -155,10 +155,29 @@ class FileContentMixin:
                     page_class = row['page_class']
                     usage_count = row['usage_count']
                     ranks_str = row['ranks']
+                    
+                    # Proactively check if page exists before trying to load it
+                    page_exists = r_query(
+                        self.conn,
+                        "SELECT 1 FROM pages WHERE id = %s",
+                        (page_id,)
+                    )
+                    if not page_exists:
+                        warn(f"Skipping orphaned file_group entry: page {page_id} does not exist")
+                        continue
+                    
                     # Get the page path for breadcrumb display
-                    from hh.page.page_registry import get_page
-                    page = get_page(page_id=page_id)
-                    path_data = page.get_path() if page else []
+                    path_data = []
+                    try:
+                        from hh.page.page_registry import get_page
+                        page = get_page(page_id=page_id)
+                        if page:
+                            path_data = page.get_path()
+                        else:
+                            debug(f"Page {page_id} exists but could not be loaded (class={page_class})")
+                    except Exception as path_exc:
+                        # If we can't load the page for path data, that's okay - we still have usage info
+                        debug(f"Could not load page {page_id} for path data (class={page_class}): {path_exc}")
                     usage_item = {
                         'page_id': page_id,
                         'page_name': page_name,

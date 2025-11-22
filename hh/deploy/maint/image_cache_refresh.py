@@ -50,34 +50,47 @@ def rebuild_images(conn, image_ids: List[int], errors: List[Dict[str, Any]]) -> 
     from hh.gateway.error.error_store import is_error, get_errors
     
     processed: List[int] = []
+    logging.info("Starting image cache rebuild for %s images: %s", len(image_ids), image_ids)
+    
     for image_id in image_ids:
         try:
-            # Verify image exists first
-            verify = r_query(conn, "SELECT id FROM images WHERE id = %s", [image_id])
-            if not verify:
-                logging.warning("Image %s does not exist in database (skipping)", image_id)
-                errors.append({"entity": "image", "id": image_id, "error": "Image does not exist in database"})
-                continue
+            logging.debug("Processing image %s...", image_id)
             
-            image_obj = get_image_conn(conn, image_id)
-            if not image_obj:
-                error_msg = f"Image {image_id} could not be loaded"
-                if is_error():
-                    errs = get_errors()
-                    if errs:
-                        # Get the most recent error message
-                        error_contents = [str(e.content) for e in errs[-3:]]  # Last 3 errors
-                        error_msg = f"Image {image_id} could not be loaded: {'; '.join(error_contents)}"
-                logging.warning("Failed to load image %s: %s", image_id, error_msg)
+            # Verify image exists first
+            verify = r_query(conn, "SELECT id, caption FROM images WHERE id = %s", [image_id])
+            if not verify:
+                error_msg = f"Image {image_id} does not exist in database"
+                logging.warning("%s (skipping)", error_msg)
                 errors.append({"entity": "image", "id": image_id, "error": error_msg})
                 continue
             
+            image_info = verify[0]
+            image_caption = image_info.get('caption', 'no caption')
+            logging.debug("Image %s exists: caption=%s", image_id, image_caption)
+            
+            image_obj = get_image_conn(conn, image_id)
+            if not image_obj:
+                error_msg = f"Image {image_id} (caption={image_caption}) could not be loaded"
+                if is_error():
+                    errs = get_errors()
+                    if errs:
+                        # Get all error messages, not just last 3
+                        error_contents = [f"{e.error_type.value}: {e.content}" for e in errs]
+                        error_msg = f"{error_msg}. Errors: {'; '.join(error_contents)}"
+                logging.error("%s", error_msg)
+                errors.append({"entity": "image", "id": image_id, "error": error_msg})
+                continue
+            
+            logging.debug("Image %s loaded successfully, calling show_image()...", image_id)
             image_obj.show_image()
             processed.append(image_id)
-            logging.info("Cached image %s", image_id)
+            logging.info("Successfully cached image %s (caption=%s)", image_id, image_caption)
         except Exception as exc:  # noqa: BLE001
-            logging.warning("Failed to cache image %s: %s", image_id, exc)
-            errors.append({"entity": "image", "id": image_id, "error": str(exc)})
+            error_msg = f"Exception while caching image {image_id}: {type(exc).__name__}: {exc}"
+            logging.exception(error_msg)
+            errors.append({"entity": "image", "id": image_id, "error": error_msg})
+    
+    logging.info("Image cache rebuild complete: processed=%s, errors=%s", len(processed), len(errors))
     return processed
 
 
