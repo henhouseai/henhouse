@@ -7,11 +7,11 @@ from typing import Any, Dict, Optional
 
 from hh.deploy.maint.job_queue import claim_next_maintenance_job, update_maintenance_job
 from hh.gateway.connection.connection import get_connection, load_dsn_pair
-from hh.deploy.maintenance.page_cache_refresh import refresh_page_cache_batch
-from hh.deploy.maintenance.image_cache_refresh import refresh_image_cache_batch
-from hh.deploy.maintenance.file_cache_refresh import refresh_file_cache_batch
-from hh.deploy.maintenance.orphan_checks import log_orphan_counts
-from hh.deploy.maintenance.name_update import process_page_name_job
+from hh.deploy.maint.page_cache_refresh import refresh_page_cache_batch
+from hh.deploy.maint.image_cache_refresh import refresh_image_cache_batch
+from hh.deploy.maint.file_cache_refresh import refresh_file_cache_batch
+from hh.deploy.maint.orphan_checks import log_orphan_counts
+from hh.deploy.maint.name_update import process_page_name_job
 
 PROJECT_NAME = "__PROJECT_NAME__"
 SLEEP_INTERVAL_SECONDS = 5
