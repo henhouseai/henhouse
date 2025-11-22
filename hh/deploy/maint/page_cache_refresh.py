@@ -47,14 +47,11 @@ def count_stale_pages(conn) -> int:
 def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
     """Rebuild cache for a list of page IDs."""
     from hh.gateway.connection.connection import r_query
-    from hh.gateway.error.error_store import is_error, clear_errors
+    from hh.gateway.error.error_store import is_error, get_errors
     
     processed: List[int] = []
     for page_id in page_ids:
         try:
-            # Clear any previous errors
-            clear_errors()
-            
             # Verify page exists first
             verify = r_query(conn, "SELECT id FROM pages WHERE id = %s", [page_id])
             if not verify:
@@ -63,13 +60,14 @@ def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> Li
                 continue
             
             page_obj = get_page_conn(conn, page_id)
-            if not page_obj or is_error():
+            if not page_obj:
                 error_msg = f"Page {page_id} could not be loaded"
                 if is_error():
-                    from hh.gateway.error.error_store import get_errors
                     errs = get_errors()
                     if errs:
-                        error_msg = f"Page {page_id} could not be loaded: {errs}"
+                        # Get the most recent error message
+                        error_contents = [str(e.content) for e in errs[-3:]]  # Last 3 errors
+                        error_msg = f"Page {page_id} could not be loaded: {'; '.join(error_contents)}"
                 logging.warning("Failed to load page %s: %s", page_id, error_msg)
                 errors.append({"entity": "page", "id": page_id, "error": error_msg})
                 continue
