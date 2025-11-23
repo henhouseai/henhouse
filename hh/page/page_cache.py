@@ -4,9 +4,6 @@ import json
 import datetime as dt
 from decimal import Decimal
 
-from hh.gateway.connection.connection import r_query, u_query, c_query
-from hh.gateway.connection.types import DatabaseConnection
-from hh.gateway.connection.decorators import db_write
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
     get_trace_in,
@@ -17,7 +14,6 @@ from hh.gateway.registry.debug import (
     register_debug_init,
 )
 from hh.gateway.error.error_store import report_error, is_error
-from hh.page.page_method_registry import register_page_mixin_methods
 from hh.tp.tp import TextProcessor
 
 trace_in = lambda message=None: None
@@ -42,14 +38,12 @@ def _initialize_page_cache_debug():
 
 class PageCacheMixin:
 
-    def _ensure_cache_entry(self, conn: DatabaseConnection) -> bool:
+    def _ensure_cache_entry(self) -> bool:
         trace_in()
         try:
-            existing = r_query(
-                conn,
+            existing = self.gateway.conn.read_cache(
                 "SELECT 1 FROM pages WHERE id = %s",
                 (self.id,),
-                use_secondary=True,
             )
         except Exception as exc:
             warn(f"Failed to check cache entry for page {self.id}: {exc}")
@@ -63,8 +57,7 @@ class PageCacheMixin:
 
         now = dt.datetime.now()
         try:
-            c_query(
-                conn,
+            self.gateway.conn.create_cache(
                 """
                     INSERT INTO pages (id, cache_built_at)
                     VALUES (%s, %s)
@@ -73,7 +66,6 @@ class PageCacheMixin:
                     self.id,
                     now,
                 ),
-                use_secondary=True,
             )
             debug(f"Created cache entry for page {self.id}")
         except Exception as exc:
@@ -89,21 +81,12 @@ class PageCacheMixin:
         """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
         self._cache_needs_refresh = True
 
-    @db_write
-    def _refresh_cached_page_with_write_conn(self, conn: DatabaseConnection) -> bool:
-        """Helper method decorated with @db_write to get a write connection for cache refresh.
-        Used when original operation was a read operation."""
-        self.conn = conn
-        return self._refresh_cached_page(conn)
-
-    def _refresh_cached_page(self, conn: DatabaseConnection) -> bool:
-        """Refresh the cache database with all 5 derived fields. Called by wrapper system at end of method calls.
-        Takes conn as explicit parameter - must be provided by caller."""
+    def _refresh_cached_page(self) -> bool:
+        """Refresh the cache database with all 5 derived fields. Called by refresh_stale_page_caches() during gateway commit."""
         trace_in()
-        debug(f"_refresh_cached_page: Starting for page {self.id}, conn={conn}")
+        debug(f"_refresh_cached_page: Starting for page {self.id}")
 
-        gateway = get_gateway()
-        tier_level = getattr(gateway.response, "user_tier_level", 0) if gateway and gateway.response else 0
+        tier_level = getattr(self.gateway.response, "user_tier_level", 0) if self.gateway and self.gateway.response else 0
         if tier_level < 3:
             debug(
                 f"_refresh_cached_page: Skipping cache write for page {self.id} (tier_level={tier_level})"
@@ -112,14 +95,7 @@ class PageCacheMixin:
             trace_out()
             return True
 
-        if conn is None:
-            warn(f"_refresh_cached_page: conn is None for page {self.id}")
-            trace_out()
-            return False
-        # If self.conn is None, set it to the supplied connection so internal methods can use it
-        if self.conn is None:
-            self.conn = conn
-        if not self._ensure_cache_entry(conn):
+        if not self._ensure_cache_entry():
             debug(f"_refresh_cached_page: Failed to ensure cache entry for page {self.id}")
             trace_out()
             return False
@@ -132,16 +108,16 @@ class PageCacheMixin:
             self.display_name = self._get_display_name()
         
         if self.prepared_text is None:
-            self.prepared_text = self._get_prepared_text()
+            self.prepared_text = self.get_prepared_text()
         
         children = self._get_children_by_class()
         self.children_by_class = children if children else {}
         
         if not self.images:
-            self.images = self._get_images_data()
+            self.images = self.get_images_data()
         
         if not self.files:
-            self.files = self._get_files_data()
+            self.files = self.get_files_data()
         
         # Serialize all data
         display_name_str = self.display_name
@@ -154,8 +130,7 @@ class PageCacheMixin:
         
         try:
             # Update cache database
-            affected = u_query(
-                conn,
+            affected = self.gateway.conn.update_cache(
                 """
                     UPDATE pages
                     SET display_name = %s,
@@ -177,27 +152,22 @@ class PageCacheMixin:
                     now,
                     self.id,
                 ),
-                use_secondary=True,
             )
             # Update main database cache_built_at
             if affected > 0:
-                u_query(
-                    conn,
+                self.gateway.conn.update(
                     """
                         UPDATE pages
                         SET cache_built_at = %s
                         WHERE id = %s
                     """,
                     (now, self.id),
-                    use_secondary=False,
                 )
                 
                 # Verify the data was actually written by reading it back
-                verify_check = r_query(
-                    conn,
+                verify_check = self.gateway.conn.read_cache(
                     "SELECT display_name, cache_built_at FROM pages WHERE id = %s",
                     (self.id,),
-                    use_secondary=True,
                 )
                 if verify_check:
                     debug(f"_refresh_cached_page: Verification - cache entry has display_name='{verify_check[0].get('display_name')}', cache_built_at={verify_check[0].get('cache_built_at')}")

@@ -2,15 +2,11 @@ from typing import Dict, Any, List, Optional, Union
 import datetime as dt
 import json
 from copy import deepcopy
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
-from hh.page.page_method_registry import register_page_mixin_methods
-from hh.page.page_registry import get_page, get_page_conn
+from hh.page.page_registry import get_page
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -28,20 +24,6 @@ def _initialize_page_content_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_content_methods():
-    return {
-        'modify_name': {'mixin_method': '_modify_name', 'decorator': 'write'},
-        'modify_text': {'mixin_method': '_modify_text', 'decorator': 'write'},
-        'delete_from_database': {'mixin_method': '_delete_from_database', 'decorator': 'write'},
-        'delete_page': {'mixin_method': '_delete_page', 'decorator': 'write'},
-        'add_page': {'mixin_method': '_add_page', 'decorator': 'write'},
-        'get_page_data': {'mixin_method': '_get_page_data', 'decorator': 'read'},
-        'get_prepared_text': {'mixin_method': '_get_prepared_text', 'decorator': 'read'},
-        'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
-        'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
-		'set_metadata_value': {'mixin_method': '_set_metadata_value', 'decorator': 'write'},
-    }
 
 
 class PageContentMixin:
@@ -79,7 +61,7 @@ class PageContentMixin:
         metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
         success = True
         if not is_error():
-            affected = u_query(self.conn, "UPDATE pages SET metadata = %s WHERE id = %s", (metadata_json, self.id))
+            affected = self.gateway.conn.update("UPDATE pages SET metadata = %s WHERE id = %s", (metadata_json, self.id))
             if affected == 0:
                 log(f"Metadata for page {self.id} already up to date; no rows affected")
         if success:
@@ -87,7 +69,7 @@ class PageContentMixin:
         trace_out()
         return success and not is_error()
 
-    def _set_metadata_value(self, key: str, value: Any) -> bool:
+    def set_metadata_value(self, key: str, value: Any) -> bool:
         """Set a metadata value inside the specified namespace (or root) and persist it."""
         trace_in()
         metadata = self._get_metadata_dict()
@@ -97,7 +79,7 @@ class PageContentMixin:
         return result
     
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int):
         """
         Hook called after page creation to add class-specific data.
         This is a classmethod (like PHP's static method) so it can be called on the class
@@ -110,7 +92,7 @@ class PageContentMixin:
         pass
 
 
-    def _modify_name(self, name: Optional[str] = None) -> bool:
+    def modify_name(self, name: Optional[str] = None) -> bool:
         trace_in()
         # Normalize: convert None or empty string to None for database storage
         name_value = None if (name is None or (isinstance(name, str) and len(name.strip()) == 0)) else name
@@ -137,7 +119,7 @@ class PageContentMixin:
                 log(f"Name validation passed for '{validation_name}'")
         if not is_error():
             log(f"Updating page {self.id} name in database: '{old_name}' -> '{name_value}'")
-            affected = u_query(self.conn, "UPDATE pages SET name = %s WHERE id = %s", (name_value, self.id))
+            affected = self.gateway.conn.update("UPDATE pages SET name = %s WHERE id = %s", (name_value, self.id))
             if affected == 0:
                 warn(f"Failed to update page {self.id} name - no rows affected")
                 report_error("action", f"Failed to update page {self.id} name")
@@ -148,7 +130,7 @@ class PageContentMixin:
                 log(f"Page {self.id} has auto-link enabled (name == link), updating link as well")
                 link_value = name_value if (self.auto_link_name() and name_value is not None) else None
                 log(f"Setting link to: {link_value}")
-                affected = u_query(self.conn, "UPDATE pages SET link = %s WHERE id = %s", (link_value, self.id))
+                affected = self.gateway.conn.update("UPDATE pages SET link = %s WHERE id = %s", (link_value, self.id))
                 if affected == 0:
                     warn(f"Failed to update page {self.id} link - no rows affected")
                     report_error("action", f"Failed to update page {self.id} link")
@@ -160,7 +142,7 @@ class PageContentMixin:
         if not is_error():
             modification_type = 'name and link' if self.auto_link_name() else 'name'
             log(f"Flagging page modification: {modification_type} changed")
-            self._flag_page_modification(f"{modification_type} changed")
+            self.flag_page_modification(f"{modification_type} changed")
         if not is_error() and old_name and name_value:
             try:
                 job_id = self._enqueue_maintenance_job(
@@ -180,7 +162,7 @@ class PageContentMixin:
         trace_out()
         return not is_error()
 
-    def _get_prepared_text(self) -> Optional[List[Dict[str, Any]]]:
+    def get_prepared_text(self) -> Optional[List[Dict[str, Any]]]:
         """
         Get the prepared text for this page. Checks cached prepared_text first, then processes if needed.
         """
@@ -201,7 +183,7 @@ class PageContentMixin:
         trace_out()
         return prepared
 
-    def _modify_text(self, text: str) -> bool:
+    def modify_text(self, text: str) -> bool:
         trace_in()
         # Check if text is actually changing
         if text == self.text:
@@ -218,15 +200,15 @@ class PageContentMixin:
         if not is_error():
             # Text validation passed, proceed with update
             text_value = None if text == "" else text
-            affected = u_query(self.conn, "UPDATE pages SET text = %s WHERE id = %s", (text_value, self.id))
+            affected = self.gateway.conn.update("UPDATE pages SET text = %s WHERE id = %s", (text_value, self.id))
             if affected == 0:
                 warn(f"Failed to update page {self.id} text - no rows affected")
                 report_error("action", f"Failed to update page {self.id} text")
         if not is_error():
-            self._flag_page_modification("text changed")
+            self.flag_page_modification("text changed")
         if not is_error():
             # Update links table with parsed link information (like PHP version)
-            if not processor.update_links_table(self.conn, self.id):
+            if not processor.update_links_table(self.gateway.conn, self.id):
                 log(f"Text modification failed for page {self.id}: database update succeeded but links table update failed")
                 warn("Failed to update links table")
                 report_error("action", "Failed to update links table")
@@ -245,12 +227,12 @@ class PageContentMixin:
         return not is_error()
 
 
-    def _delete_from_database(self) -> bool:
+    def delete_from_database(self) -> bool:
         trace_in()
         log(f"Deleting page {self.id} from database")
         success = False
         if not is_error():
-            affected = d_query(self.conn, "DELETE FROM pages WHERE id = %s", [self.id])
+            affected = self.gateway.conn.delete("DELETE FROM pages WHERE id = %s", [self.id])
             if affected > 0:
                 success = True
                 log(f"Successfully deleted page {self.id} from database")
@@ -263,7 +245,7 @@ class PageContentMixin:
         return success
     
 
-    def _delete_page(self) -> bool:
+    def delete_page(self) -> bool:
         trace_in()
         gateway = get_gateway()
         if not gateway:
@@ -279,7 +261,7 @@ class PageContentMixin:
         if not is_error():
             for child_id in child_ids:
                 if not is_error():
-                    child_page = get_page_conn(self.conn, child_id)
+                    child_page = get_page(child_id)
                     if child_page:
                         child_page.delete_page()  # Recursive call - uses same connection/transaction
                     else:
@@ -295,17 +277,17 @@ class PageContentMixin:
             # Call hook to clean up class-specific data before deleting
             self._delete_page_class_information()
         if not is_error():
-            success = self._delete_from_database()
+            success = self.delete_from_database()
             if not success:
                 warn(f"Failed to delete page {self.id}")
                 report_error("action", f"Failed to delete page {self.id}")
         trace_out()
         return not is_error()
 
-    def _add_page(self, page_class: str = 'page', name: Optional[str] = None) -> int:
+    def add_page(self, page_class: str = 'page', name: Optional[str] = None) -> int:
         trace_in()
         # Get current database user
-        user_results = r_query(self.conn, "SELECT USER() as db_user")
+        user_results = self.gateway.conn.read("SELECT USER() as db_user")
         db_user = user_results[0]['db_user'] if user_results else 'unknown'
         
         # Look up the page class to check its configuration
@@ -354,7 +336,7 @@ class PageContentMixin:
             
             try:
                 now = dt.datetime.now()
-                new_page_id = c_query(self.conn, """
+                new_page_id = self.gateway.conn.create("""
                     INSERT INTO pages (parent, name, link, class, last_modified, username, visibility, displayStyle)
                     VALUES (%s, %s, %s, %s, %s, %s, 1, 1)
                 """, (self.id, name_value, link_value, page_class, now, db_user))
@@ -373,9 +355,9 @@ class PageContentMixin:
                 report_error("action", f"Page class '{page_class}' not found")
             else:
                 # Call the classmethod on the new page's class
-                NewPageClass._add_page_class_information(new_page_id, self.conn)
+                NewPageClass._add_page_class_information(new_page_id)
             # Flag parent modification so cache system sees the hierarchy change
-            self._flag_page_modification("child added")
+            self.flag_page_modification("child added")
         if new_page_id:
             log("Page creation completed successfully")
         else:
@@ -383,7 +365,7 @@ class PageContentMixin:
         trace_out()
         return new_page_id
 
-    def _get_allowed_child_classes(self) -> List[Dict[str, Any]]:
+    def get_allowed_child_classes(self) -> List[Dict[str, Any]]:
         """Get list of page classes that are allowed as children of this page."""
         trace_in()
         from hh.page.page_class_registry import get_all_page_classes, get_page_class
@@ -424,7 +406,7 @@ class PageContentMixin:
         trace_out()
         return allowed_classes
 
-    def _get_page_data(self) -> Dict[str, Any]:
+    def get_page_data(self) -> Dict[str, Any]:
         trace_in()
         data = {
             "id": self.id,
@@ -439,7 +421,7 @@ class PageContentMixin:
             "comments": self.comments
         }
         # Add breadcrumb path if available
-        path_data = self._get_path()
+        path_data = self.get_path()
         if path_data:
             data['path'] = path_data
         trace_out()
@@ -466,8 +448,7 @@ class PageContentMixin:
     ) -> int:
         trace_in()
         payload_json = json.dumps(payload or {}, ensure_ascii=False, separators=(",", ":"))
-        job_id = c_query(
-            self.conn,
+        job_id = self.gateway.conn.create(
             """
             INSERT INTO maintenance_jobs (job_type, status, payload_json, priority)
             VALUES (%s, 'pending', %s, %s)
@@ -478,15 +459,15 @@ class PageContentMixin:
         trace_out()
         return job_id
 
-    def _flag_page_modification(self, comments: str) -> bool:
+    def flag_page_modification(self, comments: str) -> bool:
         """Standardized method to update page modification audit trail"""
         trace_in()
         now = dt.datetime.now()
         if not is_error():
-            user_results = r_query(self.conn, "SELECT USER() as db_user")
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
         if not is_error():
-            affected = u_query(self.conn, """
+            affected = self.gateway.conn.update("""
                 UPDATE pages SET last_modified = %s, username = %s, comments = %s WHERE id = %s
             """, (now, db_user, comments, self.id))
             if affected == 0:
@@ -503,7 +484,7 @@ class PageContentMixin:
             # This prevents infinite recursion up the tree
             if comments != "child page modified":
                 if self.parent and self.parent != 0:
-                    parent_page = get_page_conn(self.conn, page_id=self.parent)
+                    parent_page = get_page(page_id=self.parent)
                     if parent_page:
                         parent_page.flag_page_modification("child page modified")
         trace_out()

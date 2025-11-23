@@ -4,9 +4,6 @@ import datetime as dt
 import json
 from typing import Any, Dict, Optional, List
 
-from hh.gateway.connection.connection import r_query, c_query, u_query
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import (
     get_trace_in,
     get_trace_out,
@@ -35,21 +32,20 @@ def _initialize_file_cache_debug():
     warn = get_warn(True)
 
 
-# Cache methods are NOT registered in the mixin registry - they are called directly
-# by the wrapper system in file.py, similar to page_cache.py
-
-
 class FileCacheMixin:
 
-    def _ensure_file_cache_entry(self, conn: DatabaseConnection) -> bool:
+    def _ensure_file_cache_entry(self) -> bool:
         """Ensure cache entry exists in cache database. Only creates if missing."""
         trace_in()
+        if not self.gateway or not self.gateway.conn:
+            warn("Gateway or connection not available for cache entry check")
+            report_error("connection", f"Failed to verify cache for file {self.id}")
+            trace_out()
+            return False
         try:
-            existing = r_query(
-                conn,
+            existing = self.gateway.conn.read_cache(
                 "SELECT 1 FROM files WHERE id = %s",
                 (self.id,),
-                use_secondary=True,
             )
         except Exception as exc:
             warn(f"Failed to check cache entry for file {self.id}: {exc}")
@@ -63,8 +59,7 @@ class FileCacheMixin:
 
         now = dt.datetime.now()
         try:
-            c_query(
-                conn,
+            self.gateway.conn.create_cache(
                 """
                     INSERT INTO files (id, pages, cache_built_at)
                     VALUES (%s, %s, %s)
@@ -74,7 +69,6 @@ class FileCacheMixin:
                     self._dump_json([]),  # Empty pages initially
                     now,
                 ),
-                use_secondary=True,
             )
             debug(f"Created cache entry for file {self.id}")
         except Exception as exc:
@@ -90,26 +84,16 @@ class FileCacheMixin:
         """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
         self._cache_needs_refresh = True
 
-    @db_write
-    def _refresh_cached_file_with_write_conn(self, conn: DatabaseConnection) -> bool:
-        """Helper method decorated with @db_write to get a write connection for cache refresh.
-        Used when original operation was a read operation."""
-        self.conn = conn
-        return self._refresh_cached_file(conn)
-
-    def _refresh_cached_file(self, conn: DatabaseConnection) -> bool:
-        """Refresh the cache database with pages (usage) field. Called by wrapper system at end of method calls.
-        Takes conn as explicit parameter - must be provided by caller."""
+    def _refresh_cached_file(self) -> bool:
+        """Refresh the cache database with pages (usage) field. Called by gateway during commit."""
         trace_in()
-        debug(f"_refresh_cached_file: Starting for file {self.id}, conn={conn}")
-        if conn is None:
-            warn(f"_refresh_cached_file: conn is None for file {self.id}")
+        debug(f"_refresh_cached_file: Starting for file {self.id}")
+        if not self.gateway or not self.gateway.conn:
+            warn("Gateway or connection not available for cache refresh")
             trace_out()
             return False
-        # If self.conn is None, set it to the supplied connection so internal methods can use it
-        if self.conn is None:
-            self.conn = conn
-        if not self._ensure_file_cache_entry(conn):
+        
+        if not self._ensure_file_cache_entry():
             debug(f"_refresh_cached_file: Failed to ensure cache entry for file {self.id}")
             trace_out()
             return False
@@ -120,7 +104,7 @@ class FileCacheMixin:
         
         # Get usage data if pages is empty
         if not self.pages:
-            self.pages = self._get_usage_data()
+            self.pages = self.get_usage_data()
         
         # Serialize all data
         pages_json = self._dump_json(self.pages) if self.pages else None
@@ -129,8 +113,7 @@ class FileCacheMixin:
         
         try:
             # Update cache database
-            affected = u_query(
-                conn,
+            affected = self.gateway.conn.update_cache(
                 """
                     UPDATE files
                     SET pages = %s,
@@ -142,27 +125,22 @@ class FileCacheMixin:
                     now,
                     self.id,
                 ),
-                use_secondary=True,
             )
             # Update main database cache_built_at
             if affected > 0:
-                u_query(
-                    conn,
+                self.gateway.conn.update(
                     """
                         UPDATE files
                         SET cache_built_at = %s
                         WHERE id = %s
                     """,
                     (now, self.id),
-                    use_secondary=False,
                 )
                 
                 # Verify the data was actually written by reading it back
-                verify_check = r_query(
-                    conn,
+                verify_check = self.gateway.conn.read_cache(
                     "SELECT cache_built_at FROM files WHERE id = %s",
                     (self.id,),
-                    use_secondary=True,
                 )
                 if verify_check:
                     debug(f"_refresh_cached_file: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")

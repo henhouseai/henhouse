@@ -9,7 +9,6 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
-from hh.page.page_method_registry import register_page_mixin_methods
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -28,15 +27,10 @@ def _initialize_page_maintenance_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_maintenance_methods():
-    return {
-        "regex_text": {"mixin_method": "_regex_text", "decorator": "write"},
-    }
 
 
 class PageMaintenanceMixin:
-    def _regex_text(
+    def regex_text(
         self,
         *,
         old_name: str,
@@ -66,7 +60,7 @@ class PageMaintenanceMixin:
             updated_text = re.sub(re.escape(pattern), replacement, updated_text)
 
         if updated_text != existing_text:
-            if not self._modify_text(updated_text):
+            if not self.modify_text(updated_text):
                 raise RuntimeError(f"Failed to update text for page {self.id}")
             result["processed"] = 1
             result["modified"] = True

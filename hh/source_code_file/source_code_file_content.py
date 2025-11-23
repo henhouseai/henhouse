@@ -6,13 +6,10 @@ from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 from pygments.util import ClassNotFound
 from hh.deploy.utils import detect_project_context
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
-from hh.page.page_registry import get_page_conn
-from hh.source_code_file.source_code_file_method_registry import register_source_code_file_mixin_methods
+from hh.page.page_registry import get_page
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -28,14 +25,6 @@ def _initialize_source_code_file_content_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-
-@register_source_code_file_mixin_methods
-def _register_source_code_file_content_methods():
-    return {
-        'modify_path': {'mixin_method': '_modify_path', 'decorator': 'write'},
-        'modify_language': {'mixin_method': '_modify_language', 'decorator': 'write'},
-    }
 
 
 class SourceCodeFileContentMixin:
@@ -59,30 +48,6 @@ class SourceCodeFileContentMixin:
         
         # Fallback to default behavior
         return super().get_display_name()
-    
-    def _do_init(self, conn: DatabaseConnection, page_id: int):
-        # Call parent's do_init first to load base page data
-        super()._do_init(conn, page_id)
-        
-        # Only proceed if parent initialization succeeded and we have a connection
-        if is_error() or not conn:
-            return
-        
-        trace_in()
-        metadata = self._get_metadata_dict()
-        mutated = False
-        if 'path' not in metadata:
-            metadata['path'] = ''
-            mutated = True
-        if 'language' not in metadata:
-            metadata['language'] = ''
-            mutated = True
-        if mutated:
-            self._write_metadata_dict(metadata)
-        self.file_path = metadata.get('path') or ''
-        self.language = metadata.get('language') or ''
-        log(f"SourceCodeFile {page_id} loaded from metadata: file_path='{self.file_path}', language='{self.language}'")
-        trace_out()
     
     @staticmethod
     def _get_children_query(parent_id: int) -> tuple[str, list]:
@@ -245,7 +210,7 @@ class SourceCodeFileContentMixin:
         file_path = gateway.get_arg('path') or None
         language = gateway.get_arg('language') or None
         
-        page = get_page_conn(conn, new_page_id)
+        page = get_page(new_page_id)
         if not page:
             warn(f"Failed to load page {new_page_id} for metadata initialization")
             trace_out()
@@ -266,7 +231,7 @@ class SourceCodeFileContentMixin:
         # No additional cleanup needed; metadata lives on the page row.
         trace_out()
     
-    def _modify_path(self, path: str) -> bool:
+    def modify_path(self, path: str) -> bool:
         trace_in()
         log(f"Starting path modification for page {self.id}: '{self.file_path}' -> '{path}'")
         if path == self.file_path:
@@ -282,7 +247,7 @@ class SourceCodeFileContentMixin:
         trace_out()
         return not is_error()
     
-    def _modify_language(self, language: str) -> bool:
+    def modify_language(self, language: str) -> bool:
         trace_in()
         log(f"Starting language modification for page {self.id}: '{self.language}' -> '{language}'")
         if language == self.language:

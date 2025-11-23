@@ -2,14 +2,10 @@ from __future__ import annotations
 import json
 import datetime as dt
 from typing import Dict, Any
-from hh.gateway.connection.connection import r_query, u_query
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
-from hh.work.work_page_method_registry import register_work_page_mixin_methods
-from hh.page.page_registry import get_page_conn
+from hh.page.page_registry import get_page
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -27,15 +23,6 @@ def _initialize_work_page_content_debug():
     warn = get_warn(True)
 
 
-@register_work_page_mixin_methods
-def _register_work_page_content_methods():
-    return {
-        'modify_work_status': {'mixin_method': '_modify_status', 'decorator': 'write'},
-        'modify_work_meta_set_pair': {'mixin_method': '_modify_meta_set_pair', 'decorator': 'write'},
-        'modify_work_meta_remove_pair': {'mixin_method': '_modify_meta_remove_pair', 'decorator': 'write'},
-        'modify_work_meta_set_all': {'mixin_method': '_modify_meta_set_all', 'decorator': 'write'},
-        'modify_work_sort_order': {'mixin_method': '_modify_sort_order', 'decorator': 'write'},
-    }
 
 
 def _parse_metadata(metadata: Any) -> Dict[str, Any]:
@@ -63,14 +50,8 @@ class WorkPageContentMixin:
             return {}
         return {key: data[key] for key in sorted(data.keys(), key=lambda k: k.lower())}
     
-    def _do_init(self, conn: DatabaseConnection, page_id: int):
-        # Call parent's _do_init first to load base page data
-        super()._do_init(conn, page_id)
-        
-        # Only proceed if parent initialization succeeded and we have a connection
-        if is_error() or not conn:
-            return
-        
+    def _load_work_metadata(self):
+        """Load work-specific metadata after parent Page initialization."""
         trace_in()
         metadata = self._get_metadata_dict()
         mutated = False
@@ -104,7 +85,7 @@ class WorkPageContentMixin:
         self.meta_dict = sorted_meta_bucket
         self.meta = json.dumps(sorted_meta_bucket, ensure_ascii=False) if sorted_meta_bucket else '{}'
         log(
-            f"{self.__class__.__name__} {page_id} loaded from metadata: "
+            f"{self.__class__.__name__} {self.id} loaded from metadata: "
             f"status='{self.status}', sort_order={self.sort_order}"
         )
         trace_out()
@@ -138,7 +119,7 @@ class WorkPageContentMixin:
         return data
     
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int):
         """
         Hook called after page creation to initialize metadata for work entities.
         """
@@ -169,10 +150,16 @@ class WorkPageContentMixin:
             trace_out()
             return
 
+        gateway = get_gateway()
+        if not gateway or not gateway.conn:
+            warn("Gateway or connection not available for add_page_class_information")
+            trace_out()
+            return
+        
         parent_id = None
         class_name = None
         try:
-            parent_results = r_query(conn, "SELECT parent, class FROM pages WHERE id = %s", [new_page_id])
+            parent_results = gateway.conn.read("SELECT parent, class FROM pages WHERE id = %s", [new_page_id])
             if parent_results:
                 parent_id = parent_results[0].get('parent')
                 class_name = parent_results[0].get('class')
@@ -181,8 +168,7 @@ class WorkPageContentMixin:
 
         max_order = 0
         if parent_id is not None and class_name:
-            sibling_rows = r_query(
-                conn,
+            sibling_rows = gateway.conn.read(
                 "SELECT metadata FROM pages WHERE parent = %s AND class = %s",
                 [parent_id, class_name],
             )
@@ -196,7 +182,7 @@ class WorkPageContentMixin:
                     continue
 
         new_sort_order = max_order + 1
-        new_page = get_page_conn(conn, new_page_id)
+        new_page = get_page(new_page_id)
         if not new_page:
             warn(f"Failed to load page {new_page_id} for metadata initialization")
             trace_out()
@@ -224,7 +210,7 @@ class WorkPageContentMixin:
         # No additional cleanup required now that metadata lives on the page row.
         trace_out()
     
-    def _modify_status(self, status: str) -> bool:
+    def modify_work_status(self, status: str) -> bool:
         """Modify the status of this work entity."""
         trace_in()
         log(f"Starting status modification for page {self.id}: '{self.status}' -> '{status}'")
@@ -241,7 +227,7 @@ class WorkPageContentMixin:
         trace_out()
         return not is_error()
     
-    def _modify_meta_set_pair(self, key: str, value: str) -> bool:
+    def modify_work_meta_set_pair(self, key: str, value: str) -> bool:
         """Set/add/update a single key-value pair in the meta JSON field."""
         trace_in()
         log(f"Setting meta key '{key}' for page {self.id}")
@@ -270,7 +256,7 @@ class WorkPageContentMixin:
         trace_out()
         return not is_error()
     
-    def _modify_meta_remove_pair(self, key: str) -> bool:
+    def modify_work_meta_remove_pair(self, key: str) -> bool:
         """Remove a single key from the meta JSON field."""
         trace_in()
         log(f"Removing meta key '{key}' for page {self.id}")
@@ -298,7 +284,7 @@ class WorkPageContentMixin:
         trace_out()
         return not is_error()
     
-    def _modify_meta_set_all(self, meta_json: str) -> bool:
+    def modify_work_meta_set_all(self, meta_json: str) -> bool:
         """Replace the entire meta JSON field with a new JSON object."""
         trace_in()
         log(f"Setting entire meta for page {self.id}")
@@ -330,7 +316,7 @@ class WorkPageContentMixin:
         trace_out()
         return not is_error()
     
-    def _modify_sort_order(self, sort_order: int) -> bool:
+    def modify_work_sort_order(self, sort_order: int) -> bool:
         """Modify the sort_order of this work entity, reflowing all siblings within the same parent."""
         trace_in()
         log(f"Starting sort_order modification for page {self.id}: {self.sort_order} -> {sort_order}")
@@ -338,7 +324,7 @@ class WorkPageContentMixin:
         # Get parent page ID
         parent_id = None
         if not is_error():
-            parent_results = r_query(self.conn, "SELECT parent FROM pages WHERE id = %s", [self.id])
+            parent_results = self.gateway.conn.read("SELECT parent FROM pages WHERE id = %s", [self.id])
             if parent_results and parent_results[0].get('parent') is not None:
                 parent_id = int(parent_results[0]['parent'])
             else:
@@ -347,8 +333,7 @@ class WorkPageContentMixin:
         
         if not is_error() and parent_id:
             class_name = self.class_name
-            siblings = r_query(
-                self.conn,
+            siblings = self.gateway.conn.read(
                 "SELECT id, metadata FROM pages WHERE parent = %s AND class = %s ORDER BY id",
                 [parent_id, class_name],
             )
@@ -411,8 +396,7 @@ class WorkPageContentMixin:
                     metadata = sibling['metadata']
                     metadata['sort_order'] = new_sort
                     metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
-                    affected = u_query(
-                        self.conn,
+                    affected = self.gateway.conn.update(
                         "UPDATE pages SET metadata = %s WHERE id = %s",
                         (metadata_json, sibling['page_id']),
                     )

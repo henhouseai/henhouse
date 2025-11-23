@@ -3,7 +3,6 @@ from typing import Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.mcp_whitelist import MCPWhitelist
-from hh.page.page_method_registry import register_page_mixin_methods
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -21,25 +20,20 @@ def _initialize_page_ajax_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_ajax_methods():
-    return {
-        'get_page': {'mixin_method': '_get_page', 'decorator': 'read'},
-    }
 
 
 class PageAjaxMixin:
 
-    def _get_page(self, conn=None) -> Dict[str, Any]:
+    def get_page(self) -> Dict[str, Any]:
         """Assemble a minimal JSON-friendly payload for AJAX consumption."""
         trace_in()
-        page_data = self._get_page_data()
-        images_data = self._get_images_data()
+        page_data = self.get_page_data()
+        images_data = self.get_images_data()
         children_by_class = self._get_children_by_class()
         
         # Add path data if available
         if 'path' not in page_data:
-            path_data = self._get_path()
+            path_data = self.get_path()
             if path_data:
                 page_data['path'] = path_data
 

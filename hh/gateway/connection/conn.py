@@ -1,7 +1,8 @@
 import pymysql
 import os
-from typing import Any, Optional, Dict, List, Sequence, Union
-from hh.gateway.connection.connection import load_dsn_pair, DatabaseRow
+import configparser
+from typing import Any, Optional, Dict, List, Sequence, Union, Tuple
+from hh.gateway.connection.connection import DatabaseRow
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -21,6 +22,37 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
+def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], Optional[Dict[str, Union[str, int]]]]:
+    """Load DSN pair from config file. New system version that accepts project_name."""
+    trace_in()
+    config = configparser.ConfigParser()
+    path = os.path.expanduser(f'~/.{project_name}.cnf')
+    if os.path.exists(path):
+        config.read(path)
+        dsn = {
+            'host': config.get('client', 'host', fallback='localhost'),
+            'user': config.get('client', 'user', fallback='root'),
+            'password': config.get('client', 'password', fallback=''),
+            'database': config.get('client', 'database', fallback=project_name),
+            'port': config.getint('client', 'port', fallback=3306)
+        }
+        log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
+        
+        cache_dsn = {
+            'host': config.get('client', 'cache_host', fallback=dsn['host']),
+            'user': config.get('client', 'cache_user', fallback=dsn['user']),
+            'password': config.get('client', 'cache_password', fallback=dsn['password']),
+            'database': config.get('client', 'cache_database', fallback=f"{dsn['database']}_cache"),
+            'port': config.getint('client', 'cache_port', fallback=dsn['port'])
+        }
+        
+        trace_out()
+        return dsn, cache_dsn
+    else:
+        warn(f"Configuration file not found: {path}")
+        trace_out()
+        return None, None
+
 class Connection:
     """Gateway-owned connection manager for main, cache, and history databases."""
     
@@ -31,10 +63,10 @@ class Connection:
         self._transaction_started: bool = False
         self._initialized: bool = False
     
-    def _get_main_dsn(self) -> Optional[Dict[str, Union[str, int]]]:
+    def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
         """Get main database DSN. Override in subclasses for root/MySQL connections."""
         trace_in()
-        main_dsn, _ = load_dsn_pair()
+        main_dsn, _ = _load_dsn(project_name)
         trace_out()
         return main_dsn
     
@@ -80,8 +112,11 @@ class Connection:
         
         tier_level = 0
         try:
+            # Detect project context once at the start
+            project_name, _ = detect_project_context()
+            
             # Get main DSN (may be overridden by subclasses)
-            main_dsn = self._get_main_dsn()
+            main_dsn = self._get_main_dsn(project_name)
             
             if not main_dsn:
                 warn("Cannot initialize connections: main DSN not available")
@@ -89,12 +124,11 @@ class Connection:
                 return 0
             
             # Detect user tier level from DSN username
-            project_name, _ = detect_project_context()
             if project_name:
                 tier_level = self._detect_user_tier_level(project_name, main_dsn.get('user', ''))
             
             # Load cache DSN (always uses standard loading)
-            _, cache_dsn = load_dsn_pair()
+            _, cache_dsn = _load_dsn(project_name)
             
             # Open main database connection
             cursorclass = pymysql.cursors.DictCursor

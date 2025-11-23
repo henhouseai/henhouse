@@ -9,7 +9,7 @@ from hh.gateway.connection.connection import (
     load_dsn_pair,
     r_query,
 )
-from hh.page.page_registry import get_page_conn
+from hh.page.page_registry import get_page
 
 
 def fetch_stale_page_ids(conn, limit: int) -> List[int]:
@@ -69,7 +69,7 @@ def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> Li
             page_name = page_info.get('name', 'unnamed')
             logging.debug("Page %s exists: class=%s, name=%s", page_id, page_class, page_name)
             
-            page_obj = get_page_conn(conn, page_id)
+            page_obj = get_page(page_id)
             if not page_obj:
                 error_msg = f"Page {page_id} (class={page_class}, name={page_name}) could not be loaded"
                 if is_error():

@@ -1,11 +1,7 @@
 from typing import Optional, List, Dict, Any
-from hh.gateway.connection.connection import r_query, u_query
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page # Needed for can_move_to_page
-from hh.page.page_method_registry import register_page_mixin_methods
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -23,13 +19,6 @@ def _initialize_page_validation_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_validation_methods():
-    return {
-        'validate_name': {'mixin_method': '_validate_name', 'decorator': 'read'},
-        'can_move_to_page': {'mixin_method': '_can_move_to_page', 'decorator': 'read'},
-        'check_children_recursive': {'mixin_method': '_check_children_recursive', 'decorator': 'read'},
-    }
 
 
 class PageValidationMixin:
@@ -63,7 +52,7 @@ class PageValidationMixin:
         return True
     
 
-    def _validate_name(
+    def validate_name(
         self,
         name: str,
         page_class: str,
@@ -110,10 +99,10 @@ class PageValidationMixin:
         if name and not NewPageClass.allow_duplicate_names():
             log(f"Checking for duplicate names under parent {self.parent}")
             if exclude_id:
-                results = r_query(self.conn, "SELECT id FROM pages WHERE parent = %s AND name = %s AND id != %s", 
+                results = self.gateway.conn.read("SELECT id FROM pages WHERE parent = %s AND name = %s AND id != %s", 
                               (self.parent, name, exclude_id))
             else:
-                results = r_query(self.conn, "SELECT id FROM pages WHERE parent = %s AND name = %s", 
+                results = self.gateway.conn.read("SELECT id FROM pages WHERE parent = %s AND name = %s", 
                               (self.parent, name))
             if results:
                 existing_page_id = results[0]['id']
@@ -125,9 +114,9 @@ class PageValidationMixin:
         if name and NewPageClass.auto_link_name():
             log(f"Checking for duplicate links (auto_link_name enabled)")
             if exclude_id:
-                results = r_query(self.conn, "SELECT id FROM pages WHERE link = %s AND id != %s", (name, exclude_id))
+                results = self.gateway.conn.read("SELECT id FROM pages WHERE link = %s AND id != %s", (name, exclude_id))
             else:
-                results = r_query(self.conn, "SELECT id FROM pages WHERE link = %s", (name,))
+                results = self.gateway.conn.read("SELECT id FROM pages WHERE link = %s", (name,))
             if results:
                 existing_page_id = results[0]['id']
                 return fail(
@@ -140,7 +129,7 @@ class PageValidationMixin:
         return True
 
 
-    def _can_move_to_page(self, target_page_id: int) -> bool:
+    def can_move_to_page(self, target_page_id: int) -> bool:
         trace_in()
         if target_page_id == self.id:
             warn("Cannot move page into itself")
@@ -180,7 +169,7 @@ class PageValidationMixin:
         return not is_error()
 
 
-    def _check_children_recursive(self) -> List[int]:
+    def check_children_recursive(self) -> List[int]:
         trace_in()
         child_array = []
         if not is_error():

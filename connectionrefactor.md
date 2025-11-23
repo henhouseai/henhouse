@@ -146,6 +146,44 @@ The image module was refactored to use the new connection system (`hh.gateway.co
 **Fixed:**
 - Dictionary iteration bug in `refresh_stale_image_caches()` - changed `_image_cache.items()` to `list(_image_cache.items())` to prevent "dictionary changed size during iteration" error
 
+### 8. Data Retrieval Bug Fix
+
+**Issue:**
+- `show_image()` method in `image_display.py` had data retrieval calls commented out during debugging
+- This caused empty data (zeros) to be returned on first load
+- Data was only populated after cache refresh wrote to cache database
+
+**Fixed:**
+- Uncommented the three data retrieval calls:
+  - `image_data = self.get_image_data()`
+  - `usage_data = self._get_usage_data()`
+  - `instances_data = self.get_instances_data()`
+- Now data is properly loaded on first call and stored in the object before building response
+
+**Key Lesson:** Always verify that data retrieval methods are actually being called, not just stubbed out.
+
+### 9. Connection System Isolation
+
+**Issue:**
+- The new `conn.py` was importing `load_dsn_pair()` from the old `connection.py`
+- This caused duplicate calls to `detect_project_context()`:
+  1. Once inside the old `load_dsn_pair()` function
+  2. Once in `conn.py`'s `initialize()` method
+- The old system's `load_dsn_pair()` also called `_detect_and_set_user_tier_level()` which added unnecessary complexity
+
+**Fixed:**
+- Created new `_load_dsn()` function in `conn.py` that accepts `project_name` as a parameter
+- Removed import of `load_dsn_pair` from old `connection.py`
+- Updated `_get_main_dsn()` to accept `project_name` parameter
+- Modified `initialize()` to call `detect_project_context()` once at the start, then pass `project_name` to all DSN loading calls
+
+**Key Decision:** The new system must not import utility functions from the old system. Each system should have its own implementations to avoid coupling and duplicate work.
+
+### 10. Logging Cleanup
+
+**Removed:**
+- "Arg not found, returning empty" log line from `request.py` - unnecessary noise in logs when arguments are not provided
+
 ## Files Modified
 
 1. `hh/image/image_registry.py` - Removed connection juggling, simplified get_image, added cache refresh orchestration
@@ -154,11 +192,13 @@ The image module was refactored to use the new connection system (`hh.gateway.co
 4. `hh/image/image_content.py` - Removed registry, renamed methods, updated all queries to use gateway.conn
 5. `hh/image/image_instances.py` - Removed registry, renamed methods, updated all queries to use gateway.conn
 6. `hh/image/image_usage.py` - Removed registry, renamed methods, updated all queries to use gateway.conn
-7. `hh/image/image_display.py` - Removed registry, renamed methods, updated all queries to use gateway.conn
+7. `hh/image/image_display.py` - Removed registry, renamed methods, updated all queries to use gateway.conn, fixed commented-out data retrieval calls
 8. `hh/image/image_cache.py` - Removed decorators, removed conn parameters, updated to use gateway.conn
 9. `hh/gateway/gateway.py` - Added call to refresh_stale_image_caches() in _commit()
 10. `hh/gateway/connection/utils.py` - Added deserialize_json_blob and normalize_datetime
-11. `hh/gateway/error/error_store.py` - Added CACHE_REFRESH error type
+11. `hh/gateway/connection/conn.py` - Created new `_load_dsn()` function, removed dependency on old system's `load_dsn_pair()`
+12. `hh/gateway/error/error_store.py` - Added CACHE_REFRESH error type
+13. `hh/gateway/request/request.py` - Removed unnecessary "Arg not found" log line
 
 ## Files Deleted
 
@@ -179,6 +219,8 @@ The image module was refactored to use the new connection system (`hh.gateway.co
 5. **Centralized cache refresh**: Cache refresh happens in gateway commit process
 6. **Public vs private methods**: Registered methods become public (no underscore), unregistered remain private
 7. **Hot cache preserved**: In-memory cache for Image objects remains for performance
+8. **System isolation**: New system must not import utility functions from old system - each system should have its own implementations
+9. **Avoid duplicate work**: When refactoring, ensure functions that are called multiple times don't repeat expensive operations (like `detect_project_context()`)
 
 ## Migration Pattern for Other Modules
 
@@ -192,4 +234,7 @@ This refactoring pattern can be applied to other modules (files, pages):
 6. Remove all `conn` parameters from methods
 7. Move cache refresh logic to gateway commit process
 8. Update utility functions to use shared connection utilities
+9. **Ensure new system doesn't import from old system** - create new utility functions if needed
+10. **Verify data retrieval methods are actually called** - check for commented-out code from debugging
+11. **Eliminate duplicate expensive operations** - if a function is called multiple times, ensure expensive operations (like `detect_project_context()`) are done once and passed as parameters
 

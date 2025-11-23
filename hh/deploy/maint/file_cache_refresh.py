@@ -9,7 +9,7 @@ from hh.gateway.connection.connection import (
     load_dsn_pair,
     r_query,
 )
-from hh.file.file_registry import get_file_conn
+from hh.file.file_registry import get_file
 
 
 def fetch_stale_file_ids(conn, limit: int) -> List[int]:
@@ -49,7 +49,7 @@ def rebuild_files(conn, file_ids: List[int], errors: List[Dict[str, Any]]) -> Li
     processed: List[int] = []
     for file_id in file_ids:
         try:
-            file_obj = get_file_conn(conn, file_id)
+            file_obj = get_file(file_id)
             if not file_obj:
                 raise RuntimeError(f"File {file_id} could not be loaded")
             # Trigger cache refresh by accessing usage data

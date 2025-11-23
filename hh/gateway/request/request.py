@@ -154,7 +154,6 @@ class Request:
                 trace_out()
                 return result
         result = ""
-        log(f"Arg not found, returning empty: {name}")
         trace_out()
         return result
     

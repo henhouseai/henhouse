@@ -30,6 +30,8 @@ from hh.gateway.connection.files import FileSystem
 from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 from hh.image.image_registry import refresh_stale_image_caches
+from hh.file.file_registry import refresh_stale_file_caches
+from hh.page.page_registry import refresh_stale_page_caches
 
 __all__ = [
     "get_gateway",
@@ -454,6 +456,24 @@ class Gateway:
             except Exception as e:
                 warn(f"Error refreshing image caches: {e}")
                 report_error("cache_refresh", f"Error refreshing image caches: {e}")
+        
+        # Refresh file caches for any files in hot cache that need updating
+        if not is_error():
+            log("Refreshing stale file caches...")
+            try:
+                refresh_stale_file_caches()
+            except Exception as e:
+                warn(f"Error refreshing file caches: {e}")
+                report_error("cache_refresh", f"Error refreshing file caches: {e}")
+        
+        # Refresh page caches for any pages in hot cache that need updating
+        if not is_error():
+            log("Refreshing stale page caches...")
+            try:
+                refresh_stale_page_caches()
+            except Exception as e:
+                warn(f"Error refreshing page caches: {e}")
+                report_error("cache_refresh", f"Error refreshing page caches: {e}")
         
         # Check for errors again after file operations and cache refresh
         if not is_error():

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Dict, Any, Optional
 
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
@@ -14,10 +13,7 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
-from hh.mcp_request.mcp_request_method_registry import (
-    register_mcp_request_mixin_methods,
-)
-from hh.page.page_registry import get_page_conn
+from hh.page.page_registry import get_page
 
 
 trace_in = lambda message=None: None
@@ -35,13 +31,6 @@ def _initialize_mcp_request_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-
-@register_mcp_request_mixin_methods
-def _register_mcp_request_methods():
-    return {
-        'update_request': {'mixin_method': '_update_request', 'decorator': 'write'},
-    }
 
 
 class McpRequestContentMixin:
@@ -127,26 +116,8 @@ class McpRequestContentMixin:
         status = self.status if hasattr(self, 'status') else 'pending'
         return f"MCP Request ({status})"
 
-    def _do_init(self, conn: DatabaseConnection, page_id: int):
-        super()._do_init(conn, page_id)
-
-        if is_error() or not conn:
-            return
-
-        trace_in()
-        metadata = self._ensure_metadata_defaults()
-        self._sync_from_metadata(metadata)
-        log(
-            f"MCP Request {page_id} loaded: status={self.status}, "
-            f"request_totals=({self.create_request},{self.read_request},"
-            f"{self.update_request_count},{self.delete_request}), "
-            f"executed_totals=({self.create_executed},{self.read_executed},"
-            f"{self.update_executed},{self.delete_executed})"
-        )
-        trace_out()
-
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int):
         trace_in()
         gateway = get_gateway()
         if not gateway:
@@ -157,7 +128,7 @@ class McpRequestContentMixin:
         input_request = cls._safe_json_arg(gateway.get_arg('input_request'))
         output_response = cls._safe_json_arg(gateway.get_arg('output_response'))
 
-        page = get_page_conn(conn, new_page_id)
+        page = get_page(new_page_id)
         if not page:
             warn(f"Failed to load page {new_page_id} for metadata initialization")
             trace_out()
@@ -180,7 +151,6 @@ class McpRequestContentMixin:
         for key, value in defaults.items():
             page.set_metadata_value(key, value)
 
-        page.reset_connection()
         log(f"Initialized metadata for MCP request page {new_page_id}")
         trace_out()
 
@@ -252,7 +222,7 @@ class McpRequestContentMixin:
         """Return field type for mcp_request rows."""
         return 'mcp_request'
 
-    def _update_request(
+    def update_request(
         self,
         input_request: Optional[str] = None,
         output_response: Optional[str] = None,

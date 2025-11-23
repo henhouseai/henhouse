@@ -1,14 +1,10 @@
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.image.image_registry import get_image # Needed for image operations
 from hh.image.image import Image # Needed for image operations
-from hh.page.page_registry import get_page, get_page_conn # Needed for page operations
-from hh.page.page_method_registry import register_page_mixin_methods
+from hh.page.page_registry import get_page # Needed for page operations
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -26,22 +22,11 @@ def _initialize_page_images_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_images_methods():
-    return {
-        'get_images_data': {'mixin_method': '_get_images_data', 'decorator': 'read'},
-        'add_image': {'mixin_method': '_add_image', 'decorator': 'write'},
-        'copy_images': {'mixin_method': '_copy_images', 'decorator': 'write'},
-        'move_images': {'mixin_method': '_move_images', 'decorator': 'write'},
-        'set_image_rank': {'mixin_method': '_set_image_rank', 'decorator': 'write'},
-        'remove_image': {'mixin_method': '_remove_image', 'decorator': 'write'},
-        'reorder_images': {'mixin_method': '_reorder_images', 'decorator': 'write'},
-    }
 
 
 class PageImagesMixin:
 
-    def _get_images_data(self) -> List[Dict[str, Any]]:
+    def get_images_data(self) -> List[Dict[str, Any]]:
         trace_in()
         # Check if field is already populated
         if hasattr(self, 'images') and self.images:
@@ -52,7 +37,7 @@ class PageImagesMixin:
         images_data = []
         if not is_error():
             try:
-                results = r_query(self.conn, """
+                results = self.gateway.conn.read("""
                     SELECT i.id, ig.image_rank 
                     FROM image_groups ig 
                     JOIN images i ON ig.image_id = i.id 
@@ -85,7 +70,7 @@ class PageImagesMixin:
         return images_data
 
 
-    def _add_image(self, file_path: str, caption: Optional[str] = None) -> int:
+    def add_image(self, file_path: str, caption: Optional[str] = None) -> int:
         trace_in()
         log(f"Adding image to page {self.id}: {file_path}")
         # Use filename as default caption if no caption provided
@@ -116,7 +101,7 @@ class PageImagesMixin:
         else:
             log("Image creation encountered problems")
         if image_id and not is_error():
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
         trace_out()
         return image_id
 
@@ -126,10 +111,10 @@ class PageImagesMixin:
         # Insert image record (no parent or rank - those are in image_groups)
         image_id = None
         if not is_error():
-            user_results = r_query(self.conn, "SELECT USER() as db_user")
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
         if not is_error():
-            image_id = c_query(self.conn, """
+            image_id = self.gateway.conn.create("""
                 INSERT INTO images (caption, username, uploaded, last_modified, comments, visibility, viewCount)
                 VALUES (%s, %s, NOW(), NOW(), %s, 1, 0)
             """, (caption, db_user, "image created"))
@@ -144,10 +129,10 @@ class PageImagesMixin:
         if not is_error():
             # Get next rank if not provided
             if rank is None:
-                results = r_query(self.conn, "SELECT COALESCE(MAX(image_rank), 0) + 1 as next_rank FROM image_groups WHERE page_id = %s", [self.id])
+                results = self.gateway.conn.read("SELECT COALESCE(MAX(image_rank), 0) + 1 as next_rank FROM image_groups WHERE page_id = %s", [self.id])
                 rank = results[0]['next_rank'] if results else 1
             # Insert into image_groups
-            new_id = c_query(self.conn, """
+            new_id = self.gateway.conn.create("""
                 INSERT INTO image_groups (page_id, image_id, image_rank)
                 VALUES (%s, %s, %s)
             """, (self.id, image_id, rank))
@@ -165,7 +150,7 @@ class PageImagesMixin:
         trace_in()
         log(f"Removing image {image_id} from page {self.id} image group")
         if not is_error():
-            affected = d_query(self.conn, "DELETE FROM image_groups WHERE page_id = %s AND image_id = %s", (self.id, image_id))
+            affected = self.gateway.conn.delete("DELETE FROM image_groups WHERE page_id = %s AND image_id = %s", (self.id, image_id))
             if affected == 0:
                 warn(f"Failed to remove image {image_id} from page {self.id}")
                 report_error("action", f"Failed to remove image {image_id} from page {self.id}")
@@ -180,11 +165,11 @@ class PageImagesMixin:
         return not is_error()
 
 
-    def _reorder_images(self) -> bool:
+    def reorder_images(self) -> bool:
         trace_in()
         log(f"Reordering images in page {self.id}")
         try:
-            results = r_query(self.conn, """
+            results = self.gateway.conn.read("""
                 SELECT image_id, image_rank FROM image_groups 
                 WHERE page_id = %s 
                 ORDER BY image_rank
@@ -194,7 +179,7 @@ class PageImagesMixin:
                 new_rank = i
                 # Only update if the rank actually needs to change
                 if current_rank != new_rank:
-                    affected = u_query(self.conn, """
+                    affected = self.gateway.conn.update("""
                         UPDATE image_groups SET image_rank = %s 
                         WHERE page_id = %s AND image_id = %s AND image_rank = %s
                     """, (new_rank, self.id, img['image_id'], current_rank))
@@ -208,17 +193,17 @@ class PageImagesMixin:
             warn(f"Failed to reorder images in page {self.id}: {str(e)}")
             report_error("action", f"Failed to reorder images: {str(e)}")
         if not is_error():
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
 
-    def _copy_images(self, image_ids: List[int], target_rank: Optional[int] = None) -> bool:
+    def copy_images(self, image_ids: List[int], target_rank: Optional[int] = None) -> bool:
         trace_in()
         log(f"Copying {len(image_ids)} images to page {self.id}")
         
         # Record original count before copying
-        original_count = len(self._get_images_data())
+        original_count = len(self.get_images_data())
         
         copied_count = 0
         for image_id in image_ids:
@@ -247,17 +232,17 @@ class PageImagesMixin:
                     report_error("action", f"Failed to set image {image_id} rank to {target_rank_for_image}")
         
         if not is_error() and copied_count > 0:
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
 
-    def _move_images(self, image_instances: List[Dict[str, int]], target_rank: Optional[int] = None) -> bool:
+    def move_images(self, image_instances: List[Dict[str, int]], target_rank: Optional[int] = None) -> bool:
         trace_in()
         log(f"Moving {len(image_instances)} specific image instances to page {self.id}")
         
         # Record original count before moving
-        original_count = len(self._get_images_data())
+        original_count = len(self.get_images_data())
         
         moved_count = 0
         source_pages_affected = set()
@@ -267,7 +252,7 @@ class PageImagesMixin:
             source_rank = instance['source_rank']
             if not is_error():
                 # Verify the specific instance exists
-                results = r_query(self.conn, """
+                results = self.gateway.conn.read("""
                     SELECT COUNT(*) as count FROM image_groups 
                     WHERE page_id = %s AND image_id = %s AND image_rank = %s
                 """, (source_page_id, image_id, source_rank))
@@ -275,7 +260,7 @@ class PageImagesMixin:
                     warn(f"Image {image_id} (rank {source_rank}) not found in source page {source_page_id}")
                     continue
                 # Remove this specific instance from source page
-                affected = d_query(self.conn, """
+                affected = self.gateway.conn.delete("""
                     DELETE FROM image_groups 
                     WHERE page_id = %s AND image_id = %s AND image_rank = %s
                 """, (source_page_id, image_id, source_rank))
@@ -293,7 +278,7 @@ class PageImagesMixin:
         # Reorder remaining images in all affected source pages using the same connection
         if not is_error() and moved_count > 0:
             for source_page_id in source_pages_affected:
-                source_page = get_page_conn(self.conn, page_id=source_page_id)
+                source_page = get_page(page_id=source_page_id)
                 if source_page:
                     if not source_page.reorder_images():
                         warn(f"Failed to reorder images in source page {source_page_id}")
@@ -320,12 +305,12 @@ class PageImagesMixin:
         
         log(f"Successfully moved {moved_count} image instances to page {self.id}")
         if not is_error() and moved_count > 0:
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
 
-    def _set_image_rank(self, image_id: int, current_rank: int, new_rank: int) -> bool:
+    def set_image_rank(self, image_id: int, current_rank: int, new_rank: int) -> bool:
         trace_in()
         log(f"Setting image {image_id} rank from {current_rank} to {new_rank} in page {self.id}")
         # Validate new_rank is positive integer
@@ -342,7 +327,7 @@ class PageImagesMixin:
             
         if not is_error():
             # Step 1: Delete the target row
-            affected = d_query(self.conn, """
+            affected = self.gateway.conn.delete("""
                 DELETE FROM image_groups 
                 WHERE page_id = %s AND image_id = %s AND image_rank = %s
             """, (self.id, image_id, current_rank))
@@ -358,13 +343,13 @@ class PageImagesMixin:
                 log(f"Moving up: scooting items down from rank {current_rank-1} to {new_rank}")
                 for rank in range(current_rank - 1, new_rank - 1, -1):
                     # Get the image_id at this rank
-                    results = r_query(self.conn, """
+                    results = self.gateway.conn.read("""
                         SELECT image_id FROM image_groups 
                         WHERE page_id = %s AND image_rank = %s
                     """, (self.id, rank))
                     if results:
                         img_id = results[0]['image_id']
-                        affected = u_query(self.conn, """
+                        affected = self.gateway.conn.update("""
                             UPDATE image_groups 
                             SET image_rank = image_rank + 1 
                             WHERE page_id = %s AND image_id = %s AND image_rank = %s
@@ -377,13 +362,13 @@ class PageImagesMixin:
                 log(f"Moving down: scooting items up from rank {current_rank+1} to {new_rank}")
                 for rank in range(current_rank + 1, new_rank + 1):
                     # Get the image_id at this rank
-                    results = r_query(self.conn, """
+                    results = self.gateway.conn.read("""
                         SELECT image_id FROM image_groups 
                         WHERE page_id = %s AND image_rank = %s
                     """, (self.id, rank))
                     if results:
                         img_id = results[0]['image_id']
-                        affected = u_query(self.conn, """
+                        affected = self.gateway.conn.update("""
                             UPDATE image_groups 
                             SET image_rank = image_rank - 1 
                             WHERE page_id = %s AND image_id = %s AND image_rank = %s
@@ -394,7 +379,7 @@ class PageImagesMixin:
             
             # Step 3: Insert new row with desired rank
             if not is_error():
-                affected = u_query(self.conn, """
+                affected = self.gateway.conn.update("""
                     INSERT INTO image_groups (page_id, image_id, image_rank) 
                     VALUES (%s, %s, %s)
                 """, (self.id, image_id, new_rank))
@@ -406,17 +391,17 @@ class PageImagesMixin:
                 log(f"Successfully reordered image {image_id} to rank {new_rank} in page {self.id}")
         
         if not is_error():
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 
 
-    def _remove_image(self, image_id: int, image_rank: int) -> bool:
+    def remove_image(self, image_id: int, image_rank: int) -> bool:
         trace_in()
         log(f"Removing image {image_id} (rank {image_rank}) from page {self.id}")
         if not is_error():
             # Remove from image_groups table
-            affected = d_query(self.conn, """
+            affected = self.gateway.conn.delete("""
                 DELETE FROM image_groups 
                 WHERE page_id = %s AND image_id = %s AND image_rank = %s
             """, (self.id, image_id, image_rank))
@@ -444,7 +429,7 @@ class PageImagesMixin:
                 report_error("action", f"Failed to load image {image_id}")
         if not is_error():
             log(f"Successfully removed image {image_id} (rank {image_rank}) from page {self.id}")
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
             self._flag_related_image(image_id, f"removed from page {self.id}")
         trace_out()
         return not is_error()
@@ -455,13 +440,13 @@ class PageImagesMixin:
         log(f"Deleting all image_groups entries for page {self.id}")
         if not is_error():
             # Get all unique image_ids from this page's image_groups before deleting
-            results = r_query(self.conn, "SELECT DISTINCT image_id FROM image_groups WHERE page_id = %s", [self.id])
+            results = self.gateway.conn.read("SELECT DISTINCT image_id FROM image_groups WHERE page_id = %s", [self.id])
             image_ids = [row['image_id'] for row in results] if results else []
             log(f"Found {len(image_ids)} unique images in page {self.id} image_groups")
         
         if not is_error():
             # Delete all image_groups entries for this page
-            affected = d_query(self.conn, "DELETE FROM image_groups WHERE page_id = %s", [self.id])
+            affected = self.gateway.conn.delete("DELETE FROM image_groups WHERE page_id = %s", [self.id])
             log(f"Deleted {affected} image_groups entries for page {self.id}")
         
         # Check each image to see if it should be deleted (no longer used by any pages)
@@ -482,7 +467,7 @@ class PageImagesMixin:
                         warn(f"Failed to load image {image_id} for usage check")
                         report_error("action", f"Failed to load image {image_id}")
         if not is_error():
-            self._flag_page_modification("images updated")
+            self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Dict, Any, Optional
 
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
@@ -14,10 +13,7 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
-from hh.mcp_action_request.mcp_action_request_method_registry import (
-    register_mcp_action_request_mixin_methods,
-)
-from hh.page.page_registry import get_page_conn
+from hh.page.page_registry import get_page
 
 
 trace_in = lambda message=None: None
@@ -35,16 +31,6 @@ def _initialize_mcp_action_request_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-
-@register_mcp_action_request_mixin_methods
-def _register_mcp_action_request_methods():
-    return {
-        'update_action_request': {
-            'mixin_method': '_update_action_request',
-            'decorator': 'write',
-        },
-    }
 
 
 class McpActionRequestContentMixin:
@@ -116,24 +102,8 @@ class McpActionRequestContentMixin:
         status = self.status if hasattr(self, 'status') else 'pending'
         return f"{tool_name} ({status})"
 
-    def _do_init(self, conn: DatabaseConnection, page_id: int):
-        super()._do_init(conn, page_id)
-
-        if is_error() or not conn:
-            return
-
-        trace_in()
-        metadata = self._ensure_metadata_defaults()
-        self._sync_from_metadata(metadata)
-        log(
-            f"MCP Action Request {page_id} loaded: tool={self.tool_name}, "
-            f"status={self.status}, crud_flags="
-            f"({self.is_create},{self.is_read},{self.is_update},{self.is_delete})"
-        )
-        trace_out()
-
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int):
         trace_in()
         gateway = get_gateway()
         if not gateway:
@@ -146,7 +116,7 @@ class McpActionRequestContentMixin:
         extraction_spec = cls._safe_json_arg(gateway.get_arg('extraction_spec'))
         result = cls._safe_json_arg(gateway.get_arg('result'))
 
-        page = get_page_conn(conn, new_page_id)
+        page = get_page(new_page_id)
         if not page:
             warn(f"Failed to load page {new_page_id} for metadata initialization")
             trace_out()
@@ -167,7 +137,6 @@ class McpActionRequestContentMixin:
         for key, value in defaults.items():
             page.set_metadata_value(key, value)
 
-        page.reset_connection()
         log(f"Initialized metadata for MCP action request page {new_page_id}")
         trace_out()
 
@@ -241,7 +210,7 @@ class McpActionRequestContentMixin:
     def _get_child_row_field_type(self) -> str:
         return 'mcp_action_request'
 
-    def _update_action_request(
+    def update_action_request(
         self,
         tool_name: Optional[str] = None,
         arguments: Optional[str] = None,

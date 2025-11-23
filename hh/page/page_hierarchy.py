@@ -1,12 +1,8 @@
 from typing import Dict, Any, List, Optional
 import datetime as dt
-from hh.gateway.connection.connection import r_query, u_query, c_query
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.page.page_registry import get_page, get_page_conn
-from hh.page.page_method_registry import register_page_mixin_methods
+from hh.page.page_registry import get_page
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,16 +20,6 @@ def _initialize_page_hierarchy_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_hierarchy_methods():
-    return {
-        'get_path': {'mixin_method': '_get_path', 'decorator': 'read'},
-        'get_children_data': {'mixin_method': '_get_children_data', 'decorator': 'read'},
-        'get_child_page_ids': {'mixin_method': '_get_child_page_ids', 'decorator': 'read'},
-        'get_child_count': {'mixin_method': '_get_child_count', 'decorator': 'read'},
-        'move_page': {'mixin_method': '_move_page', 'decorator': 'write'},
-        'copy_page': {'mixin_method': '_copy_page', 'decorator': 'write'},
-    }
 
 
 class PageHierarchyMixin:
@@ -66,7 +52,7 @@ class PageHierarchyMixin:
         self._flag_cache_refresh()
         return display_name
 
-    def _get_path(self) -> List[Dict[str, Any]]:
+    def get_path(self) -> List[Dict[str, Any]]:
         trace_in()
         path = []
         current_page = self
@@ -99,15 +85,15 @@ class PageHierarchyMixin:
         return path
 
 
-    def _get_children_data(self) -> List[Dict[str, Any]]:
+    def get_children_data(self) -> List[Dict[str, Any]]:
         trace_in()
         children_data = []
         if not is_error():
-            child_ids = self._get_child_page_ids()
+            child_ids = self.get_child_page_ids()
         if not is_error():
             for i, child_id in enumerate(child_ids):
                 if not is_error():
-                    child_page = get_page_conn(self.conn, page_id=child_id)
+                    child_page = get_page(page_id=child_id)
                     if child_page:
                         child_data = child_page.get_page_data()
                         # Add child count for this child page
@@ -122,12 +108,12 @@ class PageHierarchyMixin:
         return children_data
 
 
-    def _get_child_page_ids(self) -> List[int]:
+    def get_child_page_ids(self) -> List[int]:
         trace_in()
         child_ids = []
         if not is_error():
             query, params = self._get_children_query(self.id)
-            results = r_query(self.conn, query, params)
+            results = self.gateway.conn.read(query, params)
             if results:
                 child_ids = [row['id'] for row in results]
         log(f"Child page IDs for page {self.id}: {len(child_ids)} found -> {child_ids}")
@@ -135,11 +121,11 @@ class PageHierarchyMixin:
         return child_ids
 
 
-    def _get_child_count(self) -> int:
+    def get_child_count(self) -> int:
         trace_in()
         count = 0
         if not is_error():
-            results = r_query(self.conn, "SELECT COUNT(*) as count FROM pages WHERE parent = %s", [self.id])
+            results = self.gateway.conn.read("SELECT COUNT(*) as count FROM pages WHERE parent = %s", [self.id])
             if results:
                 count = results[0]['count']
             else:
@@ -149,7 +135,7 @@ class PageHierarchyMixin:
         return count
 
 
-    def _move_page(self, target_page_id: int) -> bool:
+    def move_page(self, target_page_id: int) -> bool:
         trace_in()
         # Validate the move is allowed
         if not self.can_move_to_page(target_page_id):
@@ -160,22 +146,22 @@ class PageHierarchyMixin:
         original_parent = self.parent
         if not is_error():
             # Perform the actual move
-            affected = u_query(self.conn, "UPDATE pages SET parent = %s WHERE id = %s", (target_page_id, self.id))
+            affected = self.gateway.conn.update("UPDATE pages SET parent = %s WHERE id = %s", (target_page_id, self.id))
             if affected == 0:
                 warn(f"Failed to move page {self.id} - no rows affected")
                 report_error("action", f"Failed to move page {self.id}")
         if not is_error():
             # Update object property and audit trail
             self.parent = target_page_id
-            self._flag_page_modification("page moved")
+            self.flag_page_modification("page moved")
             # Flag old parent so cache sees removals
             if original_parent and original_parent != 0 and original_parent != target_page_id:
-                old_parent = get_page_conn(self.conn, page_id=original_parent)
+                old_parent = get_page(page_id=original_parent)
                 if old_parent:
                     old_parent.flag_page_modification("child moved out")
             # Flag new parent for additions
             if target_page_id and target_page_id != 0:
-                new_parent = get_page_conn(self.conn, page_id=target_page_id)
+                new_parent = get_page(page_id=target_page_id)
                 if new_parent:
                     new_parent.flag_page_modification("child moved in")
             log(f"Successfully moved page {self.id} to parent {target_page_id}")
@@ -183,7 +169,7 @@ class PageHierarchyMixin:
         return not is_error()
 
 
-    def _copy_page(self, target_page_id: int, recursive: bool = False, max_depth: Optional[int] = None) -> int:
+    def copy_page(self, target_page_id: int, recursive: bool = False, max_depth: Optional[int] = None) -> int:
         trace_in()
         # Validate the copy is allowed (same as move validation)
         if not self.can_move_to_page(target_page_id):
@@ -252,7 +238,7 @@ class PageHierarchyMixin:
             trace_out()
             return
         if not is_error():
-            child_ids = self._get_child_page_ids()
+            child_ids = self.get_child_page_ids()
             for child_id in child_ids:
                 if not is_error():
                     child_page = get_page(page_id=child_id)

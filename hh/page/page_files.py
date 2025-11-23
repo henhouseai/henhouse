@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import (
     get_trace_in,
@@ -13,9 +12,8 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
-from hh.page.page_method_registry import register_page_mixin_methods
 from hh.page.page_registry import get_page
-from hh.file.file_registry import get_file_conn
+from hh.file.file_registry import get_file
 from hh.file.utils import store_uploaded_file
 
 trace_in = lambda message=None: None
@@ -35,22 +33,10 @@ def _initialize_page_files_debug():
     warn = get_warn(True)
 
 
-@register_page_mixin_methods
-def _register_file_methods():
-    return {
-        "get_files_data": {"mixin_method": "_get_files_data", "decorator": "read"},
-        "add_file": {"mixin_method": "_add_file", "decorator": "write"},
-        "copy_files": {"mixin_method": "_copy_files", "decorator": "write"},
-        "move_files": {"mixin_method": "_move_files", "decorator": "write"},
-        "set_file_rank": {"mixin_method": "_set_file_rank", "decorator": "write"},
-        "remove_file": {"mixin_method": "_remove_file", "decorator": "write"},
-        "reorder_files": {"mixin_method": "_reorder_files", "decorator": "write"},
-        "delete_all_file_groups": {"mixin_method": "_delete_all_file_groups", "decorator": "write"},
-    }
 
 
 class PageFilesMixin:
-    def _get_files_data(self) -> List[Dict[str, Any]]:
+    def get_files_data(self) -> List[Dict[str, Any]]:
         trace_in()
         # Check if field is already populated
         if hasattr(self, 'files') and self.files:
@@ -59,8 +45,7 @@ class PageFilesMixin:
         # Field is empty, need to hydrate from database
         files: List[Dict[str, Any]] = []
         if not is_error():
-            rows = r_query(
-                self.conn,
+            rows = self.gateway.conn.read(
                 """
                 SELECT fg.file_rank,
                        f.id,
@@ -106,7 +91,7 @@ class PageFilesMixin:
         trace_out()
         return files
 
-    def _add_file(
+    def add_file(
         self,
         temp_path: str,
         original_filename: str,
@@ -138,7 +123,7 @@ class PageFilesMixin:
 
         if not is_error():
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return new_file_id
 
@@ -153,10 +138,9 @@ class PageFilesMixin:
         trace_in()
         file_id = None
         if not is_error():
-            user_results = r_query(self.conn, "SELECT USER() as db_user")
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]["db_user"] if user_results else "unknown"
-            file_id = c_query(
-                self.conn,
+            file_id = self.gateway.conn.create(
                 """
                 INSERT INTO files (
                     file_name,
@@ -190,14 +174,12 @@ class PageFilesMixin:
         trace_in()
         if not is_error():
             if rank is None:
-                results = r_query(
-                    self.conn,
+                results = self.gateway.conn.read(
                     "SELECT COALESCE(MAX(file_rank), 0) + 1 AS next_rank FROM file_groups WHERE page_id = %s",
                     [self.id],
                 )
                 rank = results[0]["next_rank"] if results else 1
-            new_id = c_query(
-                self.conn,
+            new_id = self.gateway.conn.create(
                 """
                 INSERT INTO file_groups (page_id, file_id, file_rank)
                 VALUES (%s, %s, %s)
@@ -215,8 +197,7 @@ class PageFilesMixin:
     def _remove_file_from_group(self, file_id: int) -> bool:
         trace_in()
         if not is_error():
-            affected = d_query(
-                self.conn,
+            affected = self.gateway.conn.delete(
                 "DELETE FROM file_groups WHERE page_id = %s AND file_id = %s",
                 (self.id, file_id),
             )
@@ -228,13 +209,13 @@ class PageFilesMixin:
         trace_out()
         return not is_error()
 
-    def _copy_files(self, file_ids: List[int], target_rank: Optional[int] = None) -> bool:
+    def copy_files(self, file_ids: List[int], target_rank: Optional[int] = None) -> bool:
         trace_in()
         if not file_ids:
             trace_out()
             return True
 
-        original_count = len(self._get_files_data())
+        original_count = len(self.get_files_data())
         copied = 0
         for file_id in file_ids:
             if is_error():
@@ -249,11 +230,11 @@ class PageFilesMixin:
 
         if not is_error() and copied > 0:
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
-    def _move_files(
+    def move_files(
         self,
         file_instances: List[Dict[str, int]],
         target_rank: Optional[int] = None,
@@ -263,7 +244,7 @@ class PageFilesMixin:
             trace_out()
             return True
 
-        original_count = len(self._get_files_data())
+        original_count = len(self.get_files_data())
         moved_count = 0
         source_pages = set()
         for instance in file_instances:
@@ -273,8 +254,7 @@ class PageFilesMixin:
             source_page_id = instance["source_page_id"]
             source_rank = instance["source_rank"]
 
-            affected = d_query(
-                self.conn,
+            affected = self.gateway.conn.delete(
                 """
                 DELETE FROM file_groups
                 WHERE page_id = %s AND file_id = %s AND file_rank = %s
@@ -303,11 +283,11 @@ class PageFilesMixin:
 
         if not is_error() and moved_count > 0:
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
-    def _set_file_rank(self, file_id: int, current_rank: int, new_rank: int) -> bool:
+    def set_file_rank(self, file_id: int, current_rank: int, new_rank: int) -> bool:
         trace_in()
         if new_rank <= 0:
             warn(f"Invalid file rank: {new_rank}")
@@ -319,8 +299,7 @@ class PageFilesMixin:
             trace_out()
             return False
 
-        rows = r_query(
-            self.conn,
+        rows = self.gateway.conn.read(
             """
             SELECT file_id
             FROM file_groups
@@ -341,8 +320,7 @@ class PageFilesMixin:
         order.insert(target_index, file_id)
 
         for idx, fid in enumerate(order, start=1):
-            u_query(
-                self.conn,
+            self.gateway.conn.update(
                 """
                 UPDATE file_groups
                 SET file_rank = %s
@@ -353,15 +331,14 @@ class PageFilesMixin:
 
         if not is_error():
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
-    def _reorder_files(self) -> bool:
+    def reorder_files(self) -> bool:
         trace_in()
         try:
-            rows = r_query(
-                self.conn,
+            rows = self.gateway.conn.read(
                 """
                 SELECT file_id, file_rank
                 FROM file_groups
@@ -372,8 +349,7 @@ class PageFilesMixin:
             )
             for idx, row in enumerate(rows, start=1):
                 if row["file_rank"] != idx:
-                    u_query(
-                        self.conn,
+                    self.gateway.conn.update(
                         """
                         UPDATE file_groups
                         SET file_rank = %s
@@ -386,15 +362,14 @@ class PageFilesMixin:
             report_error("action", f"Failed to reorder files for page {self.id}")
         if not is_error():
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
-    def _remove_file(self, file_id: int, file_rank: int) -> bool:
+    def remove_file(self, file_id: int, file_rank: int) -> bool:
         trace_in()
         if not is_error():
-            affected = d_query(
-                self.conn,
+            affected = self.gateway.conn.delete(
                 """
                 DELETE FROM file_groups
                 WHERE page_id = %s AND file_id = %s AND file_rank = %s
@@ -410,45 +385,44 @@ class PageFilesMixin:
         if not is_error():
             usage = self._get_file_usage_count(file_id)
             if usage == 0:
-                file_obj = get_file_conn(self.conn, file_id=file_id)
+                file_obj = get_file(file_id=file_id)
                 if file_obj:
                     file_obj.delete_from_database()
             self._flag_related_file(file_id, f"removed from page {self.id}")
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
-    def _delete_all_file_groups(self) -> bool:
+    def delete_all_file_groups(self) -> bool:
         trace_in()
         file_ids: List[int] = []
         if not is_error():
-            rows = r_query(
-                self.conn,
+            rows = self.gateway.conn.read(
                 "SELECT DISTINCT file_id FROM file_groups WHERE page_id = %s",
                 [self.id],
             )
             file_ids = [row["file_id"] for row in rows] if rows else []
-            d_query(self.conn, "DELETE FROM file_groups WHERE page_id = %s", [self.id])
+            self.gateway.conn.delete("DELETE FROM file_groups WHERE page_id = %s", [self.id])
 
         if not is_error():
             for fid in file_ids:
                 usage = self._get_file_usage_count(fid)
                 if usage == 0:
-                    file_obj = get_file_conn(self.conn, file_id=fid)
+                    file_obj = get_file(file_id=fid)
                     if file_obj:
                         file_obj.delete_from_database()
 
         if not is_error():
             self._reset_cached_files()
-            self._flag_page_modification("files updated")
+            self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
     def _flag_related_file(self, file_id: int, comment: str) -> None:
         if is_error():
             return
-        file_obj = get_file_conn(self.conn, file_id=file_id)
+        file_obj = get_file(file_id=file_id)
         if not file_obj:
             warn(f"Failed to load file {file_id} for modification flag")
             return
@@ -457,8 +431,7 @@ class PageFilesMixin:
     def _get_file_usage_count(self, file_id: int) -> int:
         if is_error():
             return 0
-        results = r_query(
-            self.conn,
+        results = self.gateway.conn.read(
             "SELECT COUNT(*) AS cnt FROM file_groups WHERE file_id = %s",
             (file_id,),
         )

@@ -1,12 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
-from hh.gateway.connection.connection import r_query, c_query, d_query, u_query
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.error.error_store import report_error, is_error
-from hh.gateway.gateway import get_gateway
-from hh.work_docket.work_docket_method_registry import register_work_docket_mixin_methods
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -22,13 +16,6 @@ def _initialize_work_docket_content_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-
-@register_work_docket_mixin_methods
-def _register_work_docket_content_methods():
-    # All modify methods (status, meta, sort_order) are handled by WorkPageContentMixin
-    # Only work_docket-specific methods would go here
-    return {}
 
 
 class WorkDocketContentMixin:

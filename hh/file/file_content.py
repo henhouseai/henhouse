@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import Dict, Any, Optional, List
 
-from hh.gateway.connection.connection import r_query, u_query, d_query
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import (
     get_trace_in,
@@ -13,8 +12,8 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
-from hh.file.file_method_registry import register_file_mixin_methods
-from hh.file.utils import move_file_to_deleted
+from hh.deploy.utils import detect_project_context
+from pathlib import Path
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -33,28 +32,16 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_file_mixin_methods
-def _register_content_methods():
-    return {
-        "flag_file_modification": {"mixin_method": "_flag_file_modification", "decorator": "write"},
-        "delete_from_database": {"mixin_method": "_delete_from_database", "decorator": "write"},
-        "get_file_data": {"mixin_method": "_get_file_data", "decorator": "read"},
-        "modify_description": {"mixin_method": "_modify_description", "decorator": "write"},
-        "get_usage_data": {"mixin_method": "_get_usage_data", "decorator": "read"},
-    }
-
-
 class FileContentMixin:
-    def _flag_file_modification(self, comments: str) -> bool:
+    def flag_file_modification(self, comments: str) -> bool:
         trace_in()
         note = comments or ""
         now = dt.datetime.now()
         if not is_error():
-            user_results = r_query(self.conn, "SELECT USER() as db_user")
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]["db_user"] if user_results else "unknown"
         if not is_error():
-            affected = u_query(
-                self.conn,
+            affected = self.gateway.conn.update(
                 """
                 UPDATE files
                 SET last_modified = %s,
@@ -74,12 +61,11 @@ class FileContentMixin:
         trace_out()
         return not is_error()
 
-    def _modify_description(self, description: Optional[str]) -> bool:
+    def modify_description(self, description: Optional[str]) -> bool:
         trace_in()
         value = description or None
         if not is_error():
-            affected = u_query(
-                self.conn,
+            affected = self.gateway.conn.update(
                 "UPDATE files SET description = %s WHERE id = %s",
                 (value, self.id),
             )
@@ -88,11 +74,11 @@ class FileContentMixin:
                 report_error("action", f"Failed to update description for file {self.id}")
         if not is_error():
             self.description = value
-            self._flag_file_modification("description updated")
+            self.flag_file_modification("description updated")
         trace_out()
         return not is_error()
 
-    def _get_file_data(self) -> Dict[str, Any]:
+    def get_file_data(self) -> Dict[str, Any]:
         trace_in()
         data = {
             "id": self.id,
@@ -110,12 +96,12 @@ class FileContentMixin:
         trace_out()
         return data
 
-    def _delete_from_database(self) -> bool:
+    def delete_from_database(self) -> bool:
         trace_in()
         if not is_error():
             self._move_to_deleted()
         if not is_error():
-            affected = d_query(self.conn, "DELETE FROM files WHERE id = %s", (self.id,))
+            affected = self.gateway.conn.delete("DELETE FROM files WHERE id = %s", (self.id,))
             if affected == 0:
                 warn(f"Failed to delete file {self.id}")
                 report_error("action", f"Failed to delete file {self.id}")
@@ -125,12 +111,24 @@ class FileContentMixin:
     def _move_to_deleted(self) -> None:
         if not getattr(self, "file_path", None):
             return
-        new_path = move_file_to_deleted(self.file_path)
-        if new_path:
-            log(f"File {self.id} moved to deleted path {new_path}")
-            self.file_path = new_path
+        try:
+            project_name, _ = detect_project_context()
+            base_path = Path(f"/srv/files/{project_name}")
+            current_file = base_path / self.file_path
+            if not current_file.exists():
+                log(f"File not found, skipping: {current_file}")
+                return
+            deleted_path = base_path / "deleted"
+            deleted_path.mkdir(parents=True, exist_ok=True)
+            deleted_file = deleted_path / current_file.name
+            self.gateway.files.schedule_move(str(current_file), str(deleted_file))
+            log(f"Scheduled file move to deleted folder: {self.file_path} -> deleted/{current_file.name}")
+            self.file_path = f"deleted/{current_file.name}"
+        except Exception as e:
+            warn(f"Failed to schedule soft delete files: {str(e)}")
+            report_error("file_operation", f"Failed to schedule soft delete: {str(e)}")
 
-    def _get_usage_data(self) -> List[Dict[str, Any]]:
+    def get_usage_data(self) -> List[Dict[str, Any]]:
         trace_in()
         usage_data = []
         if not is_error():
@@ -148,7 +146,7 @@ class FileContentMixin:
                     GROUP BY fg.page_id, p.name, p.class
                     ORDER BY p.name
                 """
-                results = r_query(self.conn, query, [self.id])
+                results = self.gateway.conn.read(query, [self.id])
                 for row in results:
                     page_id = row['page_id']
                     page_name = row['page_name'] or f"Page {page_id}"
@@ -157,8 +155,7 @@ class FileContentMixin:
                     ranks_str = row['ranks']
                     
                     # Proactively check if page exists before trying to load it
-                    page_exists = r_query(
-                        self.conn,
+                    page_exists = self.gateway.conn.read(
                         "SELECT 1 FROM pages WHERE id = %s",
                         (page_id,)
                     )

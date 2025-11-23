@@ -1,13 +1,9 @@
 from __future__ import annotations
 from typing import Dict, Optional, Any
 import importlib
-import json
-import datetime as dt
-from hh.gateway.connection.connection import r_query
-from hh.gateway.connection.decorators import db_read
+from hh.gateway.connection.utils import deserialize_json_blob, normalize_datetime
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.gateway.gateway import get_gateway
 from hh.page.page_class_registry import get_page_class
 
 trace_in = lambda message=None: None
@@ -28,56 +24,17 @@ def _initialize_debug():
 _page_cache: Dict[int, Any] = {}
 
 
-def _deserialize_json_blob(blob, default):
-    if blob in (None, '', b''):
-        return default
-    if isinstance(blob, (bytes, bytearray)):
-        blob = blob.decode('utf-8')
-    if isinstance(blob, str):
-        try:
-            return json.loads(blob)
-        except json.JSONDecodeError:
-            return default
-    if isinstance(blob, (dict, list)):
-        return blob
-    return default
-
-
-def _serialize_dt(value):
-    if isinstance(value, (dt.datetime, dt.date)):
-        return value.isoformat()
-    return value
-
-
-def _get_cache_row(conn, page_id: int) -> Optional[Dict[str, Any]]:
-    query = """
-        SELECT id, display_name, prepared_text, children_summary, image_summary, file_summary, links_out, cache_built_at
-        FROM pages
-        WHERE id = %s
-    """
-    results = r_query(conn, query, [page_id], use_secondary=True)
-    return results[0] if results else None
-
-
-def _normalize_dt(value: Any) -> Optional[dt.datetime]:
-    if value is None:
-        return None
-    if isinstance(value, dt.datetime):
-        return value
-    if isinstance(value, dt.date):
-        return dt.datetime.combine(value, dt.time.min)
-    if isinstance(value, str):
-        try:
-            return dt.datetime.fromisoformat(value)
-        except ValueError:
-            return None
-    return None
-
-
-def _get_page_class_and_load_utils(conn, page_id: int) -> Optional[type]:
+def _get_page_class_and_load_utils(page_id: int) -> Optional[type]:
     """Helper to get PageClass and load mcp_utils. Returns PageClass or None if error."""
+    from hh.gateway.gateway import get_gateway
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("Gateway or connection not available")
+        report_error("connection", "Gateway or connection not available")
+        return None
+    
     query = "SELECT class FROM pages WHERE id = %s"
-    results = r_query(conn, query, [page_id])
+    results = gateway.conn.read(query, [page_id])
     if not results:
         warn(f"Page {page_id} not found")
         report_error("action", f"Page {page_id} not found")
@@ -97,44 +54,10 @@ def _get_page_class_and_load_utils(conn, page_id: int) -> Optional[type]:
     _load_mcp_utils_for_page_class(PageClass)
     return PageClass
 
-
-def _hydrate_page_from_cache(page_obj, cache_row: Optional[Dict[str, Any]]) -> bool:
-    if not cache_row:
-        return False
-    
-    # Check staleness using main database timestamps (both loaded from main DB in do_init)
-    cache_built_at_dt = _normalize_dt(page_obj.cache_built_at)
-    last_modified_dt = _normalize_dt(page_obj.last_modified)
-
-    if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
-        debug(f"Cache for page {page_obj.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
-        return False
-    
-    # If cache_built_at is NULL in main DB, cache doesn't exist yet
-    if cache_built_at_dt is None:
-        debug(f"Cache for page {page_obj.id} does not exist (cache_built_at is NULL)")
-        return False
-
-    # Load expensive pre-computed data from cache database directly into the 5 derived fields
-    page_obj.display_name = cache_row.get('display_name')
-    page_obj.prepared_text = _deserialize_json_blob(cache_row.get('prepared_text'), None)
-    page_obj.children_by_class = _deserialize_json_blob(cache_row.get('children_summary'), {})
-    page_obj.images = _deserialize_json_blob(cache_row.get('image_summary'), [])
-    page_obj.files = _deserialize_json_blob(cache_row.get('file_summary'), [])
-    page_obj.cache_hydrated = True
-    debug(f"Hydrated page {page_obj.id} from cache (built_at={page_obj.cache_built_at})")
-    return True
-
-
-def _try_hydrate_page_from_cache(conn, page_instance) -> None:
-    """Helper to attempt cache hydration for a page instance."""
-    cache_row = _get_cache_row(conn, page_instance.id)
-    if cache_row:
-        _hydrate_page_from_cache(page_instance, cache_row)
-
 def _load_mcp_utils_for_page_class(PageClass: type) -> None:
     """Dynamically import mcp_utils module for a page class and all its parent classes for HTTP or MCP backend."""
     trace_in()
+    from hh.gateway.gateway import get_gateway
     gateway = get_gateway()
     if not gateway or gateway.backend not in ("http", "mcp"):
         # Only load mcp_utils for HTTP or MCP backend requests
@@ -175,89 +98,115 @@ def _load_mcp_utils_for_page_class(PageClass: type) -> None:
         warn(f"Error loading mcp_utils for {PageClass.__name__}: {e}")
     trace_out()
 
-@db_read
-def get_page(conn, page_id: int) -> Optional[Any]:
+def get_page(page_id: int) -> Optional[Any]:
+    """Get page from hot cache or load from database. Page.__init__() handles cache hydration."""
     trace_in()
     if not page_id or page_id <= 0:
         warn(f"Invalid page ID: {page_id}")
         report_error("action", f"Invalid page ID: {page_id}")
-    if not is_error():
-        if page_id in _page_cache:
-            cached_page = _page_cache[page_id]
-            log(f"Returning cached page {page_id}: '{cached_page.name}' (class: {cached_page.class_name if hasattr(cached_page, 'class_name') else 'unknown'})")
-            trace_out()
-            return _page_cache[page_id]
-    if not is_error():
-        PageClass = _get_page_class_and_load_utils(conn, page_id)
-    if not is_error() and PageClass:
-        try:
-            page_instance = PageClass(id=page_id)
-        except Exception as e:
-            warn(f"Failed to create page {page_id}: {str(e)}")
-            report_error("backend", f"Failed to create page {page_id}: {str(e)}")
-    if not is_error():
-        _try_hydrate_page_from_cache(conn, page_instance)
-        _page_cache[page_id] = page_instance
-        log(f"Retrieved page {page_id}: '{page_instance.name}' (class: {page_instance.class_name})")
         trace_out()
-        return page_instance
-    trace_out()
-    return None
-
-
-def get_page_conn(conn, page_id: int) -> Optional[Any]:
-    trace_in()
-    if not page_id or page_id <= 0:
-        warn(f"Invalid page ID: {page_id}")
-        report_error("action", f"Invalid page ID: {page_id}")
-    if not is_error():
-        PageClass = _get_page_class_and_load_utils(conn, page_id)
-    if not is_error() and PageClass:
-        try:
-            page_instance = PageClass(id=page_id, conn=conn)
-        except Exception as e:
-            warn(f"Failed to create page {page_id}: {str(e)}")
-            report_error("backend", f"Failed to create page {page_id}: {str(e)}")
-    if not is_error():
-        _try_hydrate_page_from_cache(conn, page_instance)
-        log(f"Created page {page_id} with explicit connection: '{page_instance.name}' (class: {page_instance.class_name})")
+        return None
+    
+    # Check hot cache first
+    debug(f"Checking if page {page_id} is in hot cache")
+    if page_id in _page_cache:
+        cached_page = _page_cache[page_id]
+        log(f"Returning cached page {page_id}: '{cached_page.name}' (class: {cached_page.class_name if hasattr(cached_page, 'class_name') else 'unknown'})")
         trace_out()
-        return page_instance
+        return _page_cache[page_id]
+    
+    # Get page class (needs database query to determine subclass)
+    PageClass = _get_page_class_and_load_utils(page_id)
+    if not PageClass or is_error():
+        trace_out()
+        return None
+    
+    # Create page instance (Page.__init__() handles main DB load and cache hydration)
+    try:
+        page_instance = PageClass(id=page_id)
+        if page_instance and not is_error():
+            # Store in hot cache
+            _page_cache[page_id] = page_instance
+            log(f"Retrieved page {page_id}: '{page_instance.name}' (class: {page_instance.class_name})")
+    except Exception as e:
+        warn(f"Failed to create page {page_id}: {str(e)}")
+        report_error("backend", f"Failed to create page {page_id}: {str(e)}")
+        trace_out()
+        return None
+    
     trace_out()
-    return None
+    return page_instance if not is_error() else None
 
 
-@db_read
-def find_page(conn, link: str) -> Optional[Any]:
+def find_page(link: str) -> Optional[Any]:
+    """Find page by link. Returns page instance or None."""
     trace_in()
     if not link:
         warn("Empty link provided")
         report_error("action", "Empty link provided")
+        trace_out()
+        return None
+    
+    # Lazy import gateway locally for the link lookup query
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("Gateway or connection not available")
+        report_error("connection", "Gateway or connection not available")
+        trace_out()
+        return None
+    
     query = "SELECT id FROM pages WHERE REPLACE(link, ' ', '') = %s"
     search_term = link.replace(' ', '')
-    results = r_query(conn, query, [search_term])
+    results = gateway.conn.read(query, [search_term])
+    
     if not results:
         warn(f"No page found with link: {link}")
         report_error("link_resolution", f"No page found with link: {link}")
-    else:
-        page_id = results[0]['id']
-        page_instance = get_page(page_id=page_id)
-        if not page_instance:
-            warn(f"Failed to load page {page_id} for link: {link}")
-            report_error("action", f"Failed to load page {page_id} for link: {link}")
-    if not is_error():
-        log(f"Found page by link '{link}': page_id={page_id}, name='{page_instance.name if page_instance else 'N/A'}', loaded={page_instance is not None}")
         trace_out()
-        return page_instance
+        return None
+    
+    page_id = results[0]['id']
+    page_instance = get_page(page_id=page_id)
+    if not page_instance:
+        warn(f"Failed to load page {page_id} for link: {link}")
+        report_error("action", f"Failed to load page {page_id} for link: {link}")
+        trace_out()
+        return None
+    
+    log(f"Found page by link '{link}': page_id={page_id}, name='{page_instance.name if page_instance else 'N/A'}', loaded={page_instance is not None}")
     trace_out()
-    return None
+    return page_instance
 
 
-def invalidate_page_cache_entry(page_id: int) -> None:
+def refresh_stale_page_caches() -> None:
+    """Refresh cache database for all pages in hot cache that have _cache_needs_refresh flag set.
+    Called by gateway during commit process, after file operations but before database commit."""
     trace_in()
-    removed_hot = False
-    if page_id in _page_cache:
-        del _page_cache[page_id]
-        removed_hot = True
-    debug(f"Invalidated page cache for {page_id}: hot={removed_hot}")
+    
+    if not _page_cache:
+        log("No pages in hot cache to refresh")
+        trace_out()
+        return
+    
+    refresh_count = 0
+    for page_id, page_obj in list(_page_cache.items()):
+        if getattr(page_obj, '_cache_needs_refresh', False):
+            debug(f"Refreshing cache for page {page_id}")
+            try:
+                # Call the refresh method on the page object
+                # Page uses self.gateway.conn which is already in a transaction
+                if page_obj._refresh_cached_page():
+                    refresh_count += 1
+                    log(f"Successfully refreshed cache for page {page_id}")
+                else:
+                    warn(f"Failed to refresh cache for page {page_id}")
+            except Exception as e:
+                warn(f"Exception while refreshing cache for page {page_id}: {e}")
+                report_error("cache_refresh", f"Failed to refresh cache for page {page_id}: {e}")
+    
+    if refresh_count > 0:
+        log(f"Refreshed cache for {refresh_count} page(s) in hot cache")
+    else:
+        log("No pages in hot cache needed cache refresh")
+    
     trace_out()

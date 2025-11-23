@@ -1,5 +1,7 @@
 import shutil
 import uuid
+import os
+import platform
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -22,13 +24,36 @@ def _initialize_debug():
     warn = get_warn(True)
 
 class FileSystem:
-    """Gateway-owned file system operation manager with rollback support."""
+    """Gateway-owned file system operation manager with rollback support.
+    Provides abstraction layer for filesystem operations with OS-specific handling
+    and graceful error handling for remote file scenarios."""
     
     def __init__(self):
         trace_in()
         self._operations: List[Dict[str, Any]] = []
-        log("FileSystem initialized")
+        self._os_type = self._detect_os()
+        self._remote_file_handler = None  # Placeholder for future remote file handling
+        log(f"FileSystem initialized (OS: {self._os_type})")
         trace_out()
+    
+    def _detect_os(self) -> str:
+        """Detect the operating system. Returns 'windows', 'macos', 'linux', or 'unknown'."""
+        system = platform.system().lower()
+        if system == 'windows':
+            return 'windows'
+        elif system == 'darwin':
+            return 'macos'
+        elif system == 'linux':
+            # Try to detect Ubuntu specifically
+            try:
+                with open('/etc/os-release', 'r') as f:
+                    if 'ubuntu' in f.read().lower():
+                        return 'ubuntu'
+            except Exception:
+                pass
+            return 'linux'
+        else:
+            return 'unknown'
     
     def schedule_move(self, from_path: str, to_path: str) -> None:
         """Schedule a file move operation to be executed on commit."""
@@ -192,8 +217,217 @@ class FileSystem:
         """Check if there are any scheduled file operations."""
         return len(self._operations) > 0
     
-    def clear(self) -> None:
-        """Clear all file operations (called after successful commit or rollback)."""
-        self._operations.clear()
-        log("File operations cleared")
+    # ===== File Existence and Metadata =====
+    
+    def file_exists(self, path: str) -> bool:
+        """Check if a file exists. Returns False if file not found (graceful).
+        Supports future remote file checking via _remote_file_handler hook."""
+        trace_in()
+        try:
+            # Future: Check remote file handler first if configured
+            if self._remote_file_handler:
+                result = self._remote_file_handler.check_file_exists(path)
+                if result is not None:
+                    trace_out()
+                    return result
+            
+            # Local file check
+            exists = Path(path).exists() and Path(path).is_file()
+            if not exists:
+                debug(f"File does not exist (local): {path}")
+            trace_out()
+            return exists
+        except Exception as e:
+            warn(f"Error checking file existence: {path}: {e}")
+            trace_out()
+            return False  # Graceful failure
+    
+    def directory_exists(self, path: str) -> bool:
+        """Check if a directory exists. Returns False if directory not found (graceful)."""
+        trace_in()
+        try:
+            exists = Path(path).exists() and Path(path).is_dir()
+            if not exists:
+                debug(f"Directory does not exist: {path}")
+            trace_out()
+            return exists
+        except Exception as e:
+            warn(f"Error checking directory existence: {path}: {e}")
+            trace_out()
+            return False  # Graceful failure
+    
+    def get_file_size(self, path: str) -> Optional[int]:
+        """Get file size in bytes. Returns None if file not found or error (graceful)."""
+        trace_in()
+        try:
+            if not self.file_exists(path):
+                trace_out()
+                return None
+            size = Path(path).stat().st_size
+            trace_out()
+            return size
+        except Exception as e:
+            warn(f"Error getting file size: {path}: {e}")
+            trace_out()
+            return None
+    
+    # ===== Directory Operations =====
+    
+    def create_directory(self, path: str, parents: bool = True, mode: Optional[int] = None) -> bool:
+        """Create a directory. Returns True if successful, False otherwise.
+        On Linux/Ubuntu, sets permissions if mode is provided."""
+        trace_in()
+        try:
+            path_obj = Path(path)
+            if path_obj.exists() and path_obj.is_dir():
+                debug(f"Directory already exists: {path}")
+                trace_out()
+                return True
+            
+            path_obj.mkdir(parents=parents, exist_ok=True)
+            
+            # Set permissions on Unix-like systems
+            if mode is not None and self._os_type in ('linux', 'ubuntu', 'macos'):
+                try:
+                    os.chmod(path, mode)
+                    debug(f"Set directory permissions: {path} -> {oct(mode)}")
+                except Exception as e:
+                    warn(f"Failed to set directory permissions: {path}: {e}")
+            
+            log(f"Created directory: {path}")
+            trace_out()
+            return True
+        except Exception as e:
+            warn(f"Failed to create directory: {path}: {e}")
+            report_error("file_operation", f"Failed to create directory: {path}")
+            trace_out()
+            return False
+    
+    # ===== File Reading =====
+    
+    def read_file(self, path: str) -> Optional[bytes]:
+        """Read a file as bytes. Returns None if file not found or error (graceful).
+        Supports future remote file reading via _remote_file_handler hook."""
+        trace_in()
+        try:
+            # Future: Check remote file handler first if configured
+            if self._remote_file_handler:
+                result = self._remote_file_handler.read_file(path)
+                if result is not None:
+                    trace_out()
+                    return result
+            
+            # Local file read
+            if not self.file_exists(path):
+                warn(f"File not found for reading: {path}")
+                trace_out()
+                return None
+            
+            with open(path, 'rb') as f:
+                content = f.read()
+            log(f"Read file: {path} ({len(content)} bytes)")
+            trace_out()
+            return content
+        except Exception as e:
+            warn(f"Error reading file: {path}: {e}")
+            report_error("file_operation", f"Failed to read file: {path}")
+            trace_out()
+            return None
+    
+    def read_file_text(self, path: str, encoding: str = 'utf-8') -> Optional[str]:
+        """Read a file as text. Returns None if file not found or error (graceful)."""
+        trace_in()
+        try:
+            content = self.read_file(path)
+            if content is None:
+                trace_out()
+                return None
+            
+            text = content.decode(encoding)
+            log(f"Read file as text: {path} ({len(text)} characters)")
+            trace_out()
+            return text
+        except UnicodeDecodeError as e:
+            warn(f"Error decoding file: {path}: {e}")
+            report_error("file_operation", f"Failed to decode file: {path}")
+            trace_out()
+            return None
+        except Exception as e:
+            warn(f"Error reading file as text: {path}: {e}")
+            trace_out()
+            return None
+    
+    # ===== File Writing (Immediate, not scheduled) =====
+    
+    def write_file(self, path: str, content: bytes) -> bool:
+        """Write bytes to a file immediately. Returns True if successful, False otherwise.
+        Creates parent directories if needed."""
+        trace_in()
+        try:
+            path_obj = Path(path)
+            # Create parent directory if it doesn't exist
+            if path_obj.parent and not path_obj.parent.exists():
+                if not self.create_directory(str(path_obj.parent)):
+                    trace_out()
+                    return False
+            
+            with open(path, 'wb') as f:
+                f.write(content)
+            log(f"Wrote file: {path} ({len(content)} bytes)")
+            trace_out()
+            return True
+        except Exception as e:
+            warn(f"Error writing file: {path}: {e}")
+            report_error("file_operation", f"Failed to write file: {path}")
+            trace_out()
+            return False
+    
+    def write_file_text(self, path: str, content: str, encoding: str = 'utf-8') -> bool:
+        """Write text to a file immediately. Returns True if successful, False otherwise.
+        Creates parent directories if needed."""
+        trace_in()
+        try:
+            content_bytes = content.encode(encoding)
+            result = self.write_file(path, content_bytes)
+            trace_out()
+            return result
+        except Exception as e:
+            warn(f"Error encoding text for file: {path}: {e}")
+            report_error("file_operation", f"Failed to encode text for file: {path}")
+            trace_out()
+            return False
+    
+    # ===== Path Utilities =====
+    
+    def join_path(self, *parts: str) -> str:
+        """Join path parts using OS-appropriate separator."""
+        if self._os_type == 'windows':
+            return str(Path(*parts))
+        else:
+            # Unix-like systems
+            return str(Path(*parts))
+    
+    def normalize_path(self, path: str) -> str:
+        """Normalize a path (resolve .. and . components)."""
+        try:
+            return str(Path(path).resolve())
+        except Exception as e:
+            warn(f"Error normalizing path: {path}: {e}")
+            return path
+    
+    def get_parent_directory(self, path: str) -> str:
+        """Get the parent directory of a path."""
+        try:
+            return str(Path(path).parent)
+        except Exception as e:
+            warn(f"Error getting parent directory: {path}: {e}")
+            return ""
+    
+    def get_filename(self, path: str) -> str:
+        """Get the filename from a path."""
+        try:
+            return Path(path).name
+        except Exception as e:
+            warn(f"Error getting filename: {path}: {e}")
+            return ""
 
