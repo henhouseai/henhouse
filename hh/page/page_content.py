@@ -324,7 +324,7 @@ class PageContentMixin:
                 warn("Confirmation required for page deletion")
                 report_error("action", "Confirmation required for page deletion")
         if not is_error():
-            child_ids = self.get_child_page_ids()
+            child_ids = self._get_child_page_ids()
         if not is_error():
             for child_id in child_ids:
                 if not is_error():

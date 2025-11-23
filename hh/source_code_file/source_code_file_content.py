@@ -40,7 +40,7 @@ def _register_source_code_file_content_methods():
 
 class SourceCodeFileContentMixin:
     
-    def _get_display_name(self) -> str:
+    def get_display_name(self) -> str:
         """
         Override to return filename from file_path when name is None.
         Extracts just the filename (last part after slashes) for display in breadcrumbs.
@@ -58,11 +58,11 @@ class SourceCodeFileContentMixin:
                 return filename
         
         # Fallback to default behavior
-        return super()._get_display_name()
+        return super().get_display_name()
     
-    def _do_init(self, conn: DatabaseConnection, page_id: int):
-        # Call parent's _do_init first to load base page data
-        super()._do_init(conn, page_id)
+    def do_init(self, conn: DatabaseConnection, page_id: int):
+        # Call parent's do_init first to load base page data
+        super().do_init(conn, page_id)
         
         # Only proceed if parent initialization succeeded and we have a connection
         if is_error() or not conn:
@@ -85,7 +85,7 @@ class SourceCodeFileContentMixin:
         trace_out()
     
     @staticmethod
-    def _get_children_query(parent_id: int) -> tuple[str, list]:
+    def get_children_query(parent_id: int) -> tuple[str, list]:
         return (
             "SELECT id FROM pages WHERE parent = %s AND class = 'source_code_file' ORDER BY name",
             [parent_id]
@@ -102,7 +102,7 @@ class SourceCodeFileContentMixin:
         trace_out()
         return data
     
-    def _get_child_page_data(self) -> Dict[str, Any]:
+    def get_child_page_data(self) -> Dict[str, Any]:
         """Override to return simplified data for source_code_file children: id, file_path, num_lines."""
         trace_in()
         data = {
@@ -143,13 +143,7 @@ class SourceCodeFileContentMixin:
         
         return 'source_code_file'
     
-    def _add_lower_content(self) -> List[str]:
-        # Call super() first to check cache
-        content = super()._add_lower_content()
-        
-        # If super() returned cached content, use it; otherwise read file
-        if not content:
-            # No cache - fetch fresh content
+    def add_lower_content(self) -> List[str]:
         if not self.file_path:
             debug("add_lower_content: No file_path set, returning empty list")
             return []
@@ -168,30 +162,16 @@ class SourceCodeFileContentMixin:
             debug(f"add_lower_content: File exists at {full_path}, attempting to read")
             try:
                 with open(full_path, 'r', encoding='utf-8') as f:
-                        file_content = f.read()
-                        debug(f"add_lower_content: Successfully read file {full_path} ({len(file_content)} characters)")
-                        content = [file_content]
-                except Exception as e:
-                    warn(f"Failed to read file {full_path}: {str(e)}")
-                    debug(f"add_lower_content: Failed to read file {full_path}: {str(e)}, returning empty list")
-                    return []
-            else:
-                debug(f"add_lower_content: File does not exist at {full_path}, returning empty list")
-                return []
-        
-        # Process content for current backend
+                    content = f.read()
+                    debug(f"add_lower_content: Successfully read file {full_path}, returning content ({len(content)} characters)")
+                    
                     # Check if backend is HTTP - only do Pygments highlighting for HTTP
                     gateway = get_gateway()
                     is_http_backend = gateway and gateway.backend == "http"
                     
                     if is_http_backend:
-            # HTTP backend: Process content through Pygments
-            # Extract raw content from list (should be single string)
-            if content and len(content) > 0:
-                raw_content = content[0] if isinstance(content[0], str) else str(content[0])
-                debug(f"add_lower_content: Processing content through Pygments for HTTP backend")
-                
-                # First content div: file path
+                        # HTTP backend: Use Pygments for syntax highlighting
+                        # First content div: file path (show what's stored in database, not the constructed path)
                         file_info = f'<div class="contentHeader">{self.file_path}</div>'
                         
                         # Use Pygments for syntax highlighting
@@ -208,7 +188,7 @@ class SourceCodeFileContentMixin:
                             lexer = get_lexer_by_name('text')
                         
                         formatter = HtmlFormatter()
-                highlighted_content = highlight(raw_content, lexer, formatter)
+                        highlighted_content = highlight(content, lexer, formatter)
                         debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
                         
                         # Second content div: highlighted source code
@@ -216,13 +196,19 @@ class SourceCodeFileContentMixin:
                         
                         return [file_info, source_code]
                     else:
-            # Non-HTTP backend: Return content as-is (from cache or fresh read)
-            debug(f"add_lower_content: Non-HTTP backend ({gateway.backend if gateway else 'unknown'}), returning content as-is")
-            return content
+                        # Non-HTTP backend (e.g., MCP): Return raw source code without HTML highlighting
+                        debug(f"add_lower_content: Non-HTTP backend ({gateway.backend if gateway else 'unknown'}), returning raw content")
+                        return [content]
+            except Exception as e:
+                warn(f"Failed to read file {full_path}: {str(e)}")
+                debug(f"add_lower_content: Failed to read file {full_path}: {str(e)}, returning empty list")
+                return []
+        debug(f"add_lower_content: File does not exist at {full_path}, returning empty list")
+        return []
     
-    def _add_badge_headers(self) -> Dict[str, Any]:
+    def add_badge_headers(self) -> Dict[str, Any]:
         trace_in()
-        badge_headers = super()._add_badge_headers()
+        badge_headers = super().add_badge_headers()
         if 'page_summary' in badge_headers:
             # Convert None to blank string if needed
             file_path_value = '' if self.file_path is None else self.file_path
@@ -235,7 +221,7 @@ class SourceCodeFileContentMixin:
         return badge_headers
     
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
         Hook called after page creation to add source_code_files table entry.
         This is a classmethod (like PHP's static method) so it can be called on the class
@@ -264,7 +250,7 @@ class SourceCodeFileContentMixin:
         
         trace_out()
     
-    def _delete_page_class_information(self):
+    def delete_page_class_information(self):
         """
         Hook called before page deletion to remove source_code_files table entry.
         This is an instance method (like PHP) because it's called on the page being deleted.

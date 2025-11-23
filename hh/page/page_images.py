@@ -218,7 +218,7 @@ class PageImagesMixin:
         log(f"Copying {len(image_ids)} images to page {self.id}")
         
         # Record original count before copying
-        original_count = len(self.get_images_data())
+        original_count = len(self._get_images_data())
         
         copied_count = 0
         for image_id in image_ids:
@@ -257,7 +257,7 @@ class PageImagesMixin:
         log(f"Moving {len(image_instances)} specific image instances to page {self.id}")
         
         # Record original count before moving
-        original_count = len(self.get_images_data())
+        original_count = len(self._get_images_data())
         
         moved_count = 0
         source_pages_affected = set()

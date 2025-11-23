@@ -1,9 +1,12 @@
 from typing import List, Dict, Any
+from hh.gateway.connection.connection import r_query
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+from hh.page.page_class_registry import get_page_class
 from hh.page.page_method_registry import register_page_mixin_methods
+from hh.page.page_registry import get_page_conn
 from hh.tp.tp import TextProcessor
 
 trace_in = lambda message=None: None
@@ -32,16 +35,10 @@ def _register_display_methods():
 class PageDisplayMixin:
     
     def _add_upper_content(self) -> List[str]:
-        if hasattr(self, 'cached_upper_content') and self.cached_upper_content is not None:
-            debug(f"Page {self.id}: returning cached upper_content")
-            return self.cached_upper_content
         return []
     
 
     def _add_lower_content(self) -> List[str]:
-        if hasattr(self, 'cached_lower_content') and self.cached_lower_content is not None:
-            debug(f"Page {self.id}: returning cached lower_content")
-            return self.cached_lower_content
         return []
 
 
@@ -54,7 +51,7 @@ class PageDisplayMixin:
 
     def _add_badge_headers(self) -> Dict[str, Any]:
         badge_headers = {}
-        page_data = self.get_page_data()
+        page_data = self._get_page_data()
         # Calculate children count from children_by_class
         children_by_class = self._get_children_by_class()
         children_count = sum(len(group['children']) for group in children_by_class.values())
@@ -85,15 +82,15 @@ class PageDisplayMixin:
             debug(f"Page {self.id}: cache miss or stale entry; rebuilding lightweight payload")
         else:
             debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
-        page_data = self.get_page_data()
-        images_data = self.get_images_data()
-        files_data = self.get_files_data()
+        page_data = self._get_page_data()
+        images_data = self._get_images_data()
+        files_data = self._get_files_data()
         children_by_class = self._get_children_by_class()
         badge_headers = self._add_badge_headers()
         upper_content = self._add_upper_content()
         lower_content = self._add_lower_content()
 
-        prepared_payload = self.get_prepared_text()
+        prepared_payload = self._get_prepared_text()
         if prepared_payload is not None:
             page_data = dict(page_data)
             page_data['prepared_text'] = prepared_payload
@@ -152,8 +149,6 @@ class PageDisplayMixin:
             debug(f"Page {self.id}: returning cached children_by_class")
             return self.children_by_class
         # Field is empty, need to hydrate from database
-        from hh.gateway.connection.connection import r_query
-        from hh.page.page_registry import get_page
         trace_in()
         children_by_class = {}
         # Get distinct classes of children (equivalent to legacy line 242)
@@ -182,9 +177,6 @@ class PageDisplayMixin:
 
 
     def _get_children_for_class(self, child_class: str) -> List[Dict[str, Any]]:
-        from hh.gateway.connection.connection import r_query
-        from hh.page.page_registry import get_page
-        from hh.page.page_class_registry import get_page_class
         trace_in()
         # Get the Page subclass for this child_class from the registry
         PageClass = get_page_class(child_class)
@@ -200,11 +192,11 @@ class PageDisplayMixin:
         children_data = []
         if results:
             for row in results:
-                child_page = get_page(page_id=row['id'])
+                child_page = get_page_conn(self.conn, page_id=row['id'])
                 if child_page:
                     child_data = child_page._get_child_page_data()
                     # Add child count for this child page
-                    child_count = child_page.get_child_count()
+                    child_count = child_page._get_child_count()
                     child_data['num_children'] = child_count
                     # Add field type for row rendering
                     child_data['field_type'] = child_page._get_child_row_field_type()

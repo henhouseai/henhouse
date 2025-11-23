@@ -7,6 +7,7 @@ from decimal import Decimal
 from hh.gateway.connection.connection import r_query, u_query, c_query
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.connection.decorators import db_write
+from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
     get_trace_in,
     get_trace_out,
@@ -100,6 +101,17 @@ class PageCacheMixin:
         Takes conn as explicit parameter - must be provided by caller."""
         trace_in()
         debug(f"_refresh_cached_page: Starting for page {self.id}, conn={conn}")
+
+        gateway = get_gateway()
+        tier_level = getattr(gateway.response, "user_tier_level", 0) if gateway and gateway.response else 0
+        if tier_level < 3:
+            debug(
+                f"_refresh_cached_page: Skipping cache write for page {self.id} (tier_level={tier_level})"
+            )
+            self._cache_needs_refresh = False
+            trace_out()
+            return True
+
         if conn is None:
             warn(f"_refresh_cached_page: conn is None for page {self.id}")
             trace_out()

@@ -185,7 +185,7 @@ class PageValidationMixin:
         child_array = []
         if not is_error():
             # Start with this page's direct children
-            direct_children = self.get_child_page_ids()
+            direct_children = self._get_child_page_ids()
             child_array.extend(direct_children)
             # Recursively get children of children
             for child_id in direct_children:

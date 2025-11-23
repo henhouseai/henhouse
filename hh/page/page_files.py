@@ -234,7 +234,7 @@ class PageFilesMixin:
             trace_out()
             return True
 
-        original_count = len(self.get_files_data())
+        original_count = len(self._get_files_data())
         copied = 0
         for file_id in file_ids:
             if is_error():
@@ -263,7 +263,7 @@ class PageFilesMixin:
             trace_out()
             return True
 
-        original_count = len(self.get_files_data())
+        original_count = len(self._get_files_data())
         moved_count = 0
         source_pages = set()
         for instance in file_instances:

@@ -33,8 +33,8 @@ class PageAjaxMixin:
     def _get_page(self, conn=None) -> Dict[str, Any]:
         """Assemble a minimal JSON-friendly payload for AJAX consumption."""
         trace_in()
-        page_data = self.get_page_data()
-        images_data = self.get_images_data()
+        page_data = self._get_page_data()
+        images_data = self._get_images_data()
         children_by_class = self._get_children_by_class()
         
         # Add path data if available

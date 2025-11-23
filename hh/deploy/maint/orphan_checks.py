@@ -1,10 +1,40 @@
-"""Orphan checks module for maintenance daemon."""
+"""Orphan checks module for maintenance daemon and manual runs."""
+
+from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
-from hh.gateway.connection.connection import r_query
+from hh.gateway.connection.connection import get_connection, load_dsn_pair, r_query
 from hh.gateway.connection.decorators import db_read
+from hh.gateway.error.error_store import report_error, is_error
+from hh.gateway.gateway import get_gateway
+from hh.gateway.registry.maintenance import register_maintenance_tool
+from hh.gateway.registry.registry import (
+    register_action,
+    register_command,
+    register_parser,
+)
+from hh.gateway.response.json_standard import get_data, success_payload
+from hh.render.render import (
+    FieldConfig,
+    TableData,
+    finalize_output,
+    render_block,
+    render_header_block,
+)
+
+ORPHAN_KEYS = {
+    "orphan_pages": "Pages with missing parent pages",
+    "orphan_link_sources": "Links whose source page is missing",
+    "orphan_link_targets": "Links whose target page is missing",
+    "orphan_image_pages": "Image links whose page is missing",
+    "orphan_image_targets": "Image links whose image is missing",
+    "orphan_image_group_pages": "Image groups pointing to missing pages",
+    "orphan_image_group_images": "Image groups pointing to missing images",
+    "orphan_file_group_pages": "File groups pointing to missing pages",
+    "orphan_file_group_files": "File groups pointing to missing files",
+}
 
 
 @db_read
@@ -195,4 +225,112 @@ def log_orphan_counts(conn) -> None:
             len(orphan_file_group_files),
             file_ids,
         )
+
+
+def _validate_target(target: str | None) -> Tuple[str | None, Dict[str, str]]:
+    if not target:
+        return None, ORPHAN_KEYS
+    normalized = target.strip().lower().replace("-", "_")
+    for key in ORPHAN_KEYS:
+        if normalized == key.lower():
+            return key, {key: ORPHAN_KEYS[key]}
+    raise ValueError(
+        f"Unknown orphan target '{target}'. Choose from: {', '.join(sorted(ORPHAN_KEYS))}"
+    )
+
+
+def _perform_orphan_check(target: str | None = None) -> Dict[str, Any]:
+    primary_dsn, _ = load_dsn_pair()
+    if not primary_dsn:
+        raise RuntimeError("Primary DSN missing; cannot run orphan check")
+    conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
+    try:
+        counts = check_orphans(conn)
+    finally:
+        conn.close()
+    selected_key, labels = _validate_target(target)
+    if selected_key:
+        filtered_counts = {selected_key: counts.get(selected_key, [])}
+    else:
+        filtered_counts = {key: counts.get(key, []) for key in labels}
+    summary = {key: len(ids) for key, ids in filtered_counts.items()}
+    return {
+        "counts": filtered_counts,
+        "summary": summary,
+        "labels": labels,
+    }
+
+
+@register_action("orphan_check")
+@register_command("orphan_check")
+def orphan_check_action() -> bool:
+    gateway = get_gateway()
+    if not gateway:
+        report_error("backend", "No gateway available")
+        return False
+
+    target = gateway.get_arg("target") or gateway.get_arg("type") or ""
+    try:
+        result = _perform_orphan_check(target or None)
+    except ValueError as exc:
+        report_error("request", str(exc))
+        return False
+    except Exception as exc:  # noqa: BLE001
+        report_error("backend", f"Failed to run orphan check: {exc}")
+        return False
+
+    payload = {
+        "operation": "orphan_check",
+        "target": target or "all",
+        "summary": result["summary"],
+        "counts": result["counts"],
+        "labels": result["labels"],
+    }
+    gateway.response.set_action_response(success_payload(payload))
+    return not is_error()
+
+
+@register_parser("orphan_check")
+def orphan_check_parser() -> bool:
+    gateway = get_gateway()
+    if not gateway:
+        report_error("backend", "No gateway available")
+        return False
+    if not gateway.response.has_action_response():
+        report_error("backend", "No action response available")
+        return False
+
+    source_data = get_data(gateway.response.get_action_response())
+    summary = source_data.get("summary", {})
+    counts = source_data.get("counts", {})
+    labels = source_data.get("labels", ORPHAN_KEYS)
+
+    lines = [render_header_block("l_orphan_check_header")]
+
+    table = TableData()
+    for key in labels.keys():
+        preview_ids = counts.get(key, [])[:20]
+        preview = ", ".join(str(val) for val in preview_ids) if preview_ids else "none"
+        table.add_row(
+            key,
+            status=f"{summary.get(key, 0)} issues",
+            details=f"Sample IDs: {preview}",
+        )
+
+    lines.append(
+        render_block(
+            table,
+            FieldConfig()
+            .add_header("orphan_check_header")
+            .add_simple(list(labels.keys())),
+            block_type="maintenance",
+            table_overrides={"margin_l": 4},
+        )
+    )
+
+    gateway.response.add_output(finalize_output(lines))
+    return True
+
+
+register_maintenance_tool("orphan_check")
 
