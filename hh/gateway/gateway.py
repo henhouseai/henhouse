@@ -25,6 +25,8 @@ def _initialize_debug():
     warn = get_warn(True)
 
 from hh.gateway.request.request import Request
+from hh.gateway.connection.conn import Connection
+from hh.gateway.connection.files import FileSystem
 from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 
@@ -45,7 +47,10 @@ class Gateway:
     def __init__(self):
         self.request: Optional[Request] = None
         self.response: Optional[Response] = None
+        self.conn: Optional[Connection] = None
+        self.files: Optional[FileSystem] = None
         self.registry: Optional[CommandRegistry] = None
+        self._user_tier_level: int = 0
         self.command: Optional[str] = None
         self.action_handler: Optional[Callable] = None
         self.backend: Optional[str] = None
@@ -56,17 +61,7 @@ class Gateway:
         self.get_debug_func: Optional[Callable] = None
 
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
-        # Lazy load and instantiate appropriate Response subclass based on backend
         self.backend = backend
-        response_path = BACKEND_RESPONSE_MODULES.get(backend)
-        if response_path is None:
-            response_path = BACKEND_RESPONSE_MODULES.get("parser")
-            log(f"Unknown backend '{backend}', defaulting to parser response handler")
-        module_name, class_name = response_path.rsplit(".", 1)
-        module = __import__(module_name, fromlist=[class_name])
-        ResponseClass = getattr(module, class_name)
-        self.response = ResponseClass()
-        log(f"Initialized {backend} response handler: {response_path}")
         
         if not is_error():
             self.request = Request(raw_argv)
@@ -74,6 +69,14 @@ class Gateway:
         if not is_error():
             self._initialize_debug_module()
         log("Debug module initialized")
+        if not is_error():
+            self._user_tier_level = self._initialize_connection()
+        if not is_error():
+            log("Connection initialized")
+            # Initialize response after connection (so we can pass tier level)
+            self._initialize_response()
+            self.files = FileSystem()
+            log("FileSystem initialized")
         if not is_error():
             self.registry = CommandRegistry(self.command, self.backend)
         log("Command registry initialized")
@@ -244,27 +247,14 @@ class Gateway:
                 duration = time.time() - start_time
                 warn("Backend execution raised an exception.")
                 report_error("backend", f"Backend execution raised an exception in {duration:.3f}s: {e}")
-        has_errors = is_error()
-        log(f"Error check result: {has_errors}")
-        if has_errors:
-            if self.registry and self.registry.has_error_handler():
-                log("Errors detected, running error handler")
-                error_handler = self.registry.get_error_handler()
-                if error_handler:
-                    try:
-                        error_result = error_handler()
-                        if error_result:
-                            log("Error handler completed successfully")
-                        else:
-                            warn("Error handler failed")
-                    except Exception as e:
-                        warn(f"Error handler raised an exception: {e}")
-                else:
-                    warn("Error handler is None")
-            else:
-                log("Errors detected but no error handler available")
-        else:
-            log("No errors detected")
+        self._process_errors()
+        self._commit()
+        
+        # Close database connections before flushing debug (so close logs are captured)
+        if self.conn:
+            log("Closing database connections...")
+            self.conn.close()
+        
         self.flush_debug()
         return self.response.get_output()
 
@@ -300,6 +290,7 @@ class Gateway:
         result = self.request.is_set(name)
         trace_out()
         return result
+    
 
     def capture(self, message: str, level: int) -> None:
         if is_safe_mode():
@@ -357,6 +348,128 @@ class Gateway:
                 self.debug_system = target_system
             except Exception as e:
                 self.warn(f"Failed to restore debug system: {e}")
+    
+    def _initialize_connection(self) -> int:
+        """Determine and create connection type based on command-line arguments (lazy import if needed). Returns user tier level."""
+        trace_in()
+        tier_level = 0
+        if self.request:
+            if self.request.get_arg('mysqlpassword') or self.request.get_arg('mysql_password'):
+                log("MySQL connection type requested, lazy-importing MySQLConnection...")
+                from hh.gateway.connection.mysql_connection import MySQLConnection
+                self.conn = MySQLConnection()
+            elif self.request.get_arg('password') or self.request.get_arg('root_password'):
+                log("Root connection type requested, lazy-importing RootConnection...")
+                from hh.gateway.connection.root_connection import RootConnection
+                self.conn = RootConnection()
+            else:
+                log("Standard connection type selected")
+                self.conn = Connection()
+        else:
+            log("Standard connection type selected (no request available)")
+            self.conn = Connection()
+        
+        if self.conn:
+            tier_level = self.conn.initialize()
+            if not self.conn._initialized:
+                report_error("connection", "Failed to initialize database connections")
+        trace_out()
+        return tier_level
+    
+    def _initialize_response(self) -> None:
+        """Initialize response handler with user tier level."""
+        trace_in()
+        # Lazy load and instantiate appropriate Response subclass based on backend
+        response_path = BACKEND_RESPONSE_MODULES.get(self.backend)
+        if response_path is None:
+            response_path = BACKEND_RESPONSE_MODULES.get("parser")
+            log(f"Unknown backend '{self.backend}', defaulting to parser response handler")
+        module_name, class_name = response_path.rsplit(".", 1)
+        module = __import__(module_name, fromlist=[class_name])
+        ResponseClass = getattr(module, class_name)
+        self.response = ResponseClass()
+        # Set user tier level on response
+        if self._user_tier_level > 0:
+            self.response.set_user_tier_level(self._user_tier_level)
+            log(f"Set user tier level {self._user_tier_level} in response")
+        log(f"Initialized {self.backend} response handler: {response_path}")
+        trace_out()
+    
+    def _process_errors(self) -> None:
+        """Process errors and run error handler if available."""
+        trace_in()
+        has_errors = is_error()
+        log(f"Error check result: {has_errors}")
+        if has_errors:
+            if self.registry and self.registry.has_error_handler():
+                log("Errors detected, running error handler")
+                error_handler = self.registry.get_error_handler()
+                if error_handler:
+                    try:
+                        error_result = error_handler()
+                        if error_result:
+                            log("Error handler completed successfully")
+                        else:
+                            warn("Error handler failed")
+                    except Exception as e:
+                        warn(f"Error handler raised an exception: {e}")
+                else:
+                    warn("Error handler is None")
+            else:
+                log("Errors detected but no error handler available")
+        else:
+            log("No errors detected")
+        trace_out()
+    
+    def _commit(self) -> None:
+        """Commit file operations and database transactions if no errors."""
+        trace_in()
+        log("Starting commit process...")
+        
+        if is_error():
+            log("Skipping commit due to errors")
+            trace_out()
+            return
+        
+        # Always commit file operations first (will no-op if no operations)
+        if self.files:
+            log("Committing file operations...")
+            if not self.files.commit():
+                warn("File operations failed, rolling back")
+                self.files.rollback()
+                if self.conn:
+                    self.conn.rollback()
+                report_error("file_operation", "File operations failed")
+                trace_out()
+                return
+        else:
+            log("No FileSystem available, skipping file operations")
+        
+        # Check for errors again after file operations
+        if not is_error():
+            # Always commit database transactions (will no-op if no transaction)
+            if self.conn:
+                log("Committing database transactions...")
+                try:
+                    self.conn.commit()
+                except Exception as e:
+                    warn(f"Database commit failed: {e}")
+                    # Rollback file operations if DB commit fails
+                    if self.files:
+                        self.files.rollback()
+                    report_error("connection", f"Database commit failed: {e}")
+            else:
+                log("No connection available, skipping database commit")
+        else:
+            # Errors detected after file operations, rollback everything
+            warn("Errors detected after file operations, rolling back")
+            if self.files:
+                self.files.rollback()
+            if self.conn:
+                self.conn.rollback()
+        
+        log("Commit process completed")
+        trace_out()
 
 
 gateway: Optional[Gateway] = None

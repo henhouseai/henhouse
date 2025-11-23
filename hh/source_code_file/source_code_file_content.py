@@ -40,7 +40,7 @@ def _register_source_code_file_content_methods():
 
 class SourceCodeFileContentMixin:
     
-    def get_display_name(self) -> str:
+    def _get_display_name(self) -> str:
         """
         Override to return filename from file_path when name is None.
         Extracts just the filename (last part after slashes) for display in breadcrumbs.
@@ -60,9 +60,9 @@ class SourceCodeFileContentMixin:
         # Fallback to default behavior
         return super().get_display_name()
     
-    def do_init(self, conn: DatabaseConnection, page_id: int):
+    def _do_init(self, conn: DatabaseConnection, page_id: int):
         # Call parent's do_init first to load base page data
-        super().do_init(conn, page_id)
+        super()._do_init(conn, page_id)
         
         # Only proceed if parent initialization succeeded and we have a connection
         if is_error() or not conn:
@@ -85,7 +85,7 @@ class SourceCodeFileContentMixin:
         trace_out()
     
     @staticmethod
-    def get_children_query(parent_id: int) -> tuple[str, list]:
+    def _get_children_query(parent_id: int) -> tuple[str, list]:
         return (
             "SELECT id FROM pages WHERE parent = %s AND class = 'source_code_file' ORDER BY name",
             [parent_id]
@@ -102,7 +102,7 @@ class SourceCodeFileContentMixin:
         trace_out()
         return data
     
-    def get_child_page_data(self) -> Dict[str, Any]:
+    def _get_child_page_data(self) -> Dict[str, Any]:
         """Override to return simplified data for source_code_file children: id, file_path, num_lines."""
         trace_in()
         data = {
@@ -112,20 +112,22 @@ class SourceCodeFileContentMixin:
         # Count lines in the file if it exists
         num_lines = 0
         if hasattr(self, 'file_path') and self.file_path:
-            try:
-                project_name, _ = detect_project_context()
-                if project_name:
-                    full_path = f'/srv/{project_name}/context/{self.file_path}'
-                    if os.path.exists(full_path):
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            num_lines = sum(1 for _ in f)
-            except Exception as e:
-                debug(f"Failed to count lines in {self.file_path}: {str(e)}")
+            # Check if /srv exists (Unix server path) - if not, skip file reading
+            if os.path.exists('/srv'):
+                try:
+                    project_name, _ = detect_project_context()
+                    if project_name:
+                        full_path = f'/srv/{project_name}/context/{self.file_path}'
+                        if os.path.exists(full_path):
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                num_lines = sum(1 for _ in f)
+                except Exception as e:
+                    debug(f"Failed to count lines in {self.file_path}: {str(e)}")
         data['num_lines'] = num_lines
         trace_out()
         return data
     
-    def get_child_row_field_type(self) -> str:
+    def _get_child_row_field_type(self) -> str:
         """Return field type based on language for source code file rows."""
         language = self.language if hasattr(self, 'language') else ''
         if language:
@@ -143,9 +145,14 @@ class SourceCodeFileContentMixin:
         
         return 'source_code_file'
     
-    def add_lower_content(self) -> List[str]:
+    def _add_lower_content(self) -> List[str]:
         if not self.file_path:
             debug("add_lower_content: No file_path set, returning empty list")
+            return []
+        
+        # Check if /srv exists (Unix server path) - if not, skip file reading
+        if not os.path.exists('/srv'):
+            debug("add_lower_content: /srv does not exist, skipping file read (not on Unix server)")
             return []
         
         # Construct full path using detected project name
@@ -206,7 +213,7 @@ class SourceCodeFileContentMixin:
         debug(f"add_lower_content: File does not exist at {full_path}, returning empty list")
         return []
     
-    def add_badge_headers(self) -> Dict[str, Any]:
+    def _add_badge_headers(self) -> Dict[str, Any]:
         trace_in()
         badge_headers = super().add_badge_headers()
         if 'page_summary' in badge_headers:
@@ -221,7 +228,7 @@ class SourceCodeFileContentMixin:
         return badge_headers
     
     @classmethod
-    def add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
         """
         Hook called after page creation to add source_code_files table entry.
         This is a classmethod (like PHP's static method) so it can be called on the class
@@ -245,12 +252,12 @@ class SourceCodeFileContentMixin:
             return
         page.set_metadata_value('path', file_path or '')
         page.set_metadata_value('language', language or '')
-        page.reset_connection()
+        #page.reset_connection() xyzzy why are we resetting this connection?!?
         log(f"Initialized metadata for source code file page {new_page_id}")
         
         trace_out()
     
-    def delete_page_class_information(self):
+    def _delete_page_class_information(self):
         """
         Hook called before page deletion to remove source_code_files table entry.
         This is an instance method (like PHP) because it's called on the page being deleted.
@@ -271,7 +278,7 @@ class SourceCodeFileContentMixin:
         if self._write_metadata_dict(metadata):
             self.file_path = path
             log(f"Successfully updated page {self.id} file path to '{path}'")
-            self.flag_page_modification("file path changed")
+            self._flag_page_modification("file path changed")
         trace_out()
         return not is_error()
     
@@ -287,7 +294,7 @@ class SourceCodeFileContentMixin:
         if self._write_metadata_dict(metadata):
             self.language = language
             log(f"Successfully updated page {self.id} language to '{language}'")
-            self.flag_page_modification("language changed")
+            self._flag_page_modification("language changed")
         trace_out()
         return not is_error()
 

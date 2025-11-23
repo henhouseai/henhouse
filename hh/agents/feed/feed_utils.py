@@ -2,7 +2,8 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from hh.gateway.connection.connection import r_query, c_query, d_query, ensure_iso_timestamps
+from hh.gateway.connection.connection import r_query, c_query, d_query
+from hh.gateway.connection.utils import ensure_iso_timestamps
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None

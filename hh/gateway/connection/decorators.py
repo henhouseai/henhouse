@@ -8,7 +8,8 @@ from hh.gateway.connection.connection import (
     get_connection,
     validate_agent_identity,
     HenhouseConnection,
-    load_cache_dsn
+    load_cache_dsn,
+    _format_log_with_conn_id
 )
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
@@ -207,7 +208,15 @@ def with_connection(
             config_details.append(f"txn={auto_transaction}")
             last_exception = None
             start_time = time.time()
+            wrapped_conn = None
             for attempt in range(actual_retries + 1):
+                # Close previous attempt's connections before creating new ones
+                if attempt > 0 and wrapped_conn:
+                    try:
+                        wrapped_conn.close()
+                    except Exception as e:
+                        warn(f"Failed to close previous connection on retry: {e}")
+                
                 conn = None
                 cache_conn = None
                 log(f"{func.__name__}: Connection attempt {attempt + 1}/{actual_retries + 1} - {', '.join(config_details)}")
@@ -225,6 +234,9 @@ def with_connection(
                         warn(f"Failed to establish cache connection: {cache_exc}")
                         cache_conn = None
                     wrapped_conn = HenhouseConnection(conn, cache_conn or conn)
+                    conn_id = getattr(wrapped_conn, '_conn_id', None)
+                    if conn_id:
+                        log(f"[{conn_id}] Created HenhouseConnection wrapper")
                     if agent_validation and agent_id and badge_ts:
                         if not validate_agent_identity(conn, agent_id, badge_ts):
                             report_error("action", "Agent identity validation failed")
@@ -252,7 +264,7 @@ def with_connection(
                                     cache_conn.rollback()
                                 except Exception:
                                     pass
-                            log("Transaction rolled back due to errors")
+                            log(_format_log_with_conn_id(wrapped_conn, "Transaction rolled back due to errors"))
                             trace_out()
                             return False
                         else:
@@ -268,7 +280,7 @@ def with_connection(
                                         cache_conn.rollback()
                                     except Exception:
                                         pass
-                                log("Transaction rolled back due to file operation errors")
+                                log(_format_log_with_conn_id(wrapped_conn, "Transaction rolled back due to file operation errors"))
                                 trace_out()
                                 return False
                             elif is_error():
@@ -281,7 +293,7 @@ def with_connection(
                                         cache_conn.rollback()
                                     except Exception:
                                         pass
-                                log("Transaction rolled back due to errors after file operations")
+                                log(_format_log_with_conn_id(wrapped_conn, "Transaction rolled back due to errors after file operations"))
                                 trace_out()
                                 return False
                             else:
@@ -292,9 +304,9 @@ def with_connection(
                                         cache_conn.commit()
                                     except Exception:
                                         pass
-                                log("Transaction committed successfully after file operations")
+                                log(_format_log_with_conn_id(wrapped_conn, "Transaction committed successfully after file operations"))
                     duration_ms = int((time.time() - start_time) * 1000)
-                    log(f"{func.__name__}: Function execution successful, duration={duration_ms}ms")
+                    log(_format_log_with_conn_id(wrapped_conn, f"{func.__name__}: Function execution successful, duration={duration_ms}ms"))
                     trace_out()
                     return result
                 except (pymysql.Error, pymysql.OperationalError, pymysql.ProgrammingError, 
@@ -331,16 +343,23 @@ def with_connection(
                     raise
                         
                 finally:
-                    if cache_conn:
+                    # Close connections via wrapper if available, otherwise close directly
+                    if wrapped_conn:
                         try:
-                            cache_conn.close()
-                        except:
-                            pass
-                    if conn:
-                        try:
-                            conn.close()
-                        except:
-                            pass
+                            wrapped_conn.close()
+                        except Exception as e:
+                            warn(f"Failed to close wrapped connection in finally: {e}")
+                    else:
+                        if cache_conn:
+                            try:
+                                cache_conn.close()
+                            except Exception as e:
+                                warn(f"Failed to close cache connection in finally: {e}")
+                        if conn:
+                            try:
+                                conn.close()
+                            except Exception as e:
+                                warn(f"Failed to close connection in finally: {e}")
             duration_ms = int((time.time() - start_time) * 1000)
             code, retryable, source, extras = classify_exception(last_exception, conn)
             message, _, _ = resolve_error(code)
@@ -449,8 +468,16 @@ def with_mysql_connection(
             log(f"MySQL system transaction mode: {auto_transaction}")
             last_exception = None
             start_time = time.time()
+            wrapped_conn = None
             
             for attempt in range(actual_retries + 1):
+                # Close previous attempt's connection before creating new one
+                if attempt > 0 and wrapped_conn:
+                    try:
+                        wrapped_conn.close()
+                    except Exception as e:
+                        warn(f"Failed to close previous MySQL system connection on retry: {e}")
+                
                 conn = None
                 log(f"MySQL system connection attempt {attempt + 1}/{actual_retries + 1}")
                 try:
@@ -472,6 +499,9 @@ def with_mysql_connection(
                         trace_out()
                         return False
                     wrapped_conn = HenhouseConnection(conn)
+                    conn_id = getattr(wrapped_conn, '_conn_id', None)
+                    if conn_id:
+                        log(f"[{conn_id}] Created HenhouseConnection wrapper for MySQL system")
                     
                     if auto_transaction:
                         with conn.cursor() as cur:
@@ -490,13 +520,15 @@ def with_mysql_connection(
                     if auto_transaction:
                         if is_error():
                             conn.rollback()
-                            log("MySQL system transaction rolled back due to errors")
+                            log(_format_log_with_conn_id(wrapped_conn, "MySQL system transaction rolled back due to errors"))
+                            trace_out()
+                            return False
                         else:
                             conn.commit()
-                            log("MySQL system transaction committed successfully")
+                            log(_format_log_with_conn_id(wrapped_conn, "MySQL system transaction committed successfully"))
                     
                     duration_ms = int((time.time() - start_time) * 1000)
-                    log(f"MySQL system function execution successful: {func.__name__}, duration={duration_ms}ms")
+                    log(_format_log_with_conn_id(wrapped_conn, f"MySQL system function execution successful: {func.__name__}, duration={duration_ms}ms"))
                     trace_out()
                     return result
                     
@@ -523,11 +555,17 @@ def with_mysql_connection(
                     raise
                         
                 finally:
-                    if conn:
+                    # Close connection via wrapper if available, otherwise close directly
+                    if wrapped_conn:
+                        try:
+                            wrapped_conn.close()
+                        except Exception as e:
+                            warn(f"Failed to close MySQL system wrapped connection in finally: {e}")
+                    elif conn:
                         try:
                             conn.close()
-                        except:
-                            pass
+                        except Exception as e:
+                            warn(f"Failed to close MySQL system connection in finally: {e}")
             
             duration_ms = int((time.time() - start_time) * 1000)
             code, retryable, source, extras = classify_exception(last_exception, conn)
@@ -665,8 +703,16 @@ def with_root_connection(
             log(f"Root transaction mode: {auto_transaction}")
             last_exception = None
             start_time = time.time()
+            wrapped_conn = None
             
             for attempt in range(actual_retries + 1):
+                # Close previous attempt's connection before creating new one
+                if attempt > 0 and wrapped_conn:
+                    try:
+                        wrapped_conn.close()
+                    except Exception as e:
+                        warn(f"Failed to close previous root connection on retry: {e}")
+                
                 conn = None
                 log(f"Root connection attempt {attempt + 1}/{actual_retries + 1}")
                 try:
@@ -692,6 +738,9 @@ def with_root_connection(
                         trace_out()
                         return False
                     wrapped_conn = HenhouseConnection(conn)
+                    conn_id = getattr(wrapped_conn, '_conn_id', None)
+                    if conn_id:
+                        log(f"[{conn_id}] Created HenhouseConnection wrapper for root connection")
                     
                     if auto_transaction:
                         with conn.cursor() as cur:
@@ -710,13 +759,15 @@ def with_root_connection(
                     if auto_transaction:
                         if is_error():
                             conn.rollback()
-                            log("Root transaction rolled back due to errors")
+                            log(_format_log_with_conn_id(wrapped_conn, "Root transaction rolled back due to errors"))
+                            trace_out()
+                            return False
                         else:
                             conn.commit()
-                            log("Root transaction committed successfully")
+                            log(_format_log_with_conn_id(wrapped_conn, "Root transaction committed successfully"))
                     
                     duration_ms = int((time.time() - start_time) * 1000)
-                    log(f"Root function execution successful: {func.__name__}, duration={duration_ms}ms")
+                    log(_format_log_with_conn_id(wrapped_conn, f"Root function execution successful: {func.__name__}, duration={duration_ms}ms"))
                     trace_out()
                     return result
                     
@@ -743,11 +794,17 @@ def with_root_connection(
                     raise
                         
                 finally:
-                    if conn:
+                    # Close connection via wrapper if available, otherwise close directly
+                    if wrapped_conn:
+                        try:
+                            wrapped_conn.close()
+                        except Exception as e:
+                            warn(f"Failed to close root wrapped connection in finally: {e}")
+                    elif conn:
                         try:
                             conn.close()
-                        except:
-                            pass
+                        except Exception as e:
+                            warn(f"Failed to close root connection in finally: {e}")
             
             duration_ms = int((time.time() - start_time) * 1000)
             code, retryable, source, extras = classify_exception(last_exception, conn)

@@ -19,6 +19,8 @@ log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
 
+_connection_counter = 0
+
 @register_debug_init
 def _initialize_debug():
     global trace_in, trace_out, log, debug, warn
@@ -89,8 +91,16 @@ def load_cache_dsn() -> Optional[Dict[str, str]]:
 class HenhouseConnection:
     """Wrapper that holds primary/secondary DB connections and proxies to primary."""
     def __init__(self, primary, secondary=None):
+        global _connection_counter
+        _connection_counter += 1
+        conn_id = _connection_counter
+        object.__setattr__(self, '_conn_id', conn_id)
         object.__setattr__(self, '_primary', primary)
         object.__setattr__(self, '_secondary', secondary or primary)
+        if hasattr(primary, '__dict__'):
+            primary._conn_id = conn_id
+        if secondary and secondary is not primary and hasattr(secondary, '__dict__'):
+            secondary._conn_id = conn_id
 
     @property
     def primary(self):
@@ -122,10 +132,46 @@ class HenhouseConnection:
     def d_query(self, sql: str, params=None, *, use_secondary: bool = False):
         return d_query(self, sql, params, use_secondary=use_secondary)
 
+    def close(self):
+        """Close both primary and secondary connections."""
+        trace_in()
+        conn_id = getattr(self, '_conn_id', None)
+        if self._secondary and self._secondary is not self._primary:
+            try:
+                if self._secondary.open:
+                    self._secondary.close()
+                    log(_format_log_with_conn_id(self, "Secondary connection closed successfully"))
+            except Exception as e:
+                # Only warn if it's not an "already closed" error
+                if "Already closed" not in str(e) and "closed" not in str(e).lower():
+                    warn(f"Failed to close secondary connection: {e}")
+        try:
+            if self._primary.open:
+                self._primary.close()
+                log(_format_log_with_conn_id(self, "Primary connection closed successfully"))
+        except Exception as e:
+            # Only warn if it's not an "already closed" error
+            if "Already closed" not in str(e) and "closed" not in str(e).lower():
+                warn(f"Failed to close primary connection: {e}")
+        trace_out()
+
 def _unwrap_connection(conn, use_secondary: bool = False):
     if isinstance(conn, HenhouseConnection):
         return conn.get_connection(use_secondary=use_secondary)
     return conn
+
+def _get_connection_id(conn) -> Optional[int]:
+    """Get connection ID from either HenhouseConnection wrapper or raw connection."""
+    if isinstance(conn, HenhouseConnection):
+        return getattr(conn, '_conn_id', None)
+    return getattr(conn, '_conn_id', None)
+
+def _format_log_with_conn_id(conn, message: str) -> str:
+    """Format log message with connection ID prefix if available."""
+    conn_id = _get_connection_id(conn)
+    if conn_id is not None:
+        return f"[{conn_id}] {message}"
+    return message
 
 def _detect_and_set_user_tier_level(project_name: str, username: str) -> None:
     """Detect user tier level from DSN username and set it in Gateway response."""
@@ -198,7 +244,7 @@ def r_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
     target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
     target_conn._last_sql = sql
     target_conn._last_params = list(params or [])
-    log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
+    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
     try:
         with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
@@ -206,10 +252,10 @@ def r_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
             if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
                 columns = [d[0] for d in cur.description]
                 result = [dict(zip(columns, r)) for r in rows]
-                log(f"r_query executed successfully: {len(result)} rows returned (converted to dict)")
+                log(_format_log_with_conn_id(conn, f"r_query executed successfully: {len(result)} rows returned (converted to dict)"))
             else:
                 result = list(rows)
-                log(f"r_query executed successfully: {len(result)} rows returned")
+                log(_format_log_with_conn_id(conn, f"r_query executed successfully: {len(result)} rows returned"))
             trace_out()
             return result
     except Exception as exc:
@@ -227,12 +273,12 @@ def c_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
     target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
     target_conn._last_sql = sql
     target_conn._last_params = list(params or [])
-    log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
+    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
     try:
         with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             lastrowid = cur.lastrowid
-            log(f"c_query executed successfully: lastrowid={lastrowid}")
+            log(_format_log_with_conn_id(conn, f"c_query executed successfully: lastrowid={lastrowid}"))
             trace_out()
             return lastrowid
     except Exception as exc:
@@ -250,12 +296,12 @@ def u_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
     target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
     target_conn._last_sql = sql
     target_conn._last_params = list(params or [])
-    log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
+    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
     try:
         with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             rowcount = cur.rowcount
-            log(f"u_query executed successfully: {rowcount} rows affected")
+            log(_format_log_with_conn_id(conn, f"u_query executed successfully: {rowcount} rows affected"))
             trace_out()
             return rowcount
     except Exception as exc:
@@ -273,12 +319,12 @@ def d_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
     target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
     target_conn._last_sql = sql
     target_conn._last_params = list(params or [])
-    log(f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}")
+    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
     try:
         with target_conn.cursor() as cur:
             cur.execute(sql, params or [])
             rowcount = cur.rowcount
-            log(f"d_query executed successfully: {rowcount} rows affected")
+            log(_format_log_with_conn_id(conn, f"d_query executed successfully: {rowcount} rows affected"))
             trace_out()
             return rowcount
     except Exception as exc:
@@ -291,66 +337,17 @@ def d_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, boo
         target_conn._last_sql = None
         target_conn._last_params = None
 
-def iso_now() -> str:
-    trace_in()
-    result = datetime.now().isoformat(sep=' ', timespec='microseconds')
-    trace_out()
-    return result
-
-def json_out(obj: Union[Dict, List]) -> None:
-    trace_in()
-    json_str = json.dumps(obj, ensure_ascii=False)
-    log(f"JSON output: {len(json_str)} characters")
-    print(json_str)
-    trace_out()
-
-def json_success(data: Union[Dict, List]) -> JsonResponse:
-    trace_in()
-    result = {"status": "ok", "timestamp": iso_now(), "data": data}
-    log(f"Success response created: data keys={list(data.keys()) if isinstance(data, dict) else 'not dict'}")
-    trace_out()
-    return result
-
-def json_error(error: str, hint: Optional[str] = None) -> JsonResponse:
-    trace_in()
-    payload: JsonResponse = {"status": "error", "error": error, "timestamp": iso_now()}
-    if hint is not None:
-        payload["hint"] = hint
-        log(f"Error response created: error={error}, hint={hint}")
-    else:
-        log(f"Error response created: error={error}")
-    trace_out()
-    return payload
-
-def ensure_iso_timestamps(row: DatabaseRow, fields: Sequence[str]) -> None:
-    trace_in()
-    converted_count = 0
-    for f in fields:
-        v = row.get(f)
-        if hasattr(v, 'isoformat'):
-            row[f] = v.isoformat(sep=' ', timespec='microseconds')
-            converted_count += 1
-    log(f"Timestamp conversion completed: {converted_count} fields converted out of {len(fields)}")
-    trace_out()
-
-def normalize_meta(value: Union[str, int, float, bool, None]) -> Union[str, int, float, bool, None]:
-    trace_in()
-    # Currently just returns value as-is, but logged for future enhancement
-    log(f"Meta normalization: value type={type(value)}")
-    trace_out()
-    return value
-
-def count_json_chars(obj: Union[Dict, List]) -> int:
-    trace_in()
-    try:
-        char_count = len(json.dumps(obj, ensure_ascii=False))
-        log(f"JSON character count: {char_count}")
-        trace_out()
-        return char_count
-    except Exception as e:
-        warn(f"Failed to count JSON characters: {e}")
-        trace_out()
-        return 0
+# Utility functions moved to hh.gateway.connection.utils
+# Import them from there for backward compatibility
+from hh.gateway.connection.utils import (
+    iso_now,
+    json_out,
+    json_success,
+    json_error,
+    ensure_iso_timestamps,
+    normalize_meta,
+    count_json_chars
+)
 
 def validate_agent_identity(conn, agent_id: int, badge_ts: Optional[str]) -> bool:
     trace_in()
@@ -361,7 +358,7 @@ def validate_agent_identity(conn, agent_id: int, badge_ts: Optional[str]) -> boo
     query = "SELECT COUNT(*) AS c FROM agents WHERE id=%s AND badge_ts=%s"
     results = r_query(conn, query, [int(agent_id), badge_ts])
     is_valid = bool(results and int(results[0].get("c") or 0) > 0)
-    log(f"Agent identity validation: agent_id={agent_id}, badge_ts={badge_ts}, valid={is_valid}")
+    log(_format_log_with_conn_id(conn, f"Agent identity validation: agent_id={agent_id}, badge_ts={badge_ts}, valid={is_valid}"))
     trace_out()
     return is_valid
 
@@ -369,9 +366,9 @@ def validate_agent_identity(conn, agent_id: int, badge_ts: Optional[str]) -> boo
 def schedule_file_move(conn, from_path: str, to_path: str) -> None:
     """Schedule a file move operation to be executed after DB commit."""
     trace_in()
-    conn = _unwrap_connection(conn)
-    if not hasattr(conn, '_file_operations'):
-        conn._file_operations = []
+    unwrapped_conn = _unwrap_connection(conn)
+    if not hasattr(unwrapped_conn, '_file_operations'):
+        unwrapped_conn._file_operations = []
     operation = {
         'type': 'move',
         'from_path': from_path,
@@ -379,18 +376,17 @@ def schedule_file_move(conn, from_path: str, to_path: str) -> None:
         'status': 'scheduled',
         'temp_filename': None
     }
-    conn._file_operations.append(operation)
-    log(f"Scheduled file move: {from_path} -> {to_path}")
+    unwrapped_conn._file_operations.append(operation)
+    log(_format_log_with_conn_id(conn, f"Scheduled file move: {from_path} -> {to_path}"))
     trace_out()
 
 
 def schedule_file_delete(conn, file_path: str) -> None:
     """Schedule a file delete operation (moves to /tmp) to be executed after DB commit."""
     trace_in()
-    conn = _unwrap_connection(conn)
-    if not hasattr(conn, '_file_operations'):
-        conn._file_operations = []
-    # Generate unique temp filename
+    unwrapped_conn = _unwrap_connection(conn)
+    if not hasattr(unwrapped_conn, '_file_operations'):
+        unwrapped_conn._file_operations = []
     file_path_obj = Path(file_path)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = str(uuid.uuid4())[:8]
@@ -403,24 +399,23 @@ def schedule_file_delete(conn, file_path: str) -> None:
         'status': 'scheduled',
         'temp_filename': temp_filename
     }
-    conn._file_operations.append(operation)
-    log(f"Scheduled file delete: {file_path} -> {temp_path}")
+    unwrapped_conn._file_operations.append(operation)
+    log(_format_log_with_conn_id(conn, f"Scheduled file delete: {file_path} -> {temp_path}"))
     trace_out()
 
 
 def _execute_file_operations(conn) -> bool:
     """Execute all buffered file operations. Returns True if all succeed, False otherwise."""
     trace_in()
-    conn = _unwrap_connection(conn)
-    if not hasattr(conn, '_file_operations') or not conn._file_operations:
-        log("No file operations to execute")
+    unwrapped_conn = _unwrap_connection(conn)
+    if not hasattr(unwrapped_conn, '_file_operations') or not unwrapped_conn._file_operations:
+        log(_format_log_with_conn_id(conn, "No file operations to execute"))
         trace_out()
         return True
     
-    log(f"Executing {len(conn._file_operations)} buffered file operations")
+    log(_format_log_with_conn_id(conn, f"Executing {len(unwrapped_conn._file_operations)} buffered file operations"))
     
-    # Execute all operations
-    for operation in conn._file_operations:
+    for operation in unwrapped_conn._file_operations:
         if operation['status'] != 'scheduled':
             continue
         
@@ -436,19 +431,15 @@ def _execute_file_operations(conn) -> bool:
                 return False
             
             if operation['type'] == 'move':
-                # Ensure destination directory exists
                 to_path.parent.mkdir(parents=True, exist_ok=True)
-                # Move file
                 shutil.move(str(from_path), str(to_path))
-                log(f"Moved file: {from_path} -> {to_path}")
+                log(_format_log_with_conn_id(conn, f"Moved file: {from_path} -> {to_path}"))
                 operation['status'] = 'completed'
                 
             elif operation['type'] == 'delete':
-                # Ensure /tmp directory exists
                 to_path.parent.mkdir(parents=True, exist_ok=True)
-                # Move file to temp
                 shutil.move(str(from_path), str(to_path))
-                log(f"Moved file to temp for deletion: {from_path} -> {to_path}")
+                log(_format_log_with_conn_id(conn, f"Moved file to temp for deletion: {from_path} -> {to_path}"))
                 operation['status'] = 'completed'
                 
         except Exception as e:
@@ -458,7 +449,7 @@ def _execute_file_operations(conn) -> bool:
             trace_out()
             return False
     
-    log("All file operations executed successfully")
+    log(_format_log_with_conn_id(conn, "All file operations executed successfully"))
     trace_out()
     return True
 
@@ -466,41 +457,38 @@ def _execute_file_operations(conn) -> bool:
 def _rollback_file_operations(conn) -> bool:
     """Rollback all completed file operations. Returns True if all rollbacks succeed."""
     trace_in()
-    conn = _unwrap_connection(conn)
-    if not hasattr(conn, '_file_operations') or not conn._file_operations:
-        log("No file operations to rollback")
+    unwrapped_conn = _unwrap_connection(conn)
+    if not hasattr(unwrapped_conn, '_file_operations') or not unwrapped_conn._file_operations:
+        log(_format_log_with_conn_id(conn, "No file operations to rollback"))
         trace_out()
         return True
     
-    log(f"Rolling back {len(conn._file_operations)} file operations")
+    log(_format_log_with_conn_id(conn, f"Rolling back {len(unwrapped_conn._file_operations)} file operations"))
     
-    # Count how many completed operations we need to rollback
-    completed_count = sum(1 for op in conn._file_operations if op.get('status') == 'completed')
-    log(f"Found {completed_count} completed operations to rollback")
+    completed_count = sum(1 for op in unwrapped_conn._file_operations if op.get('status') == 'completed')
+    log(_format_log_with_conn_id(conn, f"Found {completed_count} completed operations to rollback"))
     
     if completed_count == 0:
-        log("No completed operations to rollback")
+        log(_format_log_with_conn_id(conn, "No completed operations to rollback"))
         trace_out()
         return True
     
-    # Rollback in reverse order
     rolled_back_count = 0
-    for operation in reversed(conn._file_operations):
+    for operation in reversed(unwrapped_conn._file_operations):
         if operation['status'] != 'completed':
             continue
         
-        log(f"Rolling back operation: {operation['type']} from {operation['from_path']} to {operation['to_path']}")
+        log(_format_log_with_conn_id(conn, f"Rolling back operation: {operation['type']} from {operation['from_path']} to {operation['to_path']}"))
         
         try:
             from_path = Path(operation['from_path'])
             to_path = Path(operation['to_path'])
             
             if operation['type'] == 'move':
-                # Move back: to_path -> from_path
                 if to_path.exists():
                     from_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(to_path), str(from_path))
-                    log(f"Rolled back move: {to_path} -> {from_path}")
+                    log(_format_log_with_conn_id(conn, f"Rolled back move: {to_path} -> {from_path}"))
                     operation['status'] = 'rolled_back'
                     rolled_back_count += 1
                 else:
@@ -511,11 +499,10 @@ def _rollback_file_operations(conn) -> bool:
                     return False
                 
             elif operation['type'] == 'delete':
-                # Move back from temp: to_path -> from_path
                 if to_path.exists():
                     from_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(to_path), str(from_path))
-                    log(f"Rolled back delete: {to_path} -> {from_path}")
+                    log(_format_log_with_conn_id(conn, f"Rolled back delete: {to_path} -> {from_path}"))
                     operation['status'] = 'rolled_back'
                     rolled_back_count += 1
                 else:
@@ -532,6 +519,6 @@ def _rollback_file_operations(conn) -> bool:
             trace_out()
             return False
     
-    log(f"All {rolled_back_count} file operations rolled back successfully")
+    log(_format_log_with_conn_id(conn, f"All {rolled_back_count} file operations rolled back successfully"))
     trace_out()
     return True

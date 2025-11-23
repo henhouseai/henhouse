@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TypedDict
 from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.connection import r_query, ensure_iso_timestamps
+from hh.gateway.connection.connection import r_query
+from hh.gateway.connection.utils import ensure_iso_timestamps
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway

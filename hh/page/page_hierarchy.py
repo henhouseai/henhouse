@@ -5,7 +5,7 @@ from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.page.page_registry import get_page
+from hh.page.page_registry import get_page, get_page_conn
 from hh.page.page_method_registry import register_page_mixin_methods
 
 trace_in = lambda message=None: None
@@ -107,7 +107,7 @@ class PageHierarchyMixin:
         if not is_error():
             for i, child_id in enumerate(child_ids):
                 if not is_error():
-                    child_page = get_page(page_id=child_id)
+                    child_page = get_page_conn(self.conn, page_id=child_id)
                     if child_page:
                         child_data = child_page.get_page_data()
                         # Add child count for this child page
@@ -167,15 +167,15 @@ class PageHierarchyMixin:
         if not is_error():
             # Update object property and audit trail
             self.parent = target_page_id
-            self.flag_page_modification("page moved")
+            self._flag_page_modification("page moved")
             # Flag old parent so cache sees removals
             if original_parent and original_parent != 0 and original_parent != target_page_id:
-                old_parent = get_page(page_id=original_parent)
+                old_parent = get_page_conn(self.conn, page_id=original_parent)
                 if old_parent:
                     old_parent.flag_page_modification("child moved out")
             # Flag new parent for additions
             if target_page_id and target_page_id != 0:
-                new_parent = get_page(page_id=target_page_id)
+                new_parent = get_page_conn(self.conn, page_id=target_page_id)
                 if new_parent:
                     new_parent.flag_page_modification("child moved in")
             log(f"Successfully moved page {self.id} to parent {target_page_id}")

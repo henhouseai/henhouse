@@ -27,13 +27,13 @@ def _initialize_image_display_debug():
 @register_image_mixin_methods
 def _register_display_methods():
     return {
-        'show_image': {'mixin_method': 'show_image', 'decorator': 'read'},
+        'show_image': {'mixin_method': '_show_image', 'decorator': 'read'},
     }
 
 
 class ImageDisplayMixin:
 
-    def show_image(self) -> Dict[str, Any]:
+    def _show_image(self) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and getattr(self, 'cached_usage', None) is not None
         response_data = {}
@@ -41,36 +41,32 @@ class ImageDisplayMixin:
 
         if cache_ready:
             debug(f"Image {self.id}: serving show_image payload from cache")
-            image_data = self.get_image_data()
+            image_data = self._get_image_data()
             usage_data = self.cached_usage or []
-            instances_data = self.get_instances_data()
+            instances_data = self._get_instances_data()
         else:
             image_data = {}
             usage_data = []
             instances_data = []
             if not is_error():
-                image_data = self.get_image_data()
+                debug(f"Getting image data for image {self.id}")
+                #image_data = self._get_image_data()
+                image_data = {}
                 log(f"Retrieved image data for image {self.id}")
             if not is_error():
-                usage_data = self._get_usage_data()
+                #usage_data = self._get_usage_data()
+                usage_data = []
                 log(f"Retrieved usage data: {len(usage_data)} pages using image {self.id}")
             if not is_error():
-                instances_data = self.get_instances_data()
+                
+                #instances_data = self._get_instances_data()
+                instances_data = []
                 log(f"Retrieved instances data: {len(instances_data)} instances for image {self.id}")
             if not is_error():
                 self.cached_usage = usage_data
                 self.cache_hydrated = True
-                cache_payload = {
-                    "image": image_data,
-                    "usage": usage_data,
-                    "instances": instances_data,
-                }
-                original_conn = self.conn
-                self.conn = None
-                try:
-                    self.refresh_cached_image(cache_payload)
-                finally:
-                    self.conn = original_conn
+                # Flag that cache needs refresh - wrapper will handle it at the end
+                self._flag_cache_refresh()
 
         if not is_error():
             extra_actions = self._check_extra_actions()
@@ -126,15 +122,10 @@ class ImageDisplayMixin:
                         continue
                     
                     # Get the page path for breadcrumb display
-                    # Use get_page_conn if we have a connection, otherwise try get_page
                     # Handle failures gracefully - we can still show usage without the path
                     path_data = []
                     try:
-                        if hasattr(self, 'conn') and self.conn:
-                            from hh.page.page_registry import get_page_conn
-                            page = get_page_conn(self.conn, page_id)
-                        else:
-                            page = get_page(page_id=page_id)
+                        page = get_page(page_id=page_id)
                         if page:
                             path_data = page.get_path()
                         else:
@@ -170,7 +161,7 @@ class ImageDisplayMixin:
             # Check for orphaned image instances (instances without files)
             try:
                 orphaned_instances = []
-                instances = self.get_instances()
+                instances = self._get_instances()
                 for instance in instances:
                     if not instance.get('src') or not instance.get('filesize', 0) > 0:
                         orphaned_instances.append(instance)
@@ -185,7 +176,7 @@ class ImageDisplayMixin:
         if not is_error():
             # Check for images with no usage (orphaned images)
             try:
-                usage_count = self.get_usage_count()
+                usage_count = self._get_usage_count()
                 if usage_count == 0:
                     extra_actions.append({
                         'type': 'info',
@@ -197,7 +188,7 @@ class ImageDisplayMixin:
         if not is_error():
             # Check for images with unusual file sizes or dimensions
             try:
-                instances = self.get_instances()
+                instances = self._get_instances()
                 for instance in instances:
                     width = instance.get('width', 0)
                     height = instance.get('height', 0)

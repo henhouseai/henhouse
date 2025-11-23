@@ -2,7 +2,8 @@ from __future__ import annotations
 import json
 from typing import List, Dict, Any, Optional
 from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.connection import r_query, iso_now, ensure_iso_timestamps
+from hh.gateway.connection.connection import r_query
+from hh.gateway.connection.utils import iso_now, ensure_iso_timestamps
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.agents.feed.feed_utils import validate_channels

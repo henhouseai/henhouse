@@ -69,7 +69,7 @@ class PageDisplayMixin:
         return badge_headers
     
 
-    def _show_page(self, conn=None) -> Dict[str, Any]:
+    def _show_page(self) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and self.children_by_class is not None
         lightweight = False
@@ -196,7 +196,7 @@ class PageDisplayMixin:
                 if child_page:
                     child_data = child_page._get_child_page_data()
                     # Add child count for this child page
-                    child_count = child_page._get_child_count()
+                    child_count = child_page.get_child_count()
                     child_data['num_children'] = child_count
                     # Add field type for row rendering
                     child_data['field_type'] = child_page._get_child_row_field_type()

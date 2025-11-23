@@ -107,12 +107,14 @@ class Image(
     def __init__(self, image_id: int, conn: DatabaseConnection = None):
         debug(f"Initializing Image with id={image_id} and conn={conn}")
         self.conn = conn
+        # Track if connection was externally supplied (vs set by decorator)
+        self._external_conn = (conn is not None)
         if self.conn is None:
             return self.init_helper_dec(image_id=image_id)
         else:
             return self.init_helper_conn(image_id)
     
-    @db_read
+    #@db_read
     def init_helper_dec(self, conn: DatabaseConnection, image_id: int):
         self._do_init(conn, image_id=image_id)
     

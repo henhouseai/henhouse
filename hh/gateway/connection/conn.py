@@ -1,6 +1,6 @@
 import pymysql
 import os
-from typing import Optional, Dict, Any, List, Sequence, Union
+from typing import Any, Optional, Dict, List, Sequence, Union
 from hh.gateway.connection.connection import load_dsn_pair, DatabaseRow
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
@@ -279,6 +279,14 @@ class Connection:
         finally:
             trace_out()
     
+    def _classify_and_attach_error(self, exc: Exception, conn: Any) -> None:
+        """Classify exception and attach structured error info to it."""
+        from hh.gateway.connection.utils import classify_exception
+        code, source, extras = classify_exception(exc, conn)
+        setattr(exc, '_error_code', code)
+        setattr(exc, '_error_source', source)
+        setattr(exc, '_error_extras', extras)
+    
     # Main database CRUD operations
     def read(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
         """Execute a SELECT query on the main database. Returns list of dict rows."""
@@ -306,6 +314,7 @@ class Connection:
             warn(f"Main DB READ execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
             trace_out()
             raise
     
@@ -331,6 +340,7 @@ class Connection:
             warn(f"Main DB CREATE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
             trace_out()
             raise
     
@@ -356,6 +366,7 @@ class Connection:
             warn(f"Main DB UPDATE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
             trace_out()
             raise
     
@@ -381,6 +392,7 @@ class Connection:
             warn(f"Main DB DELETE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
             trace_out()
             raise
     
@@ -411,6 +423,7 @@ class Connection:
             warn(f"Cache DB READ execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.cache)
             trace_out()
             raise
     
@@ -436,6 +449,7 @@ class Connection:
             warn(f"Cache DB CREATE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.cache)
             trace_out()
             raise
     
@@ -461,6 +475,7 @@ class Connection:
             warn(f"Cache DB UPDATE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.cache)
             trace_out()
             raise
     
@@ -491,6 +506,7 @@ class Connection:
             warn(f"History DB READ execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.history if self.history else self.main)
             trace_out()
             raise
     
@@ -516,6 +532,7 @@ class Connection:
             warn(f"History DB CREATE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.history if self.history else self.main)
             trace_out()
             raise
     
@@ -541,6 +558,7 @@ class Connection:
             warn(f"History DB UPDATE execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.history if self.history else self.main)
             trace_out()
             raise
 

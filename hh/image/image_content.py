@@ -45,7 +45,7 @@ class ImageContentMixin:
             return True
         if not is_error():
             log(f"Validating new caption '{caption}' for image {self.id}")
-            if not self.validate_caption(caption):
+            if not self._validate_caption(caption):
                 warn("Caption validation failed")
                 report_error("action", "Caption validation failed")
             else:
@@ -61,9 +61,8 @@ class ImageContentMixin:
         if not is_error():
             self.caption = caption
             log(f"Successfully updated image {self.id} caption to '{caption}'")
-            self.clear_cached_image_state()
             invalidate_image_cache_entry(self.id)
-            self.flag_image_modification("caption updated")
+            self._flag_image_modification("caption updated")
         trace_out()
         return not is_error()
 
@@ -79,9 +78,8 @@ class ImageContentMixin:
             else:
                 self.visibility = visibility
                 log(f"Successfully updated visibility for image {self.id}")
-                self.clear_cached_image_state()
                 invalidate_image_cache_entry(self.id)
-                self.flag_image_modification("visibility updated")
+                self._flag_image_modification("visibility updated")
         trace_out()
         return not is_error()
 
@@ -99,7 +97,6 @@ class ImageContentMixin:
             else:
                 self.view_count = (self.view_count or 0) + increment
                 log(f"Successfully updated view count for image {self.id}")
-                self.clear_cached_image_state()
                 invalidate_image_cache_entry(self.id)
         
         trace_out()
@@ -132,7 +129,6 @@ class ImageContentMixin:
             self.last_modified = now
             self.username = db_user
             self.comments = note
-            self.clear_cached_image_state()
             invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
@@ -143,7 +139,7 @@ class ImageContentMixin:
         log(f"Deleting image {self.id} from database")
         if not is_error():
             # Check if image is still used by any pages
-            usage_count = self.get_usage_count()
+            usage_count = self._get_usage_count()
             if usage_count > 0:
                 warn(f"Cannot delete image {self.id}: still used by {usage_count} pages")
                 report_error("action", f"Cannot delete image {self.id}: still used by {usage_count} pages")
@@ -162,8 +158,9 @@ class ImageContentMixin:
 
     def _get_image_data(self) -> Dict[str, Any]:
         trace_in()
+        debug(f"Getting image data for image {self.id}")
         # Get instances data to compute derived fields
-        instances = self.get_instances()
+        instances = self._get_instances()
         
         # Compute derived fields from instances
         max_width = 0

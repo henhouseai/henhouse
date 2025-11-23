@@ -66,7 +66,7 @@ class PageMaintenanceMixin:
             updated_text = re.sub(re.escape(pattern), replacement, updated_text)
 
         if updated_text != existing_text:
-            if not self.modify_text(updated_text):
+            if not self._modify_text(updated_text):
                 raise RuntimeError(f"Failed to update text for page {self.id}")
             result["processed"] = 1
             result["modified"] = True

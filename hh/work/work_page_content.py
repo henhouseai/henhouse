@@ -213,7 +213,7 @@ class WorkPageContentMixin:
         new_page.started_ts = now_iso
         new_page.ended_ts = None
         new_page.meta = json.dumps(user_meta or {}, ensure_ascii=False)
-        new_page.reset_connection()
+        # new_page.reset_connection() xyzzy why do this?
         trace_out()
     
     def _delete_page_class_information(self):

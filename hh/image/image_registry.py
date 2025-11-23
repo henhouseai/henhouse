@@ -103,6 +103,7 @@ def get_image(conn, image_id: int) -> Optional["Image"]:
         warn(f"Invalid image ID: {image_id}")
         report_error("action", f"Invalid image ID: {image_id}")
     if not is_error():
+        debug(f"Checking if image {image_id} is in cache")
         if image_id in _image_cache:
             cached_image = _image_cache[image_id]
             log(f"Returning cached image {image_id}: '{cached_image.caption}'")
@@ -122,6 +123,7 @@ def get_image(conn, image_id: int) -> Optional["Image"]:
             warn(f"Failed to create image {image_id}: {str(e)}")
             report_error("backend", f"Failed to create image {image_id}: {str(e)}")
     if not is_error():
+        debug(f"Getting cache row for image {image_id}")
         cache_row = _get_cache_row(conn, image_id)
         if cache_row:
             _hydrate_image_from_cache(image_instance, cache_row)

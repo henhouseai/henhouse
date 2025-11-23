@@ -38,6 +38,7 @@ class ImageInstancesMixin:
     
     def _load_instances(self) -> List[Dict[str, Any]]:
         trace_in()
+        debug(f"Loading instances for image {self.id}")
         instances = []
         if not is_error():
             try:
@@ -59,11 +60,14 @@ class ImageInstancesMixin:
 
 
     def _get_instances(self) -> List[Dict[str, Any]]:
+        trace_in()
+        debug(f"Getting instances for image {self.id}")
         if not self.instances:  # Load on-demand if not already loaded
             self.instances = self._load_instances()
             # Flag that cache needs refresh since we just hydrated
             if self.instances:  # Only flag if actual instances were loaded
                 self._flag_cache_refresh()
+        trace_out()
         return self.instances.copy()
 
 
@@ -156,7 +160,7 @@ class ImageInstancesMixin:
             # Copy each instance
             copied_count = 0
             for instance in target_instances:
-                if not self.add_image_instance(instance['width'], instance['height'], instance['src'], instance['filesize']):
+                if not self._add_image_instance(instance['width'], instance['height'], instance['src'], instance['filesize']):
                     warn(f"Failed to copy instance: {instance['width']}x{instance['height']}")
                     report_error("action", f"Failed to copy instance: {instance['width']}x{instance['height']}")
                     trace_out()
@@ -179,7 +183,7 @@ class ImageInstancesMixin:
                 return False
             # Save instances to database
             for instance_data in instances_data:
-                if not self.add_image_instance(instance_data['width'], instance_data['height'], instance_data['src'], instance_data['filesize']):
+                if not self._add_image_instance(instance_data['width'], instance_data['height'], instance_data['src'], instance_data['filesize']):
                     trace_out()
                     return False
             log(f"Successfully processed {len(instances_data)} image instances")

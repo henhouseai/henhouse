@@ -57,8 +57,7 @@ class PartialEnvelope(TypedDict, total=False):
 
 Envelope = Union[SuccessEnvelope, ErrorEnvelope, PartialEnvelope]
 
-def iso_now() -> str:
-    return datetime.now().isoformat(sep=" ", timespec="microseconds")
+from hh.gateway.connection.utils import iso_now
 
 def _create_base_envelope(meta: Optional[Dict[str, Any]] = None) -> OrderedDict[str, Any]:
     envelope = OrderedDict()

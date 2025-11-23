@@ -138,7 +138,7 @@ class PageFilesMixin:
 
         if not is_error():
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return new_file_id
 
@@ -249,7 +249,7 @@ class PageFilesMixin:
 
         if not is_error() and copied > 0:
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
@@ -303,7 +303,7 @@ class PageFilesMixin:
 
         if not is_error() and moved_count > 0:
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
@@ -353,7 +353,7 @@ class PageFilesMixin:
 
         if not is_error():
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
@@ -386,7 +386,7 @@ class PageFilesMixin:
             report_error("action", f"Failed to reorder files for page {self.id}")
         if not is_error():
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
@@ -415,7 +415,7 @@ class PageFilesMixin:
                     file_obj.delete_from_database()
             self._flag_related_file(file_id, f"removed from page {self.id}")
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return not is_error()
 
@@ -441,7 +441,7 @@ class PageFilesMixin:
 
         if not is_error():
             self._reset_cached_files()
-            self.flag_page_modification("files updated")
+            self._flag_page_modification("files updated")
         trace_out()
         return not is_error()
 

@@ -40,6 +40,7 @@ def _register_content_methods():
         'get_prepared_text': {'mixin_method': '_get_prepared_text', 'decorator': 'read'},
         'flag_page_modification': {'mixin_method': '_flag_page_modification', 'decorator': 'write'},
         'get_allowed_child_classes': {'mixin_method': '_get_allowed_child_classes', 'decorator': 'read'},
+		'set_metadata_value': {'mixin_method': '_set_metadata_value', 'decorator': 'write'},
     }
 
 
@@ -86,61 +87,11 @@ class PageContentMixin:
         trace_out()
         return success and not is_error()
 
-    def get_metadata_namespace(
-        self,
-        namespace: str,
-        default: Optional[Dict[str, Any]] = None,
-        persist_if_missing: bool = False,
-    ) -> Dict[str, Any]:
-        metadata = self._get_metadata_dict()
-        bucket = metadata.get(namespace)
-        if not isinstance(bucket, dict):
-            if default is None:
-                bucket = {}
-            elif isinstance(default, dict):
-                bucket = deepcopy(default)
-            else:
-                bucket = default
-            if not isinstance(bucket, dict):
-                bucket = {}
-            metadata[namespace] = bucket
-            if persist_if_missing:
-                self._write_metadata_dict(metadata)
-        return bucket
-
-    def set_metadata_namespace(self, namespace: str, data: Dict[str, Any]) -> bool:
-        metadata = self._get_metadata_dict()
-        metadata[namespace] = data if isinstance(data, dict) else {}
-        return self._write_metadata_dict(metadata)
-
-    def get_metadata_value(self, key: str, default: Any = None, namespace: Optional[str] = None) -> Any:
-        """Retrieve a metadata value from the specified namespace (or root)."""
-        trace_in()
-        metadata = self._get_metadata_dict()
-        container: Any = metadata
-        if namespace:
-            container = metadata.get(namespace)
-            if not isinstance(container, dict):
-                container = {}
-        if not isinstance(container, dict):
-            trace_out()
-            return default
-        value = container.get(key, default)
-        trace_out()
-        return value
-
-    def set_metadata_value(self, key: str, value: Any, namespace: Optional[str] = None) -> bool:
+    def _set_metadata_value(self, key: str, value: Any) -> bool:
         """Set a metadata value inside the specified namespace (or root) and persist it."""
         trace_in()
         metadata = self._get_metadata_dict()
-        if namespace:
-            bucket = metadata.get(namespace)
-            if not isinstance(bucket, dict):
-                bucket = {}
-                metadata[namespace] = bucket
-        else:
-            bucket = metadata
-        bucket[key] = value
+        metadata[key] = value
         result = self._write_metadata_dict(metadata)
         trace_out()
         return result
@@ -209,10 +160,10 @@ class PageContentMixin:
         if not is_error():
             modification_type = 'name and link' if self.auto_link_name() else 'name'
             log(f"Flagging page modification: {modification_type} changed")
-            self.flag_page_modification(f"{modification_type} changed")
+            self._flag_page_modification(f"{modification_type} changed")
         if not is_error() and old_name and name_value:
             try:
-                job_id = self.enqueue_maintenance_job(
+                job_id = self._enqueue_maintenance_job(
                     "page_name_update",
                     {
                         "page_id": self.id,
@@ -272,7 +223,7 @@ class PageContentMixin:
                 warn(f"Failed to update page {self.id} text - no rows affected")
                 report_error("action", f"Failed to update page {self.id} text")
         if not is_error():
-            self.flag_page_modification("text changed")
+            self._flag_page_modification("text changed")
         if not is_error():
             # Update links table with parsed link information (like PHP version)
             if not processor.update_links_table(self.conn, self.id):
@@ -424,7 +375,7 @@ class PageContentMixin:
                 # Call the classmethod on the new page's class
                 NewPageClass._add_page_class_information(new_page_id, self.conn)
             # Flag parent modification so cache system sees the hierarchy change
-            self.flag_page_modification("child added")
+            self._flag_page_modification("child added")
         if new_page_id:
             log("Page creation completed successfully")
         else:
@@ -507,7 +458,7 @@ class PageContentMixin:
         return data
     
     
-    def enqueue_maintenance_job(
+    def _enqueue_maintenance_job(
         self,
         job_type: str,
         payload: Dict[str, Any],
@@ -552,7 +503,7 @@ class PageContentMixin:
             # This prevents infinite recursion up the tree
             if comments != "child page modified":
                 if self.parent and self.parent != 0:
-                    parent_page = get_page(page_id=self.parent)
+                    parent_page = get_page_conn(self.conn, page_id=self.parent)
                     if parent_page:
                         parent_page.flag_page_modification("child page modified")
         trace_out()
