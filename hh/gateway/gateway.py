@@ -29,6 +29,7 @@ from hh.gateway.connection.conn import Connection
 from hh.gateway.connection.files import FileSystem
 from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
+from hh.image.image_registry import refresh_stale_image_caches
 
 __all__ = [
     "get_gateway",
@@ -445,7 +446,16 @@ class Gateway:
         else:
             log("No FileSystem available, skipping file operations")
         
-        # Check for errors again after file operations
+        # Refresh image caches for any images in hot cache that need updating
+        if not is_error():
+            log("Refreshing stale image caches...")
+            try:
+                refresh_stale_image_caches()
+            except Exception as e:
+                warn(f"Error refreshing image caches: {e}")
+                report_error("cache_refresh", f"Error refreshing image caches: {e}")
+        
+        # Check for errors again after file operations and cache refresh
         if not is_error():
             # Always commit database transactions (will no-op if no transaction)
             if self.conn:

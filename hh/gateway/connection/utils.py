@@ -1,4 +1,5 @@
 import json
+import datetime as dt
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Union, TypedDict
 from hh.gateway.connection.connection import DatabaseRow
@@ -160,6 +161,54 @@ def code_properties(code: str) -> str:
     log(f"Code properties: code={code}, source={result}")
     trace_out()
     return result
+
+def deserialize_json_blob(blob: Any, default: Any) -> Any:
+    """Deserialize a JSON blob from database (handles bytes, strings, or already-parsed objects)."""
+    trace_in()
+    if blob in (None, '', b''):
+        trace_out()
+        return default
+    if isinstance(blob, (bytes, bytearray)):
+        blob = blob.decode('utf-8')
+    if isinstance(blob, str):
+        try:
+            result = json.loads(blob)
+            trace_out()
+            return result
+        except json.JSONDecodeError:
+            trace_out()
+            return default
+    if isinstance(blob, (dict, list)):
+        trace_out()
+        return blob
+    trace_out()
+    return default
+
+
+def normalize_datetime(value: Any) -> Optional[dt.datetime]:
+    """Normalize a value to datetime object, handling various input types."""
+    trace_in()
+    if value is None:
+        trace_out()
+        return None
+    if isinstance(value, dt.datetime):
+        trace_out()
+        return value
+    if isinstance(value, dt.date):
+        result = dt.datetime.combine(value, dt.time.min)
+        trace_out()
+        return result
+    if isinstance(value, str):
+        try:
+            result = dt.datetime.fromisoformat(value)
+            trace_out()
+            return result
+        except ValueError:
+            trace_out()
+            return None
+    trace_out()
+    return None
+
 
 def classify_exception(exc: Exception, conn: Any = None) -> tuple[str, str, Dict[str, Union[str, int, bool]]]:
     """Classify an exception and return (code, source, extras)."""

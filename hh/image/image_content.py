@@ -1,12 +1,7 @@
 from typing import Dict, Any, Optional
 import datetime as dt
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query, schedule_file_move
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.image.image_method_registry import register_image_mixin_methods
-from hh.image.image_registry import invalidate_image_cache_entry
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -23,20 +18,9 @@ def _initialize_image_content_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_image_mixin_methods
-def _register_content_methods():
-    return {
-        'modify_caption': {'mixin_method': '_modify_caption', 'decorator': 'write'},
-        'modify_visibility': {'mixin_method': '_modify_visibility', 'decorator': 'write'},
-        'update_view_count': {'mixin_method': '_update_view_count', 'decorator': 'write'},
-        'delete_from_database': {'mixin_method': '_delete_from_database', 'decorator': 'write'},
-        'get_image_data': {'mixin_method': '_get_image_data', 'decorator': 'read'},
-        'flag_image_modification': {'mixin_method': '_flag_image_modification', 'decorator': 'write'},
-    }
-
 class ImageContentMixin:
     
-    def _modify_caption(self, caption: str) -> bool:
+    def modify_caption(self, caption: str) -> bool:
         trace_in()
         log(f"Modifying caption for image {self.id}: '{self.caption}' -> '{caption}'")
         if caption == self.caption:
@@ -45,14 +29,14 @@ class ImageContentMixin:
             return True
         if not is_error():
             log(f"Validating new caption '{caption}' for image {self.id}")
-            if not self._validate_caption(caption):
+            if not self.validate_caption(caption):
                 warn("Caption validation failed")
                 report_error("action", "Caption validation failed")
             else:
                 log(f"Caption validation passed for '{caption}'")
         if not is_error():
             log(f"Updating image {self.id} caption in database: '{self.caption}' -> '{caption}'")
-            affected = u_query(self.conn, "UPDATE images SET caption = %s WHERE id = %s", (caption, self.id))
+            affected = self.gateway.conn.update("UPDATE images SET caption = %s WHERE id = %s", (caption, self.id))
             if affected == 0:
                 warn(f"Failed to update image {self.id} caption - no rows affected")
                 report_error("action", f"Failed to update image {self.id} caption")
@@ -61,35 +45,33 @@ class ImageContentMixin:
         if not is_error():
             self.caption = caption
             log(f"Successfully updated image {self.id} caption to '{caption}'")
-            invalidate_image_cache_entry(self.id)
-            self._flag_image_modification("caption updated")
+            self.flag_image_modification("caption updated")
         trace_out()
         return not is_error()
 
 
-    def _modify_visibility(self, visibility: int) -> bool:
+    def modify_visibility(self, visibility: int) -> bool:
         trace_in()
         log(f"Modifying visibility for image {self.id}: {self.visibility} -> {visibility}")
         if not is_error():
-            affected = u_query(self.conn, "UPDATE images SET visibility = %s WHERE id = %s", (visibility, self.id))
+            affected = self.gateway.conn.update("UPDATE images SET visibility = %s WHERE id = %s", (visibility, self.id))
             if affected == 0:
                 warn(f"Failed to update image {self.id} visibility - no rows affected")
                 report_error("action", f"Failed to update image {self.id} visibility")
             else:
                 self.visibility = visibility
                 log(f"Successfully updated visibility for image {self.id}")
-                invalidate_image_cache_entry(self.id)
-                self._flag_image_modification("visibility updated")
+                self.flag_image_modification("visibility updated")
         trace_out()
         return not is_error()
 
 
-    def _update_view_count(self, increment: int = 1) -> bool:
+    def update_view_count(self, increment: int = 1) -> bool:
         trace_in()
         log(f"Updating view count for image {self.id}: +{increment}")
         
         if not is_error():
-            affected = u_query(self.conn, "UPDATE images SET viewCount = viewCount + %s WHERE id = %s", 
+            affected = self.gateway.conn.update("UPDATE images SET viewCount = viewCount + %s WHERE id = %s", 
                               (increment, self.id))
             if affected == 0:
                 warn(f"Failed to update image {self.id} view count - no rows affected")
@@ -97,22 +79,20 @@ class ImageContentMixin:
             else:
                 self.view_count = (self.view_count or 0) + increment
                 log(f"Successfully updated view count for image {self.id}")
-                invalidate_image_cache_entry(self.id)
         
         trace_out()
         return not is_error()
 
 
-    def _flag_image_modification(self, comments: str) -> bool:
+    def flag_image_modification(self, comments: str) -> bool:
         trace_in()
         note = comments or ""
         now = dt.datetime.now()
         if not is_error():
-            user_results = r_query(self.conn, "SELECT USER() as db_user")
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
         if not is_error():
-            affected = u_query(
-                self.conn,
+            affected = self.gateway.conn.update(
                 """
                 UPDATE images
                 SET last_modified = %s,
@@ -129,17 +109,16 @@ class ImageContentMixin:
             self.last_modified = now
             self.username = db_user
             self.comments = note
-            invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
 
-    def _delete_from_database(self) -> bool:
+    def delete_from_database(self) -> bool:
         trace_in()
         log(f"Deleting image {self.id} from database")
         if not is_error():
             # Check if image is still used by any pages
-            usage_count = self._get_usage_count()
+            usage_count = self.get_usage_count()
             if usage_count > 0:
                 warn(f"Cannot delete image {self.id}: still used by {usage_count} pages")
                 report_error("action", f"Cannot delete image {self.id}: still used by {usage_count} pages")
@@ -148,19 +127,18 @@ class ImageContentMixin:
             # Soft delete: move files to deleted folder before removing from database
             self._soft_delete_files()
             # Delete image instances first
-            d_query(self.conn, "DELETE FROM image_instances WHERE image_id = %s", [self.id])
-            d_query(self.conn, "DELETE FROM images WHERE id = %s", [self.id])
+            self.gateway.conn.delete("DELETE FROM image_instances WHERE image_id = %s", [self.id])
+            self.gateway.conn.delete("DELETE FROM images WHERE id = %s", [self.id])
             log(f"Successfully deleted image {self.id}")
-            invalidate_image_cache_entry(self.id)
         trace_out()
         return not is_error()
 
 
-    def _get_image_data(self) -> Dict[str, Any]:
+    def get_image_data(self) -> Dict[str, Any]:
         trace_in()
         debug(f"Getting image data for image {self.id}")
         # Get instances data to compute derived fields
-        instances = self._get_instances()
+        instances = self.get_instances()
         
         # Compute derived fields from instances
         max_width = 0
@@ -209,7 +187,7 @@ class ImageContentMixin:
         trace_in()
         try:
             # Load instances if not already loaded (this populates self.instances)
-            self._get_instances()
+            self.get_instances()
             # Get project context for base path
             from hh.deploy.utils import detect_project_context
             from pathlib import Path
@@ -234,7 +212,7 @@ class ImageContentMixin:
                     continue
                 # Schedule move file to deleted folder (buffered, will execute after DB commit)
                 deleted_file = deleted_path / current_file.name
-                schedule_file_move(self.conn, str(current_file), str(deleted_file))
+                self.gateway.files.schedule_move(str(current_file), str(deleted_file))
                 log(f"Scheduled file move to deleted folder: {src_path} -> deleted/{current_file.name}")
             trace_out()
             return True
@@ -248,7 +226,7 @@ class ImageContentMixin:
     def _is_file_shared(self, src_path: str) -> bool:
         try:
             query = "SELECT COUNT(*) as count FROM image_instances WHERE src = %s AND image_id != %s"
-            results = r_query(self.conn, query, [src_path, self.id])
+            results = self.gateway.conn.read(query, [src_path, self.id])
             if results:
                 count = results[0]['count']
                 return count > 0

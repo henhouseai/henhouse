@@ -1,11 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
-from hh.gateway.connection.connection import r_query
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.image.image_method_registry import register_image_mixin_methods
 from hh.page.page_registry import get_page
 
 trace_in = lambda message=None: None
@@ -24,16 +20,9 @@ def _initialize_image_display_debug():
     warn = get_warn(True)
 
 
-@register_image_mixin_methods
-def _register_display_methods():
-    return {
-        'show_image': {'mixin_method': '_show_image', 'decorator': 'read'},
-    }
-
-
 class ImageDisplayMixin:
 
-    def _show_image(self) -> Dict[str, Any]:
+    def show_image(self) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and getattr(self, 'cached_usage', None) is not None
         response_data = {}
@@ -41,31 +30,27 @@ class ImageDisplayMixin:
 
         if cache_ready:
             debug(f"Image {self.id}: serving show_image payload from cache")
-            image_data = self._get_image_data()
+            image_data = self.get_image_data()
             usage_data = self.cached_usage or []
-            instances_data = self._get_instances_data()
+            instances_data = self.get_instances_data()
         else:
             image_data = {}
             usage_data = []
             instances_data = []
             if not is_error():
                 debug(f"Getting image data for image {self.id}")
-                #image_data = self._get_image_data()
-                image_data = {}
+                image_data = self.get_image_data()
                 log(f"Retrieved image data for image {self.id}")
             if not is_error():
-                #usage_data = self._get_usage_data()
-                usage_data = []
+                usage_data = self._get_usage_data()
                 log(f"Retrieved usage data: {len(usage_data)} pages using image {self.id}")
             if not is_error():
-                
-                #instances_data = self._get_instances_data()
-                instances_data = []
+                instances_data = self.get_instances_data()
                 log(f"Retrieved instances data: {len(instances_data)} instances for image {self.id}")
             if not is_error():
                 self.cached_usage = usage_data
                 self.cache_hydrated = True
-                # Flag that cache needs refresh - wrapper will handle it at the end
+                # Flag that cache needs refresh since we just computed this data
                 self._flag_cache_refresh()
 
         if not is_error():
@@ -103,7 +88,7 @@ class ImageDisplayMixin:
                     GROUP BY ig.page_id, p.name, p.class
                     ORDER BY p.name
                 """
-                results = r_query(self.conn, query, [self.id])
+                results = self.gateway.conn.read(query, [self.id])
                 for row in results:
                     page_id = row['page_id']
                     page_name = row['page_name'] or f"Page {page_id}"
@@ -112,8 +97,7 @@ class ImageDisplayMixin:
                     ranks_str = row['ranks']
                     
                     # Proactively check if page exists before trying to load it
-                    page_exists = r_query(
-                        self.conn,
+                    page_exists = self.gateway.conn.read(
                         "SELECT 1 FROM pages WHERE id = %s",
                         (page_id,)
                     )
@@ -161,7 +145,7 @@ class ImageDisplayMixin:
             # Check for orphaned image instances (instances without files)
             try:
                 orphaned_instances = []
-                instances = self._get_instances()
+                instances = self.get_instances()
                 for instance in instances:
                     if not instance.get('src') or not instance.get('filesize', 0) > 0:
                         orphaned_instances.append(instance)
@@ -176,7 +160,7 @@ class ImageDisplayMixin:
         if not is_error():
             # Check for images with no usage (orphaned images)
             try:
-                usage_count = self._get_usage_count()
+                usage_count = self.get_usage_count()
                 if usage_count == 0:
                     extra_actions.append({
                         'type': 'info',
@@ -188,7 +172,7 @@ class ImageDisplayMixin:
         if not is_error():
             # Check for images with unusual file sizes or dimensions
             try:
-                instances = self._get_instances()
+                instances = self.get_instances()
                 for instance in instances:
                     width = instance.get('width', 0)
                     height = instance.get('height', 0)

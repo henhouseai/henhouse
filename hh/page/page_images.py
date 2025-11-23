@@ -5,7 +5,7 @@ from hh.gateway.connection.decorators import db_read, db_write
 from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.image.image_registry import get_image, get_image_conn # Needed for image operations
+from hh.image.image_registry import get_image # Needed for image operations
 from hh.image.image import Image # Needed for image operations
 from hh.page.page_registry import get_page, get_page_conn # Needed for page operations
 from hh.page.page_method_registry import register_page_mixin_methods
@@ -62,7 +62,7 @@ class PageImagesMixin:
                 for row in results:
                     image_id = row['id']
                     image_rank = row['image_rank']
-                    image = get_image_conn(self.conn, image_id=image_id)
+                    image = get_image(image_id)
                     if image:
                         # Ensure instances are fully loaded before getting image_data
                         image.get_instances()
@@ -101,7 +101,7 @@ class PageImagesMixin:
                 report_error("action", f"Failed to add image {image_id} to page group")
         # Process the image file
         if not is_error() and image_id:
-            image = get_image_conn(self.conn, image_id=image_id)
+            image = get_image(image_id)
             if not image:
                 warn(f"Image {image_id} not found")
                 report_error("action", f"Image {image_id} not found")
@@ -429,7 +429,7 @@ class PageImagesMixin:
                 report_error("action", f"Failed to reorder images after removal")
         # Check if image should be deleted (no longer used by any pages)
         if not is_error():
-            image = get_image_conn(self.conn, image_id=image_id)
+            image = get_image(image_id)
             if image:
                 usage_count = image.get_usage_count()
                 if usage_count == 0:
@@ -468,7 +468,7 @@ class PageImagesMixin:
         if not is_error() and image_ids:
             for image_id in image_ids:
                 if not is_error():
-                    image = get_image_conn(self.conn, image_id=image_id)
+                    image = get_image(image_id)
                     if image:
                         usage_count = image.get_usage_count()
                         if usage_count == 0:
@@ -490,7 +490,7 @@ class PageImagesMixin:
     def _flag_related_image(self, image_id: int, comment: str) -> None:
         if is_error() or not image_id:
             return
-        image = get_image_conn(self.conn, image_id=image_id)
+        image = get_image(image_id)
         if not image:
             warn(f"Failed to load image {image_id} for modification flag")
             return

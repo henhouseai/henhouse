@@ -9,7 +9,7 @@ from hh.gateway.connection.connection import (
     load_dsn_pair,
     r_query,
 )
-from hh.image.image_registry import get_image_conn
+from hh.image.image_registry import get_image
 
 
 def fetch_stale_image_ids(conn, limit: int) -> List[int]:
@@ -68,7 +68,7 @@ def rebuild_images(conn, image_ids: List[int], errors: List[Dict[str, Any]]) -> 
             image_caption = image_info.get('caption', 'no caption')
             logging.debug("Image %s exists: caption=%s", image_id, image_caption)
             
-            image_obj = get_image_conn(conn, image_id)
+            image_obj = get_image(image_id)
             if not image_obj:
                 error_msg = f"Image {image_id} (caption={image_caption}) could not be loaded"
                 if is_error():

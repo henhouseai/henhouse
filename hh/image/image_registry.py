@@ -1,16 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Any, Type, TYPE_CHECKING
-import json
-import datetime as dt
-from hh.gateway.connection.connection import r_query
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.types import DatabaseConnection
+from typing import Optional, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-
-if TYPE_CHECKING:
-    from hh.image.image import Image
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -30,141 +22,70 @@ def _initialize_debug():
 _image_cache: Dict[int, Any] = {}
 
 
-def _deserialize_json_blob(blob, default):
-    if blob in (None, '', b''):
-        return default
-    if isinstance(blob, (bytes, bytearray)):
-        blob = blob.decode('utf-8')
-    if isinstance(blob, str):
-        try:
-            return json.loads(blob)
-        except json.JSONDecodeError:
-            return default
-    if isinstance(blob, (dict, list)):
-        return blob
-    return default
-
-
-def _normalize_dt(value: Any) -> Optional[dt.datetime]:
-    if value is None:
+def get_image(image_id: int) -> Optional["Image"]:
+    """Get image from hot cache or load from database. Image.__init__() handles cache hydration."""
+    trace_in()
+    if not image_id or image_id <= 0:
+        warn(f"Invalid image ID: {image_id}")
+        report_error("action", f"Invalid image ID: {image_id}")
+        trace_out()
         return None
-    if isinstance(value, dt.datetime):
-        return value
-    if isinstance(value, dt.date):
-        return dt.datetime.combine(value, dt.time.min)
-    if isinstance(value, str):
-        try:
-            return dt.datetime.fromisoformat(value)
-        except ValueError:
-            return None
-    return None
-
-@db_read
-def _get_cache_row(conn, image_id: int) -> Optional[Dict[str, Any]]:
-    query = """
-        SELECT id, instances, pages, cache_built_at
-        FROM images
-        WHERE id = %s
-    """
-    results = r_query(conn, query, [image_id], use_secondary=True)
-    return results[0] if results else None
-
-
-def _hydrate_image_from_cache(image_obj: Image, cache_row: Optional[Dict[str, Any]]) -> bool:
-    if not cache_row:
-        return False
     
-    # Check staleness using main database timestamps (both loaded from main DB in do_init)
-    cache_built_at_dt = _normalize_dt(image_obj.cache_built_at)
-    last_modified_dt = _normalize_dt(image_obj.last_modified)
-
-    if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
-        debug(f"Cache for image {image_obj.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
-        return False
-    
-    # If cache_built_at is NULL in main DB, cache doesn't exist yet
-    if cache_built_at_dt is None:
-        debug(f"Cache for image {image_obj.id} does not exist (cache_built_at is NULL)")
-        return False
-
-    # Load expensive pre-computed data from cache database directly into live fields
-    image_obj.instances = _deserialize_json_blob(cache_row.get('instances'), [])
-    # Use cached_usage for now to match existing code, but this should be renamed to pages
-    image_obj.cached_usage = _deserialize_json_blob(cache_row.get('pages'), [])
-    image_obj.cache_hydrated = True
-    debug(f"Hydrated image {image_obj.id} from cache (built_at={image_obj.cache_built_at})")
-    return True
-
-
-@db_read
-def get_image(conn, image_id: int) -> Optional["Image"]:
-    trace_in()
-    if not image_id or image_id <= 0:
-        warn(f"Invalid image ID: {image_id}")
-        report_error("action", f"Invalid image ID: {image_id}")
-    if not is_error():
-        debug(f"Checking if image {image_id} is in cache")
-        if image_id in _image_cache:
-            cached_image = _image_cache[image_id]
-            log(f"Returning cached image {image_id}: '{cached_image.caption}'")
-            trace_out()
-            return _image_cache[image_id]
-    if not is_error():
-        query = "SELECT id FROM images WHERE id = %s"
-        results = r_query(conn, query, [image_id])
-        if not results:
-            warn(f"Image {image_id} not found")
-            report_error("action", f"Image {image_id} not found")
-    if not is_error():
-        from hh.image.image import Image
-        try:
-            image_instance = Image(image_id=image_id)
-        except Exception as e:
-            warn(f"Failed to create image {image_id}: {str(e)}")
-            report_error("backend", f"Failed to create image {image_id}: {str(e)}")
-    if not is_error():
-        debug(f"Getting cache row for image {image_id}")
-        cache_row = _get_cache_row(conn, image_id)
-        if cache_row:
-            _hydrate_image_from_cache(image_instance, cache_row)
-        _image_cache[image_id] = image_instance
-        log(f"Retrieved image {image_id}: '{image_instance.caption}'")
-        trace_out()
-        return image_instance
-    trace_out()
-    return None
-
-
-def get_image_conn(conn: DatabaseConnection, image_id: int) -> Optional["Image"]:
-    """Get image with explicit connection - also hydrates from cache"""
-    trace_in()
-    if not image_id or image_id <= 0:
-        warn(f"Invalid image ID: {image_id}")
-        report_error("action", f"Invalid image ID: {image_id}")
-    if not is_error():
-        from hh.image.image import Image
-        try:
-            image_instance = Image(image_id=image_id, conn=conn)
-        except Exception as e:
-            warn(f"Failed to retrieve image {image_id}: {str(e)}")
-            report_error("backend", f"Failed to retrieve image {image_id}: {str(e)}")
-    if not is_error():
-        cache_row = _get_cache_row(conn, image_id)
-        if cache_row:
-            _hydrate_image_from_cache(image_instance, cache_row)
-        log(f"Retrieved image {image_id} with explicit connection: '{image_instance.caption if image_instance else 'N/A'}'")
-        trace_out()
-        return image_instance
-    trace_out()
-    return None
-
-
-@db_read
-def invalidate_image_cache_entry(image_id: int) -> None:
-    trace_in()
-    removed = False
+    # Check hot cache first
+    debug(f"Checking if image {image_id} is in hot cache")
     if image_id in _image_cache:
-        del _image_cache[image_id]
-        removed = True
-    debug(f"Invalidated image cache for {image_id}: hot={removed}")
+        cached_image = _image_cache[image_id]
+        log(f"Returning cached image {image_id}: '{cached_image.caption}'")
+        trace_out()
+        return _image_cache[image_id]
+    
+    # Create image instance (Image.__init__() handles main DB load and cache hydration)
+    from hh.image.image import Image
+    try:
+        image_instance = Image(image_id=image_id)
+        if image_instance and not is_error():
+            # Store in hot cache
+            _image_cache[image_id] = image_instance
+            log(f"Retrieved image {image_id}: '{image_instance.caption}'")
+    except Exception as e:
+        warn(f"Failed to create image {image_id}: {str(e)}")
+        report_error("backend", f"Failed to create image {image_id}: {str(e)}")
+        trace_out()
+        return None
+    
+    trace_out()
+    return image_instance if not is_error() else None
+
+
+def refresh_stale_image_caches() -> None:
+    """Refresh cache database for all images in hot cache that have _cache_needs_refresh flag set.
+    Called by gateway during commit process, after file operations but before database commit."""
+    trace_in()
+    
+    if not _image_cache:
+        log("No images in hot cache to refresh")
+        trace_out()
+        return
+    
+    refresh_count = 0
+    for image_id, image_obj in list(_image_cache.items()):
+        if getattr(image_obj, '_cache_needs_refresh', False):
+            debug(f"Refreshing cache for image {image_id}")
+            try:
+                # Call the refresh method on the image object
+                # Image uses self.gateway.conn which is already in a transaction
+                if image_obj._refresh_cached_image():
+                    refresh_count += 1
+                    log(f"Successfully refreshed cache for image {image_id}")
+                else:
+                    warn(f"Failed to refresh cache for image {image_id}")
+            except Exception as e:
+                warn(f"Exception while refreshing cache for image {image_id}: {e}")
+                report_error("cache_refresh", f"Failed to refresh cache for image {image_id}: {e}")
+    
+    if refresh_count > 0:
+        log(f"Refreshed cache for {refresh_count} image(s) in hot cache")
+    else:
+        log("No images in hot cache needed cache refresh")
+    
     trace_out()

@@ -5,7 +5,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.tp.tp_decorator_registry import get_tp_decorator
 from hh.page.page_registry import get_page, find_page
-from hh.image.image_registry import get_image_conn
+from hh.image.image_registry import get_image
 from hh.gateway.connection.connection import get_connection, r_query, c_query, d_query
 
 trace_in = lambda message=None: None
@@ -575,7 +575,7 @@ class TextProcessor:
             image_id = identifier["value"]
             try:
                 conn = get_connection()
-                image = get_image_conn(conn, image_id)
+                image = get_image(image_id)
                 if image:
                     log(f"Found image ID {image_id} directly")
                     # Load instances on-demand

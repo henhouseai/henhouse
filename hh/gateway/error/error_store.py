@@ -30,6 +30,7 @@ class ErrorType(Enum):
     JSON = "json"
     SYNTAX = "syntax"
     LINK_RESOLUTION = "link_resolution"
+    CACHE_REFRESH = "cache_refresh"
 
 @dataclass
 class ErrorEntry:

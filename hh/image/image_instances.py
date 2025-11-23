@@ -1,11 +1,7 @@
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from hh.gateway.connection.connection import r_query, u_query, c_query, d_query
-from hh.gateway.connection.decorators import db_read, db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.image.image_method_registry import register_image_mixin_methods
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -22,28 +18,16 @@ def _initialize_image_instances_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_image_mixin_methods
-def _register_instances_methods():
-    return {
-        'load_instances': {'mixin_method': '_load_instances', 'decorator': 'read'},
-        'get_instances': {'mixin_method': '_get_instances', 'decorator': 'read'},
-        'get_instances_data': {'mixin_method': '_get_instances_data', 'decorator': 'read'},
-        'get_best_instance': {'mixin_method': '_get_best_instance', 'decorator': 'read'},
-        'add_image_instance': {'mixin_method': '_add_image_instance', 'decorator': 'write'},
-        'copy_instances': {'mixin_method': '_copy_instances', 'decorator': 'write'},
-        'process_upload': {'mixin_method': '_process_upload', 'decorator': 'write'},
-    }
-
 class ImageInstancesMixin:
     
-    def _load_instances(self) -> List[Dict[str, Any]]:
+    def load_instances(self) -> List[Dict[str, Any]]:
         trace_in()
         debug(f"Loading instances for image {self.id}")
         instances = []
         if not is_error():
             try:
                 query = "SELECT * FROM image_instances WHERE image_id = %s ORDER BY width DESC"
-                results = r_query(self.conn, query, [self.id])
+                results = self.gateway.conn.read(query, [self.id])
                 for row in results:
                     instances.append({
                         'width': row['width'],
@@ -59,11 +43,11 @@ class ImageInstancesMixin:
         return instances
 
 
-    def _get_instances(self) -> List[Dict[str, Any]]:
+    def get_instances(self) -> List[Dict[str, Any]]:
         trace_in()
         debug(f"Getting instances for image {self.id}")
         if not self.instances:  # Load on-demand if not already loaded
-            self.instances = self._load_instances()
+            self.instances = self.load_instances()
             # Flag that cache needs refresh since we just hydrated
             if self.instances:  # Only flag if actual instances were loaded
                 self._flag_cache_refresh()
@@ -72,7 +56,7 @@ class ImageInstancesMixin:
 
 
 
-    def _get_instances_data(self) -> List[Dict[str, Any]]:
+    def get_instances_data(self) -> List[Dict[str, Any]]:
         trace_in()
         instances_data = []
         if not is_error():
@@ -94,7 +78,7 @@ class ImageInstancesMixin:
         return instances_data
 
 
-    def _get_best_instance(self, target_width: Optional[int] = None, target_height: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def get_best_instance(self, target_width: Optional[int] = None, target_height: Optional[int] = None) -> Optional[Dict[str, Any]]:
         trace_in()
         log(f"Finding best instance for image {self.id} (width={target_width}, height={target_height})")
         if not self.instances:
@@ -122,11 +106,11 @@ class ImageInstancesMixin:
         return best
 
 
-    def _add_image_instance(self, width: int, height: int, src: str, filesize: int) -> bool:
+    def add_image_instance(self, width: int, height: int, src: str, filesize: int) -> bool:
         trace_in()
         log(f"Adding image instance for image {self.id}: {width}x{height}")
         if not is_error():
-            new_id = c_query(self.conn, """
+            new_id = self.gateway.conn.create("""
                 INSERT INTO image_instances (image_id, width, height, src, filesize)
                 VALUES (%s, %s, %s, %s, %s)
             """, (self.id, width, height, src, filesize))
@@ -146,7 +130,7 @@ class ImageInstancesMixin:
         return not is_error()
 
 
-    def _copy_instances(self, target_image) -> bool:
+    def copy_instances(self, target_image) -> bool:
         trace_in()
         log(f"Copying instances from image {target_image.id} to image {self.id}")
         if not is_error():
@@ -160,7 +144,7 @@ class ImageInstancesMixin:
             # Copy each instance
             copied_count = 0
             for instance in target_instances:
-                if not self._add_image_instance(instance['width'], instance['height'], instance['src'], instance['filesize']):
+                if not self.add_image_instance(instance['width'], instance['height'], instance['src'], instance['filesize']):
                     warn(f"Failed to copy instance: {instance['width']}x{instance['height']}")
                     report_error("action", f"Failed to copy instance: {instance['width']}x{instance['height']}")
                     trace_out()
@@ -171,7 +155,7 @@ class ImageInstancesMixin:
         return not is_error()
 
 
-    def _process_upload(self, uploaded_file_path: str, filename: str) -> bool:
+    def process_upload(self, uploaded_file_path: str, filename: str) -> bool:
         trace_in()
         log(f"Processing upload for image {self.id}: {uploaded_file_path}")
         if not is_error():
@@ -183,7 +167,7 @@ class ImageInstancesMixin:
                 return False
             # Save instances to database
             for instance_data in instances_data:
-                if not self._add_image_instance(instance_data['width'], instance_data['height'], instance_data['src'], instance_data['filesize']):
+                if not self.add_image_instance(instance_data['width'], instance_data['height'], instance_data['src'], instance_data['filesize']):
                     trace_out()
                     return False
             log(f"Successfully processed {len(instances_data)} image instances")

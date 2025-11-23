@@ -4,9 +4,6 @@ import datetime as dt
 import json
 from typing import Any, Dict, Optional, List
 
-from hh.gateway.connection.connection import r_query, c_query, u_query
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.registry.debug import (
     get_trace_in,
     get_trace_out,
@@ -41,15 +38,13 @@ def _initialize_image_cache_debug():
 
 class ImageCacheMixin:
 
-    def _ensure_image_cache_entry(self, conn: DatabaseConnection) -> bool:
+    def _ensure_image_cache_entry(self) -> bool:
         """Ensure cache entry exists in cache database. Only creates if missing."""
         trace_in()
         try:
-            existing = r_query(
-                conn,
+            existing = self.gateway.conn.read_cache(
                 "SELECT 1 FROM images WHERE id = %s",
                 (self.id,),
-                use_secondary=True,
             )
         except Exception as exc:
             warn(f"Failed to check cache entry for image {self.id}: {exc}")
@@ -63,8 +58,7 @@ class ImageCacheMixin:
 
         now = dt.datetime.now()
         try:
-            c_query(
-                conn,
+            self.gateway.conn.create_cache(
                 """
                     INSERT INTO images (id, instances, pages, cache_built_at)
                     VALUES (%s, %s, %s, %s)
@@ -75,7 +69,6 @@ class ImageCacheMixin:
                     self._dump_json([]),  # Empty pages initially
                     now,
                 ),
-                use_secondary=True,
             )
             debug(f"Created cache entry for image {self.id}")
         except Exception as exc:
@@ -88,29 +81,18 @@ class ImageCacheMixin:
         return True
 
     def _flag_cache_refresh(self) -> None:
-        """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
+        """Flag that the cache needs to be refreshed. Called by getters when they derive/calculate data."""
         self._cache_needs_refresh = True
 
-    @db_write
-    def _refresh_cached_image_with_write_conn(self, conn: DatabaseConnection) -> bool:
-        """Helper method decorated with @db_write to get a write connection for cache refresh.
-        Used when original operation was a read operation."""
-        self.conn = conn
-        return self._refresh_cached_image(conn)
-
-    def _refresh_cached_image(self, conn: DatabaseConnection) -> bool:
-        """Refresh the cache database with instances and pages (usage) fields. Called by wrapper system at end of method calls.
-        Takes conn as explicit parameter - must be provided by caller."""
+    def _refresh_cached_image(self) -> bool:
+        """Refresh the cache database with instances and pages (usage) fields. Called by gateway during commit."""
         trace_in()
-        debug(f"_refresh_cached_image: Starting for image {self.id}, conn={conn}")
-        if conn is None:
-            warn(f"_refresh_cached_image: conn is None for image {self.id}")
+        debug(f"_refresh_cached_image: Starting for image {self.id}")
+        if not self.gateway or not self.gateway.conn:
+            warn(f"_refresh_cached_image: gateway or connection not available for image {self.id}")
             trace_out()
             return False
-        # If self.conn is None, set it to the supplied connection so internal methods can use it
-        if self.conn is None:
-            self.conn = conn
-        if not self._ensure_image_cache_entry(conn):
+        if not self._ensure_image_cache_entry():
             debug(f"_refresh_cached_image: Failed to ensure cache entry for image {self.id}")
             trace_out()
             return False
@@ -120,7 +102,7 @@ class ImageCacheMixin:
         # This ensures we always have fully hydrated data to cache
         
         if not self.instances:
-            self.instances = self._get_instances()
+            self.instances = self.get_instances()
         
         # Get usage data if cached_usage is empty
         if not self.cached_usage:
@@ -134,8 +116,7 @@ class ImageCacheMixin:
         
         try:
             # Update cache database
-            affected = u_query(
-                conn,
+            affected = self.gateway.conn.update_cache(
                 """
                     UPDATE images
                     SET instances = %s,
@@ -149,27 +130,22 @@ class ImageCacheMixin:
                     now,
                     self.id,
                 ),
-                use_secondary=True,
             )
             # Update main database cache_built_at
             if affected > 0:
-                u_query(
-                    conn,
+                self.gateway.conn.update(
                     """
                         UPDATE images
                         SET cache_built_at = %s
                         WHERE id = %s
                     """,
                     (now, self.id),
-                    use_secondary=False,
                 )
                 
                 # Verify the data was actually written by reading it back
-                verify_check = r_query(
-                    conn,
+                verify_check = self.gateway.conn.read_cache(
                     "SELECT cache_built_at FROM images WHERE id = %s",
                     (self.id,),
-                    use_secondary=True,
                 )
                 if verify_check:
                     debug(f"_refresh_cached_image: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
