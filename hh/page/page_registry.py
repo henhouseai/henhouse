@@ -148,6 +148,7 @@ def find_page(link: str) -> Optional[Any]:
         return None
     
     # Lazy import gateway locally for the link lookup query
+    from hh.gateway.gateway import get_gateway
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         warn("Gateway or connection not available")
