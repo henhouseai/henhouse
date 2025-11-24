@@ -263,6 +263,8 @@ class Gateway:
             self.conn.close()
         
         self.flush_debug()
+        if not self.response:
+            return "Error: Response object not initialized. Gateway initialization may have failed."
         return self.response.get_output()
 
     def get_arg(self, name: str) -> Any:
