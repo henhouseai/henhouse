@@ -54,10 +54,10 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
         
         trace_out()
         return dsn, cache_dsn
-        else:
-            log(f"Configuration file not found: {path}")
-            trace_out()
-            return None, None
+    else:
+        log(f"Configuration file not found: {path}")
+        trace_out()
+        return None, None
 
 class Connection:
     """Gateway-owned connection manager for main, cache, and history databases."""
