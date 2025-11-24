@@ -401,29 +401,48 @@ class Gateway:
     
     def _initialize_connection(self, dry_run: bool = False) -> int:
         """Determine and create connection type based on command-line arguments (lazy import if needed). Returns user tier level."""
+        print("DEBUG: _initialize_connection() called")
         trace_in()
         tier_level = 0
         
         if self.request:
             if self.request.get_arg('mysqlpassword') or self.request.get_arg('mysql_password'):
+                print("DEBUG: MySQL connection type requested")
                 log("MySQL connection type requested, lazy-importing MySQLConnection...")
                 from hh.gateway.connection.mysql_connection import MySQLConnection
                 self.conn = MySQLConnection(dry_run=dry_run)
             elif self.request.get_arg('password') or self.request.get_arg('root_password'):
+                print("DEBUG: Root connection type requested")
                 log("Root connection type requested, lazy-importing RootConnection...")
                 from hh.gateway.connection.root_connection import RootConnection
                 self.conn = RootConnection(dry_run=dry_run)
             else:
+                print("DEBUG: Standard connection type selected")
                 log("Standard connection type selected")
                 self.conn = Connection(dry_run=dry_run)
         else:
+            print("DEBUG: No request object, using standard connection")
             log("Standard connection type selected (no request available)")
             self.conn = Connection(dry_run=dry_run)
         
         if self.conn:
+            print("DEBUG: Calling conn.initialize()...")
             tier_level = self.conn.initialize()
+            print(f"DEBUG: conn.initialize() returned tier_level={tier_level}")
+            print(f"DEBUG: conn._initialized={self.conn._initialized}")
             if not self.conn._initialized:
+                print("DEBUG: ERROR - Connection not initialized, reporting error")
                 report_error("connection", "Failed to initialize database connections")
+            else:
+                print("DEBUG: Connection initialized successfully")
+        else:
+            print("DEBUG: No connection object available")
+        
+        print(f"DEBUG: is_error()={is_error()}")
+        if is_error():
+            from hh.gateway.error.error_store import get_errors
+            errors = get_errors()
+            print(f"DEBUG: Current errors: {errors}")
         trace_out()
         return tier_level
     
