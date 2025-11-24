@@ -44,10 +44,12 @@ class SourceCodeFileContentMixin:
             file_path = self.file_path.replace('\\', '/')
             filename = file_path.split('/')[-1]
             if filename:
+                self.display_name = filename
+                self._flag_cache_refresh()
                 return filename
         
-        # Fallback to default behavior
-        return super().get_display_name()
+        # If we don't have a filename, call super which will handle flagging cache refresh
+        return super()._get_display_name()
     
     @staticmethod
     def _get_children_query(parent_id: int) -> tuple[str, list]:
@@ -180,7 +182,7 @@ class SourceCodeFileContentMixin:
     
     def _add_badge_headers(self) -> Dict[str, Any]:
         trace_in()
-        badge_headers = super().add_badge_headers()
+        badge_headers = super()._add_badge_headers()
         if 'page_summary' in badge_headers:
             # Convert None to blank string if needed
             file_path_value = '' if self.file_path is None else self.file_path
@@ -207,7 +209,7 @@ class SourceCodeFileContentMixin:
             return
         
         # Get file_path and language from gateway arguments (both optional)
-        file_path = gateway.get_arg('path') or None
+        file_path = gateway.get_arg('file_path') or None
         language = gateway.get_arg('language') or None
         
         page = get_page(new_page_id)
@@ -215,7 +217,7 @@ class SourceCodeFileContentMixin:
             warn(f"Failed to load page {new_page_id} for metadata initialization")
             trace_out()
             return
-        page.set_metadata_value('path', file_path or '')
+        page.set_metadata_value('file_path', file_path or '')
         page.set_metadata_value('language', language or '')
         #page.reset_connection() xyzzy why are we resetting this connection?!?
         log(f"Initialized metadata for source code file page {new_page_id}")
@@ -231,18 +233,18 @@ class SourceCodeFileContentMixin:
         # No additional cleanup needed; metadata lives on the page row.
         trace_out()
     
-    def modify_path(self, path: str) -> bool:
+    def modify_file_path(self, file_path: str) -> bool:
         trace_in()
-        log(f"Starting path modification for page {self.id}: '{self.file_path}' -> '{path}'")
-        if path == self.file_path:
-            log("Path unchanged, no update needed")
+        log(f"Starting file path modification for page {self.id}: '{self.file_path}' -> '{file_path}'")
+        if file_path == self.file_path:
+            log("File path unchanged, no update needed")
             trace_out()
             return True
         metadata = self._get_metadata_dict()
-        metadata['path'] = path
+        metadata['file_path'] = file_path
         if self._write_metadata_dict(metadata):
-            self.file_path = path
-            log(f"Successfully updated page {self.id} file path to '{path}'")
+            self.file_path = file_path
+            log(f"Successfully updated page {self.id} file path to '{file_path}'")
             self._flag_page_modification("file path changed")
         trace_out()
         return not is_error()

@@ -18,7 +18,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_parser('modify_path')
+@register_parser('modify_file_path')
 @register_parser('modify_language')
 def show_source_code_file() -> bool:
     return show_page()

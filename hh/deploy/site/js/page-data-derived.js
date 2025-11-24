@@ -13,7 +13,7 @@ export class SourceCodeFilePageData extends PageData {
     // Override MCP tool mapping if needed for specific field names
     getMCPToolName(fieldName) {
         if (fieldName === 'file_path')
-            return 'modify_path';
+            return 'modify_file_path';
         if (fieldName === 'language')
             return 'modify_language';
         return super.getMCPToolName(fieldName);

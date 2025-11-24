@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from hh.gateway.connection.connection import r_query, u_query
-from hh.gateway.connection.decorators import db_write
+from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
     get_debug,
     get_log,
@@ -64,43 +63,47 @@ def _deserialize_job(row: Dict[str, Any]) -> Dict[str, Any]:
     return job
 
 
-@db_write
-def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
+def claim_next_maintenance_job(job_type: str) -> Optional[Dict[str, Any]]:
     """
-    Claim the next available job (pending jobs preferred, then running).
+    Claim the next available job of the specified type (pending jobs preferred, then running).
     Uses optimistic updates instead of explicit row locks.
     """
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return None
+    
+    conn = gateway.conn
     attempts = 0
     while attempts < 5:
-        rows = r_query(
-            conn,
+        rows = conn.read(
             f"""
             SELECT {_JOB_COLUMNS}
             FROM maintenance_jobs
-            WHERE status = 'pending'
+            WHERE job_type = %s AND status = 'pending'
             ORDER BY priority DESC, created_at ASC
             LIMIT 1
             """,
+            (job_type,),
         )
         pending_job = _deserialize_job(rows[0]) if rows else None
         if not pending_job:
             break
-        affected = u_query(
-            conn,
+        affected = conn.update(
             """
             UPDATE maintenance_jobs
             SET status = 'running',
                 attempts = attempts + 1,
                 started_at = COALESCE(started_at, NOW(6)),
                 updated_at = NOW(6)
-            WHERE id = %s AND status = 'pending'
+            WHERE id = %s AND status = 'pending' AND job_type = %s
             """,
-            (pending_job["id"],),
+            (pending_job["id"], job_type),
         )
         if affected:
-            refreshed = r_query(
-                conn,
+            refreshed = conn.read(
                 f"SELECT {_JOB_COLUMNS} FROM maintenance_jobs WHERE id = %s",
                 (pending_job["id"],),
             )
@@ -110,15 +113,15 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
                 return job
         attempts += 1
 
-    rows = r_query(
-        conn,
+    rows = conn.read(
         f"""
         SELECT {_JOB_COLUMNS}
         FROM maintenance_jobs
-        WHERE status = 'running'
+        WHERE job_type = %s AND status = 'running'
         ORDER BY priority DESC, created_at ASC
         LIMIT 1
         """,
+        (job_type,),
     )
     running_job = _deserialize_job(rows[0]) if rows else None
     if running_job:
@@ -129,15 +132,20 @@ def claim_next_maintenance_job(conn) -> Optional[Dict[str, Any]]:
     return None
 
 
-@db_write
 def update_maintenance_job(
-    conn,
     job_id: int,
     status: Optional[str] = None,
     progress: Optional[Dict[str, Any]] = None,
     error_message: Optional[str] = None,
 ) -> None:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return
+    
+    conn = gateway.conn
     fields = []
     params: list[Any] = []
 
@@ -165,6 +173,6 @@ def update_maintenance_job(
     params.append(job_id)
 
     sql = f"UPDATE maintenance_jobs SET {', '.join(fields)} WHERE id = %s"
-    u_query(conn, sql, params)
+    conn.update(sql, params)
     trace_out()
 

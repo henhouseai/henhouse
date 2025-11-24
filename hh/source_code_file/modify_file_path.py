@@ -22,9 +22,9 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_action('modify_path')
-@register_command('modify_path')
-def modify_path() -> bool:
+@register_action('modify_file_path')
+@register_command('modify_file_path')
+def modify_file_path() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -35,13 +35,13 @@ def modify_path() -> bool:
         warn("No page ID provided")
         report_error("action", "Page ID is required")
     if not is_error():
-        if not gateway.is_set('path'):
-            warn("No new path provided")
-            report_error("action", "New path is required")
+        if not gateway.is_set('file_path'):
+            warn("No new file path provided")
+            report_error("action", "New file path is required")
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
-        new_path = gateway.get_arg('path')
-        # Handle the case where -path is passed as a flag (returns True)
+        new_path = gateway.get_arg('file_path')
+        # Handle the case where -file_path is passed as a flag (returns True)
         if new_path is True:
             new_path = ""
         try:
@@ -58,7 +58,7 @@ def modify_path() -> bool:
             report_error("action", f"Page {page_id} not found")
     if not is_error():
         log(f"Modifying page {page_id} file path to '{new_path}'")
-        success = page.modify_path(new_path)
+        success = page.modify_file_path(new_path)
         if not success:
             warn("Page file path modification failed")
             report_error("action", "Page file path modification failed")

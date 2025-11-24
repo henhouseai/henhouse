@@ -21,11 +21,11 @@ export class SourceCodeFilePageData extends PageData {
       // Source code file specific mappings
       {
         fields: ['file_path'],
-        mcpTool: 'modify_path',
+        mcpTool: 'modify_file_path',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
-          path: values['file_path']
+          file_path: values['file_path']
         })
       },
       {

@@ -1,36 +1,53 @@
 """Page cache refresh module for maintenance daemon."""
 
-import logging
-from typing import Any, Dict, List
+from __future__ import annotations
 
-from hh.gateway.connection.connection import (
-    HenhouseConnection,
-    get_connection,
-    load_dsn_pair,
+from typing import Any
+
+from hh.gateway.error.error_store import get_errors, is_error, report_error
+from hh.gateway.gateway import get_gateway, trace_in, trace_out, log, warn
+from hh.gateway.registry.maintenance import register_maintenance_tool
+from hh.gateway.registry.registry import (
+    register_action,
+    register_command,
+    register_parser,
 )
+from hh.gateway.response.json_standard import get_data, success_payload
 from hh.page.page_registry import get_page
+from hh.render.render import (
+    FieldConfig,
+    TableData,
+    finalize_output,
+    render_block,
+    render_header_block,
+)
 
 
-def fetch_stale_page_ids(conn, limit: int) -> List[int]:
-    """Fetch stale page IDs from main database only.
+def fetch_stale_page_id() -> int | None:
+    """Fetch one stale page ID from main database only.
     Staleness determined by: last_modified > cache_built_at OR cache_built_at IS NULL"""
-    rows = conn.read(
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        return None
+    rows = gateway.conn.read(
         """
         SELECT id
         FROM pages
         WHERE last_modified > cache_built_at
            OR cache_built_at IS NULL
         ORDER BY last_modified DESC
-        LIMIT %s
+        LIMIT 1
         """,
-        [limit],
     )
-    return [row["id"] for row in rows]
+    return rows[0]["id"] if rows else None
 
 
-def count_stale_pages(conn) -> int:
+def count_stale_pages() -> int:
     """Count stale pages in main database only."""
-    rows = conn.read(
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        return 0
+    rows = gateway.conn.read(
         """
         SELECT COUNT(*) AS cnt
         FROM pages
@@ -41,106 +58,185 @@ def count_stale_pages(conn) -> int:
     return rows[0]["cnt"] if rows else 0
 
 
-def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
-    """Rebuild cache for a list of page IDs."""
-    from hh.gateway.error.error_store import is_error, get_errors
+def rebuild_page(page_id: int) -> dict[str, Any] | None:
+    """Rebuild cache for a single page ID. Returns error dict if failed, None if successful."""
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        return {"entity": "page", "id": page_id, "error": "No gateway or connection available"}
     
-    processed: List[int] = []
-    logging.info("Starting page cache rebuild for %s pages: %s", len(page_ids), page_ids)
-    
-    for page_id in page_ids:
-        try:
-            logging.debug("Processing page %s...", page_id)
-            
-            # Verify page exists first
-            verify = conn.read("SELECT id, class, name FROM pages WHERE id = %s", [page_id])
-            if not verify:
-                error_msg = f"Page {page_id} does not exist in database"
-                logging.warning("%s (skipping)", error_msg)
-                errors.append({"entity": "page", "id": page_id, "error": error_msg})
-                continue
-            
-            page_info = verify[0]
-            page_class = page_info.get('class', 'unknown')
-            page_name = page_info.get('name', 'unnamed')
-            logging.debug("Page %s exists: class=%s, name=%s", page_id, page_class, page_name)
-            
-            page_obj = get_page(page_id)
-            if not page_obj:
-                error_msg = f"Page {page_id} (class={page_class}, name={page_name}) could not be loaded"
-                if is_error():
-                    errs = get_errors()
-                    if errs:
-                        # Get all error messages, not just last 3
-                        error_contents = [f"{e.error_type.value}: {e.content}" for e in errs]
-                        error_msg = f"{error_msg}. Errors: {'; '.join(error_contents)}"
-                logging.error("%s", error_msg)
-                errors.append({"entity": "page", "id": page_id, "error": error_msg})
-                continue
-            
-            logging.debug("Page %s loaded successfully, calling show_page()...", page_id)
-            page_obj.show_page()
-            processed.append(page_id)
-            logging.info("Successfully cached page %s (class=%s, name=%s)", page_id, page_class, page_name)
-        except Exception as exc:  # noqa: BLE001
-            error_msg = f"Exception while caching page {page_id}: {type(exc).__name__}: {exc}"
-            logging.exception(error_msg)
-            errors.append({"entity": "page", "id": page_id, "error": error_msg})
-    
-    logging.info("Page cache rebuild complete: processed=%s, errors=%s", len(processed), len(errors))
-    return processed
-
-
-def refresh_page_cache_batch(*, limit: int = 25) -> Dict[str, Any]:
-    """Refresh page cache for a batch of stale pages."""
-    primary_dsn, cache_dsn = load_dsn_pair()
-    if not primary_dsn or not cache_dsn:
-        raise RuntimeError("Primary or cache DSN missing; cannot rebuild cache")
-
-    primary_conn = None
-    cache_only_conn = None
     try:
-        primary_conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
-        cache_only_conn = get_connection(dict_cursor=True, dsn_override=cache_dsn)
-        if not primary_conn or not cache_only_conn:
-            raise RuntimeError("Failed to open database connections for cache rebuild")
-
-        combined_conn = HenhouseConnection(primary_conn, cache_only_conn)
+        # Verify page exists first
+        verify = gateway.conn.read("SELECT id, class, name FROM pages WHERE id = %s", [page_id])
+        if not verify:
+            error_msg = f"Page {page_id} does not exist in database"
+            warn(error_msg)
+            return {"entity": "page", "id": page_id, "error": error_msg}
         
-        errors: List[Dict[str, Any]] = []
-        stale_pages = fetch_stale_page_ids(primary_conn, limit)
-        logging.debug("Found %s stale pages (limit %s)", len(stale_pages), limit)
-        processed_pages = rebuild_pages(combined_conn, stale_pages, errors)
+        page_info = verify[0]
+        page_class = page_info.get('class', 'unknown')
+        page_name = page_info.get('name', 'unnamed')
+        
+        page_obj = get_page(page_id)
+        if not page_obj:
+            error_msg = f"Page {page_id} (class={page_class}, name={page_name}) could not be loaded"
+            if is_error():
+                errs = get_errors()
+                if errs:
+                    error_contents = [f"{e.error_type.value}: {e.content}" for e in errs]
+                    error_msg = f"{error_msg}. Errors: {'; '.join(error_contents)}"
+            warn(error_msg)
+            return {"entity": "page", "id": page_id, "error": error_msg}
+        
+        page_obj.show_page()
+        log(f"Successfully cached page {page_id} (class={page_class}, name={page_name})")
+        return None
+    except Exception as exc:  # noqa: BLE001
+        error_msg = f"Exception while caching page {page_id}: {type(exc).__name__}: {exc}"
+        warn(error_msg)
+        return {"entity": "page", "id": page_id, "error": error_msg}
 
-        # Flush cache-side writes
-        try:
-            cache_side = (
-                combined_conn.get_connection(use_secondary=True)
-                if hasattr(combined_conn, "get_connection")
-                else cache_only_conn
-            )
-            cache_side.commit()
-        except Exception:
-            pass
 
-        data: Dict[str, Any] = {
+@register_action("page_cache_refresh")
+@register_command("page_cache_refresh")
+def page_cache_refresh_action() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
+        trace_out()
+        return False
+
+    try:
+        stale_page_id = fetch_stale_page_id()
+        if stale_page_id is None:
+            # No stale pages to process
+            payload = {
+                "operation": "rebuild_page_cache",
+                "page_id": None,
+                "processed": False,
+                "error": None,
+                "pages_remaining": 0,
+            }
+            gateway.response.set_action_response(success_payload(payload))
+            log("No stale pages to process")
+            trace_out()
+            return True
+
+        log(f"Processing stale page {stale_page_id}")
+        error = rebuild_page(stale_page_id)
+        pages_remaining = count_stale_pages()
+
+        payload = {
             "operation": "rebuild_page_cache",
-            "limit": limit,
-            "pages_processed": len(processed_pages),
-            "pages_remaining": count_stale_pages(primary_conn),
-            "processed_page_ids": processed_pages,
-            "errors": errors,
+            "page_id": stale_page_id,
+            "processed": error is None,
+            "error": error,
+            "pages_remaining": pages_remaining,
         }
-        if processed_pages or errors:
-            logging.info(
-                "Page cache rebuild complete: pages=%s errors=%s",
-                len(processed_pages),
-                len(errors),
+        gateway.response.set_action_response(success_payload(payload))
+        if error:
+            log(f"Page cache refresh failed for page {stale_page_id}: {error.get('error', 'Unknown error')}")
+        else:
+            log(f"Page cache refresh completed for page {stale_page_id}, {pages_remaining} remaining")
+        trace_out()
+        return not is_error()
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Failed to refresh page cache: {exc}")
+        report_error("action", f"Failed to refresh page cache: {exc}")
+        trace_out()
+        return False
+
+
+@register_parser("page_cache_refresh")
+def page_cache_refresh_parser() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        report_error("backend", "No gateway available")
+        trace_out()
+        return False
+    if not gateway.response.has_action_response():
+        warn("No action response available")
+        report_error("backend", "No action response available")
+        trace_out()
+        return False
+
+    try:
+        source_data = get_data(gateway.response.get_action_response())
+        page_id = source_data.get("page_id")
+        processed = source_data.get("processed", False)
+        error = source_data.get("error")
+        pages_remaining = source_data.get("pages_remaining", 0)
+
+        lines = [render_header_block("l_page_cache_refresh_header")]
+
+        table = TableData()
+        has_remaining = pages_remaining > 0
+        
+        # Add header row (visual anchor)
+        table.add_row(
+            "page_cache_refresh_header",
+            info="",
+        )
+        
+        if page_id is None:
+            # No stale pages
+            table.add_row(
+                "no_stale_pages",
+                info="No pages need cache refresh",
             )
-        return data
-    finally:
-        if cache_only_conn:
-            cache_only_conn.close()
-        if primary_conn:
-            primary_conn.close()
+        else:
+            # Page ID row
+            table.add_row(
+                "page_id",
+                info=str(page_id),
+            )
+            
+            if processed:
+                # Refresh status row
+                table.add_row(
+                    "refresh_status",
+                    info="Success",
+                )
+            else:
+                # Error row
+                error_msg = error.get("error", "Unknown error") if error else "Unknown error"
+                table.add_row(
+                    "page_cache_error",
+                    info=error_msg,
+                )
+            
+            # Remaining pages row (only if there are remaining)
+            if has_remaining:
+                table.add_row(
+                    "page_cache_refresh_remaining",
+                    info=str(pages_remaining),
+                )
+
+        lines.append(
+            render_block(
+                table,
+                FieldConfig()
+                .add_header("page_cache_refresh_header")
+                .add_simple(["no_stale_pages", "page_id", "refresh_status", "page_cache_refresh_remaining"])
+                .add_simple_color("page_cache_error", "red"),
+                block_type="maintenance",
+                table_overrides={"margin_l": 4},
+            )
+        )
+
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully with {len(lines)} lines")
+        trace_out()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Parser execution raised an exception: {exc}")
+        report_error("backend", f"Parser execution raised an exception: {exc}")
+        trace_out()
+        return False
+
+
+register_maintenance_tool("page_cache_refresh")
 

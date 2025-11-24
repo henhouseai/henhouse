@@ -114,7 +114,10 @@ class McpRequestContentMixin:
             return self.name
         
         status = self.status if hasattr(self, 'status') else 'pending'
-        return f"MCP Request ({status})"
+        display_name = f"MCP Request ({status})"
+        self.display_name = display_name
+        self._flag_cache_refresh()
+        return display_name
 
     @classmethod
     def _add_page_class_information(cls, new_page_id: int):

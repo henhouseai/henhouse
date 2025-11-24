@@ -100,7 +100,10 @@ class McpActionRequestContentMixin:
         
         tool_name = self.tool_name if hasattr(self, 'tool_name') and self.tool_name else 'unknown'
         status = self.status if hasattr(self, 'status') else 'pending'
-        return f"{tool_name} ({status})"
+        display_name = f"{tool_name} ({status})"
+        self.display_name = display_name
+        self._flag_cache_refresh()
+        return display_name
 
     @classmethod
     def _add_page_class_information(cls, new_page_id: int):

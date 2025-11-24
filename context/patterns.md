@@ -517,6 +517,73 @@ def render_items_section(source_data, lines):
     return True
 ```
 
+### Field Config Labels and Icons
+
+Field types used in `TableData.add_row()` and `FieldConfig` require registered labels and icons. These are defined in `config_labels.py` files throughout the codebase.
+
+**Defining Labels and Icons:**
+
+Create or add to a `config_labels.py` file (typically placed next to the files that use them, but can be anywhere):
+
+```python
+from hh.render.config.config_registry import register_label
+
+@register_label("items_header", "Items", "📋")
+@register_label("item_row", "Item", "")
+@register_label("active_item", "Active Item", "✅")
+@register_label("error_item", "Error Item", "❌")
+def _register_config():
+    pass
+```
+
+**Key Points:**
+- Labels and icons are **system-wide** - once registered, they're available everywhere
+- **No duplicates allowed** - duplicate registrations will generate warnings
+- The `@register_label` decorator takes three parameters:
+  1. **Field type identifier** (e.g., `"items_header"`) - must match the field_type used in `add_row()`
+  2. **Label text** (e.g., `"Items"`) - displayed in the label column when using `dc()` or FieldConfig
+  3. **Icon** (e.g., `"📋"`) - displayed before the label (use empty string `""` for no icon)
+- The function name doesn't matter (typically `_register_config()` or similar)
+- Labels are looked up with the `l_` prefix: `"items_header"` becomes `"l_items_header"` for label lookup
+- Icons use the field type directly: `"items_header"` is looked up as `"items_header"` for icon lookup
+
+**Header Rows with Field Configs:**
+
+Header rows provide visual anchors at the top of tables. They use field configs just like data rows:
+
+```python
+table = TableData()
+
+# Add header row with field config
+table.add_row(
+    "page_cache_refresh_header",  # field_type that maps to registered label/icon
+    info="",  # Empty value for visual anchor (label column shows label, info column empty)
+)
+
+# Add data rows
+table.add_row("page_id", info=str(page_id))
+table.add_row("refresh_status", info="Success")
+
+# FieldConfig must include the header field type
+FieldConfig()
+    .add_header("page_cache_refresh_header")  # Maps to registered label/icon
+    .add_simple(["page_id", "refresh_status"])
+```
+
+**Common Patterns:**
+- Header rows typically have empty `info` column - the label column shows the registered label text
+- Use `.add_header()` in FieldConfig for header rows
+- Use `.add_simple()` for regular data rows
+- Use `.add_simple_color()` for colored data rows (errors, warnings, etc.)
+- If a field type isn't registered, you'll get warnings and the label/icon won't display properly
+
+**Duplicate Registration Warnings:**
+
+If you see warnings about duplicate registrations:
+- Check if the field type is already registered elsewhere in the codebase
+- Either remove your duplicate registration and reuse the existing one
+- Or choose a more unique name for your field type (e.g., `"page_cache_refresh_remaining"` instead of `"remaining"`)
+
 ### Example 11: **Advanced Table Rendering with Dynamic Field Types**
 
 **render_list_example.py** (enhanced version)

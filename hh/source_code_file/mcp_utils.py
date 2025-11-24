@@ -9,16 +9,16 @@ Registers source code file-related MCP tools with appropriate tier access:
 from hh.gateway.registry.mcp_whitelist import register_mcp_tool
 
 @register_mcp_tool(
-    tool_name='modify_path',
+    tool_name='modify_file_path',
     description='Modify the file path of a source code file page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
         'type': 'object',
         'properties': {
             'page_id': {'type': 'integer', 'description': 'The ID of the source code file page to modify'},
             'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
-            'path': {'type': 'string', 'description': 'The new file path for the source code file'}
+            'file_path': {'type': 'string', 'description': 'The new file path for the source code file'}
         },
-        'required': ['page_id', 'path']
+        'required': ['page_id', 'file_path']
     },
     tiers=[3, 4],
     requires_approval=False,

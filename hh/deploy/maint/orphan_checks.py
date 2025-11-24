@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import logging
-from typing import Any, Dict, Tuple
-
 from hh.gateway.error.error_store import report_error, is_error
-from hh.gateway.gateway import get_gateway
+from hh.gateway.gateway import get_gateway, trace_in, trace_out, log, warn
 from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import (
     register_action,
@@ -178,9 +175,12 @@ def check_orphan_file_group_files() -> list[int]:
 @register_action("orphan_check")
 @register_command("orphan_check")
 def orphan_check_action() -> bool:
+    trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
         report_error("action", "No gateway or connection available")
+        trace_out()
         return False
 
     try:
@@ -196,8 +196,12 @@ def orphan_check_action() -> bool:
             "orphan_file_group_files": check_orphan_file_group_files(),
         }
         summary = {key: len(ids) for key, ids in counts.items()}
+        total_count = sum(summary.values())
+        log(f"Found {total_count} orphan{'s' if total_count != 1 else ''} across {len(counts)} check types")
     except Exception as exc:  # noqa: BLE001
+        warn(f"Failed to run orphan check: {exc}")
         report_error("action", f"Failed to run orphan check: {exc}")
+        trace_out()
         return False
 
     payload = {
@@ -206,61 +210,91 @@ def orphan_check_action() -> bool:
         "counts": counts,
     }
     gateway.response.set_action_response(success_payload(payload))
+    log("Orphan check completed successfully")
+    trace_out()
     return not is_error()
 
 
 @register_parser("orphan_check")
 def orphan_check_parser() -> bool:
+    trace_in()
     gateway = get_gateway()
     if not gateway:
+        warn("No gateway available")
         report_error("backend", "No gateway available")
+        trace_out()
         return False
     if not gateway.response.has_action_response():
+        warn("No action response available")
         report_error("backend", "No action response available")
+        trace_out()
         return False
 
-    source_data = get_data(gateway.response.get_action_response())
-    summary = source_data.get("summary", {})
-    counts = source_data.get("counts", {})
+    try:
+        source_data = get_data(gateway.response.get_action_response())
+        summary = source_data.get("summary", {})
+        counts = source_data.get("counts", {})
 
-    lines = [render_header_block("l_orphan_check_header")]
+        lines = [render_header_block("l_orphan_check_header")]
 
-    table = TableData()
-    # Add header row
-    total_count = sum(summary.get(key, 0) for key in counts.keys())
-    table.add_row(
-        "loaded",
-        label=f"{total_count} orphan{'s' if total_count != 1 else ''}",
-        count="Count",
-        ids="IDs",
-    )
-
-    # Add data rows
-    for key in counts.keys():
-        count = summary.get(key, 0)
-        ids_list = counts.get(key, [])
-        preview_ids = ids_list[:20] if ids_list else []
-        preview = ", ".join(str(val) for val in preview_ids) if preview_ids else ""
+        table = TableData()
+        # Check if all counts are zero to conditionally hide IDs column
+        total_count = sum(summary.get(key, 0) for key in counts.keys())
+        has_orphans = total_count > 0
         
-        table.add_row(
-            key,
-            count=str(count),
-            ids=preview,
+        # Add header row
+        if has_orphans:
+            table.add_row(
+                "header",
+                label=f"{total_count} orphan{'s' if total_count != 1 else ''}",
+                count="Count",
+                ids="IDs",
+            )
+        else:
+            table.add_row(
+                "header",
+                label=f"{total_count} orphan{'s' if total_count != 1 else ''}",
+                count="Count",
+            )
+
+        # Add data rows
+        for key in counts.keys():
+            count = summary.get(key, 0)
+            if has_orphans:
+                ids_list = counts.get(key, [])
+                preview_ids = ids_list[:20] if ids_list else []
+                preview = ", ".join(str(val) for val in preview_ids) if preview_ids else ""
+                table.add_row(
+                    key,
+                    count=str(count),
+                    ids=preview,
+                )
+            else:
+                table.add_row(
+                    key,
+                    count=str(count),
+                )
+
+        lines.append(
+            render_block(
+                table,
+                FieldConfig()
+                .add_header("header")
+                .add_simple(["orphan_pages", "orphan_link_sources", "orphan_link_targets", "orphan_image_pages", "orphan_image_targets", "orphan_image_group_pages", "orphan_image_group_images", "orphan_file_group_pages", "orphan_file_group_files"]),
+                block_type="maintenance",
+                table_overrides={"margin_l": 4},
+            )
         )
 
-    lines.append(
-        render_block(
-            table,
-            FieldConfig()
-            .add_header("header")
-            .add_simple(["orphan_pages", "orphan_link_sources", "orphan_link_targets", "orphan_image_pages", "orphan_image_targets", "orphan_image_group_pages", "orphan_image_group_images", "orphan_file_group_pages", "orphan_file_group_files", "ids"]),
-            block_type="maintenance",
-            table_overrides={"margin_l": 4},
-        )
-    )
-
-    gateway.response.add_output(finalize_output(lines))
-    return True
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully with {len(lines)} lines")
+        trace_out()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Parser execution raised an exception: {exc}")
+        report_error("backend", f"Parser execution raised an exception: {exc}")
+        trace_out()
+        return False
 
 
 register_maintenance_tool("orphan_check")
