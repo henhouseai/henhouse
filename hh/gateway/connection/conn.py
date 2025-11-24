@@ -42,7 +42,7 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'database': config.get('client', 'database', fallback=project_name),
             'port': config.getint('client', 'port', fallback=3306)
         }
-        log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}, user={dsn['user']}, password={dsn['password']}")
+        log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
         cache_dsn = {
             'host': config.get('client', 'cache_host', fallback=dsn['host']),
