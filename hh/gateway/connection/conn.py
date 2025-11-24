@@ -42,7 +42,7 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'database': config.get('client', 'database', fallback=project_name),
             'port': config.getint('client', 'port', fallback=3306)
         }
-        log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
+        log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}, user={dsn['user']}, password={dsn['password']}")
         
         cache_dsn = {
             'host': config.get('client', 'cache_host', fallback=dsn['host']),
@@ -577,7 +577,9 @@ class Connection:
         """Execute an INSERT query on the history database. Returns lastrowid."""
         trace_in()
         if not self._initialized or not self.history:
-            raise RuntimeError("History connection not initialized")
+            warn("History connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
