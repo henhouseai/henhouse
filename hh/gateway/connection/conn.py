@@ -111,42 +111,58 @@ class Connection:
     
     def initialize(self) -> int:
         """Open connections to all databases. Returns user tier level (0 if unknown)."""
+        print("DEBUG: conn.initialize() called")
         trace_in()
         if self._initialized:
+            print("DEBUG: Connection already initialized")
             log("Connection already initialized")
             trace_out()
             return 0
         
         tier_level = 0
         try:
+            print("DEBUG: Detecting project context...")
             # Detect project context once at the start
             project_name, _ = detect_project_context()
+            print(f"DEBUG: Project name detected: {project_name}")
             
+            print("DEBUG: Getting main DSN...")
             # Get main DSN (may be overridden by subclasses)
             main_dsn = self._get_main_dsn(project_name)
+            print(f"DEBUG: Main DSN: {main_dsn}")
             
             if not main_dsn:
+                print("DEBUG: ERROR - Main DSN not available")
                 warn("Cannot initialize connections: main DSN not available")
                 trace_out()
                 return 0
             
+            print("DEBUG: Detecting user tier level...")
             # Detect user tier level from DSN username
             if project_name:
                 tier_level = self._detect_user_tier_level(project_name, main_dsn.get('user', ''))
+                print(f"DEBUG: User tier level: {tier_level}")
             
+            print("DEBUG: Loading cache DSN...")
             # Load cache DSN (always uses standard loading)
             _, cache_dsn = _load_dsn(project_name)
+            print(f"DEBUG: Cache DSN: {cache_dsn}")
             
+            print("DEBUG: Opening main database connection...")
             # Open main database connection
             cursorclass = pymysql.cursors.DictCursor
             self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)
+            print("DEBUG: Main database connection opened successfully")
             log(f"Main database connection opened: host={main_dsn['host']}, database={main_dsn.get('database', 'None')}")
             
+            print("DEBUG: Opening cache database connection...")
             # Open cache database connection
             if cache_dsn:
                 self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)
+                print("DEBUG: Cache database connection opened successfully")
                 log(f"Cache database connection opened: host={cache_dsn['host']}, database={cache_dsn['database']}")
             else:
+                print("DEBUG: Cache DSN not available, using main database for cache")
                 warn("Cache DSN not available, using main database for cache")
                 self.cache = self.main
             
@@ -155,12 +171,17 @@ class Connection:
             log("History database connection skipped (not yet implemented)")
             self.history = None
             
+            print("DEBUG: Setting _initialized = True")
             self._initialized = True
+            print("DEBUG: Connection initialization completed successfully")
             log("All database connections initialized successfully")
             trace_out()
             return tier_level
             
         except Exception as e:
+            print(f"DEBUG: EXCEPTION in conn.initialize(): {type(e).__name__}: {e}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
             warn(f"Failed to initialize database connections: {e}")
             # Clean up any partial connections
             self.close()
