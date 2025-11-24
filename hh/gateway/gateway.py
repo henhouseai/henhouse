@@ -82,8 +82,13 @@ class Gateway:
             log("Connection initialized")
             # Initialize response after connection (so we can pass tier level)
             self._initialize_response()
-            self.files = FileSystem(dry_run=dry_run)
-            log("FileSystem initialized")
+            try:
+                self.files = FileSystem(dry_run=dry_run)
+                log("FileSystem initialized")
+            except Exception as e:  # noqa: BLE001
+                warn(f"Failed to initialize FileSystem: {e}")
+                report_error("backend", f"Failed to initialize FileSystem: {e}")
+                self.files = None
         if not is_error():
             self.registry = CommandRegistry(self.command, self.backend)
         log("Command registry initialized")
@@ -389,20 +394,25 @@ class Gateway:
     def _initialize_response(self) -> None:
         """Initialize response handler with user tier level."""
         trace_in()
-        # Lazy load and instantiate appropriate Response subclass based on backend
-        response_path = BACKEND_RESPONSE_MODULES.get(self.backend)
-        if response_path is None:
-            response_path = BACKEND_RESPONSE_MODULES.get("parser")
-            log(f"Unknown backend '{self.backend}', defaulting to parser response handler")
-        module_name, class_name = response_path.rsplit(".", 1)
-        module = __import__(module_name, fromlist=[class_name])
-        ResponseClass = getattr(module, class_name)
-        self.response = ResponseClass()
-        # Set user tier level on response
-        if self._user_tier_level > 0:
-            self.response.set_user_tier_level(self._user_tier_level)
-            log(f"Set user tier level {self._user_tier_level} in response")
-        log(f"Initialized {self.backend} response handler: {response_path}")
+        try:
+            # Lazy load and instantiate appropriate Response subclass based on backend
+            response_path = BACKEND_RESPONSE_MODULES.get(self.backend)
+            if response_path is None:
+                response_path = BACKEND_RESPONSE_MODULES.get("parser")
+                log(f"Unknown backend '{self.backend}', defaulting to parser response handler")
+            module_name, class_name = response_path.rsplit(".", 1)
+            module = __import__(module_name, fromlist=[class_name])
+            ResponseClass = getattr(module, class_name)
+            self.response = ResponseClass()
+            # Set user tier level on response
+            if self._user_tier_level > 0:
+                self.response.set_user_tier_level(self._user_tier_level)
+                log(f"Set user tier level {self._user_tier_level} in response")
+            log(f"Initialized {self.backend} response handler: {response_path}")
+        except Exception as e:  # noqa: BLE001
+            warn(f"Failed to initialize response handler: {e}")
+            report_error("backend", f"Failed to initialize response handler: {e}")
+            self.response = None
         trace_out()
     
     def _process_errors(self) -> None:
