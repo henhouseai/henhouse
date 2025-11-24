@@ -64,41 +64,77 @@ class Gateway:
         self.get_debug_func: Optional[Callable] = None
 
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
+        print(f"DEBUG: Starting gateway initialization: backend={backend}")
         self.backend = backend
         
         if not is_error():
+            print("DEBUG: Initializing request...")
             self.request = Request(raw_argv)
+            print("DEBUG: Request created, initializing command...")
             self._initialize_command()
+            print(f"DEBUG: Command initialized: {self.command}")
+        else:
+            print("DEBUG: ERROR - Skipping request/command initialization due to errors")
+        
         if not is_error():
+            print("DEBUG: Initializing debug module...")
             self._initialize_debug_module()
-        log("Debug module initialized")
+            print("DEBUG: Debug module initialized")
+        else:
+            print("DEBUG: ERROR - Skipping debug module initialization due to errors")
+        
         if not is_error():
+            print("DEBUG: Preparing connection initialization...")
             # Check for dry_run flag from request before initializing connection and filesystem
             dry_run = False
             if self.request:
                 dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
+            print(f"DEBUG: Initializing connection (dry_run={dry_run})...")
             self._user_tier_level = self._initialize_connection(dry_run=dry_run)
+            print(f"DEBUG: Connection initialization returned tier_level={self._user_tier_level}")
+        else:
+            print("DEBUG: ERROR - Skipping connection initialization due to errors")
+        
         if not is_error():
-            log("Connection initialized")
+            print("DEBUG: Connection initialized, initializing response...")
             # Initialize response after connection (so we can pass tier level)
             self._initialize_response()
+            if self.response:
+                print("DEBUG: Response initialized successfully")
+            else:
+                print("DEBUG: ERROR - Response initialization completed but response is None")
+            
+            print("DEBUG: Initializing FileSystem...")
             try:
                 self.files = FileSystem(dry_run=dry_run)
-                log("FileSystem initialized")
+                print("DEBUG: FileSystem initialized")
             except Exception as e:  # noqa: BLE001
+                print(f"DEBUG: ERROR - Failed to initialize FileSystem: {e}")
                 warn(f"Failed to initialize FileSystem: {e}")
                 report_error("backend", f"Failed to initialize FileSystem: {e}")
                 self.files = None
+        else:
+            print("DEBUG: ERROR - Skipping response/FileSystem initialization due to errors")
+        
         if not is_error():
+            print(f"DEBUG: Initializing command registry: command={self.command}, backend={self.backend}")
             self.registry = CommandRegistry(self.command, self.backend)
-        log("Command registry initialized")
+            print("DEBUG: Command registry initialized")
+        else:
+            print("DEBUG: ERROR - Skipping command registry initialization due to errors")
+        
+        print("DEBUG: Initializing action handler...")
         self._initialize_action()
-        log("Action initialized")
+        print("DEBUG: Action initialized")
+        
+        print("DEBUG: Initializing backend handler...")
         self._initialize_backend()
-        log("Backend initialized")
+        print("DEBUG: Backend initialized")
+        
+        print("DEBUG: Configuring debug module...")
         self._configure_debug_module()
-        log("Debug module configured")
-        log("Gateway initialization completed")
+        print("DEBUG: Debug module configured")
+        print("DEBUG: Gateway initialization completed")
 
     def _initialize_debug_module(self):
         if self.request is None:
