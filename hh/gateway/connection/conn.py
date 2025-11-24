@@ -54,10 +54,10 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
         
         trace_out()
         return dsn, cache_dsn
-    else:
-        warn(f"Configuration file not found: {path}")
-        trace_out()
-        return None, None
+        else:
+            log(f"Configuration file not found: {path}")
+            trace_out()
+            return None, None
 
 class Connection:
     """Gateway-owned connection manager for main, cache, and history databases."""
@@ -126,7 +126,7 @@ class Connection:
             main_dsn = self._get_main_dsn(project_name)
             
             if not main_dsn:
-                warn("Cannot initialize connections: main DSN not available. Connection methods will be no-op.")
+                log("Cannot initialize connections: main DSN not available. Connection methods will be no-op.")
                 trace_out()
                 return 0
             
