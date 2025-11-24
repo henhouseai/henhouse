@@ -30,11 +30,16 @@ class DatabaseRow(TypedDict, total=False):
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], Optional[Dict[str, Union[str, int]]]]:
     """Load DSN pair from config file. New system version that accepts project_name."""
+    print(f"DEBUG: _load_dsn() called with project_name={project_name}")
     trace_in()
     config = configparser.ConfigParser()
     path = os.path.expanduser(f'~/.{project_name}.cnf')
+    print(f"DEBUG: Looking for config file at: {path}")
+    print(f"DEBUG: Config file exists: {os.path.exists(path)}")
     if os.path.exists(path):
+        print("DEBUG: Reading config file...")
         config.read(path)
+        print(f"DEBUG: Config sections: {config.sections()}")
         dsn = {
             'host': config.get('client', 'host', fallback='localhost'),
             'user': config.get('client', 'user', fallback='root'),
@@ -42,6 +47,7 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'database': config.get('client', 'database', fallback=project_name),
             'port': config.getint('client', 'port', fallback=3306)
         }
+        print(f"DEBUG: Main DSN loaded: host={dsn['host']}, user={dsn['user']}, database={dsn['database']}")
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
         cache_dsn = {
@@ -51,10 +57,12 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'database': config.get('client', 'cache_database', fallback=f"{dsn['database']}_cache"),
             'port': config.getint('client', 'cache_port', fallback=dsn['port'])
         }
+        print(f"DEBUG: Cache DSN loaded: host={cache_dsn['host']}, user={cache_dsn['user']}, database={cache_dsn['database']}")
         
         trace_out()
         return dsn, cache_dsn
     else:
+        print(f"DEBUG: ERROR - Configuration file not found: {path}")
         warn(f"Configuration file not found: {path}")
         trace_out()
         return None, None
