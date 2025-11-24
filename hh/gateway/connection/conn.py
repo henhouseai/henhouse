@@ -30,16 +30,11 @@ class DatabaseRow(TypedDict, total=False):
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], Optional[Dict[str, Union[str, int]]]]:
     """Load DSN pair from config file. New system version that accepts project_name."""
-    print(f"DEBUG: _load_dsn() called with project_name={project_name}")
     trace_in()
     config = configparser.ConfigParser()
     path = os.path.expanduser(f'~/.{project_name}.cnf')
-    print(f"DEBUG: Looking for config file at: {path}")
-    print(f"DEBUG: Config file exists: {os.path.exists(path)}")
     if os.path.exists(path):
-        print("DEBUG: Reading config file...")
         config.read(path)
-        print(f"DEBUG: Config sections: {config.sections()}")
         dsn = {
             'host': config.get('client', 'host', fallback='localhost'),
             'user': config.get('client', 'user', fallback='root'),
@@ -47,7 +42,6 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'database': config.get('client', 'database', fallback=project_name),
             'port': config.getint('client', 'port', fallback=3306)
         }
-        print(f"DEBUG: Main DSN loaded: host={dsn['host']}, user={dsn['user']}, database={dsn['database']}")
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
         cache_dsn = {
@@ -57,12 +51,10 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'database': config.get('client', 'cache_database', fallback=f"{dsn['database']}_cache"),
             'port': config.getint('client', 'cache_port', fallback=dsn['port'])
         }
-        print(f"DEBUG: Cache DSN loaded: host={cache_dsn['host']}, user={cache_dsn['user']}, database={cache_dsn['database']}")
         
         trace_out()
         return dsn, cache_dsn
     else:
-        print(f"DEBUG: ERROR - Configuration file not found: {path}")
         warn(f"Configuration file not found: {path}")
         trace_out()
         return None, None
@@ -119,58 +111,42 @@ class Connection:
     
     def initialize(self) -> int:
         """Open connections to all databases. Returns user tier level (0 if unknown)."""
-        print("DEBUG: conn.initialize() called")
         trace_in()
         if self._initialized:
-            print("DEBUG: Connection already initialized")
             log("Connection already initialized")
             trace_out()
             return 0
         
         tier_level = 0
         try:
-            print("DEBUG: Detecting project context...")
             # Detect project context once at the start
             project_name, _ = detect_project_context()
-            print(f"DEBUG: Project name detected: {project_name}")
             
-            print("DEBUG: Getting main DSN...")
             # Get main DSN (may be overridden by subclasses)
             main_dsn = self._get_main_dsn(project_name)
-            print(f"DEBUG: Main DSN: {main_dsn}")
             
             if not main_dsn:
-                print("DEBUG: ERROR - Main DSN not available")
-                warn("Cannot initialize connections: main DSN not available")
+                warn("Cannot initialize connections: main DSN not available. Connection methods will be no-op.")
                 trace_out()
                 return 0
             
-            print("DEBUG: Detecting user tier level...")
             # Detect user tier level from DSN username
             if project_name:
                 tier_level = self._detect_user_tier_level(project_name, main_dsn.get('user', ''))
-                print(f"DEBUG: User tier level: {tier_level}")
             
-            print("DEBUG: Loading cache DSN...")
             # Load cache DSN (always uses standard loading)
             _, cache_dsn = _load_dsn(project_name)
-            print(f"DEBUG: Cache DSN: {cache_dsn}")
             
-            print("DEBUG: Opening main database connection...")
             # Open main database connection
             cursorclass = pymysql.cursors.DictCursor
             self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)
-            print("DEBUG: Main database connection opened successfully")
             log(f"Main database connection opened: host={main_dsn['host']}, database={main_dsn.get('database', 'None')}")
             
-            print("DEBUG: Opening cache database connection...")
             # Open cache database connection
             if cache_dsn:
                 self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)
-                print("DEBUG: Cache database connection opened successfully")
                 log(f"Cache database connection opened: host={cache_dsn['host']}, database={cache_dsn['database']}")
             else:
-                print("DEBUG: Cache DSN not available, using main database for cache")
                 warn("Cache DSN not available, using main database for cache")
                 self.cache = self.main
             
@@ -179,17 +155,12 @@ class Connection:
             log("History database connection skipped (not yet implemented)")
             self.history = None
             
-            print("DEBUG: Setting _initialized = True")
             self._initialized = True
-            print("DEBUG: Connection initialization completed successfully")
             log("All database connections initialized successfully")
             trace_out()
             return tier_level
             
         except Exception as e:
-            print(f"DEBUG: EXCEPTION in conn.initialize(): {type(e).__name__}: {e}")
-            import traceback
-            print(f"DEBUG: Traceback: {traceback.format_exc()}")
             warn(f"Failed to initialize database connections: {e}")
             # Clean up any partial connections
             self.close()
@@ -368,7 +339,9 @@ class Connection:
         """Execute a SELECT query on the main database. Returns list of dict rows."""
         trace_in()
         if not self._initialized or not self.main:
-            raise RuntimeError("Connection not initialized")
+            warn("Connection not initialized, returning empty result")
+            trace_out()
+            return []
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
         log(f"Main DB READ: {sql_preview}, params={params}")
@@ -398,7 +371,9 @@ class Connection:
         """Execute an INSERT query on the main database. Returns lastrowid."""
         trace_in()
         if not self._initialized or not self.main:
-            raise RuntimeError("Connection not initialized")
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
@@ -424,7 +399,9 @@ class Connection:
         """Execute an UPDATE query on the main database. Returns rowcount."""
         trace_in()
         if not self._initialized or not self.main:
-            raise RuntimeError("Connection not initialized")
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
@@ -450,7 +427,9 @@ class Connection:
         """Execute a DELETE query on the main database. Returns rowcount."""
         trace_in()
         if not self._initialized or not self.main:
-            raise RuntimeError("Connection not initialized")
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
@@ -477,7 +456,9 @@ class Connection:
         """Execute a SELECT query on the cache database. Returns list of dict rows."""
         trace_in()
         if not self._initialized or not self.cache:
-            raise RuntimeError("Cache connection not initialized")
+            warn("Cache connection not initialized, returning empty result")
+            trace_out()
+            return []
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
         log(f"Cache DB READ: {sql_preview}, params={params}")
@@ -507,7 +488,9 @@ class Connection:
         """Execute an INSERT query on the cache database. Returns lastrowid."""
         trace_in()
         if not self._initialized or not self.cache:
-            raise RuntimeError("Cache connection not initialized")
+            warn("Cache connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
@@ -533,7 +516,9 @@ class Connection:
         """Execute an UPDATE query on the cache database. Returns rowcount."""
         trace_in()
         if not self._initialized or not self.cache:
-            raise RuntimeError("Cache connection not initialized")
+            warn("Cache connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
@@ -560,7 +545,9 @@ class Connection:
         """Execute a SELECT query on the history database. Returns list of dict rows."""
         trace_in()
         if not self._initialized or not self.history:
-            raise RuntimeError("History connection not initialized")
+            warn("History connection not initialized, returning empty result")
+            trace_out()
+            return []
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
         log(f"History DB READ: {sql_preview}, params={params}")
@@ -616,7 +603,9 @@ class Connection:
         """Execute an UPDATE query on the history database. Returns rowcount."""
         trace_in()
         if not self._initialized or not self.history:
-            raise RuntimeError("History connection not initialized")
+            warn("History connection not initialized, returning 0")
+            trace_out()
+            return 0
         
         self._start_transaction()
         
