@@ -6,7 +6,7 @@ This document describes the architectural patterns used throughout the Henhouse 
 
 - The basic patterns are demonstrated by simple action-parser pairs that show the core architectural components.
 - **Action Functions** Action functions do something, often CRUD related to the db, and store their result as JSON thru the gateway response setters
-- **Backend Functions** Backend functions transform action responses into formatted output for different interfaces. Parser backends (`@register_parser`) produce CLI table output, HTTP backends (`@register_http`) produce HTML output, and both decorators are typically applied to the same function. Other backend examples include mcp.
+- **Backend Functions** Backend functions transform action responses into formatted output for different interfaces. Parser backends produce CLI table output, HTTP backends produce HTML output. Other backend examples include mcp.
 
 ### Example 1: 
 
@@ -294,18 +294,40 @@ def some_function():
 
 - Use gateway error system instead of raising custom exceptions
 - Establish gateway at the top of functions for consistent access
+- Always check both gateway and connection: `if not gateway or not gateway.conn:`
 - Use warn() for simple messages to the user.
 - Use report_error("action", message) for business logic errors inside methods decorated with @register_action or @register_command
 - Use gateway.backend_error() for business logic errors inside methods decorated with @register_parser or @register_http
 - Use if not is_error(): to protect any blocks of code from running if any previous error state has been logged
 - Use trace_out() before returning False for proper cleanup
 - The report_error() system is what triggers the code protection feature and should only be used when legitimate errors occur
-- The global warn() system is waht puts user friendly messags into the top of output stream.
+- The global warn() system is what puts user friendly messages into the top of output stream.
 - The boolean bubble-up system is what generates a list of errors at every level back up to the gateway, not just a single error message.
+- Database operations use `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
 
 ## Medium Complexity Patterns
 
 Medium complexity patterns extend the basic patterns by adding database operations, complex data processing, and enhanced error handling.
+
+### Database Connection System
+
+The system uses a gateway-managed connection system. All database operations go through `gateway.conn` methods:
+
+- **Read Operations**: `gateway.conn.read(sql, params)` - Returns list of dict rows
+- **Create Operations**: `gateway.conn.create(sql, params)` - Returns lastrowid
+- **Update Operations**: `gateway.conn.update(sql, params)` - Returns rowcount
+- **Delete Operations**: `gateway.conn.delete(sql, params)` - Returns rowcount
+
+**Cache Database Operations** (for cache database):
+- `gateway.conn.read_cache(sql, params)` - Read from cache database
+- `gateway.conn.create_cache(sql, params)` - Insert into cache database
+- `gateway.conn.update_cache(sql, params)` - Update cache database
+
+**Key Points**:
+- Database access is through gateway.conn methods
+- Connection is automatically initialized by gateway
+- Transactions are automatically started on first write operation
+- Always check `if not gateway or not gateway.conn:` before database operations
 
 ### Example 7: **Simple Database Read Operations**
 
@@ -316,17 +338,17 @@ from hh.gateway.error.error_store import report_error, is_error
 
 @register_action('some_db_read_action')
 @register_command('some_db_read_action')
-@db_read
 def some_db_read_action(conn) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
         trace_out()
         return False
     try:
         query = "SELECT id, name, status FROM table_1 WHERE active = 1"
-        results = r_query(conn, query, [])
+        results = gateway.conn.read(query, [])
         data = {
             "count": len(results),
             "items": results
@@ -337,7 +359,7 @@ def some_db_read_action(conn) -> bool:
         return True
     except Exception as e:
         warn(f"Database read failed: {str(e)}")
-        report_error("backend", f"Database read failed: {str(e)}")
+        report_error("action", f"Database read failed: {str(e)}")
         trace_out()
         return False
 ```
@@ -351,22 +373,25 @@ from hh.gateway.error.error_store import report_error, is_error
 
 @register_action('some_db_write_action')
 @register_command('some_db_write_action')
-@db_write
 def some_db_write_action(conn) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
         trace_out()
         return False
     try:
         name = gateway.get_arg('name')
         status = gateway.get_arg('status')
-        with conn.cursor() as cur:
-            cur.execute("INSERT INTO table_1 (name, status) VALUES (%s, %s)", [name, status])
+        lastrowid = gateway.conn.create(
+            "INSERT INTO table_1 (name, status) VALUES (%s, %s)",
+            [name, status]
+        )
         data = {
             "success": True,
-            "message": "Record created successfully"
+            "message": "Record created successfully",
+            "id": lastrowid
         }
         gateway.set_action_response(success_payload(data))
         log("Hello, Database!")
@@ -374,7 +399,7 @@ def some_db_write_action(conn) -> bool:
         return True
     except Exception as e:
         warn(f"Database write failed: {str(e)}")
-        report_error("backend", f"Database write failed: {str(e)}")
+        report_error("action", f"Database write failed: {str(e)}")
         trace_out()
         return False
 ```
@@ -388,12 +413,12 @@ from hh.gateway.error.error_store import report_error, is_error
 
 @register_action('some_complex_action')
 @register_command('some_complex_action')
-@db_write
 def some_complex_action(conn) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
         trace_out()
         return False
     try:
@@ -403,17 +428,16 @@ def some_complex_action(conn) -> bool:
             JOIN table_2 t2 ON t1.key = t2.key
             WHERE t1.active = 1
         """
-        results = r_query(conn, query, [])
+        results = gateway.conn.read(query, [])
         processed_data = []
         for row in results:
             processed = black_box(row)
             processed_data.append(processed)
-        with conn.cursor() as cur:
-            for item in processed_data:
-                cur.execute(
-                    "INSERT INTO table_3 (processed_id, result, timestamp) VALUES (%s, %s, %s)",
-                    [item['id'], item['result'], item['timestamp']]
-                )
+        for item in processed_data:
+            gateway.conn.create(
+                "INSERT INTO table_3 (processed_id, result, timestamp) VALUES (%s, %s, %s)",
+                [item['id'], item['result'], item['timestamp']]
+            )
         data = {
             "count": len(processed_data),
             "processed_items": processed_data
@@ -492,3 +516,81 @@ def render_items_section(source_data, lines):
     trace_out()
     return True
 ```
+
+### Example 11: **Advanced Table Rendering with Dynamic Field Types**
+
+**render_list_example.py** (enhanced version)
+
+This example extends Example 10 to show how field types can be selected dynamically based on data values. The field type (first parameter to `add_row()`) is an identifier that maps to styling rules in FieldConfig. Most field types use default styling via `.add_simple()`, and colors are optional.
+
+```python
+from typing import List, TypedDict
+from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
+from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
+from hh.render.config.config import break_section
+from hh.json.json_standard import get_data
+from hh.text.text import safe_str
+
+def render_items_section(source_data, lines):
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available in render_items_section")
+        trace_out()
+        return False
+    block = 'rows'
+    if not gateway.is_no(block):
+        items = source_data.get('items', [])
+        count = len(items)
+        log(f"Rendering {count} items")
+        if not items:
+            log("No items to render")
+            trace_out()
+            return True
+        table_data = TableData()
+        table_data.add_row(
+            'items_header',
+            name='Name',
+            status='Status'
+        )
+        for item in items:
+            status = item.get('status', 'unknown')
+            # Select field type based on data value
+            if status == 'active':
+                field_type = 'active_item'
+            elif status == 'error':
+                field_type = 'error_item'
+            else:
+                field_type = 'item_row'
+            table_data.add_row(
+                field_type,
+                name=safe_str(item.get('name', 'Unknown')),
+                status=safe_str(status)
+            )
+        rendered_block = render_block(
+            table_data,
+            FieldConfig()
+                .add_header('items_header')
+                .add_simple(['item_row', 'active_item', 'error_item'])
+                .add_simple_color('error_item', 'red'),
+            table_overrides={'margin_l': 4},
+            block_type=block
+        )
+        lines.append(rendered_block)
+        break_section(lines)
+        log(f"Rendered items table with {table_data.num_rows()} rows")
+    if not gateway.is_no('meta'):
+        log("Rendering meta data")
+        lines.append(render_block(data, block_type='meta'))
+        break_section(lines)
+	log("All done.")
+    trace_out()
+    return True
+```
+
+**Key Points:**
+- The first parameter to `add_row()` is the field type identifier (e.g., `'item_row'`, `'active_item'`, `'error_item'`)
+- Field types are selected dynamically based on data values (status in this example)
+- `.add_simple()` applies default styling to field types (no color)
+- `.add_simple_color()` is optional and only used when you want color styling
+- Most field types will use `.add_simple()` without colors

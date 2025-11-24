@@ -1,7 +1,5 @@
 from __future__ import annotations
 from typing import Dict, Any
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.connection import r_query
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -29,22 +27,21 @@ def _initialize_debug():
 
 @register_action('count_pages')
 @register_command('count_pages')
-@db_read
-def count_pages(conn) -> bool:
+def count_pages() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
         trace_out()
         return False
     try:
         # Count pages table
         pages_query = "SELECT COUNT(*) as count FROM pages"
-        pages_results = r_query(conn, pages_query, [])
+        pages_results = gateway.conn.read(pages_query, [])
         pages_count = pages_results[0]["count"] if pages_results else 0
         # Count images table
         images_query = "SELECT COUNT(*) as count FROM images"
-        images_results = r_query(conn, images_query, [])
+        images_results = gateway.conn.read(images_query, [])
         images_count = images_results[0]["count"] if images_results else 0
         data = {
             "pages_count": pages_count,

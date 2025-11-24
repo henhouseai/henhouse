@@ -1,12 +1,11 @@
 from __future__ import annotations
 from typing import Dict, List, Optional, Tuple, Union, Callable, Any
-from hh.gateway.connection.types import DatabaseConnection
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.gateway import get_gateway
 from hh.tp.tp_decorator_registry import get_tp_decorator
 from hh.page.page_registry import get_page, find_page
 from hh.image.image_registry import get_image
-from hh.gateway.connection.connection import get_connection, r_query, c_query, d_query
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -574,7 +573,6 @@ class TextProcessor:
             # Direct image ID lookup using Image class
             image_id = identifier["value"]
             try:
-                conn = get_connection()
                 image = get_image(image_id)
                 if image:
                     log(f"Found image ID {image_id} directly")
@@ -603,7 +601,11 @@ class TextProcessor:
             # Primary image of page by ID - find image with imageRank=1 in image_groups
             page_id = identifier["value"]
             try:
-                conn = get_connection()
+                gateway = get_gateway()
+                if not gateway or not gateway.conn:
+                    log(f"No gateway available for image lookup")
+                    trace_out()
+                    return None
                 # Find primary image (image_rank=1) for this page using image_groups
                 query = """
                     SELECT i.id FROM images i 
@@ -611,7 +613,7 @@ class TextProcessor:
                     WHERE ig.page_id = %s AND ig.image_rank = 1
                 """
                 log(f"Querying for primary image on page {page_id}")
-                results = r_query(conn, query, [page_id])
+                results = gateway.conn.read(query, [page_id])
                 if results:
                     primary_image_id = results[0]['id']
                     log(f"Found primary image ID {primary_image_id} for page {page_id}")
@@ -725,7 +727,7 @@ class TextProcessor:
 
     # ============ Links Table Management ============
 
-    def update_links_table(self, conn: DatabaseConnection, page_id: int) -> bool:
+    def update_links_table(self, conn, page_id: int) -> bool:
         trace_in()
         log(f"Updating links table for page {page_id}")
         log(f"TextProcessor.update_links_table called for page {page_id}")
@@ -737,9 +739,9 @@ class TextProcessor:
             return True
         try:
             # Delete existing links for this page
-            deleted_links = d_query(conn, "DELETE FROM links WHERE id = %s", (page_id,))
+            deleted_links = conn.delete("DELETE FROM links WHERE id = %s", (page_id,))
             log(f"Deleted {deleted_links} existing links for page {page_id}")
-            deleted_image_links = d_query(conn, "DELETE FROM image_links WHERE id = %s", (page_id,))
+            deleted_image_links = conn.delete("DELETE FROM image_links WHERE id = %s", (page_id,))
             log(f"Deleted {deleted_image_links} existing image links for page {page_id}")
             # Process each parsed element to extract link information
             log(f"Processing {len(self._parsed_elements)} parsed elements")
@@ -764,7 +766,7 @@ class TextProcessor:
             return False
 
 
-    def _update_links_table_from_link(self, conn: DatabaseConnection, element: Dict[str, Any], page_id: int) -> None:
+    def _update_links_table_from_link(self, conn, element: Dict[str, Any], page_id: int) -> None:
         trace_in()
         identifier = element.get('identifier', {})
         identifier_type = identifier.get('type')
@@ -800,7 +802,7 @@ class TextProcessor:
         try:
             insert_query = "INSERT INTO links (id, link, resolution_id) VALUES (%s, %s, %s)"
             log(f"Inserting into links table: page_id={page_id}, link_text='{link_text}', target_page_id={target_page_id}")
-            link_id = c_query(conn, insert_query, (page_id, link_text, target_page_id))
+            link_id = conn.create(insert_query, (page_id, link_text, target_page_id))
             if link_id is None:
                 warn(f"Failed to insert link: page {page_id} -> {link_text} -> {target_page_id}")
                 trace_out()
@@ -820,7 +822,7 @@ class TextProcessor:
                 log(f"Found nested explicit image ID {target_image_id} in link display")
                 try:
                     insert_query = "INSERT INTO image_links (id, resolution_id) VALUES (%s, %s)"
-                    image_link_id = c_query(conn, insert_query, (page_id, target_image_id))
+                    image_link_id = conn.create(insert_query, (page_id, target_image_id))
                     if image_link_id is None:
                         warn(f"Failed to insert nested image reference: page {page_id} -> image {target_image_id}")
                     else:
@@ -831,7 +833,7 @@ class TextProcessor:
         trace_out()
 
 
-    def _update_links_table_from_image(self, conn: DatabaseConnection, element: Dict[str, Any], page_id: int) -> None:
+    def _update_links_table_from_image(self, conn, element: Dict[str, Any], page_id: int) -> None:
         trace_in()
         identifier = element.get('identifier', {})
         identifier_type = identifier.get('type')
@@ -845,7 +847,7 @@ class TextProcessor:
             # Insert into links table (page reference for image display)
             try:
                 insert_query = "INSERT INTO links (id, link, resolution_id) VALUES (%s, %s, %s)"
-                link_id = c_query(conn, insert_query, (page_id, link_text, target_page_id))
+                link_id = conn.create(insert_query, (page_id, link_text, target_page_id))
                 if link_id is None:
                     warn(f"Failed to insert page image reference: page {page_id} -> {link_text} -> {target_page_id}")
                 else:
@@ -864,7 +866,7 @@ class TextProcessor:
                     # Insert into links table (page reference for image display)
                     try:
                         insert_query = "INSERT INTO links (id, link, resolution_id) VALUES (%s, %s, %s)"
-                        link_id = c_query(conn, insert_query, (page_id, link_text, target_page_id))
+                        link_id = conn.create(insert_query, (page_id, link_text, target_page_id))
                         if link_id is None:
                             warn(f"Failed to insert page image reference: page {page_id} -> {link_text} -> {target_page_id}")
                         else:
@@ -887,7 +889,7 @@ class TextProcessor:
             try:
                 insert_query = "INSERT INTO image_links (id, resolution_id) VALUES (%s, %s)"
                 log(f"Inserting into image_links table: page_id={page_id}, target_image_id={target_image_id}")
-                image_link_id = c_query(conn, insert_query, (page_id, target_image_id))
+                image_link_id = conn.create(insert_query, (page_id, target_image_id))
                 if image_link_id is None:
                     warn(f"Failed to insert direct image reference: page {page_id} -> image {target_image_id}")
                     trace_out()

@@ -7,7 +7,6 @@ from hh.gateway.connection.connection import (
     HenhouseConnection,
     get_connection,
     load_dsn_pair,
-    r_query,
 )
 from hh.page.page_registry import get_page
 
@@ -15,8 +14,7 @@ from hh.page.page_registry import get_page
 def fetch_stale_page_ids(conn, limit: int) -> List[int]:
     """Fetch stale page IDs from main database only.
     Staleness determined by: last_modified > cache_built_at OR cache_built_at IS NULL"""
-    rows = r_query(
-        conn,
+    rows = conn.read(
         """
         SELECT id
         FROM pages
@@ -32,8 +30,7 @@ def fetch_stale_page_ids(conn, limit: int) -> List[int]:
 
 def count_stale_pages(conn) -> int:
     """Count stale pages in main database only."""
-    rows = r_query(
-        conn,
+    rows = conn.read(
         """
         SELECT COUNT(*) AS cnt
         FROM pages
@@ -46,7 +43,6 @@ def count_stale_pages(conn) -> int:
 
 def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> List[int]:
     """Rebuild cache for a list of page IDs."""
-    from hh.gateway.connection.connection import r_query
     from hh.gateway.error.error_store import is_error, get_errors
     
     processed: List[int] = []
@@ -57,7 +53,7 @@ def rebuild_pages(conn, page_ids: List[int], errors: List[Dict[str, Any]]) -> Li
             logging.debug("Processing page %s...", page_id)
             
             # Verify page exists first
-            verify = r_query(conn, "SELECT id, class, name FROM pages WHERE id = %s", [page_id])
+            verify = conn.read("SELECT id, class, name FROM pages WHERE id = %s", [page_id])
             if not verify:
                 error_msg = f"Page {page_id} does not exist in database"
                 logging.warning("%s (skipping)", error_msg)

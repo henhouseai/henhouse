@@ -1,8 +1,7 @@
 import pymysql
 import os
 import configparser
-from typing import Any, Optional, Dict, List, Sequence, Union, Tuple
-from hh.gateway.connection.connection import DatabaseRow
+from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -21,6 +20,13 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+class DatabaseRow(TypedDict, total=False):
+    id: int
+    name: str
+    status: str
+    created_at: str
+    updated_at: str
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], Optional[Dict[str, Union[str, int]]]]:
     """Load DSN pair from config file. New system version that accepts project_name."""
@@ -56,12 +62,13 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
 class Connection:
     """Gateway-owned connection manager for main, cache, and history databases."""
     
-    def __init__(self):
+    def __init__(self, dry_run: bool = False):
         self.main: Optional[Any] = None
         self.cache: Optional[Any] = None
         self.history: Optional[Any] = None
         self._transaction_started: bool = False
         self._initialized: bool = False
+        self._dry_run: bool = dry_run
     
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
         """Get main database DSN. Override in subclasses for root/MySQL connections."""
@@ -212,10 +219,16 @@ class Connection:
         return self._initialized
     
     def commit(self) -> None:
-        """Commit all active transactions on all databases."""
+        """Commit all active transactions on all databases. If dry_run is enabled, rolls back instead."""
         trace_in()
         if not self._transaction_started:
             log("No transaction to commit")
+            trace_out()
+            return
+        
+        if self._dry_run:
+            log("Dry run mode enabled - rolling back transactions instead of committing")
+            self.rollback()
             trace_out()
             return
         

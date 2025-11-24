@@ -73,12 +73,16 @@ class Gateway:
             self._initialize_debug_module()
         log("Debug module initialized")
         if not is_error():
-            self._user_tier_level = self._initialize_connection()
+            # Check for dry_run flag from request before initializing connection and filesystem
+            dry_run = False
+            if self.request:
+                dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
+            self._user_tier_level = self._initialize_connection(dry_run=dry_run)
         if not is_error():
             log("Connection initialized")
             # Initialize response after connection (so we can pass tier level)
             self._initialize_response()
-            self.files = FileSystem()
+            self.files = FileSystem(dry_run=dry_run)
             log("FileSystem initialized")
         if not is_error():
             self.registry = CommandRegistry(self.command, self.backend)
@@ -352,25 +356,26 @@ class Gateway:
             except Exception as e:
                 self.warn(f"Failed to restore debug system: {e}")
     
-    def _initialize_connection(self) -> int:
+    def _initialize_connection(self, dry_run: bool = False) -> int:
         """Determine and create connection type based on command-line arguments (lazy import if needed). Returns user tier level."""
         trace_in()
         tier_level = 0
+        
         if self.request:
             if self.request.get_arg('mysqlpassword') or self.request.get_arg('mysql_password'):
                 log("MySQL connection type requested, lazy-importing MySQLConnection...")
                 from hh.gateway.connection.mysql_connection import MySQLConnection
-                self.conn = MySQLConnection()
+                self.conn = MySQLConnection(dry_run=dry_run)
             elif self.request.get_arg('password') or self.request.get_arg('root_password'):
                 log("Root connection type requested, lazy-importing RootConnection...")
                 from hh.gateway.connection.root_connection import RootConnection
-                self.conn = RootConnection()
+                self.conn = RootConnection(dry_run=dry_run)
             else:
                 log("Standard connection type selected")
-                self.conn = Connection()
+                self.conn = Connection(dry_run=dry_run)
         else:
             log("Standard connection type selected (no request available)")
-            self.conn = Connection()
+            self.conn = Connection(dry_run=dry_run)
         
         if self.conn:
             tier_level = self.conn.initialize()

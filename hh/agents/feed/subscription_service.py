@@ -1,9 +1,8 @@
 from __future__ import annotations
 from typing import Dict, List, Union, TypedDict
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query, c_query, d_query
 from hh.agents.feed.feed_utils import bulk_add_to_queue, bulk_remove_from_queue
 from hh.agents.feed.subscription_spec import SubscriptionSpec, SUBSCRIPTION_SPECS
+from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
@@ -43,11 +42,16 @@ class SubscriptionResponse(TypedDict, total=False):
     error: str
     message: str
 
-def _require_target(conn, spec: SubscriptionSpec, target_id: int) -> Union[TargetInfo, Dict[str, str]]:
+def _require_target(spec: SubscriptionSpec, target_id: int) -> Union[TargetInfo, Dict[str, str]]:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
     target_query = f"SELECT {spec.target_id_field}, {spec.target_title_field} FROM {spec.target_table} WHERE {spec.target_id_field}=%s"
     log(f"Querying target: {spec.key} {target_id}")
-    target_results = r_query(conn, target_query, [target_id])
+    target_results = gateway.conn.read(target_query, [target_id])
     if not target_results:
         warn(f"Target not found: {spec.key} {target_id}")
         trace_out()
@@ -67,9 +71,14 @@ def _require_target(conn, spec: SubscriptionSpec, target_id: int) -> Union[Targe
         "target_title": target_title
     }
 
-def _ensure_subscription(conn, spec: SubscriptionSpec, agent_id: int, target_id: int) -> None:
+def _ensure_subscription(spec: SubscriptionSpec, agent_id: int, target_id: int) -> None:
     trace_in()
-    subscription_id = c_query(conn, f"""
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
+    subscription_id = gateway.conn.create(f"""
         INSERT IGNORE INTO {spec.subscription_table} (agent_id, {spec.link_id_field})
         VALUES (%s, %s)
     """, (agent_id, target_id))
@@ -77,11 +86,16 @@ def _ensure_subscription(conn, spec: SubscriptionSpec, agent_id: int, target_id:
     log(f"Ensured subscription: agent {agent_id} -> {spec.key} {target_id}")
     trace_out()
 
-def _assert_subscription_exists(conn, spec: SubscriptionSpec, agent_id: int, target_id: int) -> None:
+def _assert_subscription_exists(spec: SubscriptionSpec, agent_id: int, target_id: int) -> None:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
     subscription_query = f"SELECT id FROM {spec.subscription_table} WHERE agent_id=%s AND {spec.link_id_field}=%s"
     log(f"Checking subscription exists: agent {agent_id} -> {spec.key} {target_id}")
-    subscription_results = r_query(conn, subscription_query, [agent_id, target_id])
+    subscription_results = gateway.conn.read(subscription_query, [agent_id, target_id])
     if not subscription_results:
         warn(f"Subscription not found: agent {agent_id} -> {spec.key} {target_id}")
         trace_out()
@@ -89,8 +103,13 @@ def _assert_subscription_exists(conn, spec: SubscriptionSpec, agent_id: int, tar
     log(f"Subscription confirmed: agent {agent_id} -> {spec.key} {target_id}")
     trace_out()
 
-def _collect_message_ids(conn, spec: SubscriptionSpec, target_id: int, options: Dict[str, Union[str, bool]]) -> List[int]:
+def _collect_message_ids(spec: SubscriptionSpec, target_id: int, options: Dict[str, Union[str, bool]]) -> List[int]:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
     if spec.message_query_factory:
         message_query = spec.message_query_factory(target_id)
         log("Using custom message query factory")
@@ -111,7 +130,7 @@ def _collect_message_ids(conn, spec: SubscriptionSpec, target_id: int, options: 
         message_query += " AND wm.occurred_ts > NOW() - INTERVAL 1 HOUR"
         log("Added new_only filter (last hour)")
     log(f"Collecting messages for {spec.key} {target_id}")
-    message_results = r_query(conn, message_query, params)
+    message_results = gateway.conn.read(message_query, params)
     message_ids = [row["id"] for row in message_results]
     log(f"Found {len(message_ids)} messages before filtering")
     if spec.message_filter_hook:
@@ -121,9 +140,14 @@ def _collect_message_ids(conn, spec: SubscriptionSpec, target_id: int, options: 
     trace_out()
     return message_ids
 
-def _delete_subscription(conn, spec: SubscriptionSpec, agent_id: int, target_id: int) -> None:
+def _delete_subscription(spec: SubscriptionSpec, agent_id: int, target_id: int) -> None:
     trace_in()
-    affected = d_query(conn, f"""
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
+    affected = gateway.conn.delete(f"""
         DELETE FROM {spec.subscription_table} 
         WHERE agent_id=%s AND {spec.link_id_field}=%s
     """, (agent_id, target_id))
@@ -164,8 +188,7 @@ def _success_payload(operation: str, spec: SubscriptionSpec, target: TargetInfo,
     trace_out()
     return result
 
-@db_write
-def subscribe(conn, spec_key: str, *, agent_id: int, target_id: int, options: Dict[str, Union[str, bool]]) -> SubscriptionResponse:
+def subscribe(spec_key: str, *, agent_id: int, target_id: int, options: Dict[str, Union[str, bool]]) -> SubscriptionResponse:
     trace_in()
     try:
         if spec_key not in SUBSCRIPTION_SPECS:
@@ -174,14 +197,14 @@ def subscribe(conn, spec_key: str, *, agent_id: int, target_id: int, options: Di
             return {"error": f"unknown_subscription_type: {spec_key}"}
         spec = SUBSCRIPTION_SPECS[spec_key]
         log(f"Subscribing agent {agent_id} to {spec_key} {target_id}")
-        target = _require_target(conn, spec, target_id)
+        target = _require_target(spec, target_id)
         if "error" in target:
             trace_out()
             return target
-        _ensure_subscription(conn, spec, agent_id, target_id)
-        message_ids = _collect_message_ids(conn, spec, target_id, options)
+        _ensure_subscription(spec, agent_id, target_id)
+        message_ids = _collect_message_ids(spec, target_id, options)
         log(f"Adding {len(message_ids)} messages to queue")
-        queue_result = bulk_add_to_queue(conn, agent_id, message_ids, spec.queue_table)
+        queue_result = bulk_add_to_queue(agent_id, message_ids, spec.queue_table)
         result = _success_payload("subscription_created", spec, target, queue_result)
         trace_out()
         return result
@@ -206,8 +229,7 @@ def subscribe(conn, spec_key: str, *, agent_id: int, target_id: int, options: Di
             trace_out()
             return {"error": f"subscription_failed: {error_str}"}
 
-@db_write
-def unsubscribe(conn, spec_key: str, *, agent_id: int, target_id: int) -> SubscriptionResponse:
+def unsubscribe(spec_key: str, *, agent_id: int, target_id: int) -> SubscriptionResponse:
     trace_in()
     try:
         if spec_key not in SUBSCRIPTION_SPECS:
@@ -216,12 +238,12 @@ def unsubscribe(conn, spec_key: str, *, agent_id: int, target_id: int) -> Subscr
             return {"error": f"unknown_subscription_type: {spec_key}"}
         spec = SUBSCRIPTION_SPECS[spec_key]
         log(f"Unsubscribing agent {agent_id} from {spec_key} {target_id}")
-        target = _require_target(conn, spec, target_id)
+        target = _require_target(spec, target_id)
         if "error" in target:
             trace_out()
             return target
         try:
-            _assert_subscription_exists(conn, spec, agent_id, target_id)
+            _assert_subscription_exists(spec, agent_id, target_id)
         except ValueError as e:
             if str(e) == "not_subscribed":
                 warn(f"Not subscribed: agent {agent_id} -> {spec.key} {target_id}")
@@ -236,8 +258,8 @@ def unsubscribe(conn, spec_key: str, *, agent_id: int, target_id: int) -> Subscr
             else:
                 raise
         log(f"Removing messages from queue for {spec.key} {target_id}")
-        queue_result = bulk_remove_from_queue(conn, agent_id, target_id, spec.key, spec.queue_table)
-        _delete_subscription(conn, spec, agent_id, target_id)
+        queue_result = bulk_remove_from_queue(agent_id, target_id, spec.key, spec.queue_table)
+        _delete_subscription(spec, agent_id, target_id)
         result = _success_payload("subscription_removed", spec, target, queue_result)
         trace_out()
         return result

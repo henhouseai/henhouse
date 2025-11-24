@@ -193,7 +193,7 @@ class SourceCodeFileContentMixin:
         return badge_headers
     
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn: DatabaseConnection):
+    def _add_page_class_information(cls, new_page_id: int, conn):
         """
         Hook called after page creation to add source_code_files table entry.
         This is a classmethod (like PHP's static method) so it can be called on the class

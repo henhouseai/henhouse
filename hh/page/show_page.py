@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Dict, Any
-from hh.gateway.connection.decorators import db_read
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload

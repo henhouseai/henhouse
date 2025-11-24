@@ -1,6 +1,6 @@
 # Page System Architecture Documentation
 
-This document covers the core business logic modules for page, image, and text processing in the new Python Gateway-based system. For Gateway, Registry, Render, and other infrastructure details, see the respective documentation files.
+This document covers the core business logic modules for page, image, and text processing in the Python Gateway-based system. For Gateway, Registry, Render, and other infrastructure details, see the respective documentation files.
 
 ## Table of Contents
 
@@ -11,9 +11,10 @@ This document covers the core business logic modules for page, image, and text p
 ## Agent Quick Reference
 
 - **Core Modules**: `page/` (hierarchical content), `image/` (media management), `tp/` (markup parsing)
-- **Mixin Architecture**: Page class uses 6 mixins with automatic connection management via wrapper system
-- **Method Registration**: Mixins register methods with `@register_page_mixin_methods` decorator
-- **Connection Management**: Wrapper system automatically routes to `@db_read`/`@db_write` or reuses existing connection
+- **Mixin Architecture**: Page class uses 9 mixins with direct database access via `self.gateway.conn`
+- **Cache System**: Five derived fields (display_name, prepared_text, children_by_class, images, files) cached in separate cache database
+- **Page Registry**: Hot cache system with automatic cache refresh during gateway commit
+- **Page Class Registry**: Dynamic subclass loading based on page class field
 - **Markup Language**: `[[page_links]]`, `{{image_embeds}}`, decorator-based processing
 - **Page Hierarchy**: Parent-child relationships with automatic breadcrumb generation
 - **Image Instances**: Automatic multi-size generation and management
@@ -22,17 +23,17 @@ This document covers the core business logic modules for page, image, and text p
 ## Agent Training Notes
 
 ### Module Integration
-- **Page Objects**: Actions create Page() instances for content operations
-- **Image Objects**: Actions create Image() instances for media operations
+- **Page Objects**: Actions create Page instances via `get_page(page_id)` from page registry
+- **Image Objects**: Actions create Image instances for media operations
 - **Text Processing**: Page content parsed through TextProcessor with decorator registry
-- **Mixin Pattern**: Pages and images use multiple mixins for functionality
-- **Display Methods**: call _show_page() or _show_image() for formatted output data
+- **Mixin Pattern**: Pages use multiple mixins for functionality
+- **Display Methods**: Call `show_page()` for formatted output data
 
 ### Common Usage Patterns
-- **Page Creation**: `Page(page_id)` loads data and provides mixin methods
+- **Page Creation**: `get_page(page_id)` loads from hot cache or database
 - **Image Management**: `Image(image_id)` handles multi-size instances automatically
 - **Content Parsing**: TextProcessor decorators parse custom markup syntax
-- **Data Retrieval**: All modules load from database via connection decorators
+- **Data Retrieval**: All modules load from database via `gateway.conn` methods
 
 ---
 
@@ -53,30 +54,37 @@ The hierarchical page management system with CRUD operations, display logic, and
 - hierarchy logic : *Parent-child relationship management*
 - content logic : *Text processing and parsing*
 - image logic : *Image association management*
+- file logic : *File association management*
 - display logic : *Output data preparation*
+- cache logic : *Cache database management*
 
 #### data managed:
 - page metadata (source of truth) : *ID, name, link, parent, class, visibility*
 - content data (source of truth) : *Text content and parsed HTML*
 - hierarchy data (source of truth) : *Parent-child relationships*
 - image associations (source of truth) : *Linked images*
+- file associations (source of truth) : *Linked files*
 - display data (source of truth) : *Rendered output data for backends*
+- cache data (source of truth) : *Five derived fields in cache database*
 
 #### calls:
 - **Validation mixins** : *PageValidationMixin for constraints*
 - **Hierarchy mixins** : *PageHierarchyMixin for tree operations*
 - **Content mixins** : *PageContentMixin for content handling*
 - **Image mixins** : *PageImagesMixin for image operations*
+- **File mixins** : *PageFilesMixin for file operations*
 - **Display mixins** : *PageDisplayMixin for output preparation*
 - **AJAX mixins** : *PageAjaxMixin for JSON payload assembly*
+- **Cache mixins** : *PageCacheMixin for cache management*
+- **Maintenance mixins** : *PageMaintenanceMixin for maintenance operations*
 
 #### called by:
 - action handlers : *Actions create Page instances and call methods*
 - backend handlers : *Backends receive Page data for formatting*
 
 #### retrieves from:
-- database : *Gets page info from pages table via connection decorators*
-- database : *Gets parent-child relationships for hierarchy*
+- database : *Gets page info from pages table via gateway.conn*
+- cache database : *Gets cached derived fields from cache database*
 - text processor : *Gets parsed content from TextProcessor*
 
 #### provides to:
@@ -87,20 +95,20 @@ The hierarchical page management system with CRUD operations, display logic, and
 - hh/page/*.py : *Page module implementation files*
 
 #### agent training notes:
-- **Page Creation**: Actions call `Page(page_id)` which loads from database
-- **Data Loading**: Page constructor loads data automatically on init
-- **Mixin Methods**: Page uses six mixins with automatic connection management via wrapper system
-- **Method Registration**: Mixins register methods with `@register_page_mixin_methods` decorator
-- **Connection Management**: Wrapper system automatically handles `@db_read`/`@db_write` decorators
-- **Transaction Support**: Methods can share connections when `self.conn` is set
-- **Display Data**: call `show_page()` (public wrapper) or `_show_page()` (mixin method) for formatted output data
+- **Page Creation**: Actions call `get_page(page_id)` from page registry which loads from hot cache or database
+- **Data Loading**: Page constructor loads data automatically on init and hydrates from cache if available
+- **Mixin Methods**: Page uses nine mixins with direct database access via `self.gateway.conn`
+- **Connection Management**: All mixin methods use `self.gateway.conn` directly (no decorators or wrappers)
+- **Cache System**: Five derived fields (display_name, prepared_text, children_by_class, images, files) are cached in separate cache database
+- **Cache Refresh**: Cache refresh happens automatically during gateway commit via `refresh_stale_page_caches()`
+- **Display Data**: Call `show_page()` for formatted output data
 - **Action Pattern**: Page actions use @register_action decorator
 
 ### Mixin Architecture
 
-The Page class uses multiple inheritance with six specialized mixins, each providing focused functionality. The mixin system includes a sophisticated method registration and wrapper system that handles database connection management automatically.
+The Page class uses multiple inheritance with nine specialized mixins, each providing focused functionality. All mixin methods access the database directly through `self.gateway.conn`.
 
-#### The Six Mixins
+#### The Nine Mixins
 
 1. **PageValidationMixin** (`page_validation.py`)
    - **Purpose**: Name validation, move validation, duplicate checking
@@ -111,120 +119,168 @@ The Page class uses multiple inheritance with six specialized mixins, each provi
 2. **PageHierarchyMixin** (`page_hierarchy.py`)
    - **Purpose**: Parent-child relationships, breadcrumbs, move/copy operations
    - **Key Methods**: `get_path()`, `get_children_data()`, `get_child_page_ids()`, `move_page()`, `copy_page()`
-   - **Static Methods**: `get_children_query()` - can be overridden by subclasses to customize child queries
+   - **Static Methods**: `_get_children_query()` - can be overridden by subclasses to customize child queries
+   - **Cache Fields**: `display_name` (computed via `_get_display_name()`)
 
 3. **PageContentMixin** (`page_content.py`)
    - **Purpose**: CRUD operations, text processing, page data assembly
    - **Key Methods**: `modify_name()`, `modify_text()`, `add_page()`, `delete_page()`, `get_page_data()`, `flag_page_modification()`
-   - **Class Hooks**: `add_page_class_information()` - called after page creation for class-specific setup
-   - **Instance Hooks**: `delete_page_class_information()` - called before page deletion for cleanup
+   - **Class Hooks**: `_add_page_class_information()` - called after page creation for class-specific setup
+   - **Instance Hooks**: `_delete_page_class_information()` - called before page deletion for cleanup
+   - **Cache Fields**: `prepared_text` (computed via `get_prepared_text()`)
 
 4. **PageImagesMixin** (`page_images.py`)
    - **Purpose**: Image association management, ranking, copying/moving images
    - **Key Methods**: `get_images_data()`, `add_image()`, `copy_images()`, `move_images()`, `set_image_rank()`, `remove_image()`
    - **Internal Methods**: `_create_image_record()`, `_add_image_to_group()`, `_reorder_images()`
+   - **Cache Fields**: `images` (computed via `get_images_data()`)
 
-5. **PageDisplayMixin** (`page_display.py`)
+5. **PageFilesMixin** (`page_files.py`)
+   - **Purpose**: File association management, ranking, copying/moving files
+   - **Key Methods**: `get_files_data()`, `add_file()`, `copy_files()`, `move_files()`, `set_file_rank()`, `remove_file()`
+   - **Internal Methods**: `_create_file_record()`, `_add_file_to_group()`, `_reorder_files()`
+   - **Cache Fields**: `files` (computed via `get_files_data()`)
+
+6. **PageDisplayMixin** (`page_display.py`)
    - **Purpose**: Display data preparation, child grouping, badge headers
    - **Key Methods**: `show_page()`, `_get_children_by_class()`, `_get_children_for_class()`
-   - **Hooks**: `add_upper_content()`, `add_lower_content()`, `add_badge_headers()`, `get_child_row_field_type()`
+   - **Hooks**: `_add_upper_content()`, `_add_lower_content()`, `_add_badge_headers()`, `_get_child_row_field_type()`
+   - **Cache Fields**: `children_by_class` (computed via `_get_children_by_class()`)
 
-6. **PageAjaxMixin** (`page_ajax.py`)
+7. **PageAjaxMixin** (`page_ajax.py`)
    - **Purpose**: AJAX-friendly JSON payload assembly for MCP backend
    - **Key Methods**: `get_page()` - returns minimal JSON structure with available actions
 
-#### Method Registration System
+8. **PageCacheMixin** (`page_cache.py`)
+   - **Purpose**: Cache database management for five derived fields
+   - **Key Methods**: `_refresh_cached_page()`, `_ensure_cache_entry()`, `_flag_cache_refresh()`
+   - **Cache Fields**: All five derived fields (display_name, prepared_text, children_by_class, images, files)
 
-Each mixin registers its public methods using the `@register_page_mixin_methods` decorator:
+9. **PageMaintenanceMixin** (`page_maintenance.py`)
+   - **Purpose**: Maintenance operations like regex text replacement
+   - **Key Methods**: `regex_text()`
+
+#### Database Access Pattern
+
+All mixin methods access the database directly through `self.gateway.conn`:
 
 ```python
-@register_page_mixin_methods
-def _register_validation_methods():
-    return {
-        'validate_name': {'mixin_method': '_validate_name', 'decorator': 'read'},
-        'can_move_to_page': {'mixin_method': '_can_move_to_page', 'decorator': 'read'},
-    }
-```
-
-**Registration Pattern**:
-- **Public Method Name**: The method name exposed to users (e.g., `validate_name`)
-- **Mixin Method Name**: The private method in the mixin (e.g., `_validate_name`)
-- **Decorator Type**: `'read'` = `@db_read`, `'write'` = `@db_write`
-
-All registered methods are collected in `page_method_registry.py` and used by the wrapper system.
-
-#### Wrapper Method System
-
-The `_create_wrapper_methods` class decorator automatically creates wrapper methods that handle database connection management. For each registered method, it creates three methods:
-
-1. **Decorated Version** (`page_dec_{method_name}`):
-   - Uses `@db_read` or `@db_write` decorator
-   - Creates and manages database connection automatically
-   - Used when `self.conn is None`
-
-2. **Connection Version** (`page_conn_{method_name}`):
-   - Uses existing `self.conn` connection
-   - No decorator (connection already established)
-   - Used when `self.conn` exists (for transaction support)
-
-3. **Public Wrapper** (`{method_name}`):
-   - Routes to appropriate version based on connection state
-   - Automatically resets connection after decorated version completes
-
-**Connection Management Flow**:
-```python
-# When self.conn is None:
-page.validate_name("test")
-  → wrapper checks: self.conn is None?
-  → calls page_dec_validate_name()
-  → @db_read creates connection
-  → calls _validate_name() (mixin method)
-  → resets self.conn = None
-
-# When self.conn exists (transaction):
-page.conn = existing_connection
-page.validate_name("test")
-  → wrapper checks: self.conn exists?
-  → calls page_conn_validate_name()
-  → directly calls _validate_name() (reuses connection)
-```
-
-**Benefits**:
-- **Automatic Connection Management**: Methods work with or without a connection
-- **Transaction Support**: Multiple operations can share a connection/transaction
-- **Clean API**: Public methods hide connection complexity
-- **Mixin Isolation**: Each mixin focuses on business logic, not connection management
-
-#### Mixin Method Implementation Pattern
-
-Mixin methods follow a consistent pattern:
-
-1. **Private Methods**: Mixin methods are prefixed with `_` (e.g., `_validate_name`)
-2. **Public Wrappers**: Wrapper system creates public methods (e.g., `validate_name`)
-3. **Error Handling**: Uses `is_error()` checks and `report_error()` for error coordination
-4. **Debug Integration**: Uses `trace_in()`, `trace_out()`, `log()`, `debug()`, `warn()`
-5. **Connection Usage**: Methods use `self.conn` directly (connection management handled by wrapper)
-
-**Example Mixin Method**:
-```python
-def _validate_name(self, name: str, page_class: str, exclude_id: Optional[int] = None) -> bool:
+def some_mixin_method(self):
     trace_in()
-    # Uses self.conn directly (connection provided by wrapper)
-    results = r_query(self.conn, "SELECT id FROM pages WHERE ...", ...)
+    # Direct database access via gateway.conn
+    results = self.gateway.conn.read("SELECT ...", [params])
+    affected = self.gateway.conn.update("UPDATE ...", [params])
+    new_id = self.gateway.conn.create("INSERT ...", [params])
     trace_out()
-    return True
+    return result
 ```
 
-#### Extending the Mixin System
+**Key Points**:
+- All methods use `self.gateway.conn` directly
+- No decorators or wrapper methods needed
+- Connection is automatically managed by gateway
+- Methods work within existing transactions
 
-To add a new mixin:
+#### Cache System
 
-1. **Create Mixin Class**: Create new mixin class with private methods
-2. **Register Methods**: Use `@register_page_mixin_methods` to register public methods
-3. **Add to Page Class**: Add mixin to Page class inheritance list
-4. **Specify Decorator Type**: Choose `'read'` or `'write'` for each method
+The page system uses a two-tier cache system:
 
-The wrapper system automatically handles the rest.
+1. **Hot Cache** (`page_registry.py`): In-memory cache of Page instances
+2. **Cache Database**: Separate database storing five derived fields
+
+**Five Derived Fields** (cached in cache database):
+- `display_name`: Computed display name
+- `prepared_text`: Processed text content (JSON)
+- `children_by_class`: Grouped children data (JSON)
+- `images`: Image association data (JSON)
+- `files`: File association data (JSON)
+
+**Cache Hydration Flow**:
+1. Page constructor loads base data from main database
+2. Checks if cache exists and is fresh (cache_built_at >= last_modified)
+3. If cache is fresh, hydrates five derived fields from cache database
+4. If cache is stale or missing, fields remain empty and are computed on-demand
+
+**Cache Refresh Flow**:
+1. When derived fields are computed, `_flag_cache_refresh()` is called
+2. During gateway commit, `refresh_stale_page_caches()` is called
+3. For each flagged page, `_refresh_cached_page()` writes all five fields to cache database
+4. Updates `cache_built_at` in main database
+
+**Lazy Computation Pattern**:
+```python
+def get_images_data(self):
+    # Check if field is already populated
+    if hasattr(self, 'images') and self.images:
+        return self.images
+    # Field is empty, compute it
+    images_data = []
+    # ... compute from database ...
+    self.images = images_data
+    self._flag_cache_refresh()  # Flag for cache refresh
+    return images_data
+```
+
+### Page Registry
+
+**File**: `hh/page/page_registry.py`
+
+The page registry manages hot cache and provides page loading functions.
+
+#### Key Functions
+
+- **`get_page(page_id: int)`**: Get page from hot cache or load from database
+  - Checks hot cache first
+  - If not found, determines page class and loads from database
+  - Stores in hot cache for future access
+  - Page constructor handles cache hydration automatically
+
+- **`find_page(link: str)`**: Find page by link
+  - Queries database for page with matching link
+  - Returns page instance via `get_page()`
+
+- **`refresh_stale_page_caches()`**: Refresh cache for all flagged pages
+  - Called by gateway during commit process
+  - Iterates through hot cache and refreshes pages with `_cache_needs_refresh` flag
+  - Updates cache database with all five derived fields
+
+#### Hot Cache Management
+
+- Hot cache is a module-level dictionary: `_page_cache: Dict[int, Page]`
+- Pages are stored in hot cache after first load
+- Cache refresh happens during gateway commit
+- No automatic expiration - pages remain in cache for request lifetime
+
+### Page Class Registry
+
+**File**: `hh/page/page_class_registry.py`
+
+The page class registry manages dynamic subclass loading based on the `class` field in the database.
+
+#### Key Functions
+
+- **`register_page_class(class_name: str)`**: Decorator to register page subclasses
+  - Used as `@register_page_class('class_name')` on Page subclasses
+  - Registers class in global registry
+
+- **`get_page_class(class_name: str)`**: Get Page subclass for a class name
+  - Checks hot cache first
+  - If not found, checks cold cache (JSON file)
+  - If not found, rebuilds cold cache by scanning for `@register_page_class` decorators
+  - Returns Page class or None (falls back to base Page class)
+
+- **`discover_page_classes()`**: Scan codebase for page classes
+  - Scans all Python files for `@register_page_class` decorators
+  - Imports modules to populate registry
+  - Caches results in JSON file
+
+#### Dynamic Class Loading
+
+When `get_page(page_id)` is called:
+1. Queries database for page's `class` field
+2. Calls `get_page_class(class_name)` to get appropriate subclass
+3. Instantiates that subclass instead of base Page class
+4. Subclass inherits all mixin functionality
 
 ---
 
@@ -276,7 +332,7 @@ The image management system with CRUD operations, multi-size instance management
 #### agent training notes:
 - **Image Creation**: Actions call `Image(image_id)` which loads metadata
 - **Instance Management**: Images automatically manage multiple size instances
-- **Display Data**: call `_show_image()` to get formatted output data
+- **Display Data**: Call `_show_image()` to get formatted output data
 - **Action Pattern**: Image actions use @register_action decorator
 
 ---
@@ -335,8 +391,9 @@ The custom markup parsing system for page content. Implements decorator-based pr
 
 ### With Gateway (see gateway.md)
 - Actions create Page/Image instances and call mixin methods
-- Actions return JSON via `gateway.set_action_response()`
+- Actions return JSON via `gateway.response.set_action_response()`
 - Backends receive Page/Image JSON data for formatting
+- Cache refresh happens during gateway commit
 
 ### With Registry (see registry.md)
 - Page/Image actions use @register_action decorator
@@ -349,8 +406,9 @@ The custom markup parsing system for page content. Implements decorator-based pr
 - FieldConfig used for table formatting
 
 ### Database Access Pattern
-- All modules use @db_read/@db_write decorators
-- Page/Image mixins call r_query()/u_query() for database operations
+- All modules use `gateway.conn` methods directly
+- Page/Image mixins call `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
+- Cache operations use `gateway.conn.read_cache()`, `gateway.conn.create_cache()`, `gateway.conn.update_cache()`
 - Tier-based credentials loaded from ~/.project.cnf files
 
 ---

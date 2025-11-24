@@ -1,7 +1,6 @@
 from __future__ import annotations
 import argparse
 import sys
-from hh.gateway.connection.decorators import db_read
 from hh.agents.feed.subscription_service import subscribe, unsubscribe
 from hh.agents.feed.subscription_cli import build_subscription_options, add_common_subscribe_args, add_common_unsubscribe_args
 from hh.agents.feed.subscription_spec import SUBSCRIPTION_SPECS
@@ -62,8 +61,7 @@ def get_target_id_arg_name(spec_key: str) -> str:
 @register_command('unsubscribe_keyword', action_args=['keyword', 'unsubscribe'])
 @register_command('unsubscribe_docket', action_args=['docket', 'unsubscribe'])
 @register_command('unsubscribe_operator', action_args=['operator', 'unsubscribe'])
-@db_read
-def subscription_runner(conn, argv=None):
+def subscription_runner(argv=None):
     trace_in()
     gateway = get_gateway()
     if not gateway:

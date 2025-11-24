@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Dict, Any
-from hh.gateway.connection.decorators import db_write
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -28,8 +27,7 @@ def _initialize_debug():
 
 @register_action('move_page')
 @register_command('move_page')
-@db_write
-def move_page(conn) -> bool:
+def move_page() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:

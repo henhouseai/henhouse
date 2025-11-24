@@ -11,6 +11,8 @@ from hh.render.config.config_registry import register_label
 @register_label("orphan_image_group_images", "Image Groups Missing Images", "🗂️")
 @register_label("orphan_file_group_pages", "File Groups Missing Pages", "📁")
 @register_label("orphan_file_group_files", "File Groups Missing Files", "📦")
+@register_label("orphan_type", "Orphan type", "")
+@register_label("ids", "IDs", "")
 @register_label("maintenance_ping_header", "Maintenance Ping", "📡")
 @register_label("page_cache_refresh_header", "Page Cache Refresh", "📄")
 @register_label("page_cache_refresh_processed", "Pages Cached", "⚙️")

@@ -7,7 +7,6 @@ from hh.gateway.connection.connection import (
     HenhouseConnection,
     get_connection,
     load_dsn_pair,
-    r_query,
 )
 from hh.file.file_registry import get_file
 
@@ -32,8 +31,7 @@ def fetch_stale_file_ids(conn, limit: int) -> List[int]:
 
 def count_stale_files(conn) -> int:
     """Count stale files in main database only."""
-    rows = r_query(
-        conn,
+    rows = conn.read(
         """
         SELECT COUNT(*) AS cnt
         FROM files

@@ -4,8 +4,7 @@ import hashlib
 import random
 import importlib.resources
 from typing import Optional, Dict, Union
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query, u_query, c_query
+from hh.agents.agents_utils import validate_agent_identity
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -60,91 +59,13 @@ def pick_persona_name_from_badge_ts(badge_ts: str, role: str) -> str:
     trace_out()
     return result
 
-def validate_agent_identity(conn, agent_id: int, badge_ts: str) -> Optional[Dict[str, Union[str, int]]]:
-    trace_in()
-    query = "SELECT id, role, badge_ts, status FROM agents WHERE id=%s AND badge_ts=%s"
-    results = r_query(conn, query, [agent_id, badge_ts])
-    if results:
-        log(f"Agent identity validated for agent_id={agent_id}")
-        trace_out()
-        return results[0]
-    else:
-        warn(f"Agent identity not found for agent_id={agent_id}")
-        trace_out()
-        return None
-
-@db_write
-def punch_in_impl(conn, agent_id: int, badge_ts: str) -> Dict[str, Union[str, int, bool]]:
-    trace_in()
-    gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False    
-    agent_data = validate_agent_identity(conn, agent_id, badge_ts)
-    if not agent_data:
-        warn("Agent identity not found during punch in")
-        report_error("action", "Agent identity not found")
-        trace_out()
-        return False
-    if agent_data["status"] != "inactive":
-        warn(f"Agent {agent_id} is already active, cannot punch in")
-        report_error("action", "Agent is already active")
-        trace_out()
-        return False
-    db_role = agent_data["role"]
-    log(f"Processing punch in for agent {agent_id} with role {db_role}")
-    display_name = pick_persona_name_from_badge_ts(badge_ts, db_role)
-    
-    # Check if agent profile exists
-    exists = r_query(conn, "SELECT 1 FROM agent_profiles WHERE agent_id=%s", (agent_id,))
-    if exists:
-        log(f"Updating existing agent profile for agent {agent_id}")
-        affected = u_query(conn, "UPDATE agent_profiles SET display_name=%s WHERE agent_id=%s", (display_name, agent_id))
-        if affected == 0:
-            warn(f"Failed to update agent profile for agent {agent_id}")
-            trace_out()
-            return False
-    else:
-        log(f"Creating new agent profile for agent {agent_id}")
-        profile_id = c_query(conn, "INSERT INTO agent_profiles (agent_id, display_name, country, lineage_key, generation, persona_json) VALUES (%s,%s,%s,%s,%s,%s)",
-                           (agent_id, display_name, "US", f"{db_role}:{badge_ts[:10]}", 1, json.dumps(display_name)))
-        if profile_id is None:
-            warn(f"Failed to create agent profile for agent {agent_id}")
-            trace_out()
-            return False
-    
-    # Update agent key
-    affected = u_query(conn, "UPDATE agents SET agent_key=%s WHERE id=%s", (display_name, agent_id))
-    if affected == 0:
-        warn(f"Failed to update agent key for agent {agent_id}")
-        trace_out()
-        return False
-    
-    # Update agent status
-    affected = u_query(conn, "UPDATE agents SET status='active' WHERE id=%s", (agent_id,))
-    if affected == 0:
-        warn(f"Failed to update agent status for agent {agent_id}")
-        trace_out()
-        return False
-    
-    log(f"Successfully punched in agent {agent_id} as {display_name}")
-    result_data = {
-        "agent_key": display_name,
-        "agent_id": agent_id,
-        "full_name": display_name,
-        "status": "active"
-    }
-    trace_out()
-    return result_data
-
 @register_action('punch_in')
 @register_command('punch_in')
 def punch_in() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
         trace_out()
         return False   
     agent_id = gateway.get_arg('agent_id')
@@ -161,12 +82,60 @@ def punch_in() -> bool:
         trace_out()
         return False
     try:
-        result_data = punch_in_impl(agent_id=agent_id, badge_ts=badge_ts)
-        if "error" in result_data:
-            warn(f"Punch in failed: {result_data['message']}")
-            report_error("backend", result_data['message'])
+        agent_data = validate_agent_identity(agent_id, badge_ts)
+        if not agent_data:
+            warn("Agent identity not found during punch in")
+            report_error("action", "Agent identity not found")
             trace_out()
             return False
+        if agent_data["status"] != "inactive":
+            warn(f"Agent {agent_id} is already active, cannot punch in")
+            report_error("action", "Agent is already active")
+            trace_out()
+            return False
+        db_role = agent_data["role"]
+        log(f"Processing punch in for agent {agent_id} with role {db_role}")
+        display_name = pick_persona_name_from_badge_ts(badge_ts, db_role)
+        
+        # Check if agent profile exists
+        exists = gateway.conn.read("SELECT 1 FROM agent_profiles WHERE agent_id=%s", (agent_id,))
+        if exists:
+            log(f"Updating existing agent profile for agent {agent_id}")
+            affected = gateway.conn.update("UPDATE agent_profiles SET display_name=%s WHERE agent_id=%s", (display_name, agent_id))
+            if affected == 0:
+                warn(f"Failed to update agent profile for agent {agent_id}")
+                trace_out()
+                return False
+        else:
+            log(f"Creating new agent profile for agent {agent_id}")
+            profile_id = gateway.conn.create("INSERT INTO agent_profiles (agent_id, display_name, country, lineage_key, generation, persona_json) VALUES (%s,%s,%s,%s,%s,%s)",
+                           (agent_id, display_name, "US", f"{db_role}:{badge_ts[:10]}", 1, json.dumps(display_name)))
+            if profile_id is None:
+                warn(f"Failed to create agent profile for agent {agent_id}")
+                trace_out()
+                return False
+        
+        # Update agent key
+        affected = gateway.conn.update("UPDATE agents SET agent_key=%s WHERE id=%s", (display_name, agent_id))
+        if affected == 0:
+            warn(f"Failed to update agent key for agent {agent_id}")
+            trace_out()
+            return False
+        
+        # Update agent status
+        affected = gateway.conn.update("UPDATE agents SET status='active' WHERE id=%s", (agent_id,))
+        if affected == 0:
+            warn(f"Failed to update agent status for agent {agent_id}")
+            trace_out()
+            return False
+        
+        log(f"Successfully punched in agent {agent_id} as {display_name}")
+        result_data = {
+            "agent_key": display_name,
+            "agent_id": agent_id,
+            "full_name": display_name,
+            "status": "active"
+        }
         log(f"Punch in operation completed successfully for agent {agent_id}")
         gateway.response.set_action_response(success_payload(result_data))
         trace_out()

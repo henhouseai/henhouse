@@ -10,7 +10,7 @@ from hh.gateway.connection.connection import get_connection, load_dsn_pair
 from hh.deploy.maint.page_cache_refresh import refresh_page_cache_batch
 from hh.deploy.maint.image_cache_refresh import refresh_image_cache_batch
 from hh.deploy.maint.file_cache_refresh import refresh_file_cache_batch
-from hh.deploy.maint.orphan_checks import log_orphan_counts
+from hh.deploy.maint.orphan_checks import check_orphans
 from hh.deploy.maint.name_update import process_page_name_job
 
 PROJECT_NAME = "__PROJECT_NAME__"
@@ -70,6 +70,65 @@ def _run_cache_batch():
             )
     except Exception as exc:  # noqa: BLE001
         logging.exception("Cache rebuild batch failed: %s", exc)
+
+
+def log_orphan_counts(conn) -> None:
+    """Check and log orphan counts with IDs."""
+    counts = check_orphans()
+    
+    orphan_pages = counts.get("orphan_pages", [])
+    orphan_link_sources = counts.get("orphan_link_sources", [])
+    orphan_link_targets = counts.get("orphan_link_targets", [])
+    orphan_image_pages = counts.get("orphan_image_pages", [])
+    orphan_image_targets = counts.get("orphan_image_targets", [])
+    orphan_image_group_pages = counts.get("orphan_image_group_pages", [])
+    orphan_image_group_images = counts.get("orphan_image_group_images", [])
+    orphan_file_group_pages = counts.get("orphan_file_group_pages", [])
+    orphan_file_group_files = counts.get("orphan_file_group_files", [])
+
+    if orphan_pages:
+        page_ids = ",".join(str(p) for p in orphan_pages)
+        logging.warning("Orphan pages detected (child missing parent): %s [IDs: %s]", len(orphan_pages), page_ids)
+    if orphan_link_sources or orphan_link_targets:
+        source_ids = ",".join(str(s) for s in orphan_link_sources) if orphan_link_sources else "none"
+        target_ids = ",".join(str(t) for t in orphan_link_targets) if orphan_link_targets else "none"
+        logging.warning(
+            "Orphan links detected: source_missing=%s [IDs: %s] target_missing=%s [IDs: %s]",
+            len(orphan_link_sources),
+            source_ids,
+            len(orphan_link_targets),
+            target_ids,
+        )
+    if orphan_image_pages or orphan_image_targets:
+        page_ids = ",".join(str(p) for p in orphan_image_pages) if orphan_image_pages else "none"
+        image_ids = ",".join(str(i) for i in orphan_image_targets) if orphan_image_targets else "none"
+        logging.warning(
+            "Orphan image links detected: page_missing=%s [IDs: %s] image_missing=%s [IDs: %s]",
+            len(orphan_image_pages),
+            page_ids,
+            len(orphan_image_targets),
+            image_ids,
+        )
+    if orphan_image_group_pages or orphan_image_group_images:
+        page_ids = ",".join(str(p) for p in orphan_image_group_pages) if orphan_image_group_pages else "none"
+        image_ids = ",".join(str(i) for i in orphan_image_group_images) if orphan_image_group_images else "none"
+        logging.warning(
+            "Orphan image_groups detected: page_missing=%s [IDs: %s] image_missing=%s [IDs: %s]",
+            len(orphan_image_group_pages),
+            page_ids,
+            len(orphan_image_group_images),
+            image_ids,
+        )
+    if orphan_file_group_pages or orphan_file_group_files:
+        page_ids = ",".join(str(p) for p in orphan_file_group_pages) if orphan_file_group_pages else "none"
+        file_ids = ",".join(str(f) for f in orphan_file_group_files) if orphan_file_group_files else "none"
+        logging.warning(
+            "Orphan file_groups detected: page_missing=%s [IDs: %s] file_missing=%s [IDs: %s]",
+            len(orphan_file_group_pages),
+            page_ids,
+            len(orphan_file_group_files),
+            file_ids,
+        )
 
 
 def _log_orphan_counts():

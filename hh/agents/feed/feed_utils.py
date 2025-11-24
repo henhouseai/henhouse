@@ -2,8 +2,8 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from hh.gateway.connection.connection import r_query, c_query, d_query
 from hh.gateway.connection.utils import ensure_iso_timestamps
+from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
@@ -54,8 +54,13 @@ def generate_sip_json(messages, agent_id, channels):
     trace_out()
     return result
 
-def bulk_add_to_queue(conn, agent_id: int, message_ids: List[int], queue_table: str) -> Dict[str, Any]:
+def bulk_add_to_queue(agent_id: int, message_ids: List[int], queue_table: str) -> Dict[str, Any]:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
     if not message_ids:
         log("No message IDs provided, returning empty result")
         trace_out()
@@ -75,7 +80,7 @@ def bulk_add_to_queue(conn, agent_id: int, message_ids: List[int], queue_table: 
     try:
         # Insert messages one by one (since we don't have executemany in our query methods)
         for msg_id in message_ids:
-            queue_id = c_query(conn, f"""
+            queue_id = gateway.conn.create(f"""
                 INSERT INTO {queue_table} (agent_id, message_id, queued_ts)
                 VALUES (%s, %s, NOW(6))
             """, (agent_id, msg_id))
@@ -107,7 +112,7 @@ def bulk_add_to_queue(conn, agent_id: int, message_ids: List[int], queue_table: 
             WHERE wq.agent_id = %s AND wq.message_id IN ({placeholders})
             ORDER BY wq.queued_ts ASC, wq.id ASC
         """
-        rows = r_query(conn, query, [agent_id] + message_ids)
+        rows = gateway.conn.read(query, [agent_id] + message_ids)
         log(f"Retrieved {len(rows)} queued messages")
         messages = []
         for row in rows:
@@ -133,8 +138,13 @@ def bulk_add_to_queue(conn, agent_id: int, message_ids: List[int], queue_table: 
         warn(f"Bulk add failed: {str(e)}")
         raise e
 
-def bulk_remove_from_queue(conn, agent_id: int, target_id: int, target_type: str, queue_table: str) -> Dict[str, Any]:
+def bulk_remove_from_queue(agent_id: int, target_id: int, target_type: str, queue_table: str) -> Dict[str, Any]:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise ValueError("No gateway or connection available")
     if not queue_table.startswith('watercooler_queue_'):
         warn(f"Invalid queue table format: {queue_table}")
         raise ValueError(f"Invalid queue table: {queue_table}")
@@ -205,7 +215,7 @@ def bulk_remove_from_queue(conn, agent_id: int, target_id: int, target_type: str
             warn(f"Invalid target_type: {target_type}")
             raise ValueError(f"Invalid target_type: {target_type}")
         
-        message_rows = r_query(conn, query, (target_id,))
+        message_rows = gateway.conn.read(query, (target_id,))
         message_ids = [row["id"] for row in message_rows]
         log(f"Found {len(message_ids)} messages linked to {target_type}:{target_id}")
         if not message_ids:
@@ -239,7 +249,7 @@ def bulk_remove_from_queue(conn, agent_id: int, target_id: int, target_type: str
             WHERE wq.agent_id = %s AND wq.message_id IN ({placeholders})
             ORDER BY wq.queued_ts ASC, wq.id ASC
         """
-        rows = r_query(conn, query, [agent_id] + message_ids)
+        rows = gateway.conn.read(query, [agent_id] + message_ids)
         log(f"Retrieved {len(rows)} queued messages for removal")
         messages = []
         for row in rows:
@@ -260,7 +270,7 @@ def bulk_remove_from_queue(conn, agent_id: int, target_id: int, target_type: str
             DELETE wq FROM {queue_table} wq
             WHERE wq.agent_id = %s AND wq.message_id IN ({placeholders})
         """
-        messages_removed = d_query(conn, delete_query, [agent_id] + message_ids)
+        messages_removed = gateway.conn.delete(delete_query, [agent_id] + message_ids)
         log(f"Bulk remove completed: {messages_removed} messages removed, {total_characters} characters")
         trace_out()
         return {

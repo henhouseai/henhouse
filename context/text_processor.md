@@ -13,8 +13,10 @@ TextProcessor transforms structured markup into output formats using a decorator
 TextProcessor uses a **pipeline architecture** where text flows through decorators in a specific order:
 
 ```
-Input Text → First Decorator → User Decorators → Final Decorator → Output
+Input Text → Parse → Generate JSON → First Decorator → User Decorators (reversed) → Final Decorator → Output
 ```
+
+Note: User decorators are applied in **reverse order** (right-to-left) - the last decorator in the chain is applied first.
 
 Each decorator is a pure function that receives text input and returns transformed text output.
 
@@ -64,11 +66,17 @@ parser = TextProcessor(final_decorator='parser')
 - `@decorator1 @decorator2 @decorator3` - Chain multiple decorators
 
 #### Decorator Chaining
-Decorators process **left-to-right** as a pipeline:
+Decorators are parsed **left-to-right** but applied **right-to-left** (reversed):
 ```
 @hero @center @border {{link name}}
 ```
-Becomes: `border(center(hero(base_text)))`
+Parsed as: `[('hero', {}), ('center', {}), ('border', {})]`
+Applied as: `hero(center(border(base_text)))` (rightmost decorator applied first, then leftward)
+
+**Chaining Rules**:
+- Decorators must be separated by exactly one whitespace character
+- Multiple whitespace characters break the chain
+- Chain continues until no more `@` decorators or base elements are found
 
 #### Pure Decorators
 Decorators can be used without base elements:
@@ -82,22 +90,27 @@ Decorators can be used without base elements:
 - **`@pi(precision)`** - Returns π with specified decimal places
   - `@pi(5)` → `{"type": "custom", "value": "3.14159"}`
   - `@pi(2)` → `{"type": "custom", "value": "3.14"}`
+  - Default precision is 5 if not provided or invalid
 
-- **`@echo(text)`** - Returns the provided text
+- **`@echo(text)`** - Returns the provided text as custom value
   - `@echo('Hello')` → `{"type": "custom", "value": "Hello"}`
+  - If no arg0 provided, uses the input text parameter
 
 ### Transformation Decorators
-- **`@repeat(count, separator)`** - Repeats text with optional separator
+- **`@repeat(count, separator)`** - Repeats custom value with optional separator
   - `@repeat(3, ', ')` on custom value → repeats it 3 times with separator
+  - Only works with `{"type": "custom"}` structures, returns original if not custom type
 
-- **`@precision(decimals)`** - Formats decimal numbers
-  - `@precision(2)` on numeric value → formats to 2 decimal places
+- **`@precision(decimals)`** - Formats decimal numbers in custom values
+  - `@precision(2)` on numeric custom value → formats to 2 decimal places
+  - Only works with `{"type": "custom"}` structures, returns original if not custom type or not numeric
 
 ### Final Output Decorators
-- **`@mcp`** - Converts internal structure to JSON string (default final decorator)
+- **`@mcp`** - Converts internal structure to JSON string (default final decorator if none specified)
 - **`@parser`** - Converts internal structure to CLI table format
+- **`@http`** - Converts internal structure to HTML format (hyperlinks and image tags)
 
-Note: Most decorators work with internal JSON structures (`{"type": "...", "value": "..."}`) and pass them through the pipeline. Final decorators (`@mcp`, `@parser`) convert these structures to string output.
+Note: Most decorators work with internal JSON structures (`{"type": "...", "value": "..."}`) and pass them through the pipeline. Final decorators (`@mcp`, `@parser`, `@http`) convert these structures to string output. Regular decorators return dict, final decorators return str.
 
 ## Technical Implementation
 
@@ -111,8 +124,8 @@ class TextProcessor:
     def __init__(self, first_decorator=None, final_decorator=None):
         # Initialize with optional global decorators
         
-    def process(self, content: str) -> str:
-        # Main processing method
+    def process(self, content: str) -> Optional[str]:
+        # Main processing method - returns None if preprocessing fails
         
     def update_links_table(self, conn, page_id: int) -> bool:
         # Database integration for link management
@@ -123,8 +136,12 @@ Manages decorator discovery and loading:
 
 ```python
 @register_tp_decorator('decorator_name')
-def my_decorator(text, **kwargs):
-    """Custom decorator function"""
+def my_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Union[str, Dict[str, Any]]:
+    """Custom decorator function
+    
+    Regular decorators return Dict[str, Any] (JSON structure)
+    Final decorators return str (formatted output)
+    """
     return transformed_text
 ```
 
@@ -152,28 +169,40 @@ BaseElement = LinkSyntax | ImageSyntax | NestedElement
 #### Links Table Management
 Updates database tables with parsed link information:
 
-- **`links` table** - Stores page-to-page references
-- **`imageLinks` table** - Stores page-to-image references
-- **Automatic cleanup** - Removes old links before adding new ones
+- **`links` table** - Stores page-to-page references (columns: `id`, `link`, `resolution_id`)
+- **`image_links` table** - Stores page-to-image references (columns: `id`, `resolution_id`)
+- **Automatic cleanup** - Removes old links before adding new ones (DELETE FROM links/image_links WHERE id = page_id)
+- **Link types stored**:
+  - Direct page ID links: `[[123456]]` → `links` table
+  - Page name links: `[[Home]]` → `links` table (resolved to page ID)
+  - Direct image ID references: `{{{7890}}}` → `image_links` table
+  - Nested image in link display: `[[page][{{{image_id}}}]]` → both `links` and `image_links` tables
+  - Page image references: `{{page_id}}` or `{{page_name}}` → `links` table (page reference for image display)
 
 #### Page Resolution
-- **Page ID lookup** - Direct database queries by ID
-- **Page name lookup** - Resolves page names to IDs
-- **Error handling** - Graceful handling of missing pages/images
+- **Page ID lookup** - Uses `get_page(page_id=page_id)` from page registry
+- **Page name lookup** - Uses `find_page(link=page_name)` from page registry
+- **Image ID lookup** - Uses `get_image(image_id)` from image registry
+- **Primary image lookup** - Queries `image_groups` table for `image_rank=1` to find page's primary image
+- **Error handling** - Missing pages/images add to `_parse_errors` list, return placeholder data (page_id=0, name="Page {id} (not found)")
 
 ### Performance Features
 
 #### Caching System
-- JSON-based caching for decorator discovery
-- Lazy loading of decorator functions
-- Module validation for cached decorators
-- Hot/cold cache management
+- JSON-based caching for decorator discovery (cache file: `hh/tp/cache/tp-decorators.json`)
+- Hot cache: `_global_registry` dictionary in memory (populated at import time)
+- Cold cache: JSON file with decorator metadata (module path, function name, load status)
+- Lazy loading: Decorators loaded from cold cache on first use via `get_tp_decorator()`
+- Cache rebuild: On cache miss, `discover_tp_decorators(force_regenerate=True)` scans all `@register_tp_decorator` decorators
+- Module validation: Cached module paths validated via `_validate_cached_module_path()` before use
+- Deployed decorators: Also scans `/srv/{project_name}/site/py` for deployed decorator files (file:// paths)
 
 #### Error Handling
-- Parse error collection with detailed messages
-- Database error handling for resolution failures
-- Decorator error handling with graceful fallbacks
-- Logging at all processing levels
+- Parse error collection with detailed messages (stored in `_parse_errors` list)
+- Parse errors reported via `report_error("link_resolution", error_msg)` - if errors exist, `preprocess()` returns `None` and `process()` returns `None`
+- Database error handling for resolution failures (reported via `report_error("link_resolution", ...)`)
+- Decorator error handling with graceful fallbacks (reported via `report_error("textprocessor", ...)`, returns original json_data on error)
+- Logging at all processing levels via debug system (trace_in/trace_out, log, debug, warn)
 
 ## Usage Examples
 
@@ -302,10 +331,12 @@ Provides error handling:
 ## Integration Points
 
 ### Henhouse System Integration
-- Debug system integration with trace/log/debug/warn functions
-- Error reporting through Henhouse error system
-- Gateway access for configuration
-- Standard Henhouse database connection patterns
+- Debug system integration with trace/log/debug/warn functions (via `register_debug_init`)
+- Error reporting through Henhouse error system (`report_error("textprocessor", ...)` and `report_error("link_resolution", ...)`)
+- Gateway access for configuration (uses `get_gateway()` for database connections)
+- Standard Henhouse database connection patterns (Connection class with `read()`, `create()`, `delete()` methods)
+- Page registry integration (`get_page()`, `find_page()`)
+- Image registry integration (`get_image()`)
 
 ### Extensibility
 - Plugin architecture for new decorators
@@ -332,10 +363,12 @@ processor = TextProcessor(final_decorator='parser')  # CLI tables
 
 ### Decorator Discovery
 Discovers decorators by:
-1. Scanning the `hh` module tree for `@register_tp_decorator` decorators
-2. Caching discovery results in JSON files
-3. Lazy loading decorators when needed
-4. Validating cached decorators on each use
+1. Scanning the `hh` module tree recursively for files containing `@register_tp_decorator` decorators
+2. Also scanning `/srv/{project_name}/site/py` for deployed decorator files (file:// paths)
+3. Importing modules to populate `_global_registry` dictionary
+4. Caching discovery results in JSON file (`hh/tp/cache/tp-decorators.json`) with module path, function name, load status
+5. Lazy loading decorators when needed via `get_tp_decorator()` (checks hot cache first, then cold cache, then rebuilds)
+6. Validating cached decorators on each use via `_validate_cached_module_path()` (tries to import module)
 
 The system uses standard Henhouse `.ini` files (`icon.ini`, `label.ini`) for display configuration in CLI output, following the same patterns as other Henhouse modules.
 

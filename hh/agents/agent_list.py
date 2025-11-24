@@ -1,7 +1,5 @@
 from __future__ import annotations
 from typing import TypedDict
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.connection import r_query
 from hh.gateway.connection.utils import ensure_iso_timestamps
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -32,12 +30,11 @@ class AgentListResponse(TypedDict, total=False):
 
 @register_action('agent_list')
 @register_command('agent_list')
-@db_read
-def agent_list(conn) -> bool:
+def agent_list() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
         trace_out()
         return False  
     try:
@@ -80,7 +77,7 @@ def agent_list(conn) -> bool:
         if conditions:
             base_query += " WHERE " + " AND ".join(conditions)
         base_query += " ORDER BY a.created_at DESC"
-        agents = r_query(conn, base_query, params)
+        agents = gateway.conn.read(base_query, params)
         log(f"Found {len(agents)} agents from database query")
         for agent in agents:
             ensure_iso_timestamps(agent, ['created_at'])
@@ -95,7 +92,7 @@ def agent_list(conn) -> bool:
                     ORDER BY occurred_ts DESC
                     LIMIT 10
                 """
-                activities = r_query(conn, activity_query, [agent_id])
+                activities = gateway.conn.read(activity_query, [agent_id])
                 log(f"Loaded {len(activities)} recent activities for agent {agent_id}")
                 for activity in activities:
                     ensure_iso_timestamps(activity, ['occurred_ts'])
@@ -160,7 +157,7 @@ def agent_list(conn) -> bool:
                     CROSS JOIN agent_subscriptions
                     WHERE so.agent_id = agent_subscriptions.agent_id
                 """
-                subscriptions = r_query(conn, subscriptions_query, [agent_id])
+                subscriptions = gateway.conn.read(subscriptions_query, [agent_id])
                 log(f"Loaded {len(subscriptions)} subscriptions for agent {agent_id}")
                 for sub in subscriptions:
                     ensure_iso_timestamps(sub, [])
@@ -236,7 +233,7 @@ def agent_list(conn) -> bool:
                     ORDER BY occurred_ts DESC
                     LIMIT 20
                 """
-                linked_items = r_query(conn, linked_items_query, [agent_id])
+                linked_items = gateway.conn.read(linked_items_query, [agent_id])
                 log(f"Loaded {len(linked_items)} linked items for agent {agent_id}")
                 for item in linked_items:
                     ensure_iso_timestamps(item, ['occurred_ts'])

@@ -1,7 +1,5 @@
 from __future__ import annotations
 from typing import List
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.connection import r_query
 from hh.gateway.connection.utils import ensure_iso_timestamps
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -27,12 +25,11 @@ def _initialize_debug():
 
 @register_action('agent_tree')
 @register_command('agent_tree')
-@db_read
-def agent_tree(conn, args: List[str] = None) -> bool:
+def agent_tree() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
         trace_out()
         return False
     agent_id = gateway.get_arg('agent_id')
@@ -50,7 +47,7 @@ def agent_tree(conn, args: List[str] = None) -> bool:
         FROM agents a
         WHERE a.id = %s
         """
-        agent_results = r_query(conn, agent_query, [agent_id])
+        agent_results = gateway.conn.read(agent_query, [agent_id])
         if not agent_results:
             warn(f"Agent {agent_id} not found")
             report_error("action", f"Agent {agent_id} not found")
@@ -76,7 +73,7 @@ def agent_tree(conn, args: List[str] = None) -> bool:
         ORDER BY ar.started_ts DESC
         LIMIT 10
         """
-        runs = r_query(conn, runs_query, [agent_id])
+        runs = gateway.conn.read(runs_query, [agent_id])
         log(f"Loaded {len(runs)} agent runs for agent {agent_id}")
         for run in runs:
             ensure_iso_timestamps(run, ['started_ts', 'last_heartbeat_ts'])
@@ -88,7 +85,7 @@ def agent_tree(conn, args: List[str] = None) -> bool:
         ORDER BY wm.occurred_ts DESC
         LIMIT 50
         """
-        activities = r_query(conn, activity_query, [agent_id])
+        activities = gateway.conn.read(activity_query, [agent_id])
         log(f"Loaded {len(activities)} activities for agent {agent_id}")
         for activity in activities:
             ensure_iso_timestamps(activity, ['occurred_ts'])
@@ -159,7 +156,7 @@ def agent_tree(conn, args: List[str] = None) -> bool:
         CROSS JOIN agent_subscriptions
         WHERE so.agent_id = agent_subscriptions.agent_id
         """
-        subscriptions = r_query(conn, subscriptions_query, [agent_id])
+        subscriptions = gateway.conn.read(subscriptions_query, [agent_id])
         log(f"Loaded {len(subscriptions)} subscriptions for agent {agent_id}")
         for sub in subscriptions:
             ensure_iso_timestamps(sub, [])
@@ -234,7 +231,7 @@ def agent_tree(conn, args: List[str] = None) -> bool:
         ORDER BY occurred_ts DESC
         LIMIT 30
         """
-        linked_items = r_query(conn, linked_items_query, [agent_id])
+        linked_items = gateway.conn.read(linked_items_query, [agent_id])
         log(f"Loaded {len(linked_items)} linked items for agent {agent_id}")
         for item in linked_items:
             ensure_iso_timestamps(item, ['occurred_ts'])
@@ -250,7 +247,7 @@ def agent_tree(conn, args: List[str] = None) -> bool:
         FROM agent_runtime_state
         WHERE agent_id = %s
         """
-        state_results = r_query(conn, state_query, [agent_id])
+        state_results = gateway.conn.read(state_query, [agent_id])
         if state_results:
             state_row = state_results[0]
             log(f"Loaded agent state for agent {agent_id}")

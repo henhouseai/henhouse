@@ -16,7 +16,7 @@ This document covers the command registry, caching, backend configuration, actio
 
 - **Registry Usage**: `CommandRegistry("command", "backend")` → `registry.get_action_handler()` for dynamic loading
 - **Cache Access**: `discover_base_registrations()` provides command/backend discovery from JSON cache
-- **Backend Types**: `['action', 'parser', 'mcp', 'http']` with automatic decorator generation
+- **Backend Types**: `['action', 'parser', 'mcp', 'http', 'maintenance']` with automatic decorator generation
 - **Action Pattern**: `@register_action` + `@register_command` + `gateway.set_action_response(data)`
 - **DB Decorators**: `@db_read` (read-only) / `@db_write` (with retry) for safe database operations
 - **Error Flow**: Registry validation → gateway reporting → response coordination
@@ -36,9 +36,9 @@ This document covers the command registry, caching, backend configuration, actio
 - **Performance**: Avoids repeated filesystem scans by storing discovery results in `CACHE_DIR/cache/`
 
 ### Backend Type Management
-- **Four Backend Types**: `['action', 'parser', 'mcp', 'http']` with automatic decorator generation
+- **Five Backend Types**: `['action', 'parser', 'mcp', 'http', 'maintenance']` with automatic decorator generation
 - **Decorator Pattern**: Each type gets `@register_{type}` decorator (e.g., `@register_action`, `@register_parser`)
-- **Handler Dictionaries**: Each type has corresponding dict (`actions`, `parsers`, `mcps`, `https`)
+- **Handler Dictionaries**: Each type has corresponding dict (`actions`, `parsers`, `mcps`, `https`, `maintenances`)
 - **Dynamic Registration**: Backend decorators automatically populate handler dictionaries during module import
 
 ### Action Module Development
@@ -47,7 +47,7 @@ This document covers the command registry, caching, backend configuration, actio
   - `get_gateway()` for system access
   - `gateway.get_arg(name)` for command arguments
   - `gateway.set_action_response(json_data)` for results
-  - `gateway.action_error(message)` for error reporting
+  - `report_error("action", message)` for error reporting (import from `hh.gateway.error.error_store`)
 - **Response Structure**: Use `success_payload(data)` for standardized JSON response format
 - **Database Access**: Use `@db_read` (queries) or `@db_write` (modifications) decorators for safe database operations
 
@@ -63,7 +63,7 @@ This document covers the command registry, caching, backend configuration, actio
 - **Gateway Integration**:
   - `gateway.get_action_response()` for action results
   - `gateway.add_backend_response(formatted_output)` for final output
-  - `gateway.backend_error(message)` for error reporting
+  - `report_error("backend", message)` for error reporting (import from `hh.gateway.error.error_store`)
 - **Render System**: Use `render_header_block()`, `render_block()`, `finalize_output()` for formatting
 - **Output Assembly**: Backend handlers format action response data into user-facing output
 
@@ -92,7 +92,7 @@ The registry uses a sophisticated two-part data structure: it stores both action
 #### owns:
 - command, backend : *Command and backend identifiers*
 - matched_backend : *Selected backend handler with validation*
-- backend_registration, action_cache_data, backend_cache_data : *Handler cache data with validation state*
+- backend_registration, action_cache_data, backend_cache_data, error_cache_data : *Handler cache data with validation state*
 - handler loading state : *Dynamic module loading and validation tracking*
 
 #### data managed:
@@ -102,11 +102,13 @@ The registry uses a sophisticated two-part data structure: it stores both action
 - backend_registration (local copy) : *Backend cache data for current command*
 - action_cache_data (local copy) : *Action handler cache data for current command*
 - backend_cache_data (local copy) : *Backend handler cache data for current command*
+- error_cache_data (local copy) : *Error handler cache data for current backend*
 - handler loading state (local copy) : *Tracks which handlers have been loaded and validated*
 
 #### calls:
 - **select_backend()** : *Finds and validates backend handler from backends dict*
 - **select_command()** : *Finds and validates action handler from action cache*
+- **select_error_handler()** : *Finds and validates error handler from backend cache*
 - **has_command(), has_backend(), has_action_handler(), has_backend_handler()** : *Validates handler availability*
 - **has_action_args(), has_error_handler()** : *Checks additional handler properties*
 - **get_action_handler(), get_backend_handler(), get_error_handler()** : *Dynamically loads and validates handler functions*
@@ -229,7 +231,7 @@ The cache system is triggered by CommandRegistry during handler resolution and p
 
 The centralized backend configuration system that defines the supported backend types and their associated metadata. It:
 
-- **Defines Backend Types**: Establishes the canonical list of supported backend types (action, parser, mcp, http)
+- **Defines Backend Types**: Establishes the canonical list of supported backend types (action, parser, mcp, http, maintenance)
 - **Maps Decorators**: Associates each backend type with its corresponding registration decorator name
 - **Maps Dictionaries**: Associates each backend type with its corresponding handler dictionary name
 - **Provides Descriptions**: Offers human-readable descriptions for each backend type
@@ -272,7 +274,7 @@ The backend configuration is used during module initialization and by registry/c
 - **Type Consistency**: Validates decorator and dictionary name consistency
 
 #### agent training notes:
-- **Backend Types**: Four main types - action (business logic), parser (CLI parsing), mcp (Model Context Protocol), http (web server)
+- **Backend Types**: Five main types - action (business logic), parser (CLI parsing), mcp (Model Context Protocol), http (web server), maintenance (maintenance backend handlers)
 - **Decorator Mapping**: Each type has specific registration decorator pattern
 - **Dictionary Mapping**: Each type has corresponding handler dictionary name
 - **Discovery Foundation**: Provides basis for registry/cache discovery operations
@@ -583,7 +585,7 @@ def command_list() -> bool:
 - **gateway.has_action_response()** : *Checks if action response exists*
 - **gateway.get_action_response()** : *Gets action response data*
 - **gateway.add_backend_response()** : *Adds formatted output*
-- **gateway.backend_error()** : *Reports backend-level errors*
+- **report_error("backend", message)** : *Reports backend-level errors (import from `hh.gateway.error.error_store`)*
 - **render functions** : *Rendering system calls*
 - **debug functions** : *Debug logging and tracing*
 
@@ -611,7 +613,7 @@ def command_list() -> bool:
   - `get_gateway()` for system access
   - `gateway.get_action_response()` for action results
   - `gateway.add_backend_response()` for formatted output
-  - `gateway.backend_error()` for error reporting
+  - `report_error("backend", message)` for error reporting (import from `hh.gateway.error.error_store`)
 - **Render System Usage**: Leverages render functions for output formatting
 - **Output Production**: Each backend type produces different output formats
 

@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union, TypedDict, Tuple
+from hh.gateway.connection.conn import DatabaseRow
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.utils import detect_project_context
@@ -29,13 +30,6 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
-
-class DatabaseRow(TypedDict, total=False):
-    id: int
-    name: str
-    status: str
-    created_at: str
-    updated_at: str
 
 class JsonResponse(TypedDict, total=False):
     status: str

@@ -69,7 +69,7 @@ The error system serves as the central error management and display system for t
 - error parsers : *Backend-specific error parsers*
 
 #### data managed:
-- ERROR_FIELD_CONFIGS (source of truth) : *Error field type and display configuration*
+- error field configurations (created dynamically) : *FieldConfig instances created per-render in render_error_details() at line 41*
 - error rendering state (local copy) : *Error rendering process state*
 
 #### calls:
@@ -77,11 +77,11 @@ The error system serves as the central error management and display system for t
 - **parser_error()** : *Parser backend error handler*
 - **http_error()** : *HTTP backend error handler*
 - **mcp_error()** : *MCP backend error handler*
+- **maintenance_error()** : *Maintenance backend error handler*
 - **render_header_block()** : *Renders error section header*
 - **render_block()** : *Renders error information tables*
 - **finalize_output()** : *Finalizes error output*
 - **get_gateway()** : *Gets gateway instance for error access*
-- **get_data()** : *Gets error data from JSON*
 
 #### called by:
 - gateway (error handling) : *Gateway calls error parsers*
@@ -229,11 +229,10 @@ Safe mode captures every trace/log/debug message emitted while the table is rend
 - global scope : *Global debug table instance*
 
 #### owns:
-- DEBUG_TABLE_FIELD_CONFIGS : *Table field configuration*
 - filtered_data : *Processed debug entries*
 
 #### data managed:
-- table configuration (source of truth) : *Field type and display configuration*
+- table field configurations (created dynamically) : *FieldConfig instances created per-render in _render_table_from_entries() at lines 90 and 125*
 - filtered_data (source of truth) : *Processed debug entries for table rendering*
 
 #### calls:
@@ -261,11 +260,10 @@ Safe mode captures every trace/log/debug message emitted while the table is rend
 - global scope : *Module-level configuration and singleton*
 
 #### owns:
-- DEBUG_TABLE_FIELD_CONFIGS : *Table field definitions*
 - _debug : *Global debug table instance*
 
 #### data managed:
-- table field configs (source of truth) : *Field type and display configuration*
+- none : *Pure singleton pattern (field configs created dynamically in _render_table_from_entries())*
 
 #### calls:
 - **get_debug()** : *Gets global debug table instance*

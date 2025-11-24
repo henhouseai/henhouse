@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import List, TypedDict
+from typing import List, TypedDict, Optional, Dict, Union
 from hh.render.render import render_block, break_section, FieldConfig, TableData
 from hh.render.config.config import dc, safe_str
 from hh.gateway.gateway import get_gateway
@@ -55,6 +55,24 @@ class ActivityInfo(TypedDict, total=False):
     description: str
     timestamp: str
 
+def validate_agent_identity(agent_id: int, badge_ts: str) -> Optional[Dict[str, Union[str, int]]]:
+    """Validate agent identity and return agent data if valid."""
+    trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return None
+    query = "SELECT id, role, badge_ts, status, agent_key FROM agents WHERE id=%s AND badge_ts=%s"
+    results = gateway.conn.read(query, [agent_id, badge_ts])
+    if results:
+        log(f"Agent identity validated for agent_id={agent_id}")
+        trace_out()
+        return results[0]
+    else:
+        warn(f"Agent identity not found for agent_id={agent_id}")
+        trace_out()
+        return None
 
 def render_subscription_details(subscriptions: List[SubscriptionInfo], lines: List[str]) -> None:
     trace_in()

@@ -87,7 +87,7 @@ The image module was refactored to use the new connection system (`hh.gateway.co
 **Removed from all mixin files:**
 - Imports: `r_query`, `c_query`, `u_query`, `d_query`, `schedule_file_move`
 - Imports: `@db_read`, `@db_write` decorators
-- Imports: `DatabaseConnection` type hints
+- Imports: Database connection type hints
 - All `self.conn` references
 - All `conn` parameters from methods
 

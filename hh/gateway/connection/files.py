@@ -28,12 +28,13 @@ class FileSystem:
     Provides abstraction layer for filesystem operations with OS-specific handling
     and graceful error handling for remote file scenarios."""
     
-    def __init__(self):
+    def __init__(self, dry_run: bool = False):
         trace_in()
         self._operations: List[Dict[str, Any]] = []
         self._os_type = self._detect_os()
         self._remote_file_handler = None  # Placeholder for future remote file handling
-        log(f"FileSystem initialized (OS: {self._os_type})")
+        self._dry_run: bool = dry_run
+        log(f"FileSystem initialized (OS: {self._os_type}, dry_run={dry_run})")
         trace_out()
     
     def _detect_os(self) -> str:
@@ -89,9 +90,15 @@ class FileSystem:
         trace_out()
     
     def commit(self) -> bool:
-        """Execute all scheduled file operations. Returns True if all succeed, False otherwise."""
+        """Execute all scheduled file operations. Returns True if all succeed, False otherwise. If dry_run is enabled, skips execution."""
         trace_in()
         log("FileSystem commit starting...")
+        
+        if self._dry_run:
+            scheduled_count = sum(1 for op in self._operations if op.get('status') == 'scheduled')
+            log(f"Dry run mode enabled - skipping {scheduled_count} scheduled file operations")
+            trace_out()
+            return True
         
         if not self._operations:
             log("No file operations to execute")

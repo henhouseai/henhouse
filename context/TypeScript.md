@@ -114,7 +114,8 @@ hh/deploy/site/ts/
   ├─ source-code-file-page-data.ts
   ├─ mcp-request-page-data.ts
   ├─ mcp-action-page-data.ts
-  ├─ work-docket-page-data.ts
+  ├─ work-page-data.ts            # Base class for work pages (work docket, ask, task, step)
+  ├─ work-docket-page-data.ts     # Extends WorkPageData
   ├─ upload-handler.ts            # Image upload handler
   ├─ seed.ts                      # Seed data reader
   └─ test.ts                      # Temporary test handlers
@@ -453,8 +454,8 @@ try {
 class RPCError extends Error {
   errors: Array<{ type: string; content: string }>;
   code: number;
-  debug?: DebugData;
-  requestInfo?: { method: string; params: any };
+  // Note: debug and requestInfo may be added dynamically to error instances
+  // but are not part of the class definition
 }
 ```
 
@@ -838,7 +839,7 @@ const pageData = PageDataFactory.create(getPageResponse);
 - `source_code_file` → `SourceCodeFilePageData`
 - `mcp_request` → `MCPRequestPageData`
 - `mcp_action` or `mcp_action_request` → `MCPActionPageData`
-- `work_docket` → `WorkDocketPageData`
+- `work_docket` → `WorkDocketPageData` (extends `WorkPageData`)
 - Default → `PageData`
 
 ### SourceCodeFilePageData
@@ -883,20 +884,31 @@ Handles MCP action request pages.
 - Group mapping for all action fields to `modify_mcp_action_request`
 - Priority 1 (group operation)
 
-### WorkDocketPageData
+### WorkPageData
 
-**File**: `work-docket-page-data.ts`
+**File**: `work-page-data.ts`
 
-Handles work docket pages with `status`, `meta`, and `sort_order` fields.
+Base class for work pages (work docket, ask, task, step). Provides shared functionality for `status`, `meta`, and `sort_order` fields.
 
 **Field Mappings**:
 ```typescript
 {
   fields: ['status'],
-  mcpTool: 'modify_status',
+  mcpTool: 'modify_work_status',
+  priority: 0
+},
+{
+  fields: ['sort_order'],
+  mcpTool: 'modify_work_sort_order',
   priority: 0
 }
 ```
+
+### WorkDocketPageData
+
+**File**: `work-docket-page-data.ts`
+
+Extends `WorkPageData` to handle work docket pages. Inherits `status` and `sort_order` field mappings from base class.
 
 ### Creating New Derived Classes
 

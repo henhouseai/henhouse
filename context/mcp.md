@@ -12,25 +12,27 @@ This document covers the Henhouse-specific implementation of the MCP (Model Cont
 
 ## Agent Quick Reference
 
-- **MCP Backend**: Registered as backend type in Gateway alongside `parser`, `http`, `action`
+- **MCP Backend**: Registered as backend type in Gateway alongside `parser`, `http`, `maintenance` (not `action` - actions are not backends)
 - **Tool Whitelist**: Decorator-based system with tier-specific caches - tools registered via `@register_mcp_tool` decorators in module-specific `mcp_utils.py` files
-- **Response Format**: `success_payload()` creates `{"content": [{"type": "text", "text": {...dict...}}]}`, ResponseMCP serializes inner dict to JSON string
+- **Response Format**: `success_payload()` creates `{"content": [{"type": "text", "text": {...dict...}}]}`, ResponseMCP serializes `content[0]["text"]` dict to JSON string in JSON-RPC 2.0 format
 - **Config File**: `~/.{project_name}.cnf` (same format/location as database config)
-- **HTTP Endpoint**: `https://panel.{domain}/mcp` (subdomain access)
+- **HTTP Endpoint**: `https://{host}/mcp` (host from config file, typically `https://panel.{domain}/mcp`)
 - **Redeployment**: Whitelist changes auto-discovered on cache miss; cache files in `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
 
 ## Agent Training Notes
 
 ### Gateway Integration
 - MCP tools route through standard Gateway dispatch: `gateway.dispatch(argv, "mcp")`
-- Arguments converted from MCP format to `--key value` command-line format
-- Action handlers execute normally, set `action_response` via `success_payload()`
-- MCP backend handlers are auto-generated wrappers that verify `action_response` exists
+- Arguments converted from MCP format: `{"key": "value"}` → `["tool_name", "--key", "value"]` command-line format
+- Action handlers execute normally, set `action_response` via `gateway.response.set_action_response(success_payload(data))`
+- MCP backend handlers are auto-generated wrappers that verify `action_response` exists via `gateway.response.has_action_response()`
 
 ### Response Flow
-- Action sets `action_response` = `{"content": [{"type": "text", "text": {...dict...}}]}`
-- `ResponseMCP.get_output()` serializes `content[0]["text"]` dict to JSON string
+- Action sets `action_response` = `success_payload(data)` which creates `{"content": [{"type": "text", "text": {...dict...}}]}`
+- `ResponseMCP.get_output()` takes `action_response["content"][0]["text"]` (dict)
+- Serializes dict to JSON string: `json.dumps(content[0]["text"])`
 - Wraps in JSON-RPC 2.0 format with `request_id` from `set_request_id()`
+- Includes debug output in `content` array if available
 
 ### Configuration
 - Config file: `~/.{project_name}.cnf` in home directory
@@ -81,63 +83,81 @@ JSON-RPC 2.0 Response
 **File**: `hh/deploy/flask/mcp_client.py`
 
 Handles MCP protocol methods and routes to Gateway:
-- Validates tool name against tier-specific whitelist via `MCPWhitelist.get_tool(tier, tool_name)`
-- Validates arguments against tool's `inputSchema` via `MCPWhitelist.validate_tool(tier, tool_name, args)`
-- Builds `argv` array: `[tool_name, --arg1, value1, ...]`
+- Implements MCP protocol methods: `initialize`, `tools/list`, `prompts/list`, `resources/list`, `tools/call`, `notifications/initialized`
+- Protocol version: `"2024-11-05"` (MCP_PROTOCOL_VERSION constant)
+- Server info: Returns `{"name": "Henhouse MCP Server", "version": "1.0.0"}` in initialize response
+- Server capabilities: Tools, prompts, resources support `listChanged`; resources support `subscribe`; logging supported
+- Tier determined from `USER_TIER` environment variable (defaults to 'guest' if not set or invalid)
+- For `tools/call`: Validates tool name and arguments via `MCPWhitelist.validate_tool(tier, tool_name, args)`
+- Builds `argv` array: `[tool_name, --arg1, value1, ...]` (also accepts query string params from sys.argv[1:])
+- Sets `request_id` via `gateway.response.set_request_id()` before dispatch
 - Calls `gateway.dispatch(argv, "mcp")`
-- Sets `request_id` via `gateway.response.set_request_id()`
-- Tier determined from `USER_TIER` environment variable (set by Flask app)
+- Parses response as JSON-RPC or wraps plain text in MCP format
 
 ### MCP Wrapper Script
 **File**: `mcp_wrapper.py` (project root)
 
 Bridges stdio MCP to HTTP endpoint:
-- Reads JSON-RPC from stdin (newline-delimited)
-- Auto-detects project name by finding `hh/` directory
-- Loads config from `~/.{project_name}.cnf`
-- POSTs to `https://{host}/mcp` with Basic Auth
+- Reads JSON-RPC from stdin (newline-delimited, one request per line)
+- Auto-detects project name by finding `hh/` directory starting from script location
+- Loads config from `~/.{project_name}.cnf` (requires user, password, host fields)
+- Handles file attachments: extracts `_files` or `file_paths` from params, validates paths, sends as multipart/form-data
+- POSTs to `https://{host}/mcp` with Basic Auth (uses JSON for regular requests, multipart for file uploads)
 - Outputs JSON-RPC responses to stdout
-- Runs in loop handling multiple requests
+- Runs in infinite loop handling multiple requests until EOF
+- Handles 204 No Content responses (for notifications)
 
 ### MCP Registry
 **File**: `hh/gateway/registry/mcp.py`
 
 Auto-generates backend handler wrappers:
-- Loads tier-specific whitelists from `MCPWhitelist._load_tier_whitelist(tier)` for all tiers
+- Loads tier-specific whitelists from `MCPWhitelist._load_tier_whitelist(tier)` for all tiers in HENHOUSE_TIERS
 - Collects all unique tool names across all tier whitelists
 - Uses `exec()` to generate wrapper functions with `@register_mcp('tool_name')` decorators
-- Wrappers verify `action_response` exists and return success
-- Functions registered in global `mcps` dictionary for registry discovery
+- Wrapper template (`_mcp_wrapper_template`) verifies `gateway.response.has_action_response()` exists
+- Wrappers return `True` on success, `False` on failure (reports error via `report_error("backend", ...)`)
+- Functions registered in global `mcps` dictionary (via `register_mcp` decorator) for registry discovery
+- Tool names converted to valid Python function names (hyphens replaced with underscores)
 
 ### MCP Response Handler
 **File**: `hh/gateway/response/response_mcp.py`
 
 Formats Gateway responses as JSON-RPC 2.0:
 - Extends base `Response` class
-- `get_output()` serializes `action_response["content"][0]["text"]` dict to JSON string
-- Wraps in JSON-RPC 2.0 format with `request_id`
-- Formats Gateway errors as JSON-RPC error responses
+- Stores `request_id` via `set_request_id()` method
+- `get_output()` handles two cases:
+  - **Error case**: If `error_output` exists with "errors" key, formats as JSON-RPC error response with error code -32603, includes debug output in error data if available
+  - **Success case**: Takes `action_response["content"][0]["text"]` (dict), serializes to JSON string, wraps in JSON-RPC 2.0 result format
+- Includes debug output in `content` array if `debug_output` has entries
+- Post-processes to stringify `content[0]["text"]` field if it's a dict (for MCP format compatibility)
 
 ### MCP Tools Whitelist System
 **Core File**: `hh/gateway/registry/mcp_whitelist.py`
 
 Decorator-based lazy-loading whitelist system:
 - Tools registered via `@register_mcp_tool` decorators in module-specific `mcp_utils.py` files
-- Registration files located in: `hh/gateway/registry/mcp_utils.py`, `hh/page/mcp_utils.py`, `hh/agents/mcp_utils.py`, `hh/mcp_request/mcp_utils.py`, `hh/mcp_action_request/mcp_utils.py`
+- Registration files located in: `hh/gateway/registry/mcp_utils.py`, `hh/page/mcp_utils.py`, `hh/agents/mcp_utils.py`, `hh/mcp_request/mcp_utils.py`, `hh/mcp_action_request/mcp_utils.py`, `hh/image/mcp_utils.py`, `hh/work/mcp_utils.py`, `hh/source_code_file/mcp_utils.py`
+- Global registry: `_global_tool_registry` dictionary populated by decorators at import time
 - Tier-specific whitelists: Each tier (guest, verified, admin, root) has separate cache file
 - Cache files: `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
-- Lazy loading: Cache files loaded on demand; rebuilt on cache miss by scanning decorators
+- Lazy loading: Cache files loaded on demand; rebuilt on cache miss by scanning all decorators and rebuilding all tier whitelists at once
+- Scanning: `_scan_for_mcp_tools()` recursively searches `hh/` directory for files containing `@register_mcp_tool`
 - Used by `mcp_client.py` for validation and `tools/list` via `MCPWhitelist` class
 - Used by `mcp.py` for auto-generating wrappers
+- Supports app actions: Tools with tier levels 5-8 are app actions (not MCP tools), filtered out of MCP whitelists
+- App actions: Accessed via `MCPWhitelist.get_app_actions(user_tier_level)` - maps user tier level (1-4) to app action tier level (5-8), returns actions with `id`, `tool_name`, `description`, `label`, `group`, `requires_fields`
+- App actions: Accessed via `MCPWhitelist.get_app_actions(user_tier_level)` - maps user tier level (1-4) to app action tier level (5-8)
 
 **Decorator Parameters**:
 - `tool_name`: Name of the MCP tool
 - `description`: Tool description
 - `inputSchema`: JSON Schema for tool arguments
-- `tiers`: List of tier levels `[1, 2, 3, 4]` (1=guest, 2=verified, 3=admin, 4=root). Default: all tiers
+- `tiers`: List of tier levels `[1, 2, 3, 4]` (1=guest, 2=verified, 3=admin, 4=root) for MCP tools, or `[5, 6, 7, 8]` for app actions. Default: `None` (all tiers `[1, 2, 3, 4]`)
 - `requires_approval`: Whether tool requires approval queue (for future transaction system)
-- `crud_type`: Operation type ('create', 'read', 'update', 'delete')
+- `crud_type`: Operation type ('create', 'read', 'update', 'delete', 'mixed')
 - `display_color`: Optional color for approval interface (for future transaction system)
+- `app_action_group`: Optional group name for app actions (tiers 5-8)
+- `app_action_label`: Optional label for app actions (defaults to tool_name)
 
 ---
 
@@ -152,16 +172,18 @@ MCP is registered as a backend type in `hh/gateway/registry/backend.py`:
 
 ### Command Execution Flow
 
-1. **MCP Client** receives tool call, validates against tier-specific whitelist
-2. **Argument Conversion**: MCP arguments → `--key value` format
-3. **Gateway Dispatch**: `gateway.dispatch([tool_name, --arg1, val1, ...], "mcp")`
-4. **Action Handler**: Standard Gateway action executes, sets `action_response` via `success_payload()`
-5. **MCP Backend Handler**: Auto-generated wrapper verifies `action_response` exists
-6. **ResponseMCP**: Formats `action_response` as JSON-RPC 2.0
+1. **MCP Client** receives tool call via `tools/call` method, gets tier from `USER_TIER` env var (defaults to 'guest')
+2. **Validation**: Validates tool exists and arguments match schema via `MCPWhitelist.validate_tool(tier, tool_name, args)`
+3. **Argument Conversion**: MCP arguments `{"key": "value"}` → `["tool_name", "--key", "value"]` format (also accepts query params from sys.argv[1:])
+4. **Request ID**: Sets request ID via `gateway.response.set_request_id(request_id)` before dispatch
+5. **Gateway Dispatch**: `gateway.dispatch(argv, "mcp")`
+6. **Action Handler**: Standard Gateway action executes, sets `action_response` via `gateway.response.set_action_response(success_payload(data))`
+7. **MCP Backend Handler**: Auto-generated wrapper verifies `gateway.response.has_action_response()` exists
+8. **ResponseMCP**: Formats `action_response` as JSON-RPC 2.0, includes debug output if available
 
 ### Response Data Structure
 
-Actions use `success_payload(data)` which creates:
+Actions use `success_payload(data)` from `hh/gateway/response/json_standard.py` which creates:
 ```python
 {
     "content": [
@@ -174,17 +196,22 @@ Actions use `success_payload(data)` which creates:
 ```
 
 `ResponseMCP.get_output()` then:
-1. Takes `action_response["content"][0]["text"]` (dict)
-2. Serializes to JSON string: `json.dumps(content[0]["text"])`
-3. Wraps in JSON-RPC 2.0 format with `request_id`
+1. Makes deep copy of `action_response` to avoid modifying original
+2. Takes `action_response["content"][0]["text"]` (dict)
+3. Serializes entire response to JSON: `json.dumps(jsonrpc_response, indent=2, default=str)`
+4. Post-processes: If `content[0]["text"]` is a dict, stringifies it: `json.dumps(content[0]["text"])`
+5. Wraps in JSON-RPC 2.0 format with `request_id` in `id` field
+6. Includes debug output in `content` array if `debug_output` has entries
 
 ### Error Integration
 
 Gateway errors collected through standard error system, formatted by ResponseMCP:
-- Error collection from `is_error()` and `get_errors()`
-- First error used as message
-- All errors included in `data.errors` array
-- JSON-RPC error codes mapped from Gateway error types
+- Error detection: Checks if `error_output` exists with "errors" key
+- Error response: Uses JSON-RPC error code -32603 (Internal error)
+- Error message: Generic message like "N error(s) detected" based on error count
+- Error data: All errors included in `error.data.errors` array
+- Debug output: Included in `error.data.content` array if available
+- Request ID: Included in error response `id` field
 
 ---
 
@@ -202,6 +229,8 @@ password = password
 host = panel.domain.com
 ```
 
+**Required Fields**: `user`, `password`, and `host` are all required. Missing fields cause configuration error.
+
 ### Project Name Detection
 
 Both `mcp_wrapper.py` and database connection use same detection:
@@ -212,13 +241,15 @@ Both `mcp_wrapper.py` and database connection use same detection:
 
 ### HTTP Endpoint
 
-**URL**: `https://{host}/mcp` (typically `https://panel.{domain}/mcp`)
+**URL**: `https://{host}/mcp` (host from config file, typically `https://panel.{domain}/mcp`)
 
-**Access**: Subdomain `panel.{domain}` routes to Flask server
+**Access**: Host from config file routes to Flask server
 
-**Authentication**: Basic Auth using `user` and `password` from config
+**Authentication**: Basic Auth using `user` and `password` from config (Base64 encoded)
 
-**Method**: POST with JSON-RPC 2.0 request body
+**Method**: POST with JSON-RPC 2.0 request body (JSON) or multipart/form-data (for file uploads)
+
+**File Uploads**: `mcp_wrapper.py` extracts `_files` or `file_paths` from params, validates paths, sends as multipart/form-data with files attached
 
 ---
 
@@ -232,7 +263,10 @@ Both `mcp_wrapper.py` and database connection use same detection:
    - `hh/agents/mcp_utils.py` - For agent-related tools
    - `hh/mcp_request/mcp_utils.py` - For MCP request tools
    - `hh/mcp_action_request/mcp_utils.py` - For MCP action request tools
-   - Or create new `mcp_utils.py` in appropriate module folder
+   - `hh/image/mcp_utils.py` - For image-related tools
+   - `hh/work/mcp_utils.py` - For work-related tools
+   - `hh/source_code_file/mcp_utils.py` - For source code file tools
+   - Or create new `mcp_utils.py` in appropriate module folder (will be auto-discovered by scanner)
 
 2. **Register Tool**: Use decorator on a placeholder function:
    ```python
@@ -263,10 +297,11 @@ Both `mcp_wrapper.py` and database connection use same detection:
 3. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
 
 4. **Cache Rebuild**: 
-   - Cache files auto-rebuild on next cache miss (when tool is requested but not in cache)
+   - Cache files auto-rebuild on cache miss (when tool is requested but not in cache for any tier)
+   - Rebuild process: Scans all `mcp_utils.py` files, imports modules, rebuilds ALL tier whitelists at once
    - Or manually clear cache to force rebuild: Delete `hh/gateway/registry/cache/mcp-whitelist-*.json` files
-   - No Flask server restart needed (cache files are checked on each request)
-   - MCP registry auto-generates wrapper on next import (no code changes needed)
+   - No Flask server restart needed (cache files are checked on each request, in-memory cache persists)
+   - MCP registry auto-generates wrapper on next import (no code changes needed, uses exec() to create functions)
 
 ### Tool Requirements
 
@@ -280,11 +315,13 @@ For a tool to work through MCP:
 ### Schema Validation
 
 The `inputSchema` in whitelist is used by `MCPWhitelist.validate_tool()` for validation:
-- Validates tool exists for the requesting tier
-- Validates required fields are present
-- Validates field types (string, integer, boolean, array, object)
-- Allows extra fields (Gateway handles additional validation)
-- Returns detailed error messages for failures
+- Validates tool exists for the requesting tier (calls `get_tool()` which may trigger rebuild)
+- Validates required fields are present (checks `schema.get('required', [])`)
+- Validates field types (string, integer, boolean, array, object) with automatic type coercion:
+  - String numbers coerced to integers for integer fields
+  - Negative numbers handled correctly
+- Allows extra fields (fields not in schema are ignored, Gateway handles additional validation)
+- Returns tuple `(bool, str)` - `(False, error_message)` on failure, `(True, "")` on success
 
 ### Testing Changes
 
@@ -310,8 +347,9 @@ After adding to whitelist and redeploying:
 
 ### With Response System (see gateway.md)
 - `ResponseMCP` extends base `Response` class
-- Uses `success_payload()` structure from `json_standard.py`
-- `get_data()` extracts from `content[0].text` (MCP format)
+- Uses `success_payload()` structure from `json_standard.py` (`hh/gateway/response/json_standard.py`)
+- `get_data()` function in `json_standard.py` extracts from `content[0].text` (MCP format) with fallback to old `dat` field
+- ResponseMCP includes debug output in `content` array if available
 
 ### With Database Connection
 - Shares same config file format and location
