@@ -183,8 +183,18 @@ class SourceCodeFileContentMixin:
                     debug("add_lower_content: No language specified, using text lexer")
                     lexer = pygments_get_lexer_by_name('text')
                 
-                formatter = pygments_HtmlFormatter()
-                highlighted_content = pygments_highlight(content, lexer, formatter)
+                # Configure formatter with line wrapping for markdown files
+                if language.lower() == 'markdown':
+                    formatter = pygments_HtmlFormatter(wrapcode=True, lineanchors='line')
+                    # For markdown, wrap lines at 180 characters
+                    wrapped_content = '\n'.join(
+                        line if len(line) <= 180 else line[:180] + '\n' + line[180:]
+                        for line in content.splitlines()
+                    )
+                    highlighted_content = pygments_highlight(wrapped_content, lexer, formatter)
+                else:
+                    formatter = pygments_HtmlFormatter()
+                    highlighted_content = pygments_highlight(content, lexer, formatter)
                 debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
                 
                 # Second content div: highlighted source code
