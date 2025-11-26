@@ -153,6 +153,8 @@ class McpRequestContentMixin:
 
         for key, value in defaults.items():
             page.set_metadata_value(key, value)
+            # Also set the attribute directly on the page instance since it was already hydrated
+            setattr(page, key, value)
 
         log(f"Initialized metadata for MCP request page {new_page_id}")
         trace_out()
