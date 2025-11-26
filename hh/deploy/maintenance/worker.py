@@ -14,6 +14,7 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -122,7 +123,7 @@ def maintenance_client_path() -> Path:
     return project_root / "hh" / "deploy" / "maint" / "maintenance_client.py"
 
 
-def run_maintenance_command(command: str, with_log: bool = False) -> Tuple[int, Optional[Dict[str, Any]]]:
+def run_maintenance_command(command: str, with_log: bool = False, verbose_debug: bool = False) -> Tuple[int, Optional[Dict[str, Any]]]:
     """Run a maintenance command and return (exit_code, parsed_response)."""
     project_root = find_project_root()
     env = os.environ.copy()
@@ -136,9 +137,10 @@ def run_maintenance_command(command: str, with_log: bool = False) -> Tuple[int, 
     if with_log:
         cmd.append("-log")
     
-    # Debug logging to see exact command
-    logging.debug(f"Running command: {' '.join(cmd)}")
-    logging.debug(f"Environment PYTHONPATH: {env.get('PYTHONPATH')}")
+    # Debug logging to see exact command (only when verbose)
+    if verbose_debug:
+        logging.debug(f"Running command: {' '.join(cmd)}")
+        logging.debug(f"Environment PYTHONPATH: {env.get('PYTHONPATH')}")
     
     # Windows: prevent console window from appearing
     kwargs = {
@@ -230,24 +232,24 @@ def update_job_status(
     return exit_code == 0
 
 
-def get_jobs_status() -> Optional[Dict[str, Any]]:
+def get_jobs_status(verbose_debug: bool = False) -> Optional[Dict[str, Any]]:
     """Get current maintenance jobs status."""
-    # Debug logging to see what paths we're using
-    project_root = find_project_root()
-    client_path = maintenance_client_path()
-    logging.debug(f"Project root: {project_root}")
-    logging.debug(f"Client path: {client_path}")
-    logging.debug(f"Client exists: {client_path.exists()}")
+    if verbose_debug:
+        # Debug logging to see what paths we're using (only during heartbeat or when there's work)
+        project_root = find_project_root()
+        client_path = maintenance_client_path()
+        logging.debug(f"Project root: {project_root}")
+        logging.debug(f"Client path: {client_path}")
+        logging.debug(f"Client exists: {client_path.exists()}")
     
-    exit_code, response = run_maintenance_command("maintenance-jobs-status")
-    
-    # Debug logging to see what we're getting
-    logging.debug(f"maintenance-jobs-status exit_code: {exit_code}")
-    logging.debug(f"maintenance-jobs-status response: {response}")
+    exit_code, response = run_maintenance_command("maintenance-jobs-status", verbose_debug=verbose_debug)
     
     if response and response.get("status") == "ok":
         data = response.get("data", {})
-        logging.debug(f"Status data: {data}")
+        # Log useful status info only when there's work OR during heartbeat
+        if data.get("has_work", False) or verbose_debug:
+            logging.info(f"maintenance-jobs-status response: {response}")
+            logging.info(f"Status data: {data}")
         return data
     else:
         logging.error(f"Failed to get jobs status - exit_code: {exit_code}, response: {response}")
@@ -303,7 +305,7 @@ def handle_job_response(command: str, exit_code: int, response: Optional[Dict[st
     if has_error:
         # Error occurred - retry with -log to get debug info
         logging.warning(f"Error detected, retrying with -log for job {job_id}")
-        retry_exit, retry_response = run_maintenance_command(command, with_log=True)
+        retry_exit, retry_response = run_maintenance_command(command, with_log=True, verbose_debug=False)
         
         # Extract errors and debug from retry response
         error_data = extract_error_debug(retry_response) if retry_response else ""
@@ -343,27 +345,60 @@ def handle_job_response(command: str, exit_code: int, response: Optional[Dict[st
             update_job_status(job_id, "pending", progress=progress)
 
 
-def run_cycle() -> bool:
-    """Run one maintenance cycle. Returns True if work was done."""
-    # Get current status
-    status = get_jobs_status()
+def run_cycle(last_heartbeat: datetime) -> tuple[bool, datetime]:
+    """Run one maintenance cycle. Returns (work_done, new_last_heartbeat)."""
+    # Check if we should log a heartbeat (every 15 minutes)
+    now = datetime.now()
+    minutes_since_heartbeat = (now - last_heartbeat).total_seconds() / 60
+    is_heartbeat_time = minutes_since_heartbeat >= 15
+    
+    # Get current status (with verbose debug only during heartbeat time or when there might be work)
+    status = get_jobs_status(verbose_debug=is_heartbeat_time)
     if status is None:
         logging.error("Failed to get maintenance status")
-        return False
-    
-    # Debug: always log what we found
-    logging.debug(f"Status check: has_work={status.get('has_work')}, status keys: {list(status.keys())}")
+        return False, last_heartbeat
     
     # Check if there's work
     if not status.get("has_work", False):
-        # No logging when idle - keeps log clean
-        return False
+        if is_heartbeat_time:
+            # Log heartbeat with current status
+            pending_jobs = status.get("pending_jobs", {})
+            stale_counts = []
+            if status.get("stale_pages", 0) > 0:
+                stale_counts.append(f"{status['stale_pages']} pages")
+            if status.get("stale_images", 0) > 0:
+                stale_counts.append(f"{status['stale_images']} images") 
+            if status.get("stale_files", 0) > 0:
+                stale_counts.append(f"{status['stale_files']} files")
+            
+            # Status check info is redundant with status data - removed
+            
+            if pending_jobs or stale_counts:
+                # There's work but has_work is False - this shouldn't happen, but log it
+                work_summary = []
+                if pending_jobs:
+                    job_summary = ", ".join(f"{job_type}({count})" for job_type, count in pending_jobs.items())
+                    work_summary.append(f"Jobs: {job_summary}")
+                if stale_counts:
+                    work_summary.append(f"Stale: {', '.join(stale_counts)}")
+                logging.info(f"Heartbeat: Work detected but not flagged - {' | '.join(work_summary)}")
+            else:
+                logging.info("Heartbeat: No work found")
+            
+            return False, now
+        
+        # No logging when idle and not time for heartbeat - keeps log clean
+        return False, last_heartbeat
+    
+    # We already have the status from the first call - no need to call again
     
     # Build work docket
     docket = build_work_docket(status)
     if not docket:
         # No logging when no tasks - keeps log clean
-        return False
+        return False, last_heartbeat
+    
+    # Status check info is redundant with status data - removed
     
     # Log summary of available work
     pending_jobs = status.get("pending_jobs", {})
@@ -383,7 +418,9 @@ def run_cycle() -> bool:
         work_summary.append(f"Stale: {', '.join(stale_counts)}")
     
     logging.info(f"Work available: {' | '.join(work_summary)}")
-    logging.info(f"Work docket: {', '.join(cmd for cmd, _ in docket)}")
+    # Work docket only shows during heartbeat cycles
+    if is_heartbeat_time:
+        logging.debug(f"Work docket: {', '.join(cmd for cmd, _ in docket)}")
     
     # Execute each task
     for command, is_job_queue in docket:
@@ -391,8 +428,7 @@ def run_cycle() -> bool:
             logging.info("Shutdown requested, stopping cycle")
             break
         
-        logging.info(f"Running: {command}")
-        exit_code, response = run_maintenance_command(command)
+        exit_code, response = run_maintenance_command(command, verbose_debug=False)
         
         if is_job_queue:
             # Job queue item - handle status updates
@@ -400,16 +436,16 @@ def run_cycle() -> bool:
         else:
             # Simple cache refresh - just report result
             if exit_code == 0:
-                logging.info(f"  {command}: OK")
+                logging.info(f"{command}: OK")
             else:
                 error_msg = "unknown error"
                 if response and response.get("errors"):
                     errors = response["errors"]
                     if errors:
                         error_msg = errors[0].get("content", error_msg)
-                logging.error(f"  {command}: FAILED - {error_msg}")
+                logging.error(f"{command}: FAILED - {error_msg}")
     
-    return True
+    return True, last_heartbeat
 
 
 def main() -> int:
@@ -429,19 +465,16 @@ def main() -> int:
     logging.info("Press Ctrl+C to stop")
     
     cycle = 0
+    last_heartbeat = datetime.now()  # Initialize heartbeat timer
+    
     while RUNNING:
         cycle += 1
         # Only log cycle number when work is actually done
         cycle_logged = False
         
         try:
-            work_done = run_cycle()
-            if work_done and not cycle_logged:
-                logging.info(f"=== Cycle {cycle} ===")
-                cycle_logged = True
+            work_done, last_heartbeat = run_cycle(last_heartbeat)
         except Exception as e:
-            if not cycle_logged:
-                logging.info(f"=== Cycle {cycle} ===")
             logging.exception(f"Cycle error: {e}")
             work_done = False
         
@@ -455,7 +488,12 @@ def main() -> int:
                         os.fsync(handler.stream.fileno())
                     except (OSError, AttributeError):
                         pass
-            time.sleep(args.delay)
+            
+            # Sleep based on work status: 0.5 second if work was done, full delay if idle
+            if work_done:
+                time.sleep(0.5)  # Quick turnaround for continuous work processing
+            else:
+                time.sleep(args.delay)  # Normal delay when idle
     
     logging.info("Maintenance worker stopped")
     return 0
