@@ -112,6 +112,13 @@ def signal_handler(signum, frame):
 def maintenance_client_path() -> Path:
     """Get path to maintenance_client.py."""
     project_root = find_project_root()
+    
+    # In deployed environment, maintenance_client.py is at the top level
+    deployed_client = project_root / "maintenance_client.py"
+    if deployed_client.exists():
+        return deployed_client
+    
+    # In development environment, it's in the hh/deploy/maint/ directory
     return project_root / "hh" / "deploy" / "maint" / "maintenance_client.py"
 
 
