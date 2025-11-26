@@ -233,8 +233,7 @@ class ProcessManager:
             if user and self.is_unix and self.is_privileged():
                 # Wrap command with sudo -u
                 cmd_str = ' '.join(actual_cmd)
-                if log_file:
-                    cmd_str = f'{cmd_str} >> {log_file} 2>&1'
+                # Don't redirect to log_file here - let the process handle its own logging
                 actual_cmd = ['sudo', '-u', user, 'bash', '-c', f'cd {cwd or "."} && nohup {cmd_str} &']
                 
                 debug(f"User switching command: {' '.join(actual_cmd)}")
