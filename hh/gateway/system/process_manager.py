@@ -229,12 +229,15 @@ class ProcessManager:
             actual_cmd = cmd.copy()
             
             # Handle user switching on Unix (deployed mode)
+            debug(f"User switching check: user={user}, is_unix={self.is_unix}, is_privileged={self.is_privileged()}")
             if user and self.is_unix and self.is_privileged():
                 # Wrap command with sudo -u
                 cmd_str = ' '.join(actual_cmd)
                 if log_file:
                     cmd_str = f'{cmd_str} >> {log_file} 2>&1'
                 actual_cmd = ['sudo', '-u', user, 'bash', '-c', f'cd {cwd or "."} && nohup {cmd_str} &']
+                
+                debug(f"User switching command: {' '.join(actual_cmd)}")
                 
                 # Use shell=True for the nohup wrapper
                 process = subprocess.Popen(
@@ -247,6 +250,8 @@ class ProcessManager:
                 log(f"Started background process as user {user}")
                 trace_out()
                 return process.pid
+            else:
+                debug(f"Not switching users - running as current user")
             
             # Standard background process (Windows or non-privileged Unix)
             # Let smart processes handle their own logging - no stdout redirect
