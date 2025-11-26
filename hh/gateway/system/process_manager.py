@@ -239,10 +239,9 @@ class ProcessManager:
                 
                 debug(f"User switching command: {' '.join(actual_cmd)}")
                 
-                # Use shell=True for the nohup wrapper
+                # Use array form for proper argument handling
                 process = subprocess.Popen(
-                    ' '.join(actual_cmd),
-                    shell=True,
+                    actual_cmd,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     cwd=cwd,
