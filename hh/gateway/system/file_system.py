@@ -96,6 +96,15 @@ class FileSystem:
         trace_in()
         file_path_obj = Path(file_path)
         
+        # Check if this file is already scheduled for deletion
+        for existing_op in self._operations:
+            if (existing_op['type'] == 'delete' and 
+                existing_op['from_path'] == file_path and 
+                existing_op['status'] == 'scheduled'):
+                log(f"File already scheduled for deletion, skipping: {file_path}")
+                trace_out()
+                return
+        
         if self._os_type == 'windows':
             # Windows: schedule hard delete (no temp location, no rollback)
             operation = {

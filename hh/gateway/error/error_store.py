@@ -33,6 +33,7 @@ class ErrorType(Enum):
     CACHE_REFRESH = "cache_refresh"
     DEPENDENCY = "dependency"
     DEPLOYMENT = "deployment"
+    FILE_OPERATION = "file_operation"
 
 @dataclass
 class ErrorEntry:
