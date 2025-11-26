@@ -215,7 +215,7 @@ class SourceCodeFileContentMixin:
         return badge_headers
     
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int, conn):
+    def _add_page_class_information(cls, new_page_id: int):
         """
         Hook called after page creation to add source_code_files table entry.
         This is a classmethod (like PHP's static method) so it can be called on the class
@@ -239,6 +239,11 @@ class SourceCodeFileContentMixin:
             return
         page.set_metadata_value('file_path', file_path or '')
         page.set_metadata_value('language', language or '')
+        
+        # Also set the attributes directly on the page instance since it was already hydrated
+        page.file_path = file_path or ''
+        page.language = language or ''
+        
         #page.reset_connection() xyzzy why are we resetting this connection?!?
         log(f"Initialized metadata for source code file page {new_page_id}")
         
