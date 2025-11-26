@@ -100,17 +100,21 @@ class SourceCodeFileContentMixin:
         # Count lines in the file if it exists
         num_lines = 0
         if hasattr(self, 'file_path') and self.file_path:
-            # Check if /srv exists (Unix server path) - if not, skip file reading
-            if os.path.exists('/srv'):
-                try:
-                    project_name, _ = detect_project_context()
-                    if project_name:
-                        full_path = f'/srv/{project_name}/context/{self.file_path}'
-                        if os.path.exists(full_path):
-                            with open(full_path, 'r', encoding='utf-8') as f:
-                                num_lines = sum(1 for _ in f)
-                except Exception as e:
-                    debug(f"Failed to count lines in {self.file_path}: {str(e)}")
+            try:
+                # Use gateway.files for file operations instead of direct file access
+                gateway = get_gateway()
+                if gateway and gateway.files:
+                    # Try the file path as-is first (relative to current working directory)
+                    file_content = gateway.files.read_file_text(self.file_path)
+                    if file_content is not None:
+                        num_lines = len(file_content.splitlines())
+                        debug(f"Successfully counted {num_lines} lines in {self.file_path}")
+                    else:
+                        debug(f"Could not read file {self.file_path} - file may not exist or be accessible")
+                else:
+                    debug("Gateway or gateway.files not available for line counting")
+            except Exception as e:
+                debug(f"Failed to count lines in {self.file_path}: {str(e)}")
         data['num_lines'] = num_lines
         trace_out()
         return data
@@ -138,68 +142,58 @@ class SourceCodeFileContentMixin:
             debug("add_lower_content: No file_path set, returning empty list")
             return []
         
-        # Check if /srv exists (Unix server path) - if not, skip file reading
-        if not os.path.exists('/srv'):
-            debug("add_lower_content: /srv does not exist, skipping file read (not on Unix server)")
+        # Use gateway.files for file operations instead of direct file access
+        gateway = get_gateway()
+        if not gateway or not gateway.files:
+            debug("add_lower_content: Gateway or gateway.files not available")
             return []
         
-        # Construct full path using detected project name
-        project_name, _ = detect_project_context()
-        if project_name:
-            full_path = f'/srv/{project_name}/context/{self.file_path}'
-            debug(f"add_lower_content: Constructed full path: {self.file_path} -> {full_path}")
-        else:
-            warn("add_lower_content: Could not detect project name, using stored path as-is")
-            full_path = self.file_path
-        
-        debug(f"add_lower_content: Checking for file at path: {full_path}")
-        if os.path.exists(full_path):
-            debug(f"add_lower_content: File exists at {full_path}, attempting to read")
-            try:
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    debug(f"add_lower_content: Successfully read file {full_path}, returning content ({len(content)} characters)")
-                    
-                    # Check if backend is HTTP - only do Pygments highlighting for HTTP
-                    gateway = get_gateway()
-                    is_http_backend = gateway and gateway.backend == "http"
-                    
-                    if is_http_backend:
-                        # HTTP backend: Use Pygments for syntax highlighting
-                        # First content div: file path (show what's stored in database, not the constructed path)
-                        file_info = f'<div class="contentHeader">{self.file_path}</div>'
-                        
-                        # Use Pygments for syntax highlighting
-                        language = self.language.strip() if self.language else ''
-                        if language:
-                            try:
-                                lexer = pygments_get_lexer_by_name(language)
-                                debug(f"add_lower_content: Using lexer '{language}' for syntax highlighting")
-                            except pygments_ClassNotFound:
-                                warn(f"add_lower_content: Unknown language '{language}', falling back to text")
-                                lexer = pygments_get_lexer_by_name('text')
-                        else:
-                            debug("add_lower_content: No language specified, using text lexer")
-                            lexer = pygments_get_lexer_by_name('text')
-                        
-                        formatter = pygments_HtmlFormatter()
-                        highlighted_content = pygments_highlight(content, lexer, formatter)
-                        debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
-                        
-                        # Second content div: highlighted source code
-                        source_code = f'<div class="content">{highlighted_content}</div>'
-                        
-                        return [file_info, source_code]
-                    else:
-                        # Non-HTTP backend (e.g., MCP): Return raw source code without HTML highlighting
-                        debug(f"add_lower_content: Non-HTTP backend ({gateway.backend if gateway else 'unknown'}), returning raw content")
-                        return [content]
-            except Exception as e:
-                warn(f"Failed to read file {full_path}: {str(e)}")
-                debug(f"add_lower_content: Failed to read file {full_path}: {str(e)}, returning empty list")
+        debug(f"add_lower_content: Attempting to read file: {self.file_path}")
+        try:
+            content = gateway.files.read_file_text(self.file_path)
+            if content is None:
+                debug(f"add_lower_content: Could not read file {self.file_path} - file may not exist or be accessible")
                 return []
-        debug(f"add_lower_content: File does not exist at {full_path}, returning empty list")
-        return []
+            
+            debug(f"add_lower_content: Successfully read file {self.file_path}, returning content ({len(content)} characters)")
+            
+            # Check if backend is HTTP - only do Pygments highlighting for HTTP
+            is_http_backend = gateway and gateway.backend == "http"
+            
+            if is_http_backend:
+                # HTTP backend: Use Pygments for syntax highlighting
+                # First content div: file path (show what's stored in database)
+                file_info = f'<div class="contentHeader">{self.file_path}</div>'
+                
+                # Use Pygments for syntax highlighting
+                language = self.language.strip() if self.language else ''
+                if language:
+                    try:
+                        lexer = pygments_get_lexer_by_name(language)
+                        debug(f"add_lower_content: Using lexer '{language}' for syntax highlighting")
+                    except pygments_ClassNotFound:
+                        warn(f"add_lower_content: Unknown language '{language}', falling back to text")
+                        lexer = pygments_get_lexer_by_name('text')
+                else:
+                    debug("add_lower_content: No language specified, using text lexer")
+                    lexer = pygments_get_lexer_by_name('text')
+                
+                formatter = pygments_HtmlFormatter()
+                highlighted_content = pygments_highlight(content, lexer, formatter)
+                debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
+                
+                # Second content div: highlighted source code
+                source_code = f'<div class="content">{highlighted_content}</div>'
+                
+                return [file_info, source_code]
+            else:
+                # Non-HTTP backend (e.g., MCP): Return raw source code without HTML highlighting
+                debug(f"add_lower_content: Non-HTTP backend ({gateway.backend if gateway else 'unknown'}), returning raw content")
+                return [content]
+        except Exception as e:
+            warn(f"Failed to read file {self.file_path}: {str(e)}")
+            debug(f"add_lower_content: Failed to read file {self.file_path}: {str(e)}, returning empty list")
+            return []
     
     def _add_badge_headers(self) -> Dict[str, Any]:
         trace_in()
