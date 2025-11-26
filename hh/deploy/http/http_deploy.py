@@ -1,4 +1,3 @@
-import os
 import subprocess
 import shutil
 from pathlib import Path
@@ -8,8 +7,6 @@ from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-import pwd
-import grp
 from hh.gateway.error.error_store import report_error, is_error
 
 trace_in = lambda message=None: None
@@ -175,7 +172,10 @@ def check_nginx_status() -> Dict[str, Any]:
 def detect_project_name() -> str:
     """Detect project name from current directory."""
     try:
-        cwd = os.getcwd()
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            return "henhouse"
+        cwd = gateway.os.get_cwd()
         if cwd.startswith('/srv/'):
             parts = cwd.split('/')
             if len(parts) >= 3:
@@ -198,6 +198,11 @@ def http_deploy() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        trace_out()
+        return False
+
+    # Check if running in deployed Unix environment with privileges
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
 

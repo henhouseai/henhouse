@@ -1,7 +1,5 @@
-import os
 import shutil
 import subprocess
-import pwd
 from pathlib import Path
 from typing import List
 from hh.gateway.registry.registry import register_action
@@ -53,6 +51,11 @@ def deploy() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        trace_out()
+        return False
+
+    # Check if running in deployed Unix environment with privileges
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
 
@@ -433,7 +436,10 @@ def deploy() -> bool:
         ownership_set = False
         try:
             project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-            project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+            user_info = gateway.os.get_user_by_name(project_highest_user)
+            if not user_info:
+                raise ValueError(f"User not found: {project_highest_user}")
+            project_highest_uid = user_info["uid"]
             deploy_group_name = f"{project_name}_deploy"
             
             subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(dest)], check=True)
@@ -459,18 +465,21 @@ def deploy() -> bool:
         cache_permissions_set = False
         try:
             project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-            project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+            user_info = gateway.os.get_user_by_name(project_highest_user)
+            if not user_info:
+                raise ValueError(f"User not found: {project_highest_user}")
+            project_highest_uid = user_info["uid"]
             deploy_group_name = f"{project_name}_deploy"
             
             cache_dirs = [dest / cache_dir for cache_dir in get_cache_directories()]
             
             for cache_dir in cache_dirs:
                 if cache_dir.exists():
-                    os.chmod(cache_dir, 0o2775)
+                    gateway.files.chmod(str(cache_dir), 0o2775)
                     log(f"Set cache directory permissions: {cache_dir}")
                 else:
                     cache_dir.mkdir(parents=True, exist_ok=True)
-                    os.chmod(cache_dir, 0o2775)
+                    gateway.files.chmod(str(cache_dir), 0o2775)
                     log(f"Created cache directory with group write: {cache_dir}")
                 
                 # Set ownership so all tier users can write via group permissions
@@ -492,11 +501,14 @@ def deploy() -> bool:
                 shutil.rmtree(logs_dir)
                 log(f"Cleared existing logs directory: {logs_dir}")
             logs_dir.mkdir(parents=True, exist_ok=True)
-            os.chmod(logs_dir, 0o2775)
+            gateway.files.chmod(str(logs_dir), 0o2775)
             
             # Set ownership so Flask daemons can write logs
             project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-            project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+            user_info = gateway.os.get_user_by_name(project_highest_user)
+            if not user_info:
+                raise ValueError(f"User not found: {project_highest_user}")
+            project_highest_uid = user_info["uid"]
             deploy_group_name = f"{project_name}_deploy"
             subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(logs_dir)], check=True)
             
@@ -666,12 +678,23 @@ def setup_deployment_ownership_and_permissions(project_name: str) -> None:
     """Set ownership and permissions for deployed code (copied from init.py)."""
     trace_in()
     try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            warn("Gateway or ProcessManager not available")
+            trace_out()
+            return
+        
         # Set ownership of /srv/{project_name} to project highest level user with deploy group AFTER deployment
         srv_project = Path(f'/srv/{project_name}')
         if srv_project.exists():
             try:
                 project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-                project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
+                user_info = gateway.os.get_user_by_name(project_highest_user)
+                if not user_info:
+                    warn(f"User not found: {project_highest_user}")
+                    trace_out()
+                    return
+                project_highest_uid = user_info["uid"]
                 deploy_group_name = f"{project_name}_deploy"
                 subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(srv_project)], check=True)
                 

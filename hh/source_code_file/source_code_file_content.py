@@ -1,12 +1,33 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
 import os
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name
-from pygments.formatters import HtmlFormatter
-from pygments.util import ClassNotFound
 from hh.deploy.utils import detect_project_context
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.system.dependency import register_dependency
+
+# Register pygments as a dependency
+pygments_highlight = None
+pygments_get_lexer_by_name = None
+pygments_HtmlFormatter = None
+pygments_ClassNotFound = None
+
+@register_dependency("pygments")
+def _load_pygments():
+    global pygments_highlight, pygments_get_lexer_by_name, pygments_HtmlFormatter, pygments_ClassNotFound
+    try:
+        from pygments import highlight
+        from pygments.lexers import get_lexer_by_name
+        from pygments.formatters import HtmlFormatter
+        from pygments.util import ClassNotFound
+        pygments_highlight = highlight
+        pygments_get_lexer_by_name = get_lexer_by_name
+        pygments_HtmlFormatter = HtmlFormatter
+        pygments_ClassNotFound = ClassNotFound
+        return True
+    except ImportError:
+        return False
+
+_load_pygments()
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.page.page_registry import get_page
@@ -152,17 +173,17 @@ class SourceCodeFileContentMixin:
                         language = self.language.strip() if self.language else ''
                         if language:
                             try:
-                                lexer = get_lexer_by_name(language)
+                                lexer = pygments_get_lexer_by_name(language)
                                 debug(f"add_lower_content: Using lexer '{language}' for syntax highlighting")
-                            except ClassNotFound:
+                            except pygments_ClassNotFound:
                                 warn(f"add_lower_content: Unknown language '{language}', falling back to text")
-                                lexer = get_lexer_by_name('text')
+                                lexer = pygments_get_lexer_by_name('text')
                         else:
                             debug("add_lower_content: No language specified, using text lexer")
-                            lexer = get_lexer_by_name('text')
+                            lexer = pygments_get_lexer_by_name('text')
                         
-                        formatter = HtmlFormatter()
-                        highlighted_content = highlight(content, lexer, formatter)
+                        formatter = pygments_HtmlFormatter()
+                        highlighted_content = pygments_highlight(content, lexer, formatter)
                         debug(f"add_lower_content: Syntax highlighting complete, returning HTML")
                         
                         # Second content div: highlighted source code

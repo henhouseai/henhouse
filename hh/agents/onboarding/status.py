@@ -1,8 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
-from hh.gateway.connection.decorators import db_read
-from hh.gateway.connection.connection import r_query
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -27,9 +25,14 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def get_agent_answers(conn, agent_id: int) -> List[Dict[str, Any]]:
+def get_agent_answers(agent_id: int) -> List[Dict[str, Any]]:
     """Get all answered questions for an agent"""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return []
     try:
         query = """
             SELECT 
@@ -43,7 +46,7 @@ def get_agent_answers(conn, agent_id: int) -> List[Dict[str, Any]]:
             WHERE aor.agent_id = %s
             ORDER BY aor.created_ts
         """
-        results = r_query(conn, query, [agent_id])
+        results = gateway.conn.read(query, [agent_id])
         
         answers = []
         for row in results:
@@ -65,9 +68,17 @@ def get_agent_answers(conn, agent_id: int) -> List[Dict[str, Any]]:
         return []
 
 
-def get_agent_status(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
+def get_agent_status(agent_id: int, badge_ts: str) -> Dict[str, Any]:
     """Get comprehensive status for an agent"""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return {
+            'success': False,
+            'error': 'No gateway or connection available'
+        }
     try:
         # Get agent info
         query = """
@@ -81,7 +92,7 @@ def get_agent_status(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
             FROM agents a
             WHERE a.id = %s AND a.badge_ts = %s
         """
-        results = r_query(conn, query, [agent_id, badge_ts])
+        results = gateway.conn.read(query, [agent_id, badge_ts])
         
         if not results:
             warn(f"Agent {agent_id} not found with badge {badge_ts}")
@@ -115,9 +126,9 @@ def get_agent_status(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
         combined = general_cfg.get("gates", []) + role_cfg.get("gates", [])
         required_docs = [gate.get("doc_path", "") for gate in combined if gate.get("doc_path", "")]
         
-        raw_progress = progress_tracker.get_training_progress(conn, agent_id, agent_info['role'], required_docs)
-        is_complete = progress_tracker.is_training_complete(conn, agent_id, agent_info['role'], required_docs)
-        is_role_complete = progress_tracker.is_role_training_complete(conn, agent_id, agent_info['role'])
+        raw_progress = progress_tracker.get_training_progress(agent_id, agent_info['role'], required_docs)
+        is_complete = progress_tracker.is_training_complete(agent_id, agent_info['role'], required_docs)
+        is_role_complete = progress_tracker.is_role_training_complete(agent_id, agent_info['role'])
         
         # Format training progress for parser
         training_progress = {
@@ -129,7 +140,7 @@ def get_agent_status(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
         }
         
         # Get answered questions
-        answers = get_agent_answers(conn, agent_id)
+        answers = get_agent_answers(agent_id)
         
         # Get available roles
         matrix = TrainingMatrix()
@@ -161,13 +172,12 @@ def get_agent_status(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
 
 @register_action('status')
 @register_command('status')
-@db_read
-def status(conn) -> bool:
+def status() -> bool:
     """Show training progress and answered questions for an agent"""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
         trace_out()
         return False
     
@@ -185,7 +195,7 @@ def status(conn) -> bool:
         log(f"Status called with agent_id={agent_id}, badge_ts={badge_ts}")
         
         # Get agent status
-        status_data = get_agent_status(conn, agent_id, badge_ts)
+        status_data = get_agent_status(agent_id, badge_ts)
         
         if not status_data['success']:
             warn(f"Status failed: {status_data['error']}")

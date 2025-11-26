@@ -2,15 +2,12 @@ import os
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
-import pymysql
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.connection.decorators import root_read
-from hh.gateway.connection.connection import load_dsn
 from hh.deploy.utils import detect_project_context
 
 trace_in = lambda message=None: None
@@ -28,14 +25,14 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@root_read
 @register_action('clean_db')
 @register_command('clean_db')
-def clean_db(conn, args: List[str] = None) -> bool:
+def clean_db(args: List[str] = None) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn or not gateway.conn.main:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
         trace_out()
         return False
     
@@ -98,32 +95,20 @@ def clean_db(conn, args: List[str] = None) -> bool:
     cache_remaining_tables = []
     if not is_error():
         try:
-            with conn.cursor() as cursor:
-                cursor.execute("SHOW TABLES")
-                remaining_tables = cursor.fetchall()
-                log(f"Remaining tables after cleanup (main): {len(remaining_tables)}")
+            tables_result = gateway.conn.read("SHOW TABLES")
+            remaining_tables = tables_result
+            log(f"Remaining tables after cleanup (main): {len(remaining_tables)}")
         except Exception as e:
             warn(f"Failed to verify main table cleanup: {str(e)}")
             report_error("backend", f"Failed to verify main table cleanup: {str(e)}")
     
     if not is_error():
         try:
-            dsn = load_dsn() or {}
-            host = dsn.get('host', 'localhost')
-            port = dsn.get('port', 3306)
-            cache_conn = pymysql.connect(
-                host=host,
-                port=port,
-                user='root',
-                password=root_password,
-                database=cache_db_name,
-                cursorclass=pymysql.cursors.DictCursor
-            )
-            with cache_conn.cursor() as cursor:
+            # Use gateway's cache connection (RootConnection provides root access to cache)
+            with gateway.conn.cache.cursor() as cursor:
                 cursor.execute("SHOW TABLES")
                 cache_remaining_tables = cursor.fetchall()
                 log(f"Remaining tables after cleanup (cache): {len(cache_remaining_tables)}")
-            cache_conn.close()
         except Exception as e:
             warn(f"Failed to verify cache table cleanup: {str(e)}")
             report_error("backend", f"Failed to verify cache table cleanup: {str(e)}")
@@ -135,12 +120,12 @@ def clean_db(conn, args: List[str] = None) -> bool:
                 "project_name": project_name,
                 "clean_sql_file": str(clean_sql_path),
                 "clean_cache_sql_file": str(clean_cache_sql_path),
-                "remaining_tables": len(remaining_tables),
-                "cache_remaining_tables": len(cache_remaining_tables),
-                "cleanup_successful": len(remaining_tables) == 0 and len(cache_remaining_tables) == 0
+                "remaining_tables": len(remaining_tables) if remaining_tables else 0,
+                "cache_remaining_tables": len(cache_remaining_tables) if cache_remaining_tables else 0,
+                "cleanup_successful": (len(remaining_tables) if remaining_tables else 0) == 0 and (len(cache_remaining_tables) if cache_remaining_tables else 0) == 0
             }
             gateway.response.set_action_response(success_payload(result_data))
-            log(f"Clean db completed successfully: {len(remaining_tables)} tables remaining")
+            log(f"Clean db completed successfully: {len(remaining_tables) if remaining_tables else 0} tables remaining")
         except Exception as e:
             warn(f"Failed to prepare response data: {str(e)}")
             report_error("action", f"Failed to prepare response data: {str(e)}")

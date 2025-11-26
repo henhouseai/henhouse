@@ -2,10 +2,12 @@ import shutil
 import uuid
 import os
 import platform
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.system.dependency import register_dependency, require
 from hh.gateway.error.error_store import report_error
 
 trace_in = lambda message=None: None
@@ -13,6 +15,21 @@ trace_out = lambda message=None: None
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
+
+_PWD_DEPENDENCY = "pwd"
+
+
+@register_dependency(_PWD_DEPENDENCY)
+def _import_pwd():
+    try:
+        import pwd
+        return pwd
+    except ImportError:
+        return None
+
+
+pwd = _import_pwd()
+
 
 @register_debug_init
 def _initialize_debug():
@@ -71,22 +88,44 @@ class FileSystem:
         trace_out()
     
     def schedule_delete(self, file_path: str) -> None:
-        """Schedule a file delete operation (soft delete to /tmp) to be executed on commit."""
+        """Schedule a file delete operation to be executed on commit.
+        
+        On Unix: soft delete (move to temp directory for potential rollback)
+        On Windows: hard delete (no rollback support)
+        """
         trace_in()
         file_path_obj = Path(file_path)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_id = str(uuid.uuid4())[:8]
-        temp_filename = f"henhouse_deleted_{timestamp}_{unique_id}_{file_path_obj.name}"
-        temp_path = f"/tmp/{temp_filename}"
-        operation = {
-            'type': 'delete',
-            'from_path': file_path,
-            'to_path': temp_path,
-            'status': 'scheduled',
-            'temp_filename': temp_filename
-        }
+        
+        if self._os_type == 'windows':
+            # Windows: schedule hard delete (no temp location, no rollback)
+            operation = {
+                'type': 'delete',
+                'from_path': file_path,
+                'to_path': None,  # No temp path on Windows
+                'status': 'scheduled',
+                'temp_filename': None,
+                'hard_delete': True,
+            }
+            log(f"Scheduled file delete (hard): {file_path}")
+        else:
+            # Unix: soft delete to temp directory
+            import tempfile
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_id = str(uuid.uuid4())[:8]
+            temp_filename = f"henhouse_deleted_{timestamp}_{unique_id}_{file_path_obj.name}"
+            temp_dir = tempfile.gettempdir()
+            temp_path = f"{temp_dir}/{temp_filename}"
+            operation = {
+                'type': 'delete',
+                'from_path': file_path,
+                'to_path': temp_path,
+                'status': 'scheduled',
+                'temp_filename': temp_filename,
+                'hard_delete': False,
+            }
+            log(f"Scheduled file delete (soft): {file_path} -> {temp_path}")
+        
         self._operations.append(operation)
-        log(f"Scheduled file delete: {file_path} -> {temp_path}")
         trace_out()
     
     def commit(self) -> bool:
@@ -135,11 +174,22 @@ class FileSystem:
                     completed_count += 1
                     
                 elif operation['type'] == 'delete':
-                    to_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.move(str(from_path), str(to_path))
-                    log(f"Moved file to temp for deletion: {from_path} -> {to_path}")
-                    operation['status'] = 'completed'
-                    completed_count += 1
+                    if operation.get('hard_delete', False):
+                        # Hard delete (Windows) - actually remove the file
+                        if from_path.is_dir():
+                            shutil.rmtree(str(from_path))
+                        else:
+                            from_path.unlink()
+                        log(f"Hard deleted file: {from_path}")
+                        operation['status'] = 'completed'
+                        completed_count += 1
+                    else:
+                        # Soft delete (Unix) - move to temp
+                        to_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.move(str(from_path), str(to_path))
+                        log(f"Moved file to temp for deletion: {from_path} -> {to_path}")
+                        operation['status'] = 'completed'
+                        completed_count += 1
                     
             except Exception as e:
                 warn(f"Failed to execute file operation {operation['type']}: {from_path} -> {to_path}: {str(e)}")
@@ -196,7 +246,13 @@ class FileSystem:
                         return False
                     
                 elif operation['type'] == 'delete':
-                    if to_path.exists():
+                    if operation.get('hard_delete', False):
+                        # Hard delete cannot be rolled back
+                        warn(f"Cannot rollback hard delete: {from_path}")
+                        operation['status'] = 'rollback_not_supported'
+                        # Don't fail the whole rollback, just skip this one
+                        continue
+                    elif to_path and to_path.exists():
                         from_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.move(str(to_path), str(from_path))
                         log(f"Rolled back delete: {to_path} -> {from_path}")
@@ -248,6 +304,18 @@ class FileSystem:
             warn(f"Error checking file existence: {path}: {e}")
             trace_out()
             return False  # Graceful failure
+
+    def is_executable(self, path: str) -> bool:
+        """Check if a file is executable. Returns False if not executable or file not found."""
+        trace_in()
+        try:
+            result = os.path.isfile(path) and os.access(path, os.X_OK)
+            trace_out()
+            return result
+        except Exception as e:
+            warn(f"Error checking if file is executable: {path}: {e}")
+            trace_out()
+            return False
     
     def directory_exists(self, path: str) -> bool:
         """Check if a directory exists. Returns False if directory not found (graceful)."""
@@ -437,4 +505,138 @@ class FileSystem:
         except Exception as e:
             warn(f"Error getting filename: {path}: {e}")
             return ""
+
+    def get_temp_directory(self) -> str:
+        """Get the system's temporary directory (cross-platform)."""
+        return tempfile.gettempdir()
+
+    def chown(self, path: str, username: str, group: str = None, recursive: bool = False) -> bool:
+        """Change file ownership to specified user and optionally group. Returns True if successful.
+        
+        Args:
+            path: Path to file or directory
+            username: Username to set as owner
+            group: Group name to set (if None, uses user's primary group)
+            recursive: If True, recursively change ownership of all contents
+        
+        Only works on Unix systems. On Windows, returns False.
+        """
+        trace_in()
+        if not require("pwd"):
+            trace_out()
+            return False
+        try:
+            user_info = pwd.getpwnam(username)
+            uid = user_info.pw_uid
+            
+            # Get gid from group name if provided, otherwise use user's primary group
+            if group:
+                import grp
+                try:
+                    group_info = grp.getgrnam(group)
+                    gid = group_info.gr_gid
+                except KeyError:
+                    warn(f"Group not found: {group}")
+                    trace_out()
+                    return False
+            else:
+                gid = user_info.pw_gid
+            
+            ownership_str = f"{username}:{group}" if group else username
+            
+            if recursive and os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    os.chown(root, uid, gid)
+                    for d in dirs:
+                        os.chown(os.path.join(root, d), uid, gid)
+                    for f in files:
+                        os.chown(os.path.join(root, f), uid, gid)
+                log(f"Recursively changed ownership of {path} to {ownership_str}")
+            else:
+                os.chown(path, uid, gid)
+                log(f"Changed ownership of {path} to {ownership_str}")
+            
+            trace_out()
+            return True
+        except KeyError:
+            warn(f"User not found: {username}")
+            trace_out()
+            return False
+        except Exception as e:
+            warn(f"Failed to chown {path} to {ownership_str}: {e}")
+            trace_out()
+            return False
+
+    def chmod(self, path: str, mode: int, recursive: bool = False) -> bool:
+        """Change file permissions (cross-platform, but mode is Unix-style).
+        
+        Args:
+            path: Path to file or directory
+            mode: Unix-style permission mode (e.g., 0o755, 0o2775)
+            recursive: If True, recursively change permissions of all contents
+        
+        Returns True if successful, False otherwise.
+        On Windows, this may have limited effect.
+        """
+        trace_in()
+        try:
+            if recursive and os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    os.chmod(root, mode)
+                    for d in dirs:
+                        os.chmod(os.path.join(root, d), mode)
+                    for f in files:
+                        os.chmod(os.path.join(root, f), mode)
+                log(f"Recursively changed permissions of {path} to {oct(mode)}")
+            else:
+                os.chmod(path, mode)
+                log(f"Changed permissions of {path} to {oct(mode)}")
+            
+            trace_out()
+            return True
+        except Exception as e:
+            warn(f"Failed to chmod {path} to {oct(mode)}: {e}")
+            trace_out()
+            return False
+
+    def chmod_tree(self, path: str, dir_mode: int = None, file_mode: int = None) -> bool:
+        """Change permissions recursively with different modes for directories and files.
+        
+        Args:
+            path: Path to directory tree root
+            dir_mode: Unix-style permission mode for directories (e.g., 0o770, 0o2750)
+            file_mode: Unix-style permission mode for files (e.g., 0o660, 0o640)
+        
+        Returns True if successful, False otherwise.
+        On Windows, this may have limited effect.
+        """
+        trace_in()
+        if not os.path.isdir(path):
+            warn(f"chmod_tree requires a directory: {path}")
+            trace_out()
+            return False
+        
+        try:
+            for root, dirs, files in os.walk(path):
+                if dir_mode is not None:
+                    os.chmod(root, dir_mode)
+                    for d in dirs:
+                        os.chmod(os.path.join(root, d), dir_mode)
+                if file_mode is not None:
+                    for f in files:
+                        os.chmod(os.path.join(root, f), file_mode)
+            
+            mode_desc = []
+            if dir_mode is not None:
+                mode_desc.append(f"dirs={oct(dir_mode)}")
+            if file_mode is not None:
+                mode_desc.append(f"files={oct(file_mode)}")
+            log(f"Changed permissions of {path} tree: {', '.join(mode_desc)}")
+            
+            trace_out()
+            return True
+        except Exception as e:
+            warn(f"Failed to chmod_tree {path}: {e}")
+            trace_out()
+            return False
 

@@ -1,8 +1,6 @@
 from __future__ import annotations
 import datetime as dt
 from typing import Dict, Any, Tuple
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query, c_query
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -26,12 +24,16 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@db_write
-def create_training_agent(conn, default_role: str = "apprentice") -> Tuple[int, str]:
+def create_training_agent(default_role: str = "apprentice") -> Tuple[int, str]:
     """Create a new training agent and return (agent_id, badge_ts)."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        raise Exception("No gateway or connection available")
     badge_ts = dt.datetime.now().time()
-    agent_id = c_query(conn, """
+    agent_id = gateway.conn.create("""
         INSERT INTO agents (agent_key, role, badge_ts, status)
         VALUES (%s, %s, %s, 'inactive')
     """, (str(badge_ts), default_role, badge_ts))
@@ -43,13 +45,17 @@ def create_training_agent(conn, default_role: str = "apprentice") -> Tuple[int, 
     trace_out()
     return agent_id, str(badge_ts)
 
-@db_write
-def onboard_agent(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
+def onboard_agent(agent_id: int, badge_ts: str) -> Dict[str, Any]:
     """Onboard agent by creating record and queuing first training message."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return {"error": "No gateway or connection available"}
     # Get agent role
     query = "SELECT role FROM agents WHERE id=%s AND badge_ts=%s"
-    results = r_query(conn, query, [agent_id, badge_ts])
+    results = gateway.conn.read(query, [agent_id, badge_ts])
     if not results:
         warn(f"Agent {agent_id} not found during onboarding")
         trace_out()
@@ -63,7 +69,7 @@ def onboard_agent(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
     messaging = TrainingMessaging()
     
     # Get first training gate
-    next_gate = matrix.get_next_gate(conn, agent_id, role)
+    next_gate = matrix.get_next_gate(agent_id, role)
     if not next_gate:
         warn(f"No training gates found for agent {agent_id}")
         trace_out()
@@ -73,7 +79,7 @@ def onboard_agent(conn, agent_id: int, badge_ts: str) -> Dict[str, Any]:
     gate_number = 1  # First gate
     
     # Queue first training message
-    messaging.queue_training_message(conn, agent_id, doc_path, question, gate_number, badge_ts)
+    messaging.queue_training_message(agent_id, doc_path, question, gate_number, badge_ts)
     
     result = {
         "agent_id": agent_id,

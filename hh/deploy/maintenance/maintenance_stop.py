@@ -1,21 +1,23 @@
-import os
-import subprocess
-import signal
-from typing import Dict, Any, List
+"""Stop maintenance daemon - cross-platform."""
 
-from hh.gateway.registry.registry import register_action, register_command
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, List
+
+from hh.deploy.utils import detect_project_context
+from hh.gateway.error.error_store import is_error, report_error
 from hh.gateway.gateway import get_gateway
-from hh.gateway.response.json_standard import success_payload
-from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import (
+    get_debug,
+    get_log,
     get_trace_in,
     get_trace_out,
-    get_log,
-    get_debug,
     get_warn,
     register_debug_init,
 )
-from hh.deploy.utils import detect_project_context
+from hh.gateway.registry.registry import register_action, register_command
+from hh.gateway.response.json_standard import success_payload
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -34,51 +36,47 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def _ensure_root():
-    if os.geteuid() != 0:
-        warn("Maintenance commands require sudo privileges to switch Unix users")
-        report_error("action", "Maintenance commands require sudo privileges")
-        return False
-    return True
+def _get_process_filter(project_name: str, is_deployed: bool) -> str:
+    """Get process name filter based on deployment mode."""
+    if is_deployed:
+        return f"{project_name}_maintenance.py"
+    else:
+        return "worker.py"
 
 
 def stop_maintenance_processes(project_name: str) -> Dict[str, Any]:
     trace_in()
-    try:
-        cmd = ["ps", "aux"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        lines = result.stdout.splitlines()
-        pids_to_kill: List[int] = []
-        for line in lines:
-            if f"{project_name}_maintenance.py" in line and "python" in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pids_to_kill.append(int(parts[1]))
-                    except ValueError:
-                        pass
-
-        if not pids_to_kill:
-            trace_out()
-            return {"status": "not_running"}
-
-        killed = []
-        for pid in pids_to_kill:
-            try:
-                os.kill(pid, signal.SIGTERM)
-                killed.append(pid)
-                log(f"Stopped maintenance PID {pid}")
-            except ProcessLookupError:
-                log(f"Maintenance PID {pid} already terminated")
-            except Exception as exc:
-                warn(f"Failed to stop PID {pid}: {exc}")
-
+    gateway = get_gateway()
+    
+    if not gateway.os:
+        warn("ProcessManager not available (psutil not installed)")
+        report_error("action", "ProcessManager not available - install psutil")
         trace_out()
-        return {"status": "stopped", "pids": killed}
-    except Exception as exc:  # noqa: BLE001
-        warn(f"Failed to stop maintenance daemon: {exc}")
+        return {"status": "error", "error": "ProcessManager not available"}
+    
+    pm = gateway.os
+    is_deployed = pm.is_deployed(project_name)
+    process_filter = _get_process_filter(project_name, is_deployed)
+    
+    # Find running processes
+    processes = pm.list_processes(process_filter)
+    
+    if not processes:
         trace_out()
-        return {"status": "error", "error": str(exc)}
+        return {"status": "not_running"}
+    
+    # Kill each process
+    killed: List[int] = []
+    for proc in processes:
+        pid = proc["pid"]
+        if pm.kill_process(pid):
+            killed.append(pid)
+            log(f"Stopped maintenance PID {pid}")
+        else:
+            warn(f"Failed to stop PID {pid}")
+    
+    trace_out()
+    return {"status": "stopped", "pids": killed}
 
 
 def run_maintenance_stop(project_name: str) -> Dict[str, Any]:
@@ -98,10 +96,6 @@ def maintenance_stop() -> bool:
         trace_out()
         return False
 
-    if not _ensure_root():
-        trace_out()
-        return False
-
     project_name, _ = detect_project_context()
     result = run_maintenance_stop(project_name)
     gateway.response.set_action_response(success_payload(result))
@@ -111,5 +105,3 @@ def maintenance_stop() -> bool:
 
     trace_out()
     return not is_error()
-
-

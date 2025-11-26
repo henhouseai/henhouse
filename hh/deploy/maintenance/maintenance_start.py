@@ -1,24 +1,25 @@
-import os
-import subprocess
-import time
-import pwd
-import signal
-from pathlib import Path
-from typing import Dict, Any
+"""Start maintenance daemon - cross-platform."""
 
-from hh.gateway.registry.registry import register_action, register_command
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict
+
+from hh.deploy.utils import detect_project_context
+from hh.gateway.error.error_store import is_error, report_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
+    get_debug,
+    get_log,
     get_trace_in,
     get_trace_out,
-    get_log,
-    get_debug,
     get_warn,
     register_debug_init,
 )
+from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.error.error_store import report_error, is_error
-from hh.deploy.utils import detect_project_context
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -37,83 +38,117 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def _ensure_root():
-    if os.geteuid() != 0:
-        warn("Maintenance commands require sudo privileges to switch Unix users")
-        report_error("action", "Maintenance commands require sudo privileges")
-        return False
-    return True
+def _get_worker_path(project_name: str, is_deployed: bool, project_root: Path) -> Path:
+    """Get path to worker script based on deployment mode."""
+    if is_deployed:
+        return Path(f"/srv/{project_name}/{project_name}_maintenance.py")
+    else:
+        return project_root / "hh" / "deploy" / "maintenance" / "worker.py"
 
 
-def _maintenance_log_file(project_name: str) -> str:
-    logs_dir = Path(f"/srv/{project_name}/logs")
+def _get_log_file(project_name: str, is_deployed: bool, project_root: Path) -> Path:
+    """Get log file path based on deployment mode."""
+    if is_deployed:
+        logs_dir = Path(f"/srv/{project_name}/logs")
+    else:
+        logs_dir = project_root / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    return str(logs_dir / f"maintenance_{project_name}.log")
+    return logs_dir / f"maintenance_{project_name}.log"
+
+
+def _get_process_filter(project_name: str, is_deployed: bool) -> str:
+    """Get process name filter based on deployment mode."""
+    if is_deployed:
+        return f"{project_name}_maintenance.py"
+    else:
+        return "worker.py"
 
 
 def start_maintenance_process(project_name: str) -> Dict[str, Any]:
     trace_in()
-    try:
-        user = f"{project_name}_root"
-        app_path = f"/srv/{project_name}/{project_name}_maintenance.py"
-
-        if not os.path.exists(app_path):
-            result = {
-                "status": "not_deployed",
-                "error": f"Maintenance app not found: {app_path}",
-            }
-            trace_out()
-            return result
-
-        try:
-            pwd.getpwnam(user)
-        except KeyError:
-            result = {"status": "user_not_found", "error": f"User not found: {user}"}
-            trace_out()
-            return result
-
-        # Stop existing processes
-        check_cmd = ["ps", "aux"]
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        lines = check_result.stdout.splitlines()
-        pids_to_kill = []
-        for line in lines:
-            if f"{project_name}_maintenance.py" in line and "python" in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pids_to_kill.append(int(parts[1]))
-                    except ValueError:
-                        pass
-        for pid in pids_to_kill:
-            try:
-                os.kill(pid, signal.SIGTERM)
-                log(f"Stopped maintenance PID {pid}")
-            except ProcessLookupError:
-                log(f"Maintenance PID {pid} already stopped")
-            except Exception as exc:
-                warn(f"Failed to stop PID {pid}: {exc}")
-
-        log_file = _maintenance_log_file(project_name)
-        cmd = (
-            f'sudo -u {user} bash -c "cd /srv/{project_name} && '
-            f'nohup python3 {app_path} >> {log_file} 2>&1 &"'
-        )
-        debug(f"Starting maintenance daemon: {cmd}")
-        subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(1)
-
-        verify = subprocess.run(["ps", "aux"], capture_output=True, text=True, check=False)
-        if f"{project_name}_maintenance.py" in verify.stdout:
-            result = {"status": "started", "log_file": log_file, "user": user}
-        else:
-            result = {"status": "failed", "error": "Process not found running"}
+    gateway = get_gateway()
+    
+    if not gateway.os:
+        warn("ProcessManager not available (psutil not installed)")
+        report_error("action", "ProcessManager not available - install psutil")
+        trace_out()
+        return {"status": "error", "error": "ProcessManager not available"}
+    
+    pm = gateway.os
+    project_root = pm.find_project_root()
+    is_deployed = pm.is_deployed(project_name)
+    
+    # Check privileges on deployed systems
+    if is_deployed and not pm.is_privileged():
+        warn("Maintenance commands require sudo privileges on deployed systems")
+        report_error("action", "Maintenance commands require sudo privileges")
+        trace_out()
+        return {"status": "error", "error": "Requires sudo privileges"}
+    
+    worker_path = _get_worker_path(project_name, is_deployed, project_root)
+    log_file = _get_log_file(project_name, is_deployed, project_root)
+    process_filter = _get_process_filter(project_name, is_deployed)
+    
+    # Check worker exists
+    if not worker_path.exists():
+        result = {
+            "status": "not_found",
+            "error": f"Worker not found: {worker_path}",
+        }
         trace_out()
         return result
-    except Exception as exc:  # noqa: BLE001
-        warn(f"Failed to start maintenance daemon: {exc}")
+    
+    # Stop existing processes
+    existing = pm.list_processes(process_filter)
+    for proc in existing:
+        pid = proc["pid"]
+        log(f"Stopping existing maintenance process PID {pid}")
+        pm.kill_process(pid)
+    
+    # Determine user for deployed mode
+    user = f"{project_name}_root" if is_deployed else None
+    
+    # Determine working directory
+    if is_deployed:
+        cwd = f"/srv/{project_name}"
+    else:
+        cwd = str(project_root)
+    
+    # Build command
+    cmd = [sys.executable, str(worker_path)]
+    
+    # Start the process
+    debug(f"Starting maintenance daemon: {cmd} (cwd={cwd}, log={log_file}, user={user})")
+    pid = pm.start_background_process(
+        cmd=cmd,
+        cwd=cwd,
+        log_file=str(log_file),
+        user=user,
+    )
+    
+    if not pid:
+        result = {"status": "failed", "error": "Failed to start process"}
         trace_out()
-        return {"status": "error", "error": str(exc)}
+        return result
+    
+    # Wait a moment and verify
+    time.sleep(1)
+    running = pm.list_processes(process_filter)
+    
+    if running:
+        result = {
+            "status": "started",
+            "log_file": str(log_file),
+            "pids": [p["pid"] for p in running],
+            "deployed": is_deployed,
+        }
+        if user:
+            result["user"] = user
+    else:
+        result = {"status": "failed", "error": "Process not found after start"}
+    
+    trace_out()
+    return result
 
 
 def run_maintenance_start(project_name: str) -> Dict[str, Any]:
@@ -133,18 +168,12 @@ def maintenance_start() -> bool:
         trace_out()
         return False
 
-    if not _ensure_root():
-        trace_out()
-        return False
-
     project_name, _ = detect_project_context()
     result = run_maintenance_start(project_name)
     gateway.response.set_action_response(success_payload(result))
 
-    if result.get("status") in {"failed", "error", "not_deployed", "user_not_found"}:
-        report_error("action", f"Maintenance start failed: {result.get('status')}")
+    if result.get("status") in {"failed", "error", "not_found"}:
+        report_error("action", f"Maintenance start failed: {result.get('error', result.get('status'))}")
 
     trace_out()
     return not is_error()
-
-

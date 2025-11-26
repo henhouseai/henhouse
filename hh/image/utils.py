@@ -1,9 +1,26 @@
-from PIL import Image, ImageOps
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import os
 import datetime
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.system.dependency import register_dependency
+
+# Register pillow as a dependency
+Image = None
+ImageOps = None
+
+@register_dependency("pillow")
+def _load_pillow():
+    global Image, ImageOps
+    try:
+        from PIL import Image as _Image, ImageOps as _ImageOps
+        Image = _Image
+        ImageOps = _ImageOps
+        return True
+    except ImportError:
+        return False
+
+_load_pillow()
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None

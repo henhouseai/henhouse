@@ -6,7 +6,6 @@ from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.connection.decorators import with_root_connection
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -29,9 +28,22 @@ from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
-def remove_database_user(conn, project_name: str, tier: str) -> Dict[str, Any]:
+def remove_database_user(project_name: str, tier: str) -> Dict[str, Any]:
     """Remove a database user for the given tier."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn or not gateway.conn.main:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
+        trace_out()
+        return {
+            "username": f"{project_name}_{tier}",
+            "tier": tier,
+            "status": "failed",
+            "error": "No gateway or connection available"
+        }
+    
+    conn = gateway.conn.main
     username = f"{project_name}_{tier}"
     
     debug(f"Starting database user removal for: {username}")
@@ -103,8 +115,7 @@ def remove_database_user(conn, project_name: str, tier: str) -> Dict[str, Any]:
 
 @register_action('remove_db_users')
 @register_command('remove_db_users')
-@with_root_connection(transaction=True)
-def remove_db_users(conn) -> bool:
+def remove_db_users() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -118,6 +129,13 @@ def remove_db_users(conn) -> bool:
         if not root_password:
             warn("Root password is required for remove_db_users")
             report_error("action", "Root password is required for remove_db_users")
+            trace_out()
+            return False
+
+        # Gateway should automatically use RootConnection when password arg is present
+        if not gateway.conn or not gateway.conn.main:
+            warn("No root connection available - gateway should create RootConnection when password arg is present")
+            report_error("action", "No root connection available")
             trace_out()
             return False
 
@@ -139,7 +157,7 @@ def remove_db_users(conn) -> bool:
             
             # Remove database user
             debug(f"Calling remove_database_user for {project_name}_{tier}")
-            result = remove_database_user(conn, project_name, tier)
+            result = remove_database_user(project_name, tier)
             debug(f"remove_database_user result: {result}")
             user_results.append(result)
         

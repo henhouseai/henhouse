@@ -1,258 +1,446 @@
+#!/usr/bin/env python3
+"""
+Maintenance daemon worker.
+Monitors job queue and stale caches, dispatches maintenance tasks.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from hh.deploy.maint.job_queue import claim_next_maintenance_job, update_maintenance_job
-from hh.gateway.connection.connection import get_connection, load_dsn_pair
-from hh.deploy.maint.page_cache_refresh import refresh_page_cache_batch
-from hh.deploy.maint.image_cache_refresh import refresh_image_cache_batch
-from hh.deploy.maint.file_cache_refresh import refresh_file_cache_batch
-from hh.deploy.maint.orphan_checks import check_orphans
-from hh.deploy.maint.name_update import process_page_name_job
-
-PROJECT_NAME = "__PROJECT_NAME__"
-SLEEP_INTERVAL_SECONDS = 5
-CACHE_BATCH_LIMIT = 2  # Keep batches very small to avoid long-running transactions
+DEFAULT_DELAY = 5.0
+RUNNING = True
 
 
+def find_project_root() -> Path:
+    """Walk up from this file until we find the project root (contains hh/)."""
+    current = Path(__file__).resolve()
+    while current != current.parent:
+        if (current / "hh").is_dir():
+            return current
+        current = current.parent
+    raise RuntimeError("Could not locate project root (hh/ directory)")
 
 
-def configure_logging():
-    log_level = os.getenv("MAINTENANCE_LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s [%(levelname)s] %(message)s",
-    )
+def get_project_name() -> str:
+    """Get project name from project root directory name."""
+    return find_project_root().name
 
 
-def handle_shutdown(signum, frame):  # noqa: D401, ANN001
-    logging.info("Received signal %s, shutting down maintenance worker", signum)
-    sys.exit(0)
-
-
-def _run_cache_batch():
-    """Run cache refresh batches for pages, images, and files."""
-    try:
-        # Refresh page cache
-        page_result = refresh_page_cache_batch(limit=CACHE_BATCH_LIMIT)
-        pages_processed = page_result.get("pages_processed", 0)
-        pages_remaining = page_result.get("pages_remaining", 0)
-        
-        # Refresh image cache
-        image_result = refresh_image_cache_batch(limit=CACHE_BATCH_LIMIT)
-        images_processed = image_result.get("images_processed", 0)
-        images_remaining = image_result.get("images_remaining", 0)
-        
-        # Refresh file cache
-        file_result = refresh_file_cache_batch(limit=CACHE_BATCH_LIMIT)
-        files_processed = file_result.get("files_processed", 0)
-        files_remaining = file_result.get("files_remaining", 0)
-
-        if pages_processed or images_processed or files_processed:
-            logging.info(
-                "Cache rebuild batch: pages=%s images=%s files=%s remaining_pages=%s remaining_images=%s remaining_files=%s",
-                pages_processed,
-                images_processed,
-                files_processed,
-                pages_remaining,
-                images_remaining,
-                files_remaining,
-            )
-        else:
-            logging.debug(
-                "Cache rebuild idle: remaining_pages=%s remaining_images=%s remaining_files=%s",
-                pages_remaining,
-                images_remaining,
-                files_remaining,
-            )
-    except Exception as exc:  # noqa: BLE001
-        logging.exception("Cache rebuild batch failed: %s", exc)
-
-
-def log_orphan_counts(conn) -> None:
-    """Check and log orphan counts with IDs."""
-    counts = check_orphans()
+def get_log_file_path() -> Path:
+    """Determine log file path based on deployment status.
     
-    orphan_pages = counts.get("orphan_pages", [])
-    orphan_link_sources = counts.get("orphan_link_sources", [])
-    orphan_link_targets = counts.get("orphan_link_targets", [])
-    orphan_image_pages = counts.get("orphan_image_pages", [])
-    orphan_image_targets = counts.get("orphan_image_targets", [])
-    orphan_image_group_pages = counts.get("orphan_image_group_pages", [])
-    orphan_image_group_images = counts.get("orphan_image_group_images", [])
-    orphan_file_group_pages = counts.get("orphan_file_group_pages", [])
-    orphan_file_group_files = counts.get("orphan_file_group_files", [])
-
-    if orphan_pages:
-        page_ids = ",".join(str(p) for p in orphan_pages)
-        logging.warning("Orphan pages detected (child missing parent): %s [IDs: %s]", len(orphan_pages), page_ids)
-    if orphan_link_sources or orphan_link_targets:
-        source_ids = ",".join(str(s) for s in orphan_link_sources) if orphan_link_sources else "none"
-        target_ids = ",".join(str(t) for t in orphan_link_targets) if orphan_link_targets else "none"
-        logging.warning(
-            "Orphan links detected: source_missing=%s [IDs: %s] target_missing=%s [IDs: %s]",
-            len(orphan_link_sources),
-            source_ids,
-            len(orphan_link_targets),
-            target_ids,
-        )
-    if orphan_image_pages or orphan_image_targets:
-        page_ids = ",".join(str(p) for p in orphan_image_pages) if orphan_image_pages else "none"
-        image_ids = ",".join(str(i) for i in orphan_image_targets) if orphan_image_targets else "none"
-        logging.warning(
-            "Orphan image links detected: page_missing=%s [IDs: %s] image_missing=%s [IDs: %s]",
-            len(orphan_image_pages),
-            page_ids,
-            len(orphan_image_targets),
-            image_ids,
-        )
-    if orphan_image_group_pages or orphan_image_group_images:
-        page_ids = ",".join(str(p) for p in orphan_image_group_pages) if orphan_image_group_pages else "none"
-        image_ids = ",".join(str(i) for i in orphan_image_group_images) if orphan_image_group_images else "none"
-        logging.warning(
-            "Orphan image_groups detected: page_missing=%s [IDs: %s] image_missing=%s [IDs: %s]",
-            len(orphan_image_group_pages),
-            page_ids,
-            len(orphan_image_group_images),
-            image_ids,
-        )
-    if orphan_file_group_pages or orphan_file_group_files:
-        page_ids = ",".join(str(p) for p in orphan_file_group_pages) if orphan_file_group_pages else "none"
-        file_ids = ",".join(str(f) for f in orphan_file_group_files) if orphan_file_group_files else "none"
-        logging.warning(
-            "Orphan file_groups detected: page_missing=%s [IDs: %s] file_missing=%s [IDs: %s]",
-            len(orphan_file_group_pages),
-            page_ids,
-            len(orphan_file_group_files),
-            file_ids,
-        )
+    - Deployed: /srv/{project}/logs/maintenance_{project}.log
+    - Local dev: {project_root}/logs/maintenance_{project}.log
+    """
+    project_name = get_project_name()
+    
+    # Check if deployed
+    deployed_logs = Path(f"/srv/{project_name}/logs")
+    if deployed_logs.exists():
+        return deployed_logs / f"maintenance_{project_name}.log"
+    
+    # Local dev - use project root
+    project_root = find_project_root()
+    local_logs = project_root / "logs"
+    local_logs.mkdir(parents=True, exist_ok=True)
+    return local_logs / f"maintenance_{project_name}.log"
 
 
-def _log_orphan_counts():
-    """Check and log orphan counts."""
+def configure_logging() -> None:
+    """Configure logging to write to both stderr and log file."""
+    log_level = os.getenv("MAINTENANCE_LOG_LEVEL", "DEBUG").upper()  # Temporarily DEBUG for troubleshooting
+    log_format = "%(asctime)s [%(levelname)s] %(message)s"
+    
+    # Get log file path
+    log_file = get_log_file_path()
+    
+    # Create formatter
+    formatter = logging.Formatter(log_format)
+    
+    # Set up root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, log_level, logging.INFO))
+    
+    # Clear existing handlers
+    root_logger.handlers.clear()
+    
+    # Add stderr handler (for terminal output)
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(formatter)
+    root_logger.addHandler(stderr_handler)
+    
+    # Add file handler
     try:
-        primary_dsn, _ = load_dsn_pair()
-        if not primary_dsn:
-            return
-        conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
-        if conn:
-            try:
-                log_orphan_counts(conn)
-            finally:
-                conn.close()
-    except Exception as exc:  # noqa: BLE001
-        logging.exception("Failed to check orphan counts: %s", exc)
+        file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+        logging.info(f"Logging to file: {log_file}")
+    except Exception as e:
+        logging.warning(f"Could not open log file {log_file}: {e}")
 
 
-def _process_page_name_job_wrapper(job: Dict[str, Any]) -> Dict[str, Any]:
-    """Wrapper for page name job that provides connection."""
-    primary_dsn, _ = load_dsn_pair()
-    if not primary_dsn:
-        return {
-            "status": "error",
-            "progress": job.get("progress", {}),
-            "error_message": "Primary DSN missing",
-        }
-    conn = get_connection(dict_cursor=True, dsn_override=primary_dsn)
-    try:
-        return process_page_name_job(job, conn)
-    finally:
-        if conn:
-            conn.close()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Maintenance daemon - monitors and processes maintenance tasks",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=DEFAULT_DELAY,
+        help=f"Seconds to wait between cycles (default: {DEFAULT_DELAY})",
+    )
+    return parser.parse_args()
 
 
-JOB_HANDLERS = {
-    "page_name_update": _process_page_name_job_wrapper,
-}
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    global RUNNING
+    logging.info("Shutdown signal received, finishing current cycle...")
+    RUNNING = False
 
 
-def _process_job_queue():
-    job: Optional[Dict[str, Any]] = None
-    try:
-        job = claim_next_maintenance_job()
-        if not job:
-            logging.debug("Maintenance job queue idle")
-            return
+def maintenance_client_path() -> Path:
+    """Get path to maintenance_client.py."""
+    project_root = find_project_root()
+    return project_root / "hh" / "deploy" / "maint" / "maintenance_client.py"
 
-        handler = JOB_HANDLERS.get(job["job_type"])
-        if not handler:
-            logging.error("Unknown maintenance job type '%s'", job["job_type"])
-            update_maintenance_job(
-                job_id=job["id"],
-                status="error",
-                error_message=f"Unknown job type {job['job_type']}",
-            )
-            return
 
-        logging.info("Processing maintenance job %s (%s)", job["id"], job["job_type"])
-        handler_result = handler(job)
-        if not isinstance(handler_result, dict):
-            handler_result = {
-                "status": "error",
-                "progress": job.get("progress"),
-                "error_message": "Handler returned invalid response",
+def run_maintenance_command(command: str, with_log: bool = False) -> Tuple[int, Optional[Dict[str, Any]]]:
+    """Run a maintenance command and return (exit_code, parsed_response)."""
+    project_root = find_project_root()
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH")
+    if pythonpath:
+        env["PYTHONPATH"] = f"{project_root}{os.pathsep}{pythonpath}"
+    else:
+        env["PYTHONPATH"] = str(project_root)
+
+    cmd = [sys.executable, str(maintenance_client_path()), command]
+    if with_log:
+        cmd.append("-log")
+    
+    # Windows: prevent console window from appearing
+    kwargs = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "env": env,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    
+    process = subprocess.Popen(cmd, **kwargs)
+    stdout, stderr = process.communicate()
+    exit_code = process.returncode
+    
+    # Parse JSON response
+    response = None
+    if stdout.strip():
+        try:
+            response = json.loads(stdout.strip())
+        except json.JSONDecodeError:
+            pass
+    
+    return exit_code, response
+
+
+def extract_error_debug(response: Dict[str, Any]) -> str:
+    """Extract errors and debug info from response for storage."""
+    extracted = {}
+    if response.get("errors"):
+        extracted["errors"] = response["errors"]
+    if response.get("debug"):
+        extracted["debug"] = response["debug"]
+    return json.dumps(extracted, ensure_ascii=False, separators=(",", ":")) if extracted else ""
+
+
+def run_maintenance_command_with_args(args: List[str]) -> Tuple[int, Optional[Dict[str, Any]]]:
+    """Run maintenance client with explicit argument list."""
+    project_root = find_project_root()
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH")
+    if pythonpath:
+        env["PYTHONPATH"] = f"{project_root}{os.pathsep}{pythonpath}"
+    else:
+        env["PYTHONPATH"] = str(project_root)
+
+    cmd = [sys.executable, str(maintenance_client_path())] + args
+    
+    # Windows: prevent console window from appearing
+    kwargs = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "env": env,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    
+    process = subprocess.Popen(cmd, **kwargs)
+    stdout, stderr = process.communicate()
+    exit_code = process.returncode
+    
+    # Parse JSON response
+    response = None
+    if stdout.strip():
+        try:
+            response = json.loads(stdout.strip())
+        except json.JSONDecodeError:
+            pass
+    
+    return exit_code, response
+
+
+def update_job_status(
+    job_id: int,
+    status: str,
+    progress: Optional[Dict[str, Any]] = None,
+    error_message: Optional[str] = None,
+) -> bool:
+    """Update a maintenance job via the update-maintenance-job command."""
+    args = ["update-maintenance-job", "-job_id", str(job_id), "-status", status]
+    if progress:
+        progress_json = json.dumps(progress, ensure_ascii=False, separators=(",", ":"))
+        args.extend(["-progress", progress_json])
+    if error_message:
+        args.extend(["-error_message", error_message])
+    
+    exit_code, response = run_maintenance_command_with_args(args)
+    return exit_code == 0
+
+
+def get_jobs_status() -> Optional[Dict[str, Any]]:
+    """Get current maintenance jobs status."""
+    exit_code, response = run_maintenance_command("maintenance-jobs-status")
+    
+    # Debug logging to see what we're getting
+    logging.debug(f"maintenance-jobs-status exit_code: {exit_code}")
+    logging.debug(f"maintenance-jobs-status response: {response}")
+    
+    if response and response.get("status") == "ok":
+        data = response.get("data", {})
+        logging.debug(f"Status data: {data}")
+        return data
+    else:
+        logging.error(f"Failed to get jobs status - exit_code: {exit_code}, response: {response}")
+        return None
+
+
+def build_work_docket(status: Dict[str, Any]) -> List[Tuple[str, bool]]:
+    """Build ordered list of (command, is_job_queue) tuples based on status.
+    
+    Priority:
+    1. Pending jobs from maintenance_jobs (by priority)
+    2. Stale cache refreshes
+    
+    is_job_queue=True means the command needs job status updates via update-maintenance-job.
+    """
+    docket = []
+    
+    # Pending jobs first (sorted by priority would require more info)
+    # For now, just add each job type once
+    pending_jobs = status.get("pending_jobs", {})
+    for job_type in pending_jobs.keys():
+        # Convert job_type to command (underscore to hyphen)
+        command = job_type.replace("_", "-")
+        docket.append((command, True))  # is_job_queue=True
+    
+    # Then stale cache refreshes (not job queue items)
+    if status.get("stale_pages", 0) > 0:
+        docket.append(("page-cache-refresh", False))
+    if status.get("stale_images", 0) > 0:
+        docket.append(("image-cache-refresh", False))
+    if status.get("stale_files", 0) > 0:
+        docket.append(("file-cache-refresh", False))
+    
+    return docket
+
+
+def handle_job_response(command: str, exit_code: int, response: Optional[Dict[str, Any]]) -> None:
+    """Handle response from a job queue command, updating job status as needed."""
+    if not response:
+        logging.warning("No response to process")
+        return
+    
+    data = response.get("data", {})
+    job_id = data.get("job_id")
+    
+    if not job_id:
+        logging.debug("No job_id in response (no job claimed)")
+        return
+    
+    has_error = exit_code != 0 or response.get("status") != "ok"
+    
+    if has_error:
+        # Error occurred - retry with -log to get debug info
+        logging.warning(f"Error detected, retrying with -log for job {job_id}")
+        retry_exit, retry_response = run_maintenance_command(command, with_log=True)
+        
+        # Extract errors and debug from retry response
+        error_data = extract_error_debug(retry_response) if retry_response else ""
+        
+        # Build progress with context
+        progress = {
+            "last_page_id": data.get("resolution_id"),
+            "error_context": {
+                "command": command,
+                "exit_code": retry_exit,
             }
-
-        status = handler_result.get("status") or "running"
-        progress_payload = handler_result.get("progress") or job.get("progress") or {}
-        if not isinstance(progress_payload, dict):
-            progress_payload = {}
-        error_message = handler_result.get("error_message")
-
-        update_maintenance_job(
-            job_id=job["id"],
-            status=status,
-            progress=progress_payload,
-            error_message=error_message,
-        )
-
-        if status == "error":
-            logging.error(
-                "Maintenance job %s marked as error: %s",
-                job["id"],
-                error_message or "maintenance handler failed",
-            )
-        elif status == "done":
-            logging.info("Maintenance job %s completed", job["id"])
+        }
+        
+        # Update job status to error
+        logging.error(f"Updating job {job_id} to error status")
+        update_job_status(job_id, "error", progress=progress, error_message=error_data)
+    else:
+        # Success - check if done or still in progress
+        done = data.get("done", False)
+        
+        if done:
+            # Job complete
+            progress = {
+                "last_page_id": data.get("resolution_id"),
+            }
+            logging.info(f"Job {job_id} complete, updating to done")
+            update_job_status(job_id, "done", progress=progress)
         else:
-            logging.debug("Maintenance job %s progress updated", job["id"])
-
-    except Exception as exc:  # noqa: BLE001
-        logging.exception("Maintenance job processing failed: %s", exc)
-        if job:
-            try:
-                update_maintenance_job(
-                    job_id=job["id"],
-                    status="error",
-                    progress=job.get("progress"),
-                    error_message=str(exc),
-                )
-            except Exception:  # noqa: BLE001
-                logging.exception("Failed to mark job %s as error", job["id"])
+            # Still in progress - update progress and set back to pending
+            result = data.get("result", {})
+            progress = {
+                "last_page_id": data.get("resolution_id"),
+                "pages_processed": result.get("processed", 0),
+                "pages_modified": 1 if result.get("modified") else 0,
+            }
+            logging.debug(f"Job {job_id} in progress, updating to pending")
+            update_job_status(job_id, "pending", progress=progress)
 
 
-def process_maintenance_jobs():
-    """Run cache maintenance and queued maintenance work."""
-    _run_cache_batch()
-    _log_orphan_counts()
-    _process_job_queue()
+def run_cycle() -> bool:
+    """Run one maintenance cycle. Returns True if work was done."""
+    # Get current status
+    status = get_jobs_status()
+    if status is None:
+        logging.error("Failed to get maintenance status")
+        return False
+    
+    # Debug: always log what we found
+    logging.debug(f"Status check: has_work={status.get('has_work')}, status keys: {list(status.keys())}")
+    
+    # Check if there's work
+    if not status.get("has_work", False):
+        # No logging when idle - keeps log clean
+        return False
+    
+    # Build work docket
+    docket = build_work_docket(status)
+    if not docket:
+        # No logging when no tasks - keeps log clean
+        return False
+    
+    # Log summary of available work
+    pending_jobs = status.get("pending_jobs", {})
+    stale_counts = []
+    if status.get("stale_pages", 0) > 0:
+        stale_counts.append(f"{status['stale_pages']} pages")
+    if status.get("stale_images", 0) > 0:
+        stale_counts.append(f"{status['stale_images']} images") 
+    if status.get("stale_files", 0) > 0:
+        stale_counts.append(f"{status['stale_files']} files")
+    
+    work_summary = []
+    if pending_jobs:
+        job_summary = ", ".join(f"{job_type}({count})" for job_type, count in pending_jobs.items())
+        work_summary.append(f"Jobs: {job_summary}")
+    if stale_counts:
+        work_summary.append(f"Stale: {', '.join(stale_counts)}")
+    
+    logging.info(f"Work available: {' | '.join(work_summary)}")
+    logging.info(f"Work docket: {', '.join(cmd for cmd, _ in docket)}")
+    
+    # Execute each task
+    for command, is_job_queue in docket:
+        if not RUNNING:
+            logging.info("Shutdown requested, stopping cycle")
+            break
+        
+        logging.info(f"Running: {command}")
+        exit_code, response = run_maintenance_command(command)
+        
+        if is_job_queue:
+            # Job queue item - handle status updates
+            handle_job_response(command, exit_code, response)
+        else:
+            # Simple cache refresh - just report result
+            if exit_code == 0:
+                logging.info(f"  {command}: OK")
+            else:
+                error_msg = "unknown error"
+                if response and response.get("errors"):
+                    errors = response["errors"]
+                    if errors:
+                        error_msg = errors[0].get("content", error_msg)
+                logging.error(f"  {command}: FAILED - {error_msg}")
+    
+    return True
 
 
-def main():
+def main() -> int:
+    global RUNNING
+    
+    args = parse_args()
+    
+    # Configure logging first
     configure_logging()
-    signal.signal(signal.SIGTERM, handle_shutdown)
-    signal.signal(signal.SIGINT, handle_shutdown)
-    logging.info("Starting maintenance worker for project %s", PROJECT_NAME)
-
-    while True:
-        process_maintenance_jobs()
-        time.sleep(SLEEP_INTERVAL_SECONDS)
+    
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    project_name = get_project_name()
+    logging.info(f"Maintenance worker starting for {project_name} (delay: {args.delay}s)")
+    logging.info("Press Ctrl+C to stop")
+    
+    cycle = 0
+    while RUNNING:
+        cycle += 1
+        # Only log cycle number when work is actually done
+        cycle_logged = False
+        
+        try:
+            work_done = run_cycle()
+            if work_done and not cycle_logged:
+                logging.info(f"=== Cycle {cycle} ===")
+                cycle_logged = True
+        except Exception as e:
+            if not cycle_logged:
+                logging.info(f"=== Cycle {cycle} ===")
+            logging.exception(f"Cycle error: {e}")
+            work_done = False
+        
+        if RUNNING:
+            # Force flush all log handlers and sync to disk
+            for handler in logging.getLogger().handlers:
+                handler.flush()
+                # Force OS-level sync if it's a file handler
+                if hasattr(handler, 'stream') and hasattr(handler.stream, 'fileno'):
+                    try:
+                        os.fsync(handler.stream.fileno())
+                    except (OSError, AttributeError):
+                        pass
+            time.sleep(args.delay)
+    
+    logging.info("Maintenance worker stopped")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
-
-
+    raise SystemExit(main())

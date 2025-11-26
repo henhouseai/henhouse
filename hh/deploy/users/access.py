@@ -1,9 +1,8 @@
-import os
 import subprocess
-import pwd
 from pathlib import Path
 from typing import List, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.gateway import get_gateway
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -66,6 +65,7 @@ def auto_scan_user_keys(project_owner: str) -> List[str]:
 
 def generate_ssh_keys(user: str, project_name: str) -> Dict[str, Any]:
     trace_in()
+    gateway = get_gateway()
     try:
         user_home = Path(f'/home/{user}')
         ssh_dir = user_home / '.ssh'
@@ -76,9 +76,9 @@ def generate_ssh_keys(user: str, project_name: str) -> Dict[str, Any]:
             '-N', '', '-C', f'{user}@{project_name}'
         ], check=True, capture_output=True)
         # All users own their own SSH directory and files
-        os.chown(ssh_dir, pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
-        os.chown(ssh_dir / 'id_rsa', pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
-        os.chown(ssh_dir / 'id_rsa.pub', pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
+        gateway.files.chown(str(ssh_dir), user)
+        gateway.files.chown(str(ssh_dir / 'id_rsa'), user)
+        gateway.files.chown(str(ssh_dir / 'id_rsa.pub'), user)
         with open(ssh_dir / 'id_rsa.pub', 'r') as f:
             public_key = f.read().strip()
         return {
@@ -94,6 +94,7 @@ def generate_ssh_keys(user: str, project_name: str) -> Dict[str, Any]:
 
 def add_user_key(user: str, user_key: str) -> None:
     trace_in()
+    gateway = get_gateway()
     try:
         user_home = Path(f'/home/{user}')
         authorized_keys = user_home / '.ssh' / 'authorized_keys'
@@ -101,7 +102,7 @@ def add_user_key(user: str, user_key: str) -> None:
             f.write(f'{user_key}\n')
         
         # All users own their own authorized_keys
-        os.chown(authorized_keys, pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
+        gateway.files.chown(str(authorized_keys), user)
         
         log(f"Added user key for {user}")
     except Exception as e:

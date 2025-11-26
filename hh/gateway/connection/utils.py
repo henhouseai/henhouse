@@ -2,7 +2,7 @@ import json
 import datetime as dt
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Union, TypedDict
-from hh.gateway.connection.conn import DatabaseRow
+from hh.gateway.connection.connection import DatabaseRow
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None

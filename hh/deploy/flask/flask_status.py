@@ -1,4 +1,3 @@
-import os
 import subprocess
 from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action
@@ -6,7 +5,6 @@ from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.utils import detect_project_context
 
@@ -29,10 +27,16 @@ def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str
     """Get status of Flask daemon for specific tier."""
     trace_in()
     try:
+        gateway = get_gateway()
+        if not gateway or not gateway.files:
+            result = {'tier': tier, 'status': 'error', 'error': 'Gateway or FileSystem not available'}
+            trace_out()
+            return result
+        
         app_path = f"/srv/{project_name}/{project_name}_{tier}.py"
         
         # Check if app file exists
-        if not os.path.exists(app_path):
+        if not gateway.files.file_exists(app_path):
             result = {'tier': tier, 'status': 'not_deployed', 'error': f'App file not found: {app_path}'}
             trace_out()
             return result

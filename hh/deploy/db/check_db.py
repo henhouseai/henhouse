@@ -8,7 +8,6 @@ from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.connection.decorators import root_read
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
 
@@ -27,22 +26,24 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@root_read
 @register_action('check_db')
 @register_command('check_db')
-def check_db(conn, args: List[str] = None) -> bool:
+def check_db(args: List[str] = None) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
         trace_out()
         return False
+    
     root_password = gateway.get_arg('password')
     if not root_password:
         warn("Root password is required for check_db")
         report_error("action", "Root password is required for check_db")
         trace_out()
         return False
+    
     project_name, project_path = detect_project_context()
     log(f"Starting database check for project: {project_name}")
     table_info = []
@@ -51,22 +52,23 @@ def check_db(conn, args: List[str] = None) -> bool:
     # Step 1: Get table information
     if not is_error():
         try:
-            with conn.cursor() as cursor:
-                cursor.execute("SHOW TABLES")
-                tables = cursor.fetchall()
-                log(f"SHOW TABLES returned {len(tables)} tables")
-                for i, table_row in enumerate(tables):
-                    table_name = list(table_row.values())[0]
-                    log(f"Processing table {i+1}/{len(tables)}: {table_name} (from dict)")
-                    count_query = f"SELECT COUNT(*) FROM `{table_name}`"
-                    cursor.execute(count_query)
-                    count_result = cursor.fetchone()
-                    row_count = list(count_result.values())[0]
-                    log(f"Table {table_name}: {row_count} rows")
-                    table_info.append({
-                        "table_name": table_name,
-                        "row_count": row_count
-                    })
+            # SHOW TABLES returns results with a dynamic column name like 'Tables_in_database'
+            tables_result = gateway.conn.read("SHOW TABLES")
+            log(f"SHOW TABLES returned {len(tables_result)} tables")
+            
+            for i, table_row in enumerate(tables_result):
+                # Extract table name from the result (column name varies by database)
+                table_name = list(table_row.values())[0]
+                log(f"Processing table {i+1}/{len(tables_result)}: {table_name} (from dict)")
+                
+                count_query = f"SELECT COUNT(*) as count FROM `{table_name}`"
+                count_result = gateway.conn.read(count_query)
+                row_count = count_result[0]['count'] if count_result else 0
+                log(f"Table {table_name}: {row_count} rows")
+                table_info.append({
+                    "table_name": table_name,
+                    "row_count": row_count
+                })
             log(f"Table info collection completed: {len(table_info)} tables processed")
         except Exception as e:
             warn(f"Failed to get table information: {str(e)}")

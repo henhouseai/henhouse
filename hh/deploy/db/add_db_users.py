@@ -6,7 +6,6 @@ from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.connection.decorators import with_root_connection
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -96,9 +95,20 @@ def get_tier_permissions(tier: str) -> List[str]:
     else:
         return ['SELECT']
 
-def check_and_update_permissions(conn, username: str, db_name: str, required_permissions: List[str]) -> Dict[str, Any]:
+def check_and_update_permissions(username: str, db_name: str, required_permissions: List[str]) -> Dict[str, Any]:
     """Check and update permissions for an existing user."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn or not gateway.conn.main:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
+        trace_out()
+        return {
+            "status": "error",
+            "message": "No gateway or connection available"
+        }
+    
+    conn = gateway.conn.main
     try:
         # Check that user has NO global privileges (all should be 'N')
         global_privileges_ok = True
@@ -204,9 +214,24 @@ def check_and_update_permissions(conn, username: str, db_name: str, required_per
             "message": f"Permission check failed: {str(e)}"
         }
 
-def create_database_user(conn, project_name: str, cache_db_name: str, tier: str, password: str) -> Dict[str, Any]:
+def create_database_user(project_name: str, cache_db_name: str, tier: str, password: str) -> Dict[str, Any]:
     """Create a database user for the given tier."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn or not gateway.conn.main:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
+        trace_out()
+        return {
+            "username": f"{project_name}_{tier}",
+            "tier": tier,
+            "status": "failed",
+            "field_type": "user_failed",
+            "error": "No gateway or connection available",
+            "permissions": []
+        }
+    
+    conn = gateway.conn.main
     username = f"{project_name}_{tier}"
     permissions = get_tier_permissions(tier)
     db_targets = [
@@ -244,7 +269,7 @@ def create_database_user(conn, project_name: str, cache_db_name: str, tier: str,
             # Check and update permissions for existing user
             permission_status = {}
             for label, db_target in db_targets:
-                permission_status[label] = check_and_update_permissions(conn, username, db_target, permissions)
+                permission_status[label] = check_and_update_permissions(username, db_target, permissions)
                 debug(f"Permission check result for {label}: {permission_status[label]}")
             
             # Flush privileges after password change
@@ -323,8 +348,7 @@ def create_database_user(conn, project_name: str, cache_db_name: str, tier: str,
 
 @register_action('add_db_users')
 @register_command('add_db_users')
-@with_root_connection(transaction=True)
-def add_db_users(conn) -> bool:
+def add_db_users() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -338,6 +362,13 @@ def add_db_users(conn) -> bool:
         if not root_password:
             warn("Root password is required for add_db_users")
             report_error("action", "Root password is required for add_db_users")
+            trace_out()
+            return False
+
+        # Gateway should automatically use RootConnection when password arg is present
+        if not gateway.conn or not gateway.conn.main:
+            warn("No root connection available - gateway should create RootConnection when password arg is present")
+            report_error("action", "No root connection available")
             trace_out()
             return False
 
@@ -375,7 +406,7 @@ def add_db_users(conn) -> bool:
             
             # Create database user
             debug(f"Calling create_database_user for {project_name}_{tier}")
-            result = create_database_user(conn, project_name, cache_db_name, tier, password)
+            result = create_database_user(project_name, cache_db_name, tier, password)
             debug(f"create_database_user result: {result}")
             user_results.append(result)
         

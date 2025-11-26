@@ -31,6 +31,8 @@ class ErrorType(Enum):
     SYNTAX = "syntax"
     LINK_RESOLUTION = "link_resolution"
     CACHE_REFRESH = "cache_refresh"
+    DEPENDENCY = "dependency"
+    DEPLOYMENT = "deployment"
 
 @dataclass
 class ErrorEntry:

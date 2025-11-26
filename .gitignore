@@ -49,3 +49,4 @@ config-registry.json
 features/
 docs/
 core/
+logs/

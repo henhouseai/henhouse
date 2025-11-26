@@ -1,4 +1,3 @@
-import os
 import subprocess
 import time
 from typing import Dict, Any
@@ -11,8 +10,6 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.flask.flask_stop import remove_logrotate
 from hh.deploy.utils import detect_project_context
-import pwd
-import signal
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -67,19 +64,23 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
     """Start Flask daemon for specific tier."""
     trace_in()
     try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            result = {'tier': tier, 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            trace_out()
+            return result
+        
         user = f"{project_name}_{tier}"
         app_path = f"/srv/{project_name}/{project_name}_{tier}.py"
         
         # Check if app file exists
-        if not os.path.exists(app_path):
+        if not gateway.files or not gateway.files.file_exists(app_path):
             result = {'tier': tier, 'status': 'not_found', 'error': f'App file not found: {app_path}'}
             trace_out()
             return result
         
         # Check if user exists
-        try:
-            pwd.getpwnam(user)
-        except KeyError:
+        if not gateway.os.user_exists(user):
             result = {'tier': tier, 'status': 'user_not_found', 'error': f'User not found: {user}'}
             trace_out()
             return result
@@ -100,14 +101,9 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
                         pass
         killed_any = False
         for pid in pids_to_kill:
-            try:
-                os.kill(pid, signal.SIGTERM)
+            if gateway.os.kill_process(pid, force=False):
                 log(f"Sent SIGTERM to PID {pid} (Flask {tier})")
                 killed_any = True
-            except ProcessLookupError:
-                log(f"Process {pid} already terminated")
-            except Exception as e:
-                warn(f"Failed to kill PID {pid}: {e}")
         
         # Start Flask daemon as the appropriate Unix user
         # Flask app now handles its own logging internally, so no need for shell redirection
@@ -181,10 +177,8 @@ def flask_start() -> bool:
         trace_out()
         return False
     
-    # Check if running with sudo privileges
-    if os.geteuid() != 0:
-        warn("This command requires sudo privileges to switch Unix users")
-        report_error("action", "This command requires sudo privileges to switch Unix users")
+    # Check if running with sudo privileges (also checks for Unix deployment)
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
     

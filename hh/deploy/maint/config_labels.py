@@ -37,6 +37,19 @@ from hh.render.config.config_registry import register_label
 @register_label("resolution_id", "Resolution ID", "🔗")
 @register_label("regex_text_status", "Status", "✅")
 @register_label("regex_text_error", "Error", "❌")
+@register_label("maintenance_jobs_status_header", "Maintenance Jobs Status", "📊")
+@register_label("stale_pages_count", "Stale Pages", "📄")
+@register_label("stale_images_count", "Stale Images", "🖼️")
+@register_label("stale_files_count", "Stale Files", "📁")
+@register_label("pending_job", "Pending Job", "⏳")
+@register_label("work_available", "Work Available", "⚡")
+@register_label("no_work_available", "No Work Available", "✅")
+@register_label("job_errors", "Job Errors", "❌")
+@register_label("no_job_errors", "No Errors", "✅")
+@register_label("update_maintenance_job_header", "Update Maintenance Job", "🔄")
+@register_label("job_status_updated", "Status", "📋")
+@register_label("job_update_success", "Result", "✅")
+@register_label("job_update_failed", "Result", "❌")
 def _register_config():
     pass
 

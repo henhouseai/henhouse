@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Union
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query, c_query
+from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
@@ -22,11 +21,16 @@ def _initialize_debug():
 class TrainingProgress:
     """Progress tracking and response recording for agent training."""
     
-    def has_completed(self, conn, agent_id: int, doc_path: str) -> bool:
+    def has_completed(self, agent_id: int, doc_path: str) -> bool:
         """Check if agent has completed a specific document."""
         trace_in()
+        gateway = get_gateway()
+        if not gateway or not gateway.conn:
+            warn("No gateway or connection available")
+            trace_out()
+            return False
         query = "SELECT response FROM agent_onboarding_responses WHERE agent_id=%s AND path=%s ORDER BY created_ts DESC LIMIT 1"
-        results = r_query(conn, query, [agent_id, doc_path])
+        results = gateway.conn.read(query, [agent_id, doc_path])
         if not results:
             log(f"Agent {agent_id} has not completed {doc_path}")
             trace_out()
@@ -37,13 +41,17 @@ class TrainingProgress:
         trace_out()
         return completed
     
-    @db_write
-    def record_answer(self, conn, agent_id: int, badge_ts: str, doc_path: str, filename: str, question: str, response: str) -> bool:
+    def record_answer(self, agent_id: int, badge_ts: str, doc_path: str, filename: str, question: str, response: str) -> bool:
         """Record agent's answer to training question. Idempotent - skips if non-placeholder answer exists."""
         trace_in()
+        gateway = get_gateway()
+        if not gateway or not gateway.conn:
+            warn("No gateway or connection available")
+            trace_out()
+            return False
         # Check if already answered (non-placeholder)
         query = "SELECT id, response FROM agent_onboarding_responses WHERE agent_id=%s AND path=%s ORDER BY created_ts DESC LIMIT 1"
-        results = r_query(conn, query, [agent_id, doc_path])
+        results = gateway.conn.read(query, [agent_id, doc_path])
         if results:
             existing_response = (results[0].get("response") or "").strip()
             if existing_response not in {"Viewed document; answer pending", "No question required", ""}:
@@ -52,7 +60,7 @@ class TrainingProgress:
                 return True
         
         # Record the answer
-        response_id = c_query(conn, """
+        response_id = gateway.conn.create("""
             INSERT INTO agent_onboarding_responses (agent_id, badge_ts, path, filename, question, response)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (agent_id, badge_ts, doc_path, filename, question or "", response or "No question required"))
@@ -64,10 +72,10 @@ class TrainingProgress:
         trace_out()
         return True
     
-    def get_training_progress(self, conn, agent_id: int, role: str, required_docs: List[str]) -> Dict[str, List[int]]:
+    def get_training_progress(self, agent_id: int, role: str, required_docs: List[str]) -> Dict[str, List[int]]:
         """Get training progress counts (coffees: [done, total], exams: [done, total])."""
         trace_in()
-        coffees_done = sum(1 for doc_path in required_docs if self.has_completed(conn, agent_id, doc_path))
+        coffees_done = sum(1 for doc_path in required_docs if self.has_completed(agent_id, doc_path))
         coffees_total = len(required_docs)
         
         # Count exams (gates with questions)
@@ -84,7 +92,7 @@ class TrainingProgress:
             question = gate.get("question", "")
             if doc_path in required_docs and question.strip():
                 exams_total += 1
-                if self.has_completed(conn, agent_id, doc_path):
+                if self.has_completed(agent_id, doc_path):
                     exams_done += 1
         
         progress = {
@@ -95,15 +103,15 @@ class TrainingProgress:
         trace_out()
         return progress
     
-    def is_training_complete(self, conn, agent_id: int, role: str, required_docs: List[str]) -> bool:
+    def is_training_complete(self, agent_id: int, role: str, required_docs: List[str]) -> bool:
         """Check if all required training documents are completed."""
         trace_in()
-        complete = all(self.has_completed(conn, agent_id, doc_path) for doc_path in required_docs)
+        complete = all(self.has_completed(agent_id, doc_path) for doc_path in required_docs)
         log(f"Training complete for agent {agent_id}, role {role}: {complete}")
         trace_out()
         return complete
     
-    def is_role_training_complete(self, conn, agent_id: int, role: str) -> bool:
+    def is_role_training_complete(self, agent_id: int, role: str) -> bool:
         """Check if role-specific training is complete."""
         trace_in()
         from .training_matrix import TrainingMatrix
@@ -116,7 +124,7 @@ class TrainingProgress:
             trace_out()
             return True
         
-        complete = all(self.has_completed(conn, agent_id, doc_path) for doc_path in role_required)
+        complete = all(self.has_completed(agent_id, doc_path) for doc_path in role_required)
         log(f"Role training complete for agent {agent_id}, role {role}: {complete}")
         trace_out()
         return complete

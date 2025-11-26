@@ -362,7 +362,7 @@ def get_icon(name: str) -> Optional[str]:
 
 @register_cache_cleanup('config_registry', cache_dir='hh/render/config/cache')
 def cleanup_config_registry_cache():
-    """Clean up config registry cache files"""
+    """Clean up config registry cache files (persistent cache - needs post-parser cleanup)"""
     trace_in()
     # Clear hot cache
     _icon_registry.clear()

@@ -1,7 +1,5 @@
 from __future__ import annotations
 from typing import Dict, Any, Optional
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query, u_query
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -26,11 +24,16 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def validate_agent_identity(conn, agent_id: int, badge_ts: str) -> Optional[Dict[str, Any]]:
+def validate_agent_identity(agent_id: int, badge_ts: str) -> Optional[Dict[str, Any]]:
     """Validate agent identity and return agent data."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return None
     query = "SELECT id, role, badge_ts, status FROM agents WHERE id=%s AND badge_ts=%s"
-    results = r_query(conn, query, [agent_id, badge_ts])
+    results = gateway.conn.read(query, [agent_id, badge_ts])
     if results:
         log(f"Agent identity validated for agent_id={agent_id}")
         trace_out()
@@ -50,12 +53,16 @@ def validate_role(role: str) -> bool:
     trace_out()
     return valid
 
-@db_write
-def promote_agent(conn, agent_id: int, badge_ts: str, new_role: str) -> Dict[str, Any]:
+def promote_agent(agent_id: int, badge_ts: str, new_role: str) -> Dict[str, Any]:
     """Promote agent to new role and queue role-specific training."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return {"error": "No gateway or connection available"}
     # Validate agent identity
-    agent_data = validate_agent_identity(conn, agent_id, badge_ts)
+    agent_data = validate_agent_identity(agent_id, badge_ts)
     if not agent_data:
         warn("Agent identity not found during promotion")
         trace_out()
@@ -73,14 +80,14 @@ def promote_agent(conn, agent_id: int, badge_ts: str, new_role: str) -> Dict[str
     # Check if agent is currently active and punch out if needed
     if agent_data["status"] == "active":
         log(f"Agent {agent_id} is currently active, punching out first")
-        affected = u_query(conn, "UPDATE agents SET status='inactive' WHERE id=%s", (agent_id,))
+        affected = gateway.conn.update("UPDATE agents SET status='inactive' WHERE id=%s", (agent_id,))
         if affected == 0:
             warn(f"Failed to punch out agent {agent_id}")
             trace_out()
             return {"error": "Failed to punch out agent"}
     
     # Update agent role
-    affected = u_query(conn, "UPDATE agents SET role=%s WHERE id=%s", (new_role, agent_id))
+    affected = gateway.conn.update("UPDATE agents SET role=%s WHERE id=%s", (new_role, agent_id))
     if affected == 0:
         warn(f"Failed to update agent {agent_id} role to {new_role}")
         trace_out()
@@ -98,7 +105,7 @@ def promote_agent(conn, agent_id: int, badge_ts: str, new_role: str) -> Dict[str
     all_required_docs = list(set(general_required_docs + role_required_docs))
     
     # Check if role training is already complete
-    role_training_complete = progress.is_role_training_complete(conn, agent_id, new_role)
+    role_training_complete = progress.is_role_training_complete(agent_id, new_role)
     
     result = {
         "agent_id": agent_id,
@@ -111,12 +118,12 @@ def promote_agent(conn, agent_id: int, badge_ts: str, new_role: str) -> Dict[str
     
     if role_training_complete:
         # Role training already complete, queue completion message
-        messaging.queue_completion_message(conn, agent_id, "role_complete", badge_ts, new_role)
+        messaging.queue_completion_message(agent_id, "role_complete", badge_ts, new_role)
         result["next_command"] = f"hh punch-in --agent-id {agent_id} --badge-ts {badge_ts}"
         result["message"] = f"Promoted to {new_role}. Role training already complete. You can punch in now."
     else:
         # Queue role-specific training start message
-        messaging.queue_promotion_message(conn, agent_id, new_role, badge_ts)
+        messaging.queue_promotion_message(agent_id, new_role, badge_ts)
         result["next_command"] = f"hh sip --agent-id {agent_id} --badge-ts {badge_ts}"
         result["message"] = f"Promoted to {new_role}. Complete role-specific training to continue."
     

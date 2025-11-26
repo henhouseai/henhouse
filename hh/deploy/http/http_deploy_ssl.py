@@ -1,4 +1,3 @@
-import os
 import subprocess
 from pathlib import Path
 from typing import Dict, Any
@@ -27,7 +26,10 @@ def _initialize_debug():
 def detect_project_name() -> str:
     """Detect project name from current directory."""
     try:
-        cwd = os.getcwd()
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            return "henhouse"
+        cwd = gateway.os.get_cwd()
         if cwd.startswith('/srv/'):
             parts = cwd.split('/')
             if len(parts) >= 3:
@@ -219,6 +221,11 @@ def http_deploy_ssl() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        trace_out()
+        return False
+
+    # Check if running in deployed Unix environment with privileges
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
 

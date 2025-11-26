@@ -1,8 +1,6 @@
 from __future__ import annotations
 import datetime as dt
 from typing import Dict, Any
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query, c_query
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -30,11 +28,17 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@db_write
-def check_pages_empty(conn) -> bool:
+def check_pages_empty() -> bool:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
+        trace_out()
+        return False
+    
     query = "SELECT COUNT(*) as count FROM pages"
-    results = r_query(conn, query)
+    results = gateway.conn.read(query)
     if not results:
         warn("Failed to check pages table")
         trace_out()
@@ -45,18 +49,24 @@ def check_pages_empty(conn) -> bool:
     return count == 0
 
 
-@db_write
-def create_homepage(conn, project_name: str) -> Dict[str, Any]:
+def create_homepage(project_name: str) -> Dict[str, Any]:
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
+        trace_out()
+        return {"error": "No gateway or connection available"}
+    
     # Check if pages table is empty first
-    if not check_pages_empty(conn):
+    if not check_pages_empty():
         warn("Pages table is not empty - cannot create homepage")
         trace_out()
         return {"error": "Pages table is not empty. Homepage can only be created when table is empty."}
     # Get current timestamp and database user
     now = dt.datetime.now()
     # Get current database user
-    user_results = r_query(conn, "SELECT USER() as db_user")
+    user_results = gateway.conn.read("SELECT USER() as db_user")
     db_user = user_results[0]['db_user'] if user_results else 'unknown'
     # Insert homepage record
     query = """
@@ -64,7 +74,7 @@ def create_homepage(conn, project_name: str) -> Dict[str, Any]:
         VALUES (1, 0, %s, NULL, 'page', 'Hello, World!', %s, %s, 1, 1)
     """
     try:
-        new_page_id = c_query(conn, query, (project_name, now, db_user))
+        new_page_id = gateway.conn.create(query, (project_name, now, db_user))
         log(f"Created homepage: id=1, name='{project_name}', parent=0")
         result = {
             "homepage_id": 1,

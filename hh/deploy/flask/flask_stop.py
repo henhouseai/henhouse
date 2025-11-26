@@ -1,4 +1,3 @@
-import os
 import subprocess
 from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action
@@ -9,7 +8,6 @@ from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.utils import detect_project_context
-import signal
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -31,10 +29,16 @@ def remove_logrotate(project_name: str) -> None:
     trace_in()
     
     try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            warn("Gateway or ProcessManager not available")
+            trace_out()
+            return
+        
         config_file = f'/etc/logrotate.d/{project_name}-flask'
         
-        if os.path.exists(config_file):
-            os.remove(config_file)
+        if gateway.files and gateway.files.file_exists(config_file):
+            gateway.files.schedule_delete(config_file)
             subprocess.run(['systemctl', 'restart', 'logrotate.service'], check=False)
             log(f"Removed logrotate config for {project_name}")
         else:
@@ -48,12 +52,18 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
     """Stop Flask daemon for specific tier."""
     trace_in()
     try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            result = {'tier': tier, 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            trace_out()
+            return result
+        
         # Find process running app_{tier}.py
         cmd = ['ps', 'aux']
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         
         # Look for the specific app
-        lines = result.stdout.split('\n')
+        lines = ps_result.stdout.split('\n')
         pids_to_kill = []
         
         for line in lines:
@@ -76,14 +86,9 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
         # Kill the processes
         killed_pids = []
         for pid in pids_to_kill:
-            try:
-                os.kill(pid, signal.SIGTERM)
+            if gateway.os.kill_process(pid, force=False):
                 killed_pids.append(pid)
                 log(f"Sent SIGTERM to PID {pid} (Flask {tier})")
-            except ProcessLookupError:
-                log(f"Process {pid} already terminated")
-            except Exception as e:
-                warn(f"Failed to kill PID {pid}: {e}")
         
         if killed_pids:
             result = {'tier': tier, 'status': 'stopped', 'pids': killed_pids}
@@ -134,6 +139,11 @@ def flask_stop() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        trace_out()
+        return False
+    
+    # Check if running in deployed Unix environment
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
     

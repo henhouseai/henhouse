@@ -1,8 +1,5 @@
-import os
 import shutil
 import subprocess
-import pwd
-import grp
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from hh.gateway.registry.registry import register_action
@@ -36,6 +33,11 @@ def uninstall() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        trace_out()
+        return False
+
+    # Check if running in deployed Unix environment with privileges
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
 
@@ -75,9 +77,8 @@ def uninstall() -> bool:
         for user in users_to_remove:
             try:
                 # Check if user exists first
-                try:
-                    user_info = pwd.getpwnam(user)
-                except KeyError:
+                user_info = gateway.os.get_user_by_name(user)
+                if not user_info:
                     log(f"User {user} does not exist - checking for leftover home directory")
                     # Check for leftover home directory and clean it up
                     user_home = Path(f'/home/{user}')
@@ -85,7 +86,7 @@ def uninstall() -> bool:
                         log(f"Found leftover home directory for non-existent user: {user}")
                         # Use the directory validation function to check if it's safe to delete
                         debug(f"Validating leftover directory {user_home} for deletion")
-                        validation_result = validate_user_directory_for_deletion(user, project_name, user_home)
+                        validation_result = validate_user_directory_for_deletion(user, project_name, user_home, gateway)
                         debug(f"Validation result for leftover directory {user_home}: {validation_result}")
                         if validation_result:
                             log(f"Removing leftover home directory for non-existent user: {user}")
@@ -101,14 +102,14 @@ def uninstall() -> bool:
                     continue
                 
                 debug(f"Validating user {user} for deletion")
-                validation_result = validate_user_for_deletion(user, project_name)
+                validation_result = validate_user_for_deletion(user, project_name, gateway)
                 debug(f"Validation result for {user}: {validation_result}")
                 if validation_result:
                     # Change ownership back to user before deletion
                     user_home = Path(f'/home/{user}')
                     if user_home.exists():
                         try:
-                            os.chown(user_home, user_info.pw_uid, user_info.pw_gid)
+                            gateway.files.chown(str(user_home), user)
                             log(f"Changed ownership of {user_home} back to {user}")
                         except Exception as e:
                             warn(f"Failed to change ownership of {user_home}: {str(e)}")
@@ -137,12 +138,10 @@ def uninstall() -> bool:
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
         if srv_project.exists():
             # Check if project highest level user doesn't exist (was deleted or never existed)
-            try:
-                # Try to get user info - if this fails, user doesn't exist
-                pwd.getpwnam(project_highest_user)
-                # If we get here, user still exists - don't delete directory
+            if gateway.os.user_exists(project_highest_user):
+                # User still exists - don't delete directory
                 warn(f"Project highest level user {project_highest_user} still exists - skipping directory deletion")
-            except KeyError:
+            else:
                 # User doesn't exist (was successfully deleted or never existed) - safe to delete
                 log(f"Removing project directory: {srv_project}")
                 shutil.rmtree(srv_project)
@@ -195,10 +194,7 @@ def uninstall() -> bool:
         # Check what groups were actually deleted
         groups_to_check = [project_name, f"{project_name}_deploy"]
         for group in groups_to_check:
-            try:
-                grp.getgrnam(group)
-                # Group still exists
-            except KeyError:
+            if not gateway.os.group_exists(group):
                 # Group was deleted
                 groups_deleted.append(group)
         
@@ -243,7 +239,7 @@ def uninstall() -> bool:
     trace_out()
     return result
 
-def validate_user_directory_for_deletion(user: str, project_name: str, user_home: Path) -> bool:
+def validate_user_directory_for_deletion(user: str, project_name: str, user_home: Path, gateway) -> bool:
     """Validate that a user directory is safe to delete (for leftover directories)."""
     trace_in()
     try:
@@ -266,15 +262,14 @@ def validate_user_directory_for_deletion(user: str, project_name: str, user_home
         
         # Safety check 3: Directory must be owned by the expected user
         stat_info = user_home.stat()
-        try:
-            # Check if the expected user exists and get their UID
-            user_info = pwd.getpwnam(user)
-            expected_uid = user_info.pw_uid
-        except KeyError:
+        # Check if the expected user exists and get their UID
+        user_info = gateway.os.get_user_by_name(user) if gateway and gateway.os else None
+        if not user_info:
             # User doesn't exist, so we can't validate ownership
             warn(f"User {user} does not exist - cannot validate directory ownership")
             trace_out()
             return False
+        expected_uid = user_info["uid"]
         
         if stat_info.st_uid != expected_uid:
             warn(f"Directory {user_home} is not owned by expected user - SKIPPING")
@@ -338,26 +333,30 @@ def validate_user_directory_for_deletion(user: str, project_name: str, user_home
         trace_out()
         return False
 
-def validate_user_for_deletion(user: str, project_name: str) -> bool:
+def validate_user_for_deletion(user: str, project_name: str, gateway) -> bool:
     """Validate that a user is safe to delete (appears to be a project agent user)."""
     trace_in()
     try:
         # Check if user exists
-        user_info = pwd.getpwnam(user)
+        user_info = gateway.os.get_user_by_name(user) if gateway and gateway.os else None
+        if not user_info:
+            log(f"User {user} does not exist - safe to proceed")
+            trace_out()
+            return True
         
         # Safety check 1: User must be a system user (UID < 1000)
-        if user_info.pw_uid >= 1000:
-            warn(f"User {user} has UID {user_info.pw_uid} (>= 1000) - SKIPPING")
-            debug(f"User UID: {user_info.pw_uid}")
-            debug(f"Expected UID < 1000: {user_info.pw_uid < 1000}")
+        if user_info["uid"] >= 1000:
+            warn(f"User {user} has UID {user_info['uid']} (>= 1000) - SKIPPING")
+            debug(f"User UID: {user_info['uid']}")
+            debug(f"Expected UID < 1000: {user_info['uid'] < 1000}")
             debug(f"User info: {user_info}")
             trace_out()
             return False
         
         # Safety check 2: User must have /bin/bash as shell
-        if user_info.pw_shell != '/bin/bash':
-            warn(f"User {user} has shell {user_info.pw_shell} (not /bin/bash) - SKIPPING")
-            debug(f"User shell: {user_info.pw_shell}")
+        if user_info["shell"] != '/bin/bash':
+            warn(f"User {user} has shell {user_info['shell']} (not /bin/bash) - SKIPPING")
+            debug(f"User shell: {user_info['shell']}")
             debug(f"Expected shell: /bin/bash")
             debug(f"User info: {user_info}")
             trace_out()
@@ -365,10 +364,10 @@ def validate_user_for_deletion(user: str, project_name: str) -> bool:
         
         # Safety check 3: User must have expected home directory path
         expected_home = f'/home/{user}'
-        if user_info.pw_dir != expected_home:
-            warn(f"User {user} has unexpected home directory {user_info.pw_dir} - SKIPPING")
+        if user_info["home"] != expected_home:
+            warn(f"User {user} has unexpected home directory {user_info['home']} - SKIPPING")
             debug(f"Expected home: {expected_home}")
-            debug(f"Actual home: {user_info.pw_dir}")
+            debug(f"Actual home: {user_info['home']}")
             trace_out()
             return False
         
@@ -384,10 +383,6 @@ def validate_user_for_deletion(user: str, project_name: str) -> bool:
         trace_out()
         return True
         
-    except KeyError:
-        log(f"User {user} does not exist - safe to proceed")
-        trace_out()
-        return True
     except Exception as e:
         warn(f"Error validating user {user}: {str(e)} - SKIPPING")
         trace_out()
@@ -430,13 +425,19 @@ def cleanup_existing_users(project_name: str, additional_users: List[str] = None
 def detect_project_owner(project_path: Path) -> Optional[str]:
     """Detect the owner of the project folder."""
     trace_in()
+    gateway = get_gateway()
     try:
         stat_info = project_path.stat()
         owner_uid = stat_info.st_uid
-        owner_info = pwd.getpwuid(owner_uid)
-        log(f"Detected project owner: {owner_info.pw_name}")
-        trace_out()
-        return owner_info.pw_name
+        owner_info = gateway.os.get_user_by_uid(owner_uid) if gateway and gateway.os else None
+        if owner_info:
+            log(f"Detected project owner: {owner_info['name']}")
+            trace_out()
+            return owner_info['name']
+        else:
+            warn(f"Could not resolve owner for uid {owner_uid}")
+            trace_out()
+            return None
     except Exception as e:
         warn(f"Failed to detect project owner: {str(e)}")
         trace_out()
@@ -448,6 +449,7 @@ from hh.deploy.utils import detect_project_context
 def discover_script_names(project_name: str) -> Optional[str]:
     """Discover hen script name from tier user directory."""
     trace_in()
+    gateway = get_gateway()
     hen_script_name = None
     
     try:
@@ -469,7 +471,7 @@ def discover_script_names(project_name: str) -> Optional[str]:
         # Look for hen script (could be 'hen' or custom name)
         # It should contain 'python3 gateway' (tier users call gateway.py)
         for item in tier_user_home.iterdir():
-            if item.is_file() and os.access(item, os.X_OK):
+            if item.is_file() and gateway.files.is_executable(str(item)):
                 name = item.name
                 # Check if it's a hen script (contains 'python3 gateway')
                 if name != 'gateway.py' and not name.startswith('gateway-'):
@@ -502,6 +504,7 @@ def discover_script_names(project_name: str) -> Optional[str]:
 def reset_project_group_ownership(project_name: str, project_path: Path) -> None:
     """Reset project folder group ownership and delete project group."""
     trace_in()
+    gateway = get_gateway()
     try:
         log(f"Resetting project group ownership: {project_name}")
         
@@ -510,13 +513,20 @@ def reset_project_group_ownership(project_name: str, project_path: Path) -> None
             # Get the current owner of the directory
             stat_info = project_path.stat()
             owner_uid = stat_info.st_uid
-            owner_info = pwd.getpwuid(owner_uid)
-            owner_name = owner_info.pw_name
-            
-            # Get the owner's primary group
-            primary_group = grp.getgrgid(owner_info.pw_gid).gr_name
-            subprocess.run(['chgrp', '-R', primary_group, str(project_path)], check=True, capture_output=True)
-            log(f"Reset group ownership of {project_path} to {primary_group} (owner: {owner_name})")
+            owner_info = gateway.os.get_user_by_uid(owner_uid) if gateway and gateway.os else None
+            if not owner_info:
+                warn(f"Could not resolve owner for uid {owner_uid}")
+            else:
+                owner_name = owner_info["name"]
+                
+                # Get the owner's primary group
+                group_info = gateway.os.get_group_by_gid(owner_info["gid"]) if gateway and gateway.os else None
+                if group_info:
+                    primary_group = group_info["name"]
+                    subprocess.run(['chgrp', '-R', primary_group, str(project_path)], check=True, capture_output=True)
+                    log(f"Reset group ownership of {project_path} to {primary_group} (owner: {owner_name})")
+                else:
+                    warn(f"Could not resolve group for gid {owner_info['gid']}")
         except subprocess.CalledProcessError as e:
             warn(f"Failed to reset group ownership: {e.stderr.decode()}")
         except Exception as e:

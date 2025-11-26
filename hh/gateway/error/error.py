@@ -47,6 +47,8 @@ def render_error_details(error_list: List[Dict], error_type: str, lines: List[st
         field_config.add_simple_color('connection_error', 'red')
         field_config.add_simple_color('json_error', 'red')
         field_config.add_simple_color('syntax_error', 'red')
+        field_config.add_simple_color('dependency_error', 'red')
+        field_config.add_simple_color('deployment_error', 'red')
         for config_item in field_config.get_configs():
             if config_item['field_type'] == f'{error_type}_error' and 'color_key' in config_item:
                 color_key = config_item['color_key']

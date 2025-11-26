@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 import time
 from typing import List, Optional, Any, Callable, TYPE_CHECKING
 
@@ -25,8 +26,9 @@ def _initialize_debug():
     warn = get_warn(True)
 
 from hh.gateway.request.request import Request
-from hh.gateway.connection.conn import Connection
-from hh.gateway.connection.files import FileSystem
+from hh.gateway.connection.connection import Connection
+from hh.gateway.system.file_system import FileSystem
+from hh.gateway.system.process_manager import ProcessManager
 from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 from hh.image.image_registry import refresh_stale_image_caches
@@ -52,6 +54,7 @@ class Gateway:
         self.response: Optional[Response] = None
         self.conn: Optional[Connection] = None
         self.files: Optional[FileSystem] = None
+        self.os: Optional[Any] = None  # ProcessManager, lazy loaded
         self.registry: Optional[CommandRegistry] = None
         self._user_tier_level: int = 0
         self.command: Optional[str] = None
@@ -84,12 +87,8 @@ class Gateway:
             # Initialize response after connection (so we can pass tier level)
             self._initialize_response()
             
-            try:
-                self.files = FileSystem(dry_run=dry_run)
-            except Exception as e:  # noqa: BLE001
-                warn(f"Failed to initialize FileSystem: {e}")
-                report_error("backend", f"Failed to initialize FileSystem: {e}")
-                self.files = None
+            self.files = FileSystem(dry_run=dry_run)
+            self.os = ProcessManager()
         
         if not is_error():
             self.registry = CommandRegistry(self.command, self.backend)
@@ -242,7 +241,18 @@ class Gateway:
                 report_error("action", f"Action execution raised an exception in {duration:.3f}s: {e}")
         if not is_error() and not self.response.has_action_response():
             report_error("backend", "No action response found")
-        if not is_error():
+
+        # Injected errors for maintenance ping testing (25% chance each, or always if -log).
+        # Commented out - uncomment to test error handling.
+        # proceed_to_backend = not is_error()
+        # force_error = bool(self.request and self.request.get_arg('log'))
+        # if force_error or random.random() < 0.25:
+        #     report_error("action", "Injected test error after action execution")
+        # if force_error or random.random() < 0.25:
+        #     report_error("backend", "Injected test error before backend execution")
+        proceed_to_backend = not is_error()
+
+        if proceed_to_backend:
             log(f"Starting backend execution: {self.backend_handler.__module__}.{self.backend_handler.__name__}")
             start_time = time.time()
             try:
@@ -367,11 +377,7 @@ class Gateway:
         tier_level = 0
         
         if self.request:
-            if self.request.get_arg('mysqlpassword') or self.request.get_arg('mysql_password'):
-                log("MySQL connection type requested, lazy-importing MySQLConnection...")
-                from hh.gateway.connection.mysql_connection import MySQLConnection
-                self.conn = MySQLConnection(dry_run=dry_run)
-            elif self.request.get_arg('password') or self.request.get_arg('root_password'):
+            if self.request.get_arg('password') or self.request.get_arg('root_password'):
                 log("Root connection type requested, lazy-importing RootConnection...")
                 from hh.gateway.connection.root_connection import RootConnection
                 self.conn = RootConnection(dry_run=dry_run)

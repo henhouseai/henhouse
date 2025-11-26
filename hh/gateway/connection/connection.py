@@ -1,26 +1,31 @@
-import configparser
-import json
 import os
-import pymysql
-import getpass
-import shutil
-import uuid
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union, TypedDict, Tuple
-from hh.gateway.connection.conn import DatabaseRow
-from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.error.error_store import report_error, is_error
+import configparser
+from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.system.dependency import register_dependency
+
+# Register pymysql as a dependency
+pymysql = None
+
+@register_dependency("pymysql")
+def _load_pymysql():
+    global pymysql
+    try:
+        import pymysql as _pymysql
+        pymysql = _pymysql
+        return True
+    except ImportError:
+        return False
+
+_load_pymysql()
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
-
-_connection_counter = 0
 
 @register_debug_init
 def _initialize_debug():
@@ -31,19 +36,17 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-class JsonResponse(TypedDict, total=False):
+class DatabaseRow(TypedDict, total=False):
+    id: int
+    name: str
     status: str
-    timestamp: str
-    data: Union[Dict, List]
-    error: str
-    hint: str
+    created_at: str
+    updated_at: str
 
-def load_dsn_pair() -> Tuple[Optional[Dict[str, str]], Optional[Dict[str, str]]]:
+def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], Optional[Dict[str, Union[str, int]]]]:
+    """Load DSN pair from config file. New system version that accepts project_name."""
     trace_in()
     config = configparser.ConfigParser()
-    
-    # Load DSN from user's home directory config
-    project_name, _ = detect_project_context()
     path = os.path.expanduser(f'~/.{project_name}.cnf')
     if os.path.exists(path):
         config.read(path)
@@ -56,9 +59,6 @@ def load_dsn_pair() -> Tuple[Optional[Dict[str, str]], Optional[Dict[str, str]]]
         }
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
-        # Detect user tier level from DSN username and set in response
-        _detect_and_set_user_tier_level(project_name, dsn['user'])
-        
         cache_dsn = {
             'host': config.get('client', 'cache_host', fallback=dsn['host']),
             'user': config.get('client', 'cache_user', fallback=dsn['user']),
@@ -70,449 +70,586 @@ def load_dsn_pair() -> Tuple[Optional[Dict[str, str]], Optional[Dict[str, str]]]
         trace_out()
         return dsn, cache_dsn
     else:
-        warn(f"Configuration file not found: {path}")
+        log(f"Configuration file not found: {path}")
         trace_out()
         return None, None
 
-def load_dsn() -> Optional[Dict[str, str]]:
-    primary, _ = load_dsn_pair()
-    return primary
-
-def load_cache_dsn() -> Optional[Dict[str, str]]:
-    _, cache = load_dsn_pair()
-    return cache
-
-class HenhouseConnection:
-    """Wrapper that holds primary/secondary DB connections and proxies to primary."""
-    def __init__(self, primary, secondary=None):
-        global _connection_counter
-        _connection_counter += 1
-        conn_id = _connection_counter
-        object.__setattr__(self, '_conn_id', conn_id)
-        object.__setattr__(self, '_primary', primary)
-        object.__setattr__(self, '_secondary', secondary or primary)
-        if hasattr(primary, '__dict__'):
-            primary._conn_id = conn_id
-        if secondary and secondary is not primary and hasattr(secondary, '__dict__'):
-            secondary._conn_id = conn_id
-
-    @property
-    def primary(self):
-        return object.__getattribute__(self, '_primary')
-
-    @property
-    def secondary(self):
-        return object.__getattribute__(self, '_secondary')
-
-    def get_connection(self, use_secondary: bool = False):
-        return self.secondary if use_secondary else self.primary
-
-    def __getattr__(self, item):
-        return getattr(self.primary, item)
-
-    def __setattr__(self, key, value):
-        setattr(self.primary, key, value)
-
-    # Convenience helpers so callers can do self.conn.r_query(...) later if desired
-    def r_query(self, sql: str, params=None, *, use_secondary: bool = False):
-        return r_query(self, sql, params, use_secondary=use_secondary)
-
-    def u_query(self, sql: str, params=None, *, use_secondary: bool = False):
-        return u_query(self, sql, params, use_secondary=use_secondary)
-
-    def c_query(self, sql: str, params=None, *, use_secondary: bool = False):
-        return c_query(self, sql, params, use_secondary=use_secondary)
-
-    def d_query(self, sql: str, params=None, *, use_secondary: bool = False):
-        return d_query(self, sql, params, use_secondary=use_secondary)
-
-    def close(self):
-        """Close both primary and secondary connections."""
+class Connection:
+    """Gateway-owned connection manager for main, cache, and history databases."""
+    
+    def __init__(self, dry_run: bool = False):
+        self.main: Optional[Any] = None
+        self.cache: Optional[Any] = None
+        self.history: Optional[Any] = None
+        self._transaction_started: bool = False
+        self._initialized: bool = False
+        self._dry_run: bool = dry_run
+    
+    def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+        """Get main database DSN. Override in subclasses for root/MySQL connections."""
         trace_in()
-        conn_id = getattr(self, '_conn_id', None)
-        if self._secondary and self._secondary is not self._primary:
-            try:
-                if self._secondary.open:
-                    self._secondary.close()
-                    log(_format_log_with_conn_id(self, "Secondary connection closed successfully"))
-            except Exception as e:
-                # Only warn if it's not an "already closed" error
-                if "Already closed" not in str(e) and "closed" not in str(e).lower():
-                    warn(f"Failed to close secondary connection: {e}")
-        try:
-            if self._primary.open:
-                self._primary.close()
-                log(_format_log_with_conn_id(self, "Primary connection closed successfully"))
-        except Exception as e:
-            # Only warn if it's not an "already closed" error
-            if "Already closed" not in str(e) and "closed" not in str(e).lower():
-                warn(f"Failed to close primary connection: {e}")
+        main_dsn, _ = _load_dsn(project_name)
         trace_out()
-
-def _unwrap_connection(conn, use_secondary: bool = False):
-    if isinstance(conn, HenhouseConnection):
-        return conn.get_connection(use_secondary=use_secondary)
-    return conn
-
-def _get_connection_id(conn) -> Optional[int]:
-    """Get connection ID from either HenhouseConnection wrapper or raw connection."""
-    if isinstance(conn, HenhouseConnection):
-        return getattr(conn, '_conn_id', None)
-    return getattr(conn, '_conn_id', None)
-
-def _format_log_with_conn_id(conn, message: str) -> str:
-    """Format log message with connection ID prefix if available."""
-    conn_id = _get_connection_id(conn)
-    if conn_id is not None:
-        return f"[{conn_id}] {message}"
-    return message
-
-def _detect_and_set_user_tier_level(project_name: str, username: str) -> None:
-    """Detect user tier level from DSN username and set it in Gateway response."""
-    trace_in()
-    tier_level = 0  # Default to unknown
-    try:
-        # Use username from DSN config file
-        if not username:
-            log("DSN username is empty, cannot detect tier")
-        else:
-            # Check if username matches pattern: {project_name}_{tier}
-            expected_prefix = f"{project_name}_"
-            if not username.startswith(expected_prefix):
-                log(f"Username {username} does not match expected pattern {expected_prefix}*")
+        return main_dsn
+    
+    def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+        """Get cache database DSN. Override in subclasses for root connections.
+        Returns None to use default from _load_dsn()."""
+        trace_in()
+        trace_out()
+        return None
+    
+    def _detect_user_tier_level(self, project_name: str, username: str) -> int:
+        """Detect user tier level from DSN username. Returns tier level (0 if unknown)."""
+        trace_in()
+        tier_level = 0  # Default to unknown
+        try:
+            if not username:
+                log("DSN username is empty, cannot detect tier")
             else:
-                # Extract tier suffix
-                tier_suffix = username[len(expected_prefix):]
-                if not tier_suffix:
-                    log(f"Username {username} has no tier suffix")
+                # Check if username matches pattern: {project_name}_{tier}
+                expected_prefix = f"{project_name}_"
+                if not username.startswith(expected_prefix):
+                    log(f"Username {username} does not match expected pattern {expected_prefix}*")
                 else:
-                    # Look up tier in HENHOUSE_TIERS list
-                    try:
-                        tier_index = HENHOUSE_TIERS.index(tier_suffix)
-                        # Convert 0-based index to 1-based level (index 0 → level 1, etc.)
-                        tier_level = tier_index + 1
-                        log(f"Detected tier: {tier_suffix} (index {tier_index} → level {tier_level})")
-                    except ValueError:
-                        log(f"Tier suffix '{tier_suffix}' not found in HENHOUSE_TIERS")
-        
-    except Exception as e:
-        warn(f"Failed to detect user tier level: {e}")
-    finally:
-        # Always set tier level (0 if detection failed, or detected level if successful)
-        from hh.gateway.gateway import get_gateway
-        gateway = get_gateway()
-        if gateway and gateway.response:
-            gateway.response.set_user_tier_level(tier_level)
-            log(f"Set user tier level {tier_level} in response")
-        else:
-            log("Gateway or response not available for setting tier level")
+                    # Extract tier suffix
+                    tier_suffix = username[len(expected_prefix):]
+                    if not tier_suffix:
+                        log(f"Username {username} has no tier suffix")
+                    else:
+                        # Look up tier in HENHOUSE_TIERS list
+                        try:
+                            tier_index = HENHOUSE_TIERS.index(tier_suffix)
+                            # Convert 0-based index to 1-based level (index 0 → level 1, etc.)
+                            tier_level = tier_index + 1
+                            log(f"Detected tier: {tier_suffix} (index {tier_index} → level {tier_level})")
+                        except ValueError:
+                            log(f"Tier suffix '{tier_suffix}' not found in HENHOUSE_TIERS")
+        except Exception as e:
+            warn(f"Failed to detect user tier level: {e}")
+        log(f"User tier level: {tier_level}")
         trace_out()
-
-def get_connection(dict_cursor: bool = True, dsn_override: Optional[Dict[str, Union[str, int]]] = None):
-    trace_in()
-    dsn = dsn_override or load_dsn()
-    if not dsn:
-        warn("Cannot create connection: DSN not available")
-        trace_out()
-        return None
-    cursorclass = pymysql.cursors.DictCursor if dict_cursor else None
-    try:
-        if cursorclass:
-            conn = pymysql.connect(**dsn, cursorclass=cursorclass)
-            log(f"Database connection established with DictCursor: host={dsn['host']}, database={dsn['database']}")
-        else:
-            conn = pymysql.connect(**dsn)
-            log(f"Database connection established: host={dsn['host']}, database={dsn['database']}")
-        # Initialize file operation buffer
-        conn._file_operations = []
-        trace_out()
-        return conn
-    except Exception as e:
-        warn(f"Failed to connect to database: {e}")
-        trace_out()
-        return None
-
-
-def r_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> List[DatabaseRow]:
-    trace_in()
-    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
-    target_conn._last_sql = sql
-    target_conn._last_params = list(params or [])
-    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
-    try:
-        with target_conn.cursor() as cur:
-            cur.execute(sql, params or [])
-            rows = cur.fetchall()
-            if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
-                columns = [d[0] for d in cur.description]
-                result = [dict(zip(columns, r)) for r in rows]
-                log(_format_log_with_conn_id(conn, f"r_query executed successfully: {len(result)} rows returned (converted to dict)"))
-            else:
-                result = list(rows)
-                log(_format_log_with_conn_id(conn, f"r_query executed successfully: {len(result)} rows returned"))
-            trace_out()
-            return result
-    except Exception as exc:
-        warn(f"r_query execution failed: {exc}")
-        setattr(exc, 'sql', sql)
-        setattr(exc, 'params', params or [])
-        trace_out()
-        raise
-    finally:
-        target_conn._last_sql = None
-        target_conn._last_params = None
-
-def c_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> int:
-    trace_in()
-    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
-    target_conn._last_sql = sql
-    target_conn._last_params = list(params or [])
-    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
-    try:
-        with target_conn.cursor() as cur:
-            cur.execute(sql, params or [])
-            lastrowid = cur.lastrowid
-            log(_format_log_with_conn_id(conn, f"c_query executed successfully: lastrowid={lastrowid}"))
-            trace_out()
-            return lastrowid
-    except Exception as exc:
-        warn(f"c_query execution failed: {exc}")
-        setattr(exc, 'sql', sql)
-        setattr(exc, 'params', params or [])
-        trace_out()
-        raise
-    finally:
-        target_conn._last_sql = None
-        target_conn._last_params = None
-
-def u_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> int:
-    trace_in()
-    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
-    target_conn._last_sql = sql
-    target_conn._last_params = list(params or [])
-    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
-    try:
-        with target_conn.cursor() as cur:
-            cur.execute(sql, params or [])
-            rowcount = cur.rowcount
-            log(_format_log_with_conn_id(conn, f"u_query executed successfully: {rowcount} rows affected"))
-            trace_out()
-            return rowcount
-    except Exception as exc:
-        warn(f"u_query execution failed: {exc}")
-        setattr(exc, 'sql', sql)
-        setattr(exc, 'params', params or [])
-        trace_out()
-        raise
-    finally:
-        target_conn._last_sql = None
-        target_conn._last_params = None
-
-def d_query(conn, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None, *, use_secondary: bool = False) -> int:
-    trace_in()
-    target_conn = _unwrap_connection(conn, use_secondary=use_secondary)
-    target_conn._last_sql = sql
-    target_conn._last_params = list(params or [])
-    log(_format_log_with_conn_id(conn, f"{sql[:500]}{'...' if len(sql) > 500 else ''}, params={params}"))
-    try:
-        with target_conn.cursor() as cur:
-            cur.execute(sql, params or [])
-            rowcount = cur.rowcount
-            log(_format_log_with_conn_id(conn, f"d_query executed successfully: {rowcount} rows affected"))
-            trace_out()
-            return rowcount
-    except Exception as exc:
-        warn(f"d_query execution failed: {exc}")
-        setattr(exc, 'sql', sql)
-        setattr(exc, 'params', params or [])
-        trace_out()
-        raise
-    finally:
-        target_conn._last_sql = None
-        target_conn._last_params = None
-
-# Utility functions moved to hh.gateway.connection.utils
-# Import them from there for backward compatibility
-from hh.gateway.connection.utils import (
-    iso_now,
-    json_out,
-    json_success,
-    json_error,
-    ensure_iso_timestamps,
-    normalize_meta,
-    count_json_chars
-)
-
-def validate_agent_identity(conn, agent_id: int, badge_ts: Optional[str]) -> bool:
-    trace_in()
-    if agent_id is None or badge_ts is None:
-        warn("Agent validation failed: missing agent_id or badge_ts")
-        trace_out()
-        return False
-    query = "SELECT COUNT(*) AS c FROM agents WHERE id=%s AND badge_ts=%s"
-    results = r_query(conn, query, [int(agent_id), badge_ts])
-    is_valid = bool(results and int(results[0].get("c") or 0) > 0)
-    log(_format_log_with_conn_id(conn, f"Agent identity validation: agent_id={agent_id}, badge_ts={badge_ts}, valid={is_valid}"))
-    trace_out()
-    return is_valid
-
-
-def schedule_file_move(conn, from_path: str, to_path: str) -> None:
-    """Schedule a file move operation to be executed after DB commit."""
-    trace_in()
-    unwrapped_conn = _unwrap_connection(conn)
-    if not hasattr(unwrapped_conn, '_file_operations'):
-        unwrapped_conn._file_operations = []
-    operation = {
-        'type': 'move',
-        'from_path': from_path,
-        'to_path': to_path,
-        'status': 'scheduled',
-        'temp_filename': None
-    }
-    unwrapped_conn._file_operations.append(operation)
-    log(_format_log_with_conn_id(conn, f"Scheduled file move: {from_path} -> {to_path}"))
-    trace_out()
-
-
-def schedule_file_delete(conn, file_path: str) -> None:
-    """Schedule a file delete operation (moves to /tmp) to be executed after DB commit."""
-    trace_in()
-    unwrapped_conn = _unwrap_connection(conn)
-    if not hasattr(unwrapped_conn, '_file_operations'):
-        unwrapped_conn._file_operations = []
-    file_path_obj = Path(file_path)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    unique_id = str(uuid.uuid4())[:8]
-    temp_filename = f"henhouse_deleted_{timestamp}_{unique_id}_{file_path_obj.name}"
-    temp_path = f"/tmp/{temp_filename}"
-    operation = {
-        'type': 'delete',
-        'from_path': file_path,
-        'to_path': temp_path,
-        'status': 'scheduled',
-        'temp_filename': temp_filename
-    }
-    unwrapped_conn._file_operations.append(operation)
-    log(_format_log_with_conn_id(conn, f"Scheduled file delete: {file_path} -> {temp_path}"))
-    trace_out()
-
-
-def _execute_file_operations(conn) -> bool:
-    """Execute all buffered file operations. Returns True if all succeed, False otherwise."""
-    trace_in()
-    unwrapped_conn = _unwrap_connection(conn)
-    if not hasattr(unwrapped_conn, '_file_operations') or not unwrapped_conn._file_operations:
-        log(_format_log_with_conn_id(conn, "No file operations to execute"))
-        trace_out()
-        return True
+        return tier_level
     
-    log(_format_log_with_conn_id(conn, f"Executing {len(unwrapped_conn._file_operations)} buffered file operations"))
-    
-    for operation in unwrapped_conn._file_operations:
-        if operation['status'] != 'scheduled':
-            continue
+    def initialize(self) -> int:
+        """Open connections to all databases. Returns user tier level (0 if unknown)."""
+        trace_in()
+        if self._initialized:
+            log("Connection already initialized")
+            trace_out()
+            return 0
         
+        tier_level = 0
         try:
-            from_path = Path(operation['from_path'])
-            to_path = Path(operation['to_path'])
+            # Detect project context once at the start
+            project_name, _ = detect_project_context()
             
-            if not from_path.exists():
-                warn(f"Source file does not exist: {from_path}")
-                report_error("file_operation", f"Source file does not exist: {from_path}")
-                operation['status'] = 'failed'
+            # Get main DSN (may be overridden by subclasses)
+            main_dsn = self._get_main_dsn(project_name)
+            
+            if not main_dsn:
+                log("Cannot initialize connections: main DSN not available. Connection methods will be no-op.")
                 trace_out()
-                return False
+                return 0
             
-            if operation['type'] == 'move':
-                to_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(from_path), str(to_path))
-                log(_format_log_with_conn_id(conn, f"Moved file: {from_path} -> {to_path}"))
-                operation['status'] = 'completed'
-                
-            elif operation['type'] == 'delete':
-                to_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(from_path), str(to_path))
-                log(_format_log_with_conn_id(conn, f"Moved file to temp for deletion: {from_path} -> {to_path}"))
-                operation['status'] = 'completed'
-                
-        except Exception as e:
-            warn(f"Failed to execute file operation {operation['type']}: {from_path} -> {to_path}: {str(e)}")
-            report_error("file_operation", f"Failed to {operation['type']} file: {str(e)}")
-            operation['status'] = 'failed'
+            # Detect user tier level from DSN username
+            if project_name:
+                tier_level = self._detect_user_tier_level(project_name, main_dsn.get('user', ''))
+            
+            # Get cache DSN (may be overridden by subclasses, otherwise use standard loading)
+            cache_dsn = self._get_cache_dsn(project_name)
+            if not cache_dsn:
+                _, cache_dsn = _load_dsn(project_name)
+            
+            # Open main database connection
+            cursorclass = pymysql.cursors.DictCursor
+            self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)
+            log(f"Main database connection opened: host={main_dsn['host']}, database={main_dsn.get('database', 'None')}")
+            
+            # Open cache database connection
+            if cache_dsn:
+                self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)
+                log(f"Cache database connection opened: host={cache_dsn['host']}, database={cache_dsn['database']}")
+            else:
+                warn("Cache DSN not available, using main database for cache")
+                self.cache = self.main
+            
+            # TODO: Open history database connection when DSN loading is implemented
+            # For now, history is None
+            log("History database connection skipped (not yet implemented)")
+            self.history = None
+            
+            self._initialized = True
+            log("All database connections initialized successfully")
             trace_out()
-            return False
+            return tier_level
+            
+        except Exception as e:
+            warn(f"Failed to initialize database connections: {e}")
+            # Clean up any partial connections
+            self.close()
+            trace_out()
+            return 0
     
-    log(_format_log_with_conn_id(conn, "All file operations executed successfully"))
-    trace_out()
-    return True
-
-
-def _rollback_file_operations(conn) -> bool:
-    """Rollback all completed file operations. Returns True if all rollbacks succeed."""
-    trace_in()
-    unwrapped_conn = _unwrap_connection(conn)
-    if not hasattr(unwrapped_conn, '_file_operations') or not unwrapped_conn._file_operations:
-        log(_format_log_with_conn_id(conn, "No file operations to rollback"))
-        trace_out()
-        return True
-    
-    log(_format_log_with_conn_id(conn, f"Rolling back {len(unwrapped_conn._file_operations)} file operations"))
-    
-    completed_count = sum(1 for op in unwrapped_conn._file_operations if op.get('status') == 'completed')
-    log(_format_log_with_conn_id(conn, f"Found {completed_count} completed operations to rollback"))
-    
-    if completed_count == 0:
-        log(_format_log_with_conn_id(conn, "No completed operations to rollback"))
-        trace_out()
-        return True
-    
-    rolled_back_count = 0
-    for operation in reversed(unwrapped_conn._file_operations):
-        if operation['status'] != 'completed':
-            continue
+    def close(self) -> None:
+        """Close all database connections."""
+        trace_in()
         
-        log(_format_log_with_conn_id(conn, f"Rolling back operation: {operation['type']} from {operation['from_path']} to {operation['to_path']}"))
+        if not self._initialized:
+            log("No connections to close (not initialized)")
+            trace_out()
+            return
+        
+        log("Starting connection cleanup...")
+        
+        if self.history and self.history is not self.main and self.history is not self.cache:
+            try:
+                if hasattr(self.history, 'open') and self.history.open:
+                    self.history.close()
+                    log("History database connection closed")
+            except Exception as e:
+                warn(f"Error closing history connection: {e}")
+            self.history = None
+        
+        if self.cache and self.cache is not self.main:
+            try:
+                if hasattr(self.cache, 'open') and self.cache.open:
+                    self.cache.close()
+                    log("Cache database connection closed")
+            except Exception as e:
+                warn(f"Error closing cache connection: {e}")
+            self.cache = None
+        
+        if self.main:
+            try:
+                if hasattr(self.main, 'open') and self.main.open:
+                    self.main.close()
+                    log("Main database connection closed")
+            except Exception as e:
+                warn(f"Error closing main connection: {e}")
+            self.main = None
+        
+        self._transaction_started = False
+        self._initialized = False
+        log("All database connections closed successfully")
+        trace_out()
+    
+    def has_transaction(self) -> bool:
+        """Check if a transaction is currently active."""
+        return self._transaction_started
+    
+    def is_initialized(self) -> bool:
+        """Check if connections have been initialized."""
+        return self._initialized
+    
+    def commit(self) -> None:
+        """Commit all active transactions on all databases. If dry_run is enabled, rolls back instead."""
+        trace_in()
+        if not self._transaction_started:
+            log("No transaction to commit")
+            trace_out()
+            return
+        
+        if self._dry_run:
+            log("Dry run mode enabled - rolling back transactions instead of committing")
+            self.rollback()
+            trace_out()
+            return
+        
+        log("Committing transactions on all databases...")
         
         try:
-            from_path = Path(operation['from_path'])
-            to_path = Path(operation['to_path'])
+            if self.history and self.history is not self.main and self.history is not self.cache:
+                self.history.commit()
+                log("Transaction committed on history database")
             
-            if operation['type'] == 'move':
-                if to_path.exists():
-                    from_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.move(str(to_path), str(from_path))
-                    log(_format_log_with_conn_id(conn, f"Rolled back move: {to_path} -> {from_path}"))
-                    operation['status'] = 'rolled_back'
-                    rolled_back_count += 1
-                else:
-                    warn(f"Destination file does not exist for rollback: {to_path}")
-                    report_error("file_operation", f"Destination file does not exist for rollback: {to_path}")
-                    operation['status'] = 'rollback_failed'
-                    trace_out()
-                    return False
-                
-            elif operation['type'] == 'delete':
-                if to_path.exists():
-                    from_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.move(str(to_path), str(from_path))
-                    log(_format_log_with_conn_id(conn, f"Rolled back delete: {to_path} -> {from_path}"))
-                    operation['status'] = 'rolled_back'
-                    rolled_back_count += 1
-                else:
-                    warn(f"Temp file does not exist for rollback: {to_path}")
-                    report_error("file_operation", f"Temp file does not exist for rollback: {to_path}")
-                    operation['status'] = 'rollback_failed'
-                    trace_out()
-                    return False
-                
+            if self.cache and self.cache is not self.main:
+                self.cache.commit()
+                log("Transaction committed on cache database")
+            
+            if self.main:
+                self.main.commit()
+                log("Transaction committed on main database")
+            
+            self._transaction_started = False
+            log("All transactions committed successfully")
         except Exception as e:
-            warn(f"Failed to rollback file operation {operation['type']}: {str(e)}")
-            report_error("file_operation", f"Failed to rollback {operation['type']}: {str(e)}")
-            operation['status'] = 'rollback_failed'
+            warn(f"Failed to commit transactions: {e}")
+            raise
+        finally:
             trace_out()
-            return False
     
-    log(_format_log_with_conn_id(conn, f"All {rolled_back_count} file operations rolled back successfully"))
-    trace_out()
-    return True
+    def rollback(self) -> None:
+        """Rollback all active transactions on all databases."""
+        trace_in()
+        if not self._transaction_started:
+            log("No transaction to rollback")
+            trace_out()
+            return
+        
+        log("Rolling back transactions on all databases...")
+        
+        try:
+            if self.history and self.history is not self.main and self.history is not self.cache:
+                try:
+                    self.history.rollback()
+                    log("Transaction rolled back on history database")
+                except Exception as e:
+                    warn(f"Error rolling back history transaction: {e}")
+            
+            if self.cache and self.cache is not self.main:
+                try:
+                    self.cache.rollback()
+                    log("Transaction rolled back on cache database")
+                except Exception as e:
+                    warn(f"Error rolling back cache transaction: {e}")
+            
+            if self.main:
+                try:
+                    self.main.rollback()
+                    log("Transaction rolled back on main database")
+                except Exception as e:
+                    warn(f"Error rolling back main transaction: {e}")
+            
+            self._transaction_started = False
+            log("All transactions rolled back")
+        except Exception as e:
+            warn(f"Error during transaction rollback: {e}")
+        finally:
+            trace_out()
+    
+    def _start_transaction(self) -> None:
+        """Start a transaction on all active databases. Called automatically on first write."""
+        if self._transaction_started:
+            return
+        
+        trace_in()
+        log("Starting transaction on all databases...")
+        
+        try:
+            if self.main:
+                with self.main.cursor() as cur:
+                    cur.execute("START TRANSACTION")
+                log("Transaction started on main database")
+            
+            if self.cache and self.cache is not self.main:
+                with self.cache.cursor() as cur:
+                    cur.execute("START TRANSACTION")
+                log("Transaction started on cache database")
+            
+            if self.history and self.history is not self.main and self.history is not self.cache:
+                with self.history.cursor() as cur:
+                    cur.execute("START TRANSACTION")
+                log("Transaction started on history database")
+            
+            self._transaction_started = True
+            log("All transactions started successfully")
+        except Exception as e:
+            warn(f"Failed to start transactions: {e}")
+            raise
+        finally:
+            trace_out()
+    
+    def _classify_and_attach_error(self, exc: Exception, conn: Any) -> None:
+        """Classify exception and attach structured error info to it."""
+        from hh.gateway.connection.utils import classify_exception
+        code, source, extras = classify_exception(exc, conn)
+        setattr(exc, '_error_code', code)
+        setattr(exc, '_error_source', source)
+        setattr(exc, '_error_extras', extras)
+    
+    # Main database CRUD operations
+    def read(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
+        """Execute a SELECT query on the main database. Returns list of dict rows."""
+        trace_in()
+        if not self._initialized or not self.main:
+            warn("Connection not initialized, returning empty result")
+            trace_out()
+            return []
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Main DB READ: {sql_preview}, params={params}")
+        
+        try:
+            with self.main.cursor() as cur:
+                cur.execute(sql, params or [])
+                rows = cur.fetchall()
+                if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
+                    columns = [d[0] for d in cur.description]
+                    result = [dict(zip(columns, r)) for r in rows]
+                    log(f"Main DB READ executed successfully: {len(result)} rows returned (converted to dict)")
+                else:
+                    result = list(rows)
+                    log(f"Main DB READ executed successfully: {len(result)} rows returned")
+                trace_out()
+                return result
+        except Exception as exc:
+            warn(f"Main DB READ execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
+            trace_out()
+            raise
+    
+    def create(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT query on the main database. Returns lastrowid."""
+        trace_in()
+        if not self._initialized or not self.main:
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Main DB CREATE: {sql_preview}, params={params}")
+        
+        try:
+            with self.main.cursor() as cur:
+                cur.execute(sql, params or [])
+                lastrowid = cur.lastrowid
+                log(f"Main DB CREATE executed successfully: lastrowid={lastrowid}")
+                trace_out()
+                return lastrowid
+        except Exception as exc:
+            warn(f"Main DB CREATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
+            trace_out()
+            raise
+    
+    def update(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an UPDATE query on the main database. Returns rowcount."""
+        trace_in()
+        if not self._initialized or not self.main:
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Main DB UPDATE: {sql_preview}, params={params}")
+        
+        try:
+            with self.main.cursor() as cur:
+                cur.execute(sql, params or [])
+                rowcount = cur.rowcount
+                log(f"Main DB UPDATE executed successfully: {rowcount} rows affected")
+                trace_out()
+                return rowcount
+        except Exception as exc:
+            warn(f"Main DB UPDATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
+            trace_out()
+            raise
+    
+    def delete(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute a DELETE query on the main database. Returns rowcount."""
+        trace_in()
+        if not self._initialized or not self.main:
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Main DB DELETE: {sql_preview}, params={params}")
+        
+        try:
+            with self.main.cursor() as cur:
+                cur.execute(sql, params or [])
+                rowcount = cur.rowcount
+                log(f"Main DB DELETE executed successfully: {rowcount} rows affected")
+                trace_out()
+                return rowcount
+        except Exception as exc:
+            warn(f"Main DB DELETE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
+            trace_out()
+            raise
+    
+    # Cache database operations (no delete)
+    def read_cache(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
+        """Execute a SELECT query on the cache database. Returns list of dict rows."""
+        trace_in()
+        if not self._initialized or not self.cache:
+            warn("Cache connection not initialized, returning empty result")
+            trace_out()
+            return []
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Cache DB READ: {sql_preview}, params={params}")
+        
+        try:
+            with self.cache.cursor() as cur:
+                cur.execute(sql, params or [])
+                rows = cur.fetchall()
+                if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
+                    columns = [d[0] for d in cur.description]
+                    result = [dict(zip(columns, r)) for r in rows]
+                    log(f"Cache DB READ executed successfully: {len(result)} rows returned (converted to dict)")
+                else:
+                    result = list(rows)
+                    log(f"Cache DB READ executed successfully: {len(result)} rows returned")
+                trace_out()
+                return result
+        except Exception as exc:
+            warn(f"Cache DB READ execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.cache)
+            trace_out()
+            raise
+    
+    def create_cache(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT query on the cache database. Returns lastrowid."""
+        trace_in()
+        if not self._initialized or not self.cache:
+            warn("Cache connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Cache DB CREATE: {sql_preview}, params={params}")
+        
+        try:
+            with self.cache.cursor() as cur:
+                cur.execute(sql, params or [])
+                lastrowid = cur.lastrowid
+                log(f"Cache DB CREATE executed successfully: lastrowid={lastrowid}")
+                trace_out()
+                return lastrowid
+        except Exception as exc:
+            warn(f"Cache DB CREATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.cache)
+            trace_out()
+            raise
+    
+    def update_cache(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an UPDATE query on the cache database. Returns rowcount."""
+        trace_in()
+        if not self._initialized or not self.cache:
+            warn("Cache connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Cache DB UPDATE: {sql_preview}, params={params}")
+        
+        try:
+            with self.cache.cursor() as cur:
+                cur.execute(sql, params or [])
+                rowcount = cur.rowcount
+                log(f"Cache DB UPDATE executed successfully: {rowcount} rows affected")
+                trace_out()
+                return rowcount
+        except Exception as exc:
+            warn(f"Cache DB UPDATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.cache)
+            trace_out()
+            raise
+    
+    # History database operations (no delete)
+    def read_history(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
+        """Execute a SELECT query on the history database. Returns list of dict rows."""
+        trace_in()
+        if not self._initialized or not self.history:
+            warn("History connection not initialized, returning empty result")
+            trace_out()
+            return []
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"History DB READ: {sql_preview}, params={params}")
+        
+        try:
+            with self.history.cursor() as cur:
+                cur.execute(sql, params or [])
+                rows = cur.fetchall()
+                if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
+                    columns = [d[0] for d in cur.description]
+                    result = [dict(zip(columns, r)) for r in rows]
+                    log(f"History DB READ executed successfully: {len(result)} rows returned (converted to dict)")
+                else:
+                    result = list(rows)
+                    log(f"History DB READ executed successfully: {len(result)} rows returned")
+                trace_out()
+                return result
+        except Exception as exc:
+            warn(f"History DB READ execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.history if self.history else self.main)
+            trace_out()
+            raise
+    
+    def create_history(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT query on the history database. Returns lastrowid."""
+        trace_in()
+        if not self._initialized or not self.history:
+            warn("History connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"History DB CREATE: {sql_preview}, params={params}")
+        
+        try:
+            with self.history.cursor() as cur:
+                cur.execute(sql, params or [])
+                lastrowid = cur.lastrowid
+                log(f"History DB CREATE executed successfully: lastrowid={lastrowid}")
+                trace_out()
+                return lastrowid
+        except Exception as exc:
+            warn(f"History DB CREATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.history if self.history else self.main)
+            trace_out()
+            raise
+    
+    def update_history(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an UPDATE query on the history database. Returns rowcount."""
+        trace_in()
+        if not self._initialized or not self.history:
+            warn("History connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"History DB UPDATE: {sql_preview}, params={params}")
+        
+        try:
+            with self.history.cursor() as cur:
+                cur.execute(sql, params or [])
+                rowcount = cur.rowcount
+                log(f"History DB UPDATE executed successfully: {rowcount} rows affected")
+                trace_out()
+                return rowcount
+        except Exception as exc:
+            warn(f"History DB UPDATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.history if self.history else self.main)
+            trace_out()
+            raise
+

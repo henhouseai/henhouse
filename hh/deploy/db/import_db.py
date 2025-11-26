@@ -3,14 +3,11 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
-import pymysql
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.connection.decorators import root_read
-from hh.gateway.connection.connection import load_dsn
 from hh.deploy.utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
 
@@ -29,43 +26,59 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def _collect_table_info(connection) -> List[Dict[str, Any]]:
+def _collect_table_info(gateway, db_name: str = None) -> List[Dict[str, Any]]:
+    """Collect table information using gateway.conn.read()."""
     info: List[Dict[str, Any]] = []
-    with connection.cursor() as cursor:
-        cursor.execute("SHOW TABLES")
-        tables = cursor.fetchall()
+    if not gateway or not gateway.conn:
+        return info
+    
+    try:
+        # SHOW TABLES returns results with a dynamic column name
+        tables = gateway.conn.read("SHOW TABLES")
         for table_row in tables:
             table_name = list(table_row.values())[0]
-            cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
-            count_result = cursor.fetchone()
-            row_count = list(count_result.values())[0]
+            count_query = f"SELECT COUNT(*) as count FROM `{table_name}`"
+            count_result = gateway.conn.read(count_query)
+            row_count = count_result[0]['count'] if count_result else 0
             info.append({
                 "table_name": table_name,
                 "row_count": row_count
             })
+    except Exception as e:
+        warn(f"Failed to collect table info: {str(e)}")
     return info
 
-def _get_target_connection(db_name: str, root_password: str):
-    dsn = load_dsn() or {}
-    host = dsn.get('host', 'localhost')
-    port = dsn.get('port', 3306)
-    return pymysql.connect(
-        host=host,
-        port=port,
-        user='root',
-        password=root_password,
-        database=db_name,
-        cursorclass=pymysql.cursors.DictCursor
-    )
+def _collect_cache_table_info(gateway) -> List[Dict[str, Any]]:
+    """Collect table information from cache database using gateway.conn.cache."""
+    info: List[Dict[str, Any]] = []
+    if not gateway or not gateway.conn or not gateway.conn.cache:
+        return info
+    
+    try:
+        with gateway.conn.cache.cursor() as cursor:
+            cursor.execute("SHOW TABLES")
+            tables = cursor.fetchall()
+            for table_row in tables:
+                table_name = list(table_row.values())[0]
+                cursor.execute(f"SELECT COUNT(*) as count FROM `{table_name}`")
+                count_result = cursor.fetchone()
+                row_count = count_result['count'] if count_result else 0
+                info.append({
+                    "table_name": table_name,
+                    "row_count": row_count
+                })
+    except Exception as e:
+        warn(f"Failed to collect cache table info: {str(e)}")
+    return info
 
-@root_read
 @register_action('import_db')
 @register_command('import_db')
-def import_db(conn, args: List[str] = None) -> bool:
+def import_db(args: List[str] = None) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        report_error("action", "No gateway or connection available")
         trace_out()
         return False
     
@@ -119,11 +132,10 @@ def import_db(conn, args: List[str] = None) -> bool:
     if not is_error():
         try:
             if target_db == project_name:
-                current_table_info = _collect_table_info(conn)
+                current_table_info = _collect_table_info(gateway)
             else:
-                target_conn = _get_target_connection(target_db, root_password)
-                current_table_info = _collect_table_info(target_conn)
-                target_conn.close()
+                # For cache DB, use gateway.conn.cache (RootConnection provides root access)
+                current_table_info = _collect_cache_table_info(gateway)
             log(f"Current table info collection completed: {len(current_table_info)} tables processed")
         except Exception as e:
             warn(f"Failed to get current table information: {str(e)}")
@@ -153,11 +165,10 @@ def import_db(conn, args: List[str] = None) -> bool:
     if not is_error():
         try:
             if target_db == project_name:
-                final_table_info = _collect_table_info(conn)
+                final_table_info = _collect_table_info(gateway)
             else:
-                final_conn = _get_target_connection(target_db, root_password)
-                final_table_info = _collect_table_info(final_conn)
-                final_conn.close()
+                # For cache DB, use gateway.conn.cache (RootConnection provides root access)
+                final_table_info = _collect_cache_table_info(gateway)
             log(f"Final table info collection completed: {len(final_table_info)} tables processed")
         except Exception as e:
             warn(f"Failed to get final table information: {str(e)}")

@@ -250,7 +250,7 @@ The gateway pattern ensures that all components interact through a single, well-
 
 ### error handling:
 - **Centralized Error Store**: Uses error_store module with report_error() and is_error() functions
-- **Error Types**: 10 distinct error types - request, registry, action, backend, debug, connection, JSON, syntax, link_resolution, cache_refresh, file_operation
+- **Error Types**: 12 distinct error types - request, registry, action, backend, debug, connection, JSON, syntax, link_resolution, cache_refresh, dependency, deployment
 - **Error Processing**: _process_errors() method runs error handler if available when errors are detected
 - **Error State Checking**: Uses is_error() from error_store to check error state throughout execution
 

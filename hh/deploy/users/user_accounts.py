@@ -1,9 +1,8 @@
-import os
 import subprocess
-import pwd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.gateway import get_gateway
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -25,6 +24,7 @@ from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 def create_user_config_file(user: str, project_name: str, password: str) -> None:
     """Create project-specific config file for user."""
     trace_in()
+    gateway = get_gateway()
     try:
         user_home = Path(f'/home/{user}')
         config_file = user_home / f'.{project_name}.cnf'
@@ -35,8 +35,8 @@ def create_user_config_file(user: str, project_name: str, password: str) -> None
             f.write(config_content)
         
         # Set ownership and permissions
-        os.chown(config_file, pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
-        os.chmod(config_file, 0o600)
+        gateway.files.chown(str(config_file), user)
+        gateway.files.chmod(str(config_file), 0o600)
         
         log(f"Created config file for {user}: {config_file}")
     except Exception as e:
@@ -47,6 +47,7 @@ def create_user_config_file(user: str, project_name: str, password: str) -> None
 def update_user_paths(project_name: str) -> None:
     """Update user shell paths to include their home directory."""
     trace_in()
+    gateway = get_gateway()
     try:
         log("Updating user paths")
         
@@ -63,7 +64,7 @@ def update_user_paths(project_name: str) -> None:
             if path_update not in profile_content:
                 with open(profile_path, 'a') as f:
                     f.write(f'\n{path_update}\n')
-                os.chown(profile_path, pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
+                gateway.files.chown(str(profile_path), user)
                 log(f"Updated PATH for {user}")
         
         log("User paths updated successfully")
@@ -75,6 +76,7 @@ def update_user_paths(project_name: str) -> None:
 def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen') -> None:
     """Create gateway scripts for all user tiers."""
     trace_in()
+    gateway = get_gateway()
     try:
         log("Creating user gateway scripts")
         
@@ -105,8 +107,8 @@ def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen')
             
             with open(gateway_script, 'w') as f:
                 f.write('\n'.join(lines))
-            os.chown(gateway_script, pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
-            os.chmod(gateway_script, 0o755)
+            gateway.files.chown(str(gateway_script), user)
+            gateway.files.chmod(str(gateway_script), 0o755)
             log(f"Created gateway script for {user}")
         
         log("Gateway scripts created successfully")
@@ -118,6 +120,7 @@ def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen')
 def create_user_hen_scripts(project_name: str, hen_script_name: str = 'hen') -> None:
     """Create hen wrapper scripts for all user tiers."""
     trace_in()
+    gateway = get_gateway()
     try:
         log("Creating user hen scripts")
         
@@ -131,8 +134,8 @@ python3 gateway.py "$@"
 '''
             with open(hen_script, 'w') as f:
                 f.write(hen_script_content)
-            os.chown(hen_script, pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
-            os.chmod(hen_script, 0o755)
+            gateway.files.chown(str(hen_script), user)
+            gateway.files.chmod(str(hen_script), 0o755)
             log(f"Created hen script for {user}")
         
         log("hen scripts created successfully")
@@ -145,13 +148,19 @@ python3 gateway.py "$@"
 def detect_project_owner(project_path: Path) -> Optional[str]:
     """Detect the owner of the project folder."""
     trace_in()
+    gateway = get_gateway()
     try:
         stat_info = project_path.stat()
         owner_uid = stat_info.st_uid
-        owner_info = pwd.getpwuid(owner_uid)
-        log(f"Detected project owner: {owner_info.pw_name}")
-        trace_out()
-        return owner_info.pw_name
+        owner_info = gateway.os.get_user_by_uid(owner_uid) if gateway and gateway.os else None
+        if owner_info:
+            log(f"Detected project owner: {owner_info['name']}")
+            trace_out()
+            return owner_info['name']
+        else:
+            warn(f"Could not resolve owner for uid {owner_uid}")
+            trace_out()
+            return None
     except Exception as e:
         warn(f"Failed to detect project owner: {str(e)}")
         trace_out()
@@ -160,6 +169,7 @@ def detect_project_owner(project_path: Path) -> Optional[str]:
 def setup_user_convenience_scripts(project_name: str, project_path: Path, username: str, hen_script_name: str = 'hen', is_root: bool = False) -> None:
     """Set up convenience scripts (hen) for a user pointing to project codebase."""
     trace_in()
+    gateway = get_gateway()
     try:
         log(f"Setting up convenience scripts for {'root' if is_root else username}")
         
@@ -173,20 +183,17 @@ def setup_user_convenience_scripts(project_name: str, project_path: Path, userna
         # Determine home directory and user info
         if is_root:
             user_home = Path('/root')
-            user_uid = 0
-            user_gid = 0
             user_display = "root"
+            chown_user = "root"
         else:
             user_home = Path(f'/home/{username}')
-            try:
-                user_info = pwd.getpwnam(username)
-                user_uid = user_info.pw_uid
-                user_gid = user_info.pw_gid
-                user_display = username
-            except KeyError:
+            user_info = gateway.os.get_user_by_name(username) if gateway and gateway.os else None
+            if not user_info:
                 warn(f"User {username} not found - skipping script setup")
                 trace_out()
                 return
+            user_display = username
+            chown_user = username
         
         # Create hen script with custom name, calling hen.py directly
         hen_script = user_home / hen_script_name
@@ -198,8 +205,8 @@ python3 hen.py "$@"
         
         with open(hen_script, 'w') as f:
             f.write(hen_script_content)
-        os.chown(hen_script, user_uid, user_gid)
-        os.chmod(hen_script, 0o755)
+        gateway.files.chown(str(hen_script), chown_user)
+        gateway.files.chmod(str(hen_script), 0o755)
         log(f"Created hen script for {user_display} pointing to {project_path}/hen.py")
         
         
@@ -215,7 +222,7 @@ python3 hen.py "$@"
         if path_update not in profile_content:
             with open(profile_path, 'a') as f:
                 f.write(f'\n{path_update}\n')
-            os.chown(profile_path, user_uid, user_gid)
+            gateway.files.chown(str(profile_path), chown_user)
             log(f"Updated PATH for {user_display}")
         
         log(f"Convenience script setup complete for {user_display}")
@@ -247,6 +254,7 @@ def setup_human_user_home(project_name: str, project_path: Path, hen_script_name
 def setup_root_user_script(project_name: str, project_path: Path, hen_script_name: str = 'hen') -> None:
     """Set up root user convenience script for sudo operations with cache cleanup."""
     trace_in()
+    gateway = get_gateway()
     try:
         log("Setting up root user convenience script")
         
@@ -270,8 +278,8 @@ find . -type f -name "*.pyc" -delete 2>/dev/null || true
         
         with open(hen_script, 'w') as f:
             f.write(hen_script_content)
-        os.chown(hen_script, 0, 0)  # root:root
-        os.chmod(hen_script, 0o755)
+        gateway.files.chown(str(hen_script), "root")
+        gateway.files.chmod(str(hen_script), 0o755)
         log(f"Created root hen script with cache cleanup at {hen_script}")
         
         # Update root's PATH to include /root
@@ -286,7 +294,7 @@ find . -type f -name "*.pyc" -delete 2>/dev/null || true
         if path_update not in profile_content:
             with open(profile_path, 'a') as f:
                 f.write(f'\n{path_update}\n')
-            os.chown(profile_path, 0, 0)
+            gateway.files.chown(str(profile_path), "root")
             log("Updated PATH for root")
         
         log("Root convenience script setup complete")

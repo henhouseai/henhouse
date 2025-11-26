@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
-from hh.gateway.connection.connection import r_query
+from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
@@ -101,9 +101,14 @@ class TrainingMatrix:
         trace_out()
         return roles
     
-    def get_next_gate(self, conn, agent_id: int, role: str) -> Optional[Tuple[str, str, str]]:
+    def get_next_gate(self, agent_id: int, role: str) -> Optional[Tuple[str, str, str]]:
         """Get next incomplete training gate for agent. Returns (doc_path, filename, question) or None."""
         trace_in()
+        gateway = get_gateway()
+        if not gateway or not gateway.conn:
+            warn("No gateway or connection available")
+            trace_out()
+            return None
         general_cfg = self.load_gate_config("general")
         role_cfg = self.load_gate_config(role)
         combined = general_cfg.get("gates", []) + role_cfg.get("gates", [])
@@ -117,17 +122,17 @@ class TrainingMatrix:
             # Check if this gate is completed
             if doc_path:
                 query = "SELECT response FROM agent_onboarding_responses WHERE agent_id=%s AND path=%s ORDER BY created_ts DESC LIMIT 1"
-                results = r_query(conn, query, [agent_id, doc_path])
+                results = gateway.conn.read(query, [agent_id, doc_path])
                 if results:
                     response = (results[0].get("response") or "").strip()
                     if response not in {"Viewed document; answer pending", "", None}:
                         continue  # Already completed
             
-            if doc_path and not self._has_completed(conn, agent_id, doc_path):
+            if doc_path and not self._has_completed(agent_id, doc_path):
                 log(f"Found next gate for agent {agent_id}: {doc_path}")
                 trace_out()
                 return doc_path, Path(doc_path).name, question
-            if not doc_path and question and not self._has_completed(conn, agent_id, doc_path):
+            if not doc_path and question and not self._has_completed(agent_id, doc_path):
                 log(f"Found question-only gate for agent {agent_id}")
                 trace_out()
                 return doc_path, "", question
@@ -136,11 +141,16 @@ class TrainingMatrix:
         trace_out()
         return None
     
-    def _has_completed(self, conn, agent_id: int, doc_path: str) -> bool:
+    def _has_completed(self, agent_id: int, doc_path: str) -> bool:
         """Check if agent has completed a specific document."""
         trace_in()
+        gateway = get_gateway()
+        if not gateway or not gateway.conn:
+            warn("No gateway or connection available")
+            trace_out()
+            return False
         query = "SELECT response FROM agent_onboarding_responses WHERE agent_id=%s AND path=%s ORDER BY created_ts DESC LIMIT 1"
-        results = r_query(conn, query, [agent_id, doc_path])
+        results = gateway.conn.read(query, [agent_id, doc_path])
         if not results:
             trace_out()
             return False

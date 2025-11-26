@@ -1,5 +1,4 @@
 import subprocess
-import pwd
 from pathlib import Path
 from typing import List, Dict, Any
 from hh.gateway.registry.registry import register_action, register_command
@@ -31,6 +30,11 @@ def install_cursor() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        trace_out()
+        return False
+
+    # Check if running in deployed Unix environment with privileges
+    if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
 
@@ -71,6 +75,7 @@ from hh.gateway.error.error_store import report_error
 def install_cursor_for_users(project_name: str) -> List[Dict[str, Any]]:
     """Install Cursor in each user's home directory."""
     trace_in()
+    gateway = get_gateway()
     results = []
     
     try:
@@ -110,8 +115,7 @@ def install_cursor_for_users(project_name: str) -> List[Dict[str, Any]]:
                     # Fix ownership of .local directory and all contents
                     local_dir = user_home / '.local'
                     if local_dir.exists():
-                        user_info = pwd.getpwnam(user)
-                        subprocess.run(['chown', '-R', f'{user_info.pw_uid}:{user_info.pw_gid}', str(local_dir)], check=True)
+                        gateway.files.chown(str(local_dir), user, recursive=True)
                         log(f"Fixed ownership of .local directory for {user}")
                     else:
                         debug(f"No .local directory found for {user}")
@@ -121,8 +125,7 @@ def install_cursor_for_users(project_name: str) -> List[Dict[str, Any]]:
                     for cursor_dir in cursor_dirs:
                         cursor_path = user_home / cursor_dir
                         if cursor_path.exists():
-                            user_info = pwd.getpwnam(user)
-                            subprocess.run(['chown', '-R', f'{user_info.pw_uid}:{user_info.pw_gid}', str(cursor_path)], check=True)
+                            gateway.files.chown(str(cursor_path), user, recursive=True)
                             log(f"Fixed ownership of {cursor_dir} for {user}")
                         else:
                             debug(f"No {cursor_dir} directory found for {user}")

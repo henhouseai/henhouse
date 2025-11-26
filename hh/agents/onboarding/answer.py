@@ -1,7 +1,5 @@
 from __future__ import annotations
 from typing import Dict, Any, Optional
-from hh.gateway.connection.decorators import db_write
-from hh.gateway.connection.connection import r_query
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -26,11 +24,16 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def validate_agent_identity(conn, agent_id: int, badge_ts: str) -> Optional[Dict[str, Any]]:
+def validate_agent_identity(agent_id: int, badge_ts: str) -> Optional[Dict[str, Any]]:
     """Validate agent identity and return agent data."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return None
     query = "SELECT id, role, badge_ts, status FROM agents WHERE id=%s AND badge_ts=%s"
-    results = r_query(conn, query, [agent_id, badge_ts])
+    results = gateway.conn.read(query, [agent_id, badge_ts])
     if results:
         log(f"Agent identity validated for agent_id={agent_id}")
         trace_out()
@@ -40,12 +43,16 @@ def validate_agent_identity(conn, agent_id: int, badge_ts: str) -> Optional[Dict
         trace_out()
         return None
 
-@db_write
-def process_answer(conn, agent_id: int, badge_ts: str, answer: str = None, ack_read: bool = False) -> Dict[str, Any]:
+def process_answer(agent_id: int, badge_ts: str, answer: str = None, ack_read: bool = False) -> Dict[str, Any]:
     """Process agent's answer and queue next training message."""
     trace_in()
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("No gateway or connection available")
+        trace_out()
+        return {"error": "No gateway or connection available"}
     # Validate agent identity
-    agent_data = validate_agent_identity(conn, agent_id, badge_ts)
+    agent_data = validate_agent_identity(agent_id, badge_ts)
     if not agent_data:
         warn("Agent identity not found during answer processing")
         trace_out()
@@ -60,7 +67,7 @@ def process_answer(conn, agent_id: int, badge_ts: str, answer: str = None, ack_r
     messaging = TrainingMessaging()
     
     # Get current training gate
-    next_gate = matrix.get_next_gate(conn, agent_id, role)
+    next_gate = matrix.get_next_gate(agent_id, role)
     if not next_gate:
         warn(f"No training gates found for agent {agent_id}")
         trace_out()
@@ -79,14 +86,14 @@ def process_answer(conn, agent_id: int, badge_ts: str, answer: str = None, ack_r
         return {"error": "Either --answer or --ack-read must be provided"}
     
     # Record the response
-    progress.record_answer(conn, agent_id, badge_ts, doc_path, filename, question, response_text)
+    progress.record_answer(agent_id, badge_ts, doc_path, filename, question, response_text)
     
     # Get required docs for progress calculation
     required_docs = matrix.list_required_docs_for(agent_id, role)
-    training_progress = progress.get_training_progress(conn, agent_id, role, required_docs)
+    training_progress = progress.get_training_progress(agent_id, role, required_docs)
     
     # Check if training is complete
-    is_complete = progress.is_training_complete(conn, agent_id, role, required_docs)
+    is_complete = progress.is_training_complete(agent_id, role, required_docs)
     
     result = {
         "agent_id": agent_id,
@@ -103,22 +110,22 @@ def process_answer(conn, agent_id: int, badge_ts: str, answer: str = None, ack_r
     if is_complete:
         # Queue completion message
         if role == "apprentice":
-            messaging.queue_completion_message(conn, agent_id, "general_complete", badge_ts, role)
+            messaging.queue_completion_message(agent_id, "general_complete", badge_ts, role)
             result["next_command"] = f"hh punch-in --agent-id {agent_id} --badge-ts {badge_ts}"
         else:
-            messaging.queue_completion_message(conn, agent_id, "role_complete", badge_ts, role)
+            messaging.queue_completion_message(agent_id, "role_complete", badge_ts, role)
             result["next_command"] = f"hh punch-in --agent-id {agent_id} --badge-ts {badge_ts}"
     else:
         # Get next training gate
-        next_gate = matrix.get_next_gate(conn, agent_id, role)
+        next_gate = matrix.get_next_gate(agent_id, role)
         if next_gate:
             next_doc_path, next_filename, next_question = next_gate
             gate_number = training_progress["coffees"][0] + 1  # Next gate number
-            messaging.queue_training_message(conn, agent_id, next_doc_path, next_question, gate_number, badge_ts)
+            messaging.queue_training_message(agent_id, next_doc_path, next_question, gate_number, badge_ts)
             result["next_command"] = f"hh sip --agent-id {agent_id} --badge-ts {badge_ts}"
         else:
             # No more gates, should be complete
-            messaging.queue_completion_message(conn, agent_id, "general_complete", badge_ts, role)
+            messaging.queue_completion_message(agent_id, "general_complete", badge_ts, role)
             result["next_command"] = f"hh punch-in --agent_id {agent_id} --badge-ts {badge_ts}"
     
     log(f"Answer processed for agent {agent_id}")

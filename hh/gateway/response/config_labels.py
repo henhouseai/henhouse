@@ -8,6 +8,8 @@ from hh.render.config.config_registry import register_label
 @register_label('json_error',                        'JSON Error:',                  '📄')
 @register_label('syntax_error',                       'Syntax Error:',                '📝')
 @register_label('link_resolution_error',             'Link Resolution Error:',        '🔗')
+@register_label('dependency_error',                   'Dependency Error:',            '📦')
+@register_label('deployment_error',                   'Deployment Error:',            '🖥️')
 @register_label('error_message',                      'Error Message:',               '🚨')
 @register_label('error_code',                         'Error Code:',                  '🔢')
 @register_label('error_source',                       'Error Source:',                '🎯')

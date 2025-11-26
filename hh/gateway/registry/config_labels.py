@@ -14,6 +14,11 @@ from hh.render.config.config_registry import register_label
 @register_label('mcp_list_header',                    'MCP List:'                      )
 @register_label('http_list_header',                   'HTTP List:'                    )
 @register_label('maintenance_list_header',            'Maintenance List:'             )
+@register_label('dependency_list',                    'Dependency List:'              )
+@register_label('dependency_header',                  'Dependencies',                 '📦')
+@register_label('dependency_available',               'Dependency Installed',         '✅')
+@register_label('dependency_missing',                 'Dependency Missing',           '❌')
+@register_label('no_dependencies',                    'Info',                         'ℹ️')
 def _register_config():
     pass
 

@@ -1,8 +1,6 @@
 import os
 import shutil
 import subprocess
-import pwd
-import grp
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from hh.gateway.registry.registry import register_action
@@ -42,6 +40,12 @@ def install() -> bool:
         warn("No gateway available")
         trace_out()
         return False
+    
+    # Check if running in deployed Unix environment with privileges
+    if not gateway.os or not gateway.os.require_privileged():
+        trace_out()
+        return False
+    
     try:
         # Support multiple naming conventions: password1/pwd1/p1, password2/pwd2/p2, etc.
         password1 = gateway.get_arg('password1') or gateway.get_arg('pwd1') or gateway.get_arg('p1')
@@ -185,29 +189,22 @@ def check_existing_setup(project_name: str) -> List[str]:
     """Check for existing project setup and return list of conflicts."""
     trace_in()
     conflicts = []
+    gateway = get_gateway()
     
     try:
         # Check for existing project users
         project_users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
         for user in project_users:
-            try:
-                pwd.getpwnam(user)
+            if gateway and gateway.os and gateway.os.user_exists(user):
                 conflicts.append(f"user {user}")
                 log(f"Found existing user: {user}")
-            except KeyError:
-                # User doesn't exist, which is what we want
-                pass
         
         # Check for existing project groups
         project_groups = [project_name, f"{project_name}_deploy", f"{project_name}_admin"]
         for group in project_groups:
-            try:
-                grp.getgrnam(group)
+            if gateway and gateway.os and gateway.os.group_exists(group):
                 conflicts.append(f"group {group}")
                 log(f"Found existing group: {group}")
-            except KeyError:
-                # Group doesn't exist, which is what we want
-                pass
         
         # Check for existing project directory
         srv_project = Path(f'/srv/{project_name}')
@@ -284,6 +281,7 @@ def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -
 
 def setup_git_repository(project_name: str, project_path: Path) -> None:
     trace_in()
+    gateway = get_gateway()
     log("Setting up git repository")
     
     # Create /srv/{project_name} directory structure
@@ -307,13 +305,11 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
     if not project_owner:
         raise Exception("Failed to detect project owner - cannot proceed with git repository setup")
     
-    owner_info = pwd.getpwnam(project_owner)
-    subprocess.run(['chown', '-R', f'{owner_info.pw_uid}:{project_name}', str(srv_project)], check=True)
+    gateway.files.chown(str(srv_project), project_owner, group=project_name, recursive=True)
     log(f"Set git repository ownership to {project_owner}:{project_name}")
     
     # Set proper permissions for group access
-    subprocess.run(['find', str(bare_repo), '-type', 'd', '-exec', 'chmod', '770', '{}', ';'], check=True)
-    subprocess.run(['find', str(bare_repo), '-type', 'f', '-exec', 'chmod', '660', '{}', ';'], check=True)
+    gateway.files.chmod_tree(str(bare_repo), dir_mode=0o770, file_mode=0o660)
     
     # Initialize git in project directory if not already a repo
     if not (project_path / '.git').exists():
@@ -349,14 +345,12 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
     log(f"Set bare repository HEAD to {project_name} branch")
     
     # Fix ownership of entire project folder after all operations
-    if project_owner:
+    if project_owner and gateway and gateway.files:
         try:
-            owner_info = pwd.getpwnam(project_owner)
-            # Set ownership of entire project to project_owner:henhouse group
-            subprocess.run(['chown', '-R', f'{owner_info.pw_uid}:{project_name}', str(project_path)], check=True)
-            # Set setgid bit so new files inherit group ownership
-            subprocess.run(['chmod', '2750', str(project_path)], check=True)
-            subprocess.run(['find', str(project_path), '-type', 'd', '-exec', 'chmod', '2750', '{}', ';'], check=True)
+            # Set ownership of entire project to project_owner:project_name group
+            gateway.files.chown(str(project_path), project_owner, group=project_name, recursive=True)
+            # Set setgid bit on directories so new files inherit group ownership
+            gateway.files.chmod_tree(str(project_path), dir_mode=0o2750)
             log(f"Fixed entire project ownership to {project_owner}:{project_name} with setgid")
         except Exception as e:
             warn(f"Failed to fix project ownership: {str(e)}")
@@ -365,6 +359,7 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
 
 def create_fresh_users(passwords: List[str], user_key: Optional[str], project_name: str, auto_scanned_keys: List[str] = None) -> List[Dict[str, Any]]:
     trace_in()
+    gateway = get_gateway()
     log("Creating fresh users")
     user_data = []
     admin_tier = 'admin' if 'admin' in HENHOUSE_TIERS else None
@@ -383,10 +378,10 @@ def create_fresh_users(passwords: List[str], user_key: Optional[str], project_na
             subprocess.run([
                 'chpasswd'
             ], input=f'{user}:{password}\n', text=True, check=True, capture_output=True)
-            os.chmod(f'/home/{user}', 0o755)
+            gateway.files.chmod(f'/home/{user}', 0o755)
             
             # All users own their own home directories
-            os.chown(f'/home/{user}', pwd.getpwnam(user).pw_uid, pwd.getpwnam(user).pw_gid)
+            gateway.files.chown(f'/home/{user}', user)
             
             ssh_keys = generate_ssh_keys(user, project_name)
             
@@ -587,26 +582,26 @@ def setup_project_group(project_name: str, project_path: Path) -> None:
 def setup_images_directory(project_name: str) -> None:
     """Set up images directory with proper permissions during installation."""
     trace_in()
+    gateway = get_gateway()
     try:
         log(f"Setting up images directory for project {project_name}")
         
         # Create /srv/images/{project_name} directory
         images_dir = Path(f'/srv/images/{project_name}')
         images_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(images_dir, 0o2775)
+        gateway.files.chmod(str(images_dir), 0o2775)
         log(f"Created images directory with group write: {images_dir}")
         
         # Create deleted subdirectory
         deleted_dir = images_dir / 'deleted'
         deleted_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(deleted_dir, 0o2775)
+        gateway.files.chmod(str(deleted_dir), 0o2775)
         log(f"Created deleted subdirectory: {deleted_dir}")
         
         # Set ownership for images directory and subdirectories
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-        project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
         admin_group_name = f"{project_name}_admin"
-        subprocess.run(['chown', '-R', f'{project_highest_uid}:{admin_group_name}', str(images_dir)], check=True)
+        gateway.files.chown(str(images_dir), project_highest_user, group=admin_group_name, recursive=True)
         log(f"Set images directory ownership: {project_highest_user}:{admin_group_name}")
         
         log("Images directory setup completed successfully")
@@ -620,20 +615,20 @@ def setup_images_directory(project_name: str) -> None:
 def setup_files_directory(project_name: str) -> None:
     """Set up files directory with proper permissions during installation."""
     trace_in()
+    gateway = get_gateway()
     try:
         log(f"Setting up files directory for project {project_name}")
         
         # Create /srv/files/{project_name} directory
         files_dir = Path(f'/srv/files/{project_name}')
         files_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(files_dir, 0o2775)
+        gateway.files.chmod(str(files_dir), 0o2775)
         log(f"Created files directory with group write: {files_dir}")
         
         # Set ownership for files directory
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-        project_highest_uid = pwd.getpwnam(project_highest_user).pw_uid
         admin_group_name = f"{project_name}_admin"
-        subprocess.run(['chown', '-R', f'{project_highest_uid}:{admin_group_name}', str(files_dir)], check=True)
+        gateway.files.chown(str(files_dir), project_highest_user, group=admin_group_name, recursive=True)
         log(f"Set files directory ownership: {project_highest_user}:{admin_group_name}")
         
         log("Files directory setup completed successfully")
