@@ -104,8 +104,10 @@ class SourceCodeFileContentMixin:
                 # Use gateway.files for file operations instead of direct file access
                 gateway = get_gateway()
                 if gateway and gateway.files:
-                    # Try the file path as-is first (relative to current working directory)
-                    file_content = gateway.files.read_file_text(self.file_path)
+                    # The file_path already includes context/ prefix, but files are in context/context/
+                    # So we need to prepend an additional context/ to the path
+                    full_file_path = f"context/{self.file_path}"
+                    file_content = gateway.files.read_file_text(full_file_path)
                     if file_content is not None:
                         num_lines = len(file_content.splitlines())
                         debug(f"Successfully counted {num_lines} lines in {self.file_path}")
@@ -148,9 +150,12 @@ class SourceCodeFileContentMixin:
             debug("add_lower_content: Gateway or gateway.files not available")
             return []
         
+        # The file_path already includes context/ prefix, but files are in context/context/
+        # So we need to prepend an additional context/ to the path
+        full_file_path = f"context/{self.file_path}"
         debug(f"add_lower_content: Attempting to read file: {self.file_path}")
         try:
-            content = gateway.files.read_file_text(self.file_path)
+            content = gateway.files.read_file_text(full_file_path)
             if content is None:
                 debug(f"add_lower_content: Could not read file {self.file_path} - file may not exist or be accessible")
                 return []
