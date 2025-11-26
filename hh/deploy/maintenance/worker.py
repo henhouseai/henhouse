@@ -136,6 +136,10 @@ def run_maintenance_command(command: str, with_log: bool = False) -> Tuple[int, 
     if with_log:
         cmd.append("-log")
     
+    # Debug logging to see exact command
+    logging.debug(f"Running command: {' '.join(cmd)}")
+    logging.debug(f"Environment PYTHONPATH: {env.get('PYTHONPATH')}")
+    
     # Windows: prevent console window from appearing
     kwargs = {
         "stdout": subprocess.PIPE,
@@ -228,6 +232,13 @@ def update_job_status(
 
 def get_jobs_status() -> Optional[Dict[str, Any]]:
     """Get current maintenance jobs status."""
+    # Debug logging to see what paths we're using
+    project_root = find_project_root()
+    client_path = maintenance_client_path()
+    logging.debug(f"Project root: {project_root}")
+    logging.debug(f"Client path: {client_path}")
+    logging.debug(f"Client exists: {client_path.exists()}")
+    
     exit_code, response = run_maintenance_command("maintenance-jobs-status")
     
     # Debug logging to see what we're getting
