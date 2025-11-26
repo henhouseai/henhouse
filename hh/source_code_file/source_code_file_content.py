@@ -185,12 +185,16 @@ class SourceCodeFileContentMixin:
                 
                 # Configure formatter with line wrapping for markdown files
                 if language.lower() == 'markdown':
+                    from hh.render.text.text import wrap
                     formatter = pygments_HtmlFormatter(wrapcode=True, lineanchors='line')
-                    # For markdown, wrap lines at 180 characters
-                    wrapped_content = '\n'.join(
-                        line if len(line) <= 180 else line[:180] + '\n' + line[180:]
-                        for line in content.splitlines()
-                    )
+                    # For markdown, wrap lines at 180 characters using intelligent word wrapping
+                    wrapped_lines = []
+                    for line in content.splitlines():
+                        if len(line) > 170:  # Leave room to find word boundaries
+                            wrapped_lines.extend(wrap(line, 180))
+                        else:
+                            wrapped_lines.append(line)
+                    wrapped_content = '\n'.join(wrapped_lines)
                     highlighted_content = pygments_highlight(wrapped_content, lexer, formatter)
                 else:
                     formatter = pygments_HtmlFormatter()
