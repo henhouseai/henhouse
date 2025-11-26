@@ -31,7 +31,7 @@ def _initialize_debug():
 
 # Boilerplate wrapper function template
 def _maintenance_wrapper_template(tool_name: str) -> bool:
-    """Boilerplate maintenance wrapper - passes through action_response."""
+    """Boilerplate maintenance wrapper - extracts data from MCP wrapper and flattens it."""
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -43,8 +43,21 @@ def _maintenance_wrapper_template(tool_name: str) -> bool:
         report_error("backend", "No action response available")
         trace_out()
         return False
-    # action_response is already set, ResponseMaintenance.get_output() will handle serialization
-    log(f"Maintenance backend {tool_name} confirmed action_response available")
+    
+    # Extract flat data from MCP-wrapped action_response
+    action_response = gateway.response.get_action_response()
+    if "content" in action_response and action_response["content"]:
+        content_item = action_response["content"][0]
+        if content_item.get("type") == "text" and "text" in content_item:
+            flat_data = content_item["text"]
+            # Replace the MCP-wrapped response with flat data
+            gateway.response.set_action_response(flat_data)
+            log(f"Maintenance backend {tool_name} extracted flat data from MCP wrapper")
+        else:
+            log(f"Maintenance backend {tool_name} - unexpected content structure, using as-is")
+    else:
+        log(f"Maintenance backend {tool_name} - no content wrapper found, using as-is")
+    
     trace_out()
     return True
 

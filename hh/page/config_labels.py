@@ -63,5 +63,14 @@ from hh.render.config.config_registry import register_label
 @register_label('modify_text',                        'Modify Text',               '📝')
 @register_label('table_class_header',                 'Allowed Child Classes:',     '📋')
 @register_label('table_class',                        'Class:',                    '📄')
+@register_label('l_class_list_header',                'Page Class Registry'              )
+@register_label('class_list_summary',                 'Page Class Summary',        '📊')
+@register_label('total_classes',                      'Total Classes:',            '📄')
+@register_label('loaded_classes',                     'Loaded Classes:',           '✅')
+@register_label('failed_classes',                     'Failed Classes:',           '❌')
+@register_label('no_failed_classes',                  'Failed Classes:',           '✅')
+@register_label('class_details_header',               'Class Details',             '📋')
+@register_label('loaded_class',                       'Loaded Class',              '✅')
+@register_label('failed_class',                       'Failed Class',              '❌')
 def _register_config():
     pass

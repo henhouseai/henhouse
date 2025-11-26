@@ -262,7 +262,7 @@ def validate_user_directory_for_deletion(user: str, project_name: str, user_home
         
         # Safety check 3: Directory must be owned by the expected user
         stat_info = user_home.stat()
-        # Check if the expected user exists and get their UID
+            # Check if the expected user exists and get their UID
         user_info = gateway.os.get_user_by_name(user) if gateway and gateway.os else None
         if not user_info:
             # User doesn't exist, so we can't validate ownership
@@ -518,15 +518,15 @@ def reset_project_group_ownership(project_name: str, project_path: Path) -> None
                 warn(f"Could not resolve owner for uid {owner_uid}")
             else:
                 owner_name = owner_info["name"]
-                
-                # Get the owner's primary group
-                group_info = gateway.os.get_group_by_gid(owner_info["gid"]) if gateway and gateway.os else None
-                if group_info:
-                    primary_group = group_info["name"]
-                    subprocess.run(['chgrp', '-R', primary_group, str(project_path)], check=True, capture_output=True)
-                    log(f"Reset group ownership of {project_path} to {primary_group} (owner: {owner_name})")
-                else:
-                    warn(f"Could not resolve group for gid {owner_info['gid']}")
+            
+            # Get the owner's primary group
+            group_info = gateway.os.get_group_by_gid(owner_info["gid"]) if gateway and gateway.os else None
+            if group_info:
+                primary_group = group_info["name"]
+                subprocess.run(['chgrp', '-R', primary_group, str(project_path)], check=True, capture_output=True)
+                log(f"Reset group ownership of {project_path} to {primary_group} (owner: {owner_name})")
+            else:
+                warn(f"Could not resolve group for gid {owner_info['gid']}")
         except subprocess.CalledProcessError as e:
             warn(f"Failed to reset group ownership: {e.stderr.decode()}")
         except Exception as e:
