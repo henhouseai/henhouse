@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `pages` (
   `image_summary` json DEFAULT NULL,
   `file_summary` json DEFAULT NULL,
   `links_out` json DEFAULT NULL,
+  `metadata` json DEFAULT NULL,
   `cache_built_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS `images` (
   `id` int NOT NULL,
   `instances` json DEFAULT NULL,
   `pages` json DEFAULT NULL,
+  `metadata` json DEFAULT NULL,
   `cache_built_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS `images` (
 CREATE TABLE IF NOT EXISTS `files` (
   `id` int NOT NULL,
   `pages` json DEFAULT NULL,
+  `metadata` json DEFAULT NULL,
   `cache_built_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

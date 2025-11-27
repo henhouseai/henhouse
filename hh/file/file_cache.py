@@ -61,12 +61,13 @@ class FileCacheMixin:
         try:
             self.gateway.conn.create_cache(
                 """
-                    INSERT INTO files (id, pages, cache_built_at)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO files (id, pages, metadata, cache_built_at)
+                    VALUES (%s, %s, %s, %s)
                 """,
                 (
                     self.id,
                     self._dump_json([]),  # Empty pages initially
+                    self._dump_json({}),  # Empty metadata initially
                     now,
                 ),
             )
@@ -109,6 +110,22 @@ class FileCacheMixin:
         # Serialize all data
         pages_json = self._dump_json(self.pages) if self.pages else None
         
+        # Zip all main database fields into metadata for cache backup
+        # This allows full file hydration from cache database without main DB access
+        main_db_metadata = {
+            'file_name': self.file_name,
+            'file_path': self.file_path,
+            'description': self.description,
+            'mime_type': self.mime_type,
+            'size_bytes': self.size_bytes,
+            'username': self.username,
+            'uploaded': self.uploaded.isoformat() if self.uploaded else None,
+            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
+            'comments': self.comments,
+            'visibility': self.visibility,
+        }
+        metadata_json = self._dump_json(main_db_metadata)
+        
         now = dt.datetime.now()
         
         try:
@@ -117,11 +134,13 @@ class FileCacheMixin:
                 """
                     UPDATE files
                     SET pages = %s,
+                        metadata = %s,
                         cache_built_at = %s
                     WHERE id = %s
                 """,
                 (
                     pages_json,
+                    metadata_json,
                     now,
                     self.id,
                 ),

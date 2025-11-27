@@ -1,6 +1,6 @@
 # Henhouse Registry System Architecture
 
-This document covers the command registry, caching, backend configuration, action modules, and database connection systems that form the core execution layer of the Henhouse system.
+This document covers the command registry, caching, backend configuration, action modules, and backend handlers that form the core execution layer of the Henhouse system.
 
 ## Table of Contents
 
@@ -8,9 +8,7 @@ This document covers the command registry, caching, backend configuration, actio
 2. [Cache](#2-cache)
 3. [Backend](#3-backend)
 4. [Generic Action Module](#4-generic-action-module)
-5. [Connection Decorators](#5-connection-decorators)
-6. [Connection](#6-connection)
-7. [Generic Backend Module](#7-generic-backend-module)
+5. [Generic Backend Module](#5-generic-backend-module)
 
 ## Agent Quick Reference
 
@@ -18,7 +16,6 @@ This document covers the command registry, caching, backend configuration, actio
 - **Cache Access**: `discover_base_registrations()` provides command/backend discovery from JSON cache
 - **Backend Types**: `['action', 'parser', 'mcp', 'http', 'maintenance']` with automatic decorator generation
 - **Action Pattern**: `@register_action` + `@register_command` + `gateway.set_action_response(data)`
-- **DB Decorators**: `@db_read` (read-only) / `@db_write` (with retry) for safe database operations
 - **Error Flow**: Registry validation → gateway reporting → response coordination
 
 ## Agent Training Notes
@@ -49,14 +46,6 @@ This document covers the command registry, caching, backend configuration, actio
   - `gateway.set_action_response(json_data)` for results
   - `report_error("action", message)` for error reporting (import from `hh.gateway.error.error_store`)
 - **Response Structure**: Use `success_payload(data)` for standardized JSON response format
-- **Database Access**: Use `@db_read` (queries) or `@db_write` (modifications) decorators for safe database operations
-
-### Connection Decorator Patterns
-- **Read Operations**: `@db_read` decorator - no retry, no transaction, for SELECT queries
-- **Write Operations**: `@db_write` decorator - with retry logic, automatic transactions, for INSERT/UPDATE/DELETE
-- **Error Classification**: Automatic error categorization with retry decisions based on error type
-- **Configuration**: Retry counts, delays, and transaction modes come from config system
-- **Agent Validation**: Use `agent_validation=True` with `agent_id` and `badge_ts` parameters for secure access
 
 ### Backend Handler Development
 - **Backend Registration**: Typically register for both CLI and web access by applying both `@register_parser("command")` and `@register_http("command")` decorators to the same function
@@ -248,6 +237,7 @@ The backend configuration is used during module initialization and by registry/c
 - BACKEND_DESCRIPTIONS : *Backend type descriptions*
 - BACKEND_DECORATORS : *Decorator names for each backend type*
 - BACKEND_DICTS : *Dictionary names for each backend type*
+- BACKEND_RESPONSE_MODULES : *Response handler class paths for each backend type (excludes 'action' as it's not a delivery backend)*
 
 #### data managed:
 - backend configuration (source of truth) : *Backend type definitions and mappings*
@@ -296,7 +286,6 @@ The business logic execution layer that implements the core functionality of com
 - **Returns Structured Data**: Provides JSON response data via `gateway.set_action_response()`
 - **Handles Errors**: Reports action-level errors through the gateway error system
 - **Accesses Gateway**: Uses `get_gateway()` to access command arguments and system state
-- **Database Integration**: Uses sophisticated decorators for safe database access with retry logic
 
 Action modules are executed by the gateway after command resolution and provide the core business logic that backends then format for presentation.
 
@@ -320,7 +309,6 @@ def command_list() -> bool:
 #### owns:
 - action functions : *Business logic functions with dual registration*
 - gateway access : *Access to gateway instance for system integration*
-- database operations : *Safe database access through decorators*
 
 #### data managed:
 - business logic state (local copy) : *Action-specific state and data*
@@ -334,20 +322,13 @@ def command_list() -> bool:
 - **gateway.set_action_response()** : *Sets structured JSON response data*
 - **report_error("action", message)** : *Reports action-level errors*
 - **success_payload()** : *Creates standardized JSON response structure*
-- **@db_read/@db_write decorators** : *Database access decorators with retry logic*
-- **r_query()** : *Executes SELECT queries with parameter binding*
-- **u_query()** : *Executes UPDATE queries with parameter binding*
-- **c_query()** : *Executes INSERT queries with parameter binding*
-- **d_query()** : *Executes DELETE queries with parameter binding*
-- **ensure_iso_timestamps()** : *Converts timestamps to ISO format*
 - **debug functions** : *Debug logging and tracing*
 
 #### called by:
 - gateway (action_handler()) : *Gateway executes action handler*
 
 #### retrieves from:
-- gateway (arguments, database access) : *Gets arguments and database connections*
-- database (via connection decorators) : *Gets data from database with retry logic*
+- gateway (arguments, system state) : *Gets arguments and system state*
 - cache system (discovered data) : *Gets cached command/backend information*
 - registry (handler information) : *Gets registered handler data*
 
@@ -360,7 +341,6 @@ def command_list() -> bool:
 
 #### error handling:
 - **Action-Level Errors**: Reports business logic failures through gateway error system
-- **Database Errors**: Propagated from connection decorators with retry context and classification
 - **Argument Validation**: Validates command arguments before processing
 - **Response Structure**: Ensures proper JSON response structure
 
@@ -371,176 +351,15 @@ def command_list() -> bool:
   - `gateway.get_arg(name)` for arguments
   - `gateway.set_action_response(json_data)` for results
   - `report_error("action", message)` for error reporting
-- **Database Access**: Use `@db_read`/`@db_write` decorators for safe database operations with automatic retry
 - **Response Structure**: Return JSON-serializable data structures via success_payload()
 
 #### cross-references:
 - **[Command Registry](#1-command-registry)**: Provides registered action handlers
-- **[Connection Decorators](#5-connection-decorators)**: Used for database access patterns
-- **[Connection](#6-connection)**: Provides underlying database connectivity
+- **[Generic Backend Module](#5-generic-backend-module)**: Processes action response data for presentation
 
 ---
 
-## 5. Connection Decorators
-
-**File**: `hh/gateway/connection/decorators.py`
-
-The sophisticated database access abstraction layer that provides decorators for safe database operations. It:
-
-- **Provides Database Decorators**: Offers `@db_read` and `@db_write` decorators for database operations
-- **Manages Connection Lifecycle**: Handles connection creation, transaction management, and cleanup
-- **Implements Error Handling**: Provides sophisticated error classification and retry logic with exponential backoff
-- **Supports Agent Validation**: Validates agent identity for secure database access
-- **Handles Configuration**: Uses config system for retry counts, delays, and transaction modes
-
-Connection decorators are used by action modules to safely access the database with automatic error handling and retry logic.
-
-### Global Module
-
-#### owned by:
-- global scope : *Module-level decorator functions*
-
-#### owns:
-- @db_read decorator : *Database read operation decorator*
-- @db_write decorator : *Database write operation decorator*
-- with_connection function : *Core connection management decorator*
-- error classification functions : *Error handling and retry logic*
-- config defaults : *Configuration management*
-
-#### data managed:
-- error classification rules (source of truth) : *Error code mapping and retry logic*
-- configuration defaults (local copy) : *Retry counts, delays, transaction modes*
-- connection state (local copy) : *Connection lifecycle management*
-
-#### calls:
-- **@db_read()** : *Decorator for database read operations (no retry)*
-- **@db_write()** : *Decorator for database write operations (with retry)*
-- **with_connection()** : *Core connection management decorator with retry logic*
-- **classify_exception()** : *Classifies database exceptions for retry decisions*
-- **should_retry()** : *Determines if operation should be retried*
-- **get_config_defaults()** : *Gets configuration defaults*
-
-#### called by:
-- action modules (via decorators) : *Actions use decorators for database access*
-
-#### retrieves from:
-- connection module : *Gets connection management functionality*
-- config system : *Gets configuration defaults*
-- gateway : *Gets gateway instance for error reporting*
-
-#### provides to:
-- action modules (database access) : *Provides database access to actions*
-- gateway (error reporting) : *Reports connection errors through gateway*
-
-#### configuration dependencies:
-- retry configuration : *Retry counts, delays, backoff strategies from config*
-- connection configuration : *Connection pool settings, timeouts*
-
-#### error handling:
-- **Sophisticated Retry Logic**: Exponential backoff with configurable retry limits and intelligent error classification
-- **Error Classification**: Categorizes database exceptions for appropriate retry decisions
-- **Agent Validation**: Ensures secure database access through identity verification
-- **Connection Lifecycle**: Manages connection creation, usage, and cleanup with proper error handling
-- **Transaction Management**: Automatic rollback on failures
-
-#### agent training notes:
-- **Decorator Pattern**: Use `@db_read` for queries (no retry), `@db_write` for modifications (with retry)
-- **Automatic Features**:
-  - Connection management and cleanup
-  - Retry logic with exponential backoff
-  - Agent identity validation
-  - Error classification and reporting
-- **Configuration Driven**: Retry counts, delays, and strategies come from config system
-- **Error Propagation**: Database errors become connection-level errors in response system
-
-#### cross-references:
-- **[Connection](#6-connection)**: Provides the underlying database connection functionality
-- **[Generic Action Module](#4-generic-action-module)**: Primary consumer of database decorators
-
----
-
-## 6. Connection
-
-**File**: `hh/gateway/connection/connection.py`
-
-The database connection and query execution layer that provides low-level database access functionality. It:
-
-- **Manages Database Connections**: Handles connection creation, configuration loading, and connection lifecycle
-- **Executes Database Queries**: Provides query execution with parameter binding and result processing
-- **Handles Data Types**: Manages TypedDict structures for database rows and JSON responses
-- **Supports Agent Validation**: Validates agent identity for secure database access
-- **Provides JSON Utilities**: Offers JSON serialization, timestamp conversion, and response formatting
-
-The connection module is used by connection decorators to provide the underlying database access functionality with proper error handling and data type management.
-
-### Global Module
-
-#### owned by:
-- global scope : *Module-level database connection management*
-
-#### owns:
-- connection functions : *Database connection and query execution functions*
-- TypedDict classes : *DatabaseRow and JsonResponse data structures*
-- DSN configuration : *Database connection configuration*
-- utility functions : *JSON and timestamp utility functions*
-
-#### data managed:
-- DSN data (source of truth) : *Database connection configuration*
-- TypedDict definitions (source of truth) : *Data structure definitions*
-- connection state (local copy) : *Active database connections*
-
-#### calls:
-- **load_dsn()** : *Loads database configuration from config file*
-- **get_connection()** : *Creates database connections with cursor configuration*
-- **r_query()** : *Executes SELECT queries with parameter binding*
-- **u_query()** : *Executes UPDATE queries with parameter binding*
-- **c_query()** : *Executes INSERT queries with parameter binding*
-- **d_query()** : *Executes DELETE queries with parameter binding*
-- **validate_agent_identity()** : *Validates agent identity for secure access*
-- **json_success()/json_error()** : *Creates JSON response structures*
-- **iso_now()** : *Gets current timestamp in ISO format*
-- **ensure_iso_timestamps()** : *Converts timestamps to ISO format*
-- **pymysql.connect()** : *Creates database connections*
-
-#### called by:
-- action modules (via decorators) : *Actions access database through decorators*
-
-#### retrieves from:
-- config files (DSN data) : *Gets database connection configuration from ~/.henhouse.cnf*
-- pymysql (database operations) : *Gets database functionality*
-- datetime (timestamp functions) : *Gets timestamp functionality*
-
-#### provides to:
-- connection decorators (database access) : *Provides database connections and query execution*
-- action modules (via decorators) : *Provides database access through decorators*
-
-#### configuration dependencies:
-- DSN configuration : *Database connection settings from ~/.henhouse.cnf*
-- connection pool settings : *Connection pool size, timeout configurations*
-
-#### error handling:
-- **Connection Management**: Handles connection failures and recovery
-- **Query Execution**: Parameter binding validation and SQL injection prevention
-- **Agent Validation**: Secure identity verification before database access
-- **Timestamp Handling**: ISO format conversion and validation
-
-#### agent training notes:
-- **Configuration Location**: Database settings loaded from ~/.henhouse.cnf
-- **Connection Management**: Automatic connection lifecycle management
-- **Security Features**:
-  - Agent identity validation
-  - Parameter binding for SQL injection prevention
-  - Secure connection handling
-- **Data Types**: Provides TypedDict structures for type-safe database operations
-- **JSON Utilities**: Built-in JSON serialization and timestamp formatting
-
-#### cross-references:
-- **[Connection Decorators](#5-connection-decorators)**: Uses connection module for underlying database access
-- **[Generic Action Module](#4-generic-action-module)**: Indirectly uses connection functionality through decorators
-
----
-
-## 7. Generic Backend Module
+## 5. Generic Backend Module
 
 **File**: `hh/gateway/registry/render_command_list.py` (example: `command_list` function)
 

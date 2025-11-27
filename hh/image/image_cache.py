@@ -60,13 +60,14 @@ class ImageCacheMixin:
         try:
             self.gateway.conn.create_cache(
                 """
-                    INSERT INTO images (id, instances, pages, cache_built_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO images (id, instances, pages, metadata, cache_built_at)
+                    VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
                     self.id,
                     self._dump_json([]),  # Empty instances initially
                     self._dump_json([]),  # Empty pages initially
+                    self._dump_json({}),  # Empty metadata initially
                     now,
                 ),
             )
@@ -112,6 +113,19 @@ class ImageCacheMixin:
         instances_json = self._dump_json(self.instances) if self.instances else None
         usage_json = self._dump_json(self.cached_usage) if self.cached_usage else None
         
+        # Zip all main database fields into metadata for cache backup
+        # This allows full image hydration from cache database without main DB access
+        main_db_metadata = {
+            'caption': self.caption,
+            'username': self.username,
+            'uploaded': self.uploaded.isoformat() if self.uploaded else None,
+            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
+            'comments': self.comments,
+            'visibility': self.visibility,
+            'viewCount': self.view_count,
+        }
+        metadata_json = self._dump_json(main_db_metadata)
+        
         now = dt.datetime.now()
         
         try:
@@ -121,12 +135,14 @@ class ImageCacheMixin:
                     UPDATE images
                     SET instances = %s,
                         pages = %s,
+                        metadata = %s,
                         cache_built_at = %s
                     WHERE id = %s
                 """,
                 (
                     instances_json,
                     usage_json,
+                    metadata_json,
                     now,
                     self.id,
                 ),

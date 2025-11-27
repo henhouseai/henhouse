@@ -44,7 +44,7 @@ This document covers the Henhouse-specific implementation of the MCP (Model Cont
 
 ## 1. System Overview
 
-The MCP system integrates with Gateway as a backend type. Tool execution flows through the standard Gateway dispatch mechanism, with MCP-specific response formatting.
+The MCP system integrates with Gateway as a backend type. Tool execution flows through the standard Gateway dispatch mechanism, with MCP-specific response formatting. The HTTP backend uses the MCP backend for all API operations - there is no separate API backend. This unified approach treats MCP protocol as a standardized API format, with the HTTP interface making MCP requests via Fetch API. This design enables all CRUD operations to route through the same interface, whether performed by humans (via web UI) or agents (via MCP protocol), allowing for future collaboration scenarios where both can work simultaneously.
 
 ### Architecture Flow
 
@@ -144,20 +144,42 @@ Decorator-based lazy-loading whitelist system:
 - Scanning: `_scan_for_mcp_tools()` recursively searches `hh/` directory for files containing `@register_mcp_tool`
 - Used by `mcp_client.py` for validation and `tools/list` via `MCPWhitelist` class
 - Used by `mcp.py` for auto-generating wrappers
-- Supports app actions: Tools with tier levels 5-8 are app actions (not MCP tools), filtered out of MCP whitelists
-- App actions: Accessed via `MCPWhitelist.get_app_actions(user_tier_level)` - maps user tier level (1-4) to app action tier level (5-8), returns actions with `id`, `tool_name`, `description`, `label`, `group`, `requires_fields`
-- App actions: Accessed via `MCPWhitelist.get_app_actions(user_tier_level)` - maps user tier level (1-4) to app action tier level (5-8)
+
+### Application Actions System
+
+Application actions are a custom add-on layer built on top of the MCP whitelist system, designed for the TypeScript/HTTP interfaces. They use tier levels 5-8 (mapped from user tier levels 1-4: 1→5, 2→6, 3→7, 4→8).
+
+**Three Types of Tool Registration**:
+1. **MCP-only tools** (tiers 1-4): Available as MCP tools for agents/external clients, not shown in web UI
+2. **App-action-only tools** (tiers 5-8 only): Available as clickable links in web UI, not available as MCP tools (typically aggregate operations that modify multiple things at once)
+3. **Dual-purpose tools** (tiers 1-4 AND 5-8, e.g., `[3, 4, 7, 8]`): Available as both MCP tools AND app actions - can be called via MCP protocol or clicked in web UI
+
+**Common Tier Patterns**:
+- **`[3, 4, 7, 8]` (dual-purpose, admin/root only)**: Common pattern for CRUD operations that require restricted access. These tools are available to admin (tier 3) and root (tier 4) users via MCP, and also appear as app actions in the web UI for the same user tiers. Examples include `modify_name`, `modify_text`, `add_page`, `delete_page` - operations that mutate data and shouldn't be accessible to guest or verified users.
+- **`[7, 8]` (app-action-only, admin/root only)**: Common pattern for aggregate operations that modify multiple things at once through a single UI interaction. These have no direct MCP counterpart because they're designed specifically for the web interface workflow, but they are built from individual MCP tools. The TypeScript client includes optimization logic (traveling salesman-like) to minimize MCP calls by selecting the best combination of setters to mutate required data with minimum API calls. Examples include `combo`, `copy_images_app`, `move_images_app` - complex operations that combine multiple steps into one user action.
+
+**App Action Access**:
+- Accessed via `MCPWhitelist.get_app_actions(user_tier_level)` - maps user tier level (1-4) to app action tier level (5-8)
+- Returns actions with `id`, `tool_name`, `description`, `label`, `group`, `requires_fields`
+- Included in `get_page` response `available_actions` field when backend is "mcp" (for TypeScript client)
+- Also used by HTTP backend for server-rendered action links
+- Tools with tier levels 5-8 are filtered out of MCP whitelists (not shown in `tools/list`)
 
 **Decorator Parameters**:
 - `tool_name`: Name of the MCP tool
 - `description`: Tool description
 - `inputSchema`: JSON Schema for tool arguments
-- `tiers`: List of tier levels `[1, 2, 3, 4]` (1=guest, 2=verified, 3=admin, 4=root) for MCP tools, or `[5, 6, 7, 8]` for app actions. Default: `None` (all tiers `[1, 2, 3, 4]`)
+- `tiers`: List of tier levels. Can include:
+  - `[1, 2, 3, 4]` for MCP tools (1=guest, 2=verified, 3=admin, 4=root)
+  - `[5, 6, 7, 8]` for app actions only (mapped from user tiers 1-4)
+  - `[3, 4, 7, 8]` for dual-purpose tools (admin/root only - both MCP and app action)
+  - `[7, 8]` for app-action-only tools (admin/root only - no MCP counterpart)
+  - Default: `None` (all MCP tiers `[1, 2, 3, 4]`)
 - `requires_approval`: Whether tool requires approval queue (for future transaction system)
 - `crud_type`: Operation type ('create', 'read', 'update', 'delete', 'mixed')
 - `display_color`: Optional color for approval interface (for future transaction system)
-- `app_action_group`: Optional group name for app actions (tiers 5-8)
-- `app_action_label`: Optional label for app actions (defaults to tool_name)
+- `app_action_group`: Optional group name for app actions (tiers 5-8) - used for organizing actions in web UI
+- `app_action_label`: Optional label for app actions (defaults to tool_name) - displayed in web UI
 
 ---
 
@@ -350,6 +372,13 @@ After adding to whitelist and redeploying:
 - Uses `success_payload()` structure from `json_standard.py` (`hh/gateway/response/json_standard.py`)
 - `get_data()` function in `json_standard.py` extracts from `content[0].text` (MCP format) with fallback to old `dat` field
 - ResponseMCP includes debug output in `content` array if available
+
+### With HTTP Backend
+- HTTP backend uses MCP backend for all API operations - no separate API backend exists
+- TypeScript client makes Fetch API calls that route through MCP protocol
+- Server-rendered HTTP pages can include app action links that trigger MCP tool calls
+- App actions retrieved via `MCPWhitelist.get_app_actions()` are included in `get_page` responses for TypeScript client consumption
+- Unified interface: All CRUD work goes through the same MCP interface whether humans (via TypeScript client) or agents (via MCP protocol) are performing the work, enabling future collaboration where both can work simultaneously
 
 ### With Database Connection
 - Shares same config file format and location

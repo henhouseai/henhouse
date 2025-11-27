@@ -49,38 +49,43 @@ This document covers the comprehensive maintenance system that handles automated
 
 ## 1. System Overview
 
-The Henhouse maintenance system provides automated background task processing through a sophisticated daemon architecture. The system handles:
+The Henhouse maintenance system provides automated background task processing through a Gateway backend type. The system handles:
 
 - **Cache Management**: Automatic detection and refresh of stale page, image, and file caches
 - **Job Queue Processing**: Database-backed job queue with priority-based execution
-- **Daemon Orchestration**: Cross-platform daemon management with privilege detection
-- **Tool Registry**: Automatic discovery and registration of maintenance tools
-- **Error Recovery**: Comprehensive error handling with retry logic and status tracking
+- **Backend Architecture**: Custom ResponseMaintenance class with JSON output format
+- **Tool Registry**: Automatic discovery and registration of maintenance tools via decorator scanning
+- **Dual Interface**: Tools accessible via maintenance backend (for daemon) and parser backend (for command-line testing)
 
-### Architecture Flow
+### Backend Architecture Flow
 
 ```
-Maintenance Worker Daemon
-    ↓
-Polls maintenance-jobs-status
-    ↓
-Builds Work Docket (Priority Order):
-1. Pending Jobs (from maintenance_jobs table)
-2. Stale Cache Refreshes (pages, images, files)
-    ↓
-Executes via maintenance_client.py
+maintenance_client.py (or daemon subprocess)
     ↓
 Gateway.dispatch(argv, "maintenance")
     ↓
-Maintenance Tool (Action Handler)
+Action Handler (uses success_payload() wrapper)
     ↓
-Job Status Updates (if job queue item)
+Maintenance Backend Wrapper (auto-generated via exec())
+    - Unwraps MCP envelope from action_response
+    - Extracts flat data from content[0]["text"]
+    - Replaces wrapped response with flat data
+    ↓
+ResponseMaintenance.get_output()
+    - Formats as JSON: {"status": "ok", "data": {...}, "errors": {...}, "debug": {...}}
+    ↓
+JSON Response (for daemon) or Parser Backend (for CLI)
 ```
+
+**Key Entry Point**: `maintenance_client.py` is a simple script that calls `gateway.dispatch(argv, "maintenance")`, allowing any client (daemon or command-line) to execute maintenance tools through the Gateway system.
 
 ### Key Integration Points
 
 - **Gateway Backend**: Maintenance registered as backend type in `hh/gateway/registry/backend.py`
-- **Tool Discovery**: Auto-generated wrappers in `hh/gateway/registry/maintenance.py`
+- **Entry Point**: `maintenance_client.py` calls `gateway.dispatch(argv, "maintenance")` - this is the key detail that allows daemon or command-line execution
+- **Tool Discovery**: Auto-generated wrappers in `hh/gateway/registry/maintenance.py` via `exec()` function
+- **Response Format**: `ResponseMaintenance` class outputs JSON format with status, data, errors, and debug fields
+- **Dual Interface**: All maintenance tools also have parser backend handlers, allowing command-line testing (e.g., `hen maintenance-jobs-status`)
 - **Database Integration**: Uses standard Gateway connection patterns with transaction management
 - **Error System**: Integrates with centralized error_store for consistent error reporting
 
@@ -205,7 +210,56 @@ Tools integrate with the job queue by:
 
 ---
 
-## 4. Maintenance Tools Registry
+## 4. Maintenance Backend Response Handler
+
+**File**: `hh/gateway/response/response_maintenance.py`
+
+The maintenance backend uses a custom response handler that outputs JSON format suitable for machine consumption.
+
+### ResponseMaintenance Class
+
+The `ResponseMaintenance` class extends the base `Response` class and provides:
+
+- **JSON Output Format**: Structured JSON with `status`, `data`, `errors`, and `debug` fields
+- **Error Handling**: Error responses formatted as `{"status": "error", "data": null, "errors": [...]}`
+- **Debug Integration**: Debug output included in response when available
+- **Success Format**: `{"status": "ok", "data": {...}}` with optional debug field (all systems handle success + debug)
+
+### Response Format
+
+**Success Response**:
+```json
+{
+  "status": "ok",
+  "data": {
+    "operation": "rebuild_page_cache",
+    "page_id": 123,
+    "processed": true,
+    "pages_remaining": 5
+  },
+  "debug": {...}
+}
+```
+
+Note: The `debug` field is optional and included when debug output is available. All systems are designed to handle success responses with or without debug data.
+
+**Error Response**:
+```json
+{
+  "status": "error",
+  "data": null,
+  "errors": [
+    {"type": "action", "content": "Error message"}
+  ],
+  "debug": {...}
+}
+```
+
+This format is optimized for daemon consumption while remaining human-readable for command-line testing.
+
+---
+
+## 5. Maintenance Tools Registry
 
 **File**: `hh/gateway/registry/maintenance.py`
 
@@ -213,10 +267,10 @@ The maintenance tools registry provides automatic discovery and wrapper generati
 
 ### Tool Registration Pattern
 
-Every maintenance tool requires dual registration:
+Every maintenance tool requires triple registration for full functionality:
 
 ```python
-# Action registration (business logic)
+# 1. Action registration (business logic)
 @register_action("tool_name")
 @register_command("tool_name")
 def tool_name_action() -> bool:
@@ -225,21 +279,37 @@ def tool_name_action() -> bool:
     gateway.response.set_action_response(success_payload(data))
     return True
 
-# Backend registration (output formatting)
+# 2. Parser backend registration (for command-line testing)
 @register_parser("tool_name")
 def tool_name_parser() -> bool:
-    # Parser gets unwrapped flat data directly from maintenance backend
+    # Parser gets unwrapped flat data (maintenance backend already unwrapped MCP envelope)
     source_data = get_data(gateway.response.get_action_response())
-    # Render output using source_data
+    # Render formatted table output for CLI
     pass
 
-# Maintenance registry (discovery)
+# 3. Maintenance registry (triggers wrapper generation via exec())
 register_maintenance_tool("tool_name")
 ```
 
+The `register_maintenance_tool()` call at the bottom of each file is scanned by the registry, which then uses `exec()` to generate wrapper functions. These wrappers automatically unwrap the MCP envelope from responses, extracting the flat data for internal use.
+
+**Dual Interface Support**: Tools can be executed via:
+- **Maintenance backend**: `maintenance_client.py tool_name` → JSON output for daemon consumption
+- **Parser backend**: `hen tool_name` → Formatted table output for command-line testing
+
+Both routes use the same action handler but different backend handlers for output formatting.
+
 ### Auto-Generated Wrappers
 
-The registry automatically generates wrapper functions using `exec()` that unwrap the MCP envelope:
+The registry automatically generates wrapper functions using `exec()` that unwrap the MCP envelope from action responses. Actions use `success_payload(data)` which wraps data in MCP format:
+
+```python
+{
+    "content": [{"type": "text", "text": {...actual data...}}]
+}
+```
+
+The generated wrapper functions extract the flat data from this envelope:
 
 ```python
 @register_maintenance('tool_name')
@@ -249,32 +319,42 @@ def tool_name() -> bool:
         report_error("backend", "No action response available")
         return False
     
-    # Extract flat data from MCP-wrapped action_response
+    # Extract flat data from MCP envelope: content[0]["text"]
     action_response = gateway.response.get_action_response()
     if "content" in action_response and action_response["content"]:
         content_item = action_response["content"][0]
         if content_item.get("type") == "text" and "text" in content_item:
             flat_data = content_item["text"]
-            # Replace the MCP-wrapped response with flat data
+            # Replace wrapped response with flat data
             gateway.response.set_action_response(flat_data)
     return True
 ```
 
+Since maintenance operations are internal-only and never sent to external systems, the MCP protocol envelope is automatically unwrapped, leaving clean flat data for ResponseMaintenance to format as JSON.
+
 ### Tool Discovery Process
 
-1. **Scanning**: `_scan_for_maintenance_tools()` searches for `register_maintenance_tool` calls
-2. **Collection**: Builds set of all registered tool names
-3. **Generation**: Uses `exec()` to create wrapper functions with `@register_maintenance` decorators
-4. **Registration**: Wrappers automatically registered in `maintenances` dictionary
+1. **Scanning**: `_scan_for_maintenance_tools()` searches codebase for `register_maintenance_tool("tool_name")` calls
+2. **Collection**: Builds set of all registered tool names from scanned files
+3. **Generation**: Uses `exec()` to dynamically generate wrapper functions with `@register_maintenance` decorators
+4. **Envelope Stripping**: Each generated wrapper extracts flat data from `action_response["content"][0]["text"]` and replaces the wrapped response
+5. **Registration**: Wrappers automatically registered in `maintenances` dictionary for Gateway discovery
 
 ### Backend Integration
 
 Maintenance tools integrate with the Gateway backend system:
 
 - **Backend Type**: `maintenance` registered alongside `parser`, `http`, `mcp`
-- **Handler Dictionary**: `maintenances` contains all registered maintenance handlers
+- **Handler Dictionary**: `maintenances` contains all registered maintenance handlers (auto-generated via `exec()`)
 - **Response Processing**: Wrappers verify action response exists and unwrap MCP envelope
 - **Envelope Unwrapping**: Maintenance backend extracts flat data from `success_payload()` MCP wrapper since maintenance is internal-only
+- **Simple Decorator**: `register_maintenance_tool("tool_name")` call at bottom of each tool file triggers discovery
+
+**Similarity to MCP Backend**: The maintenance backend follows a similar pattern to the MCP backend but is simpler because:
+- Single purpose: Always internal-only usage
+- No tier-based whitelisting needed (always runs as root tier user)
+- Simpler wrapper generation (no tool validation or tier checking)
+- Direct envelope unwrapping (no protocol overhead needed)
 
 ### Response Format Unwrapping
 
@@ -312,7 +392,36 @@ This eliminates the external protocol envelope overhead since maintenance comman
 
 ---
 
-## 5. Daemon Management
+## 6. Maintenance Client Entry Point
+
+**File**: `hh/deploy/maint/maintenance_client.py`
+
+The maintenance client is a simple entry point script that bridges command-line arguments to the Gateway system:
+
+- **Simple Interface**: Takes command-line arguments and passes them to Gateway
+- **Backend Specification**: Calls `gateway.dispatch(argv, "maintenance")` - this is the key detail
+- **Output Handling**: Prints response output and returns appropriate exit codes
+- **Encoding Support**: Handles UTF-8 encoding for cross-platform compatibility
+
+This script enables:
+- **Daemon Execution**: Worker daemon calls this script via subprocess to execute maintenance tools
+- **Command-Line Testing**: Developers can test maintenance tools directly from command line
+- **Unified Interface**: All maintenance operations route through the same Gateway dispatch mechanism
+
+**Example Usage**:
+```bash
+# Via maintenance backend (for daemon)
+python3 maintenance_client.py maintenance-jobs-status
+
+# Via parser backend (for command-line testing)
+hen maintenance-jobs-status
+```
+
+Both routes execute the same action handler, but use different backend handlers for output formatting.
+
+---
+
+## 7. Daemon Management
 
 The system provides comprehensive cross-platform daemon management through three core commands.
 
@@ -361,7 +470,7 @@ All daemon management commands integrate with the Gateway's process manager (`ga
 
 ---
 
-## 6. Cache Refresh System
+## 8. Cache Refresh System
 
 The maintenance system provides automatic cache refresh for three core data types.
 
@@ -414,7 +523,7 @@ All cache refresh tools integrate with the broader Henhouse cache architecture:
 
 ---
 
-## 7. Cross-Platform Support
+## 9. Cross-Platform Support
 
 The maintenance system provides comprehensive cross-platform compatibility across Windows, macOS, and Linux.
 
@@ -459,7 +568,7 @@ The system integrates with Gateway's process manager for unified process handlin
 
 ---
 
-## 8. Future Enhancements
+## 10. Future Enhancements
 
 Several enhancements are planned to extend the maintenance system capabilities:
 

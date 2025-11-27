@@ -147,6 +147,7 @@ The gateway pattern ensures that all components interact through a single, well-
 - registry : *Command and backend handler discovery*
 - conn : *Database connection instance (Connection, MySQLConnection, or RootConnection)*
 - files : *FileSystem instance for file operations*
+- os : *ProcessManager instance for cross-platform process management*
 - action_handler : *Business logic execution function*
 - backend_handler : *Presentation logic execution function*
 - error_handler : *Error processing function*
@@ -180,6 +181,7 @@ The gateway pattern ensures that all components interact through a single, well-
 - **CommandRegistry(command, backend)** : *Discovers and loads handlers*
 - **Connection() / MySQLConnection() / RootConnection()** : *Creates database connection*
 - **FileSystem()** : *Creates file system handler*
+- **ProcessManager()** : *Creates process management handler*
 - **action_handler()** : *Executes business logic*
 - **backend_handler()** : *Executes presentation logic*
 - **error_handler()** : *Executes error handling logic*
@@ -1030,7 +1032,7 @@ Connection subclass that extends RootConnection to connect to MySQL system datab
 
 ## 12. FileSystem
 
-**File**: `hh/gateway/connection/files.py`
+**File**: `hh/gateway/system/file_system.py`
 
 The file system operation manager that provides abstraction for filesystem operations with rollback support. It:
 

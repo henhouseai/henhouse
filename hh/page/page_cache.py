@@ -126,6 +126,28 @@ class PageCacheMixin:
         images_json = self._dump_json(self.images) if self.images else None
         files_json = self._dump_json(self.files) if self.files else None
         
+        # Zip all main database fields into metadata for cache backup
+        # This allows full page hydration from cache database without main DB access
+        main_db_metadata = {
+            'name': self.name,
+            'link': self.link,
+            'text': self.text,
+            'parent': self.parent,
+            'class': self.class_name,
+            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
+            'username': self.username,
+            'comments': self.comments,
+            'visibility': self.visibility,
+            'displayStyle': getattr(self, 'displayStyle', None),
+            'viewCount': getattr(self, 'viewCount', None),
+        }
+        # Include existing metadata if present (merge with main DB fields)
+        existing_metadata = getattr(self, 'metadata', {}) or {}
+        if isinstance(existing_metadata, dict):
+            # Merge existing metadata, but main DB fields take precedence
+            main_db_metadata.update(existing_metadata)
+        metadata_json = self._dump_json(main_db_metadata)
+        
         now = dt.datetime.now()
         
         try:
@@ -139,6 +161,7 @@ class PageCacheMixin:
                         image_summary = %s,
                         file_summary = %s,
                         links_out = %s,
+                        metadata = %s,
                         cache_built_at = %s
                     WHERE id = %s
                 """,
@@ -149,6 +172,7 @@ class PageCacheMixin:
                     images_json,
                     files_json,
                     self._dump_json({}),  # links_out - currently not used, store empty dict
+                    metadata_json,
                     now,
                     self.id,
                 ),
