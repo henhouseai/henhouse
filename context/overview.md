@@ -40,6 +40,7 @@
 **Implementation Status:**
 
 - All core systems (Gateway, Page, Registry, Render, Debug, MCP, HTTP, Maintenance, Parser) are fully implemented and operational
+- Deployment system is fully operational with comprehensive infrastructure for multi-tier web application deployment
 - History database architecture exists (connection support, hooks) but is not yet actively used
 - Transaction/Batch system has database tables and page classes partially implemented; execution engine pending
 - Tier 2 verification system, daemon manager, and aggregator system are planned for future development
@@ -88,11 +89,12 @@ The following diagram shows the core system relationships and dependencies:
 
 ### **Key Dependency Notes**
 
-- **Gateway is foundational**: All systems depend on Gateway for state management, database access, and request lifecycle
-- **Page system is self-contained**: Uses Gateway but doesn't require other content systems
-- **Backends are independent**: Each backend can operate separately, but all route through Gateway dispatch
-- **Render system is shared**: Used by multiple backends but doesn't depend on them
-- **MCP is the API layer**: HTTP backend uses MCP backend for all API operations (no separate API exists)
+- **Gateway is foundational**: All systems depend on Gateway for state management, database access, and request lifecycle. Deployment system uses Gateway for all deployment commands.
+- **Page system is self-contained**: Uses Gateway but doesn't require other content systems. Pages are served via Flask applications in production.
+- **Backends are independent**: Each backend can operate separately, but all route through Gateway dispatch. Flask applications in production route HTTP and MCP requests through Gateway.
+- **Render system is shared**: Used by multiple backends but doesn't depend on them. Deployment commands use Render system for CLI table output.
+- **MCP is the API layer**: HTTP backend uses MCP backend for all API operations (no separate API exists). Flask applications expose MCP protocol in production.
+- **Deployment enables production**: All core systems can run in development, but deployment system provides production infrastructure (users, databases, web servers, daemons).
 
 ### **Gateway Architecture**
 
@@ -158,6 +160,7 @@ Gateway initializes the Connection manager during dispatch, which provides unifi
 - Background process creation with user switching support
 - Process listing and termination capabilities
 - Deployment detection and privilege checking
+- Used by deployment system for Flask daemon and maintenance worker management
 
 #### **Error Handling**
 - Centralized error store with extensible list of error types
@@ -261,6 +264,7 @@ TextProcessor provides custom markup parsing for page content, handling wiki-sty
 - Usage tracking via image_groups/file_groups tables
 - Soft deletes (moved to deleted subdirectory, not permanently removed)
 - Date-based file storage organization (/srv/images/{project}/{date}/, /srv/files/{project}/{date}/)
+- Storage directories created during deployment installation with proper permissions and group ownership
 
 #### **Database Structure**
 
@@ -275,6 +279,7 @@ TextProcessor provides custom markup parsing for page content, handling wiki-sty
 - Stale reference detection and cache rebuilds
 - Priority system: User requests override passive maintenance
 - Job queue system for background processing
+- Maintenance worker daemon runs continuously in production, managed by deployment system
 
 ---
 
@@ -303,11 +308,12 @@ The parser backend provides command-line access to all system functions, routing
 
 ### **HTTP Architecture**
 
-The HTTP backend provides web-based interface for content management, combining server-rendered HTML with client-side TypeScript interactivity. Server-rendered pages route through Gateway dispatch, using the same action handlers as other backends, and format output using the Render system's HTML table renderer. The TypeScript client makes all API operations through the MCP backend using JSON-RPC calls - there is no separate API layer. This unified approach means all CRUD operations, whether initiated by humans through the web UI or by agents through MCP protocol, route through the same MCP backend and use the same business logic. The HTTP backend serves initial HTML with embedded seed data, then the TypeScript client takes over for interactive operations, making MCP calls and updating the DOM dynamically.
+The HTTP backend provides web-based interface for content management, combining server-rendered HTML with client-side TypeScript interactivity. Server-rendered pages route through Gateway dispatch, using the same action handlers as other backends, and format output using the Render system's HTML table renderer. The TypeScript client makes all API operations through the MCP backend using JSON-RPC calls - there is no separate API layer. This unified approach means all CRUD operations, whether initiated by humans through the web UI or by agents through MCP protocol, route through the same MCP backend and use the same business logic. The HTTP backend serves initial HTML with embedded seed data, then the TypeScript client takes over for interactive operations, making MCP calls and updating the DOM dynamically. In production, Flask applications serve the HTTP backend, with NGINX as a reverse proxy handling SSL, static files, and security headers.
 
 - Web-based interface for general users and content management
 - Combines server-rendered HTML with client-side JavaScript interactivity
 - Bridges user interactions to backend systems through API calls
+- Production deployment via Flask daemons (one per tier) with NGINX reverse proxy
 
 #### **Web Interface**
 
@@ -330,11 +336,12 @@ The HTTP backend provides web-based interface for content management, combining 
 
 ### **MCP Architecture**
 
-The MCP backend provides JSON-RPC 2.0 API access and serves as the unified API layer for the entire system - there is no separate API backend. All MCP tool calls route through Gateway dispatch, using action handlers registered through the Registry system. The MCPWhitelist system manages tier-based tool access, with separate whitelists for each user tier (guest, verified, admin, root) that are cached and automatically rebuilt when tools are added. The HTTP backend's TypeScript client makes all API calls through the MCP backend, ensuring that web UI operations and external MCP client operations use identical business logic. The application actions layer extends the MCP whitelist system to provide clickable action links in the web UI, with tools available as either MCP-only (for agents), app-action-only (for web UI aggregate operations), or dual-purpose (available through both interfaces).
+The MCP backend provides JSON-RPC 2.0 API access and serves as the unified API layer for the entire system - there is no separate API backend. All MCP tool calls route through Gateway dispatch, using action handlers registered through the Registry system. The MCPWhitelist system manages tier-based tool access, with separate whitelists for each user tier (guest, verified, admin, root) that are cached and automatically rebuilt when tools are added. The HTTP backend's TypeScript client makes all API calls through the MCP backend, ensuring that web UI operations and external MCP client operations use identical business logic. The application actions layer extends the MCP whitelist system to provide clickable action links in the web UI, with tools available as either MCP-only (for agents), app-action-only (for web UI aggregate operations), or dual-purpose (available through both interfaces). In production, Flask applications expose the MCP protocol endpoint (`/mcp`) for external tool integration.
 
 - JSON-RPC 2.0 API backend for programmatic access and automation - **this IS the API layer** (no separate API backend exists)
 - Tier-based security with tool whitelisting and permission management
 - Used by external clients and internal web interface for all operations
+- Production deployment via Flask applications with MCP endpoint routing
 
 #### **MCP Protocol**
 
@@ -370,6 +377,7 @@ The maintenance backend provides background task processing for automated system
 - Automatic cache refresh and stale reference cleanup
 - Cross-platform daemon management and orchestration
 - User requests override passive maintenance
+- Maintenance daemon deployed and managed via deployment system with start/stop/status commands
 
 ---
 
@@ -381,6 +389,7 @@ The following documents provide detailed implementation information beyond this 
 
 - **gateway.md**: Essential reading for understanding how the system orchestrates requests, manages state, and coordinates all subsystems. Required for any work involving request handling, database connections, file operations, or extending Gateway functionality.
 - **page.md**: Essential reading for content management work. Covers the extensible page system architecture, mixin patterns, validation functions, and how to create new page types. Required for any work involving pages, images, files, or content processing.
+- **deployment_overview.md**: Essential reading for understanding the deployment system architecture, multi-tier infrastructure setup, and production deployment workflows. Required for any work involving server setup, deployment operations, or production environment management.
 
 ### **gateway.md**
 
@@ -465,15 +474,37 @@ The following documents provide detailed implementation information beyond this 
 - **Command Structure**: How to structure new commands following established patterns
 - **Integration Examples**: How to implement actions, create backend handlers, and integrate with Gateway system
 
+### **deployment_overview.md**
+
+- **Deployment Architecture**: Comprehensive overview of the "set it up once, deploy repeatedly" deployment philosophy
+- **Installation System**: One-time infrastructure setup with tier-based users, SSH keys, credential files, and git repositories
+- **File Deployment**: Whitelist-based file copying, permission management, and service coordination
+- **Service Management**: Flask daemon lifecycle (4 tier-based instances), maintenance worker, and NGINX configuration
+- **Database Deployment**: MySQL initialization, tier-based user creation, and schema management
+- **Git Operations**: Code synchronization via stage branch workflow with pull/push operations
+- **Cache Management**: Registry-based cache cleanup system integrated with deployment
+- **Configuration System**: Whitelist/blacklist management for file deployment and context files
+- **Deployment Workflows**: Standard deployment, rollback procedures, and development-to-production sync
+- **Integration Points**: How deployment system integrates with Gateway, Registry, Page System, and other core components
+
 ---
 
 ## **Future Development**
 
 This section documents planned features and architectural expansions.
 
+### **Deployment System**
+
+- Automated deployment triggers from stage branch pushes with health check integration
+- Multi-environment support for staging, production, and development with environment-specific configuration
+- Enhanced security features including automated SSL certificate renewal and security audit logging
+- Performance optimization with incremental deployment (only changed files) and parallel service restart
+- Deployment status dashboard and monitoring for visibility into deployment operations
+
 ### **Database**
 
 - History database planned for audit trails and versioning. Architecture already supports history database connections, but implementation is pending.
+- Deployment system already supports database initialization and tier-based user management; history database integration will extend deployment capabilities.
 
 ### **TypeScript Client**
 
