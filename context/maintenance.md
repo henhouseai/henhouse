@@ -269,27 +269,11 @@ The maintenance tools registry provides automatic discovery and wrapper generati
 
 Every maintenance tool requires triple registration for full functionality:
 
-```python
-# 1. Action registration (business logic)
-@register_action("tool_name")
-@register_command("tool_name")
-def tool_name_action() -> bool:
-    # Business logic implementation
-    data = {"result": "success"}
-    gateway.response.set_action_response(success_payload(data))
-    return True
+1. **Action registration** (business logic): `@register_action("tool_name")` + `@register_command("tool_name")`
+2. **Parser backend registration** (for command-line testing): `@register_parser("tool_name")`
+3. **Maintenance registry** (triggers wrapper generation): `register_maintenance_tool("tool_name")` call at bottom of file
 
-# 2. Parser backend registration (for command-line testing)
-@register_parser("tool_name")
-def tool_name_parser() -> bool:
-    # Parser gets unwrapped flat data (maintenance backend already unwrapped MCP envelope)
-    source_data = get_data(gateway.response.get_action_response())
-    # Render formatted table output for CLI
-    pass
-
-# 3. Maintenance registry (triggers wrapper generation via exec())
-register_maintenance_tool("tool_name")
-```
+See `hh/deploy/maint/maintenance_jobs_status.py` for a complete example of the triple registration pattern.
 
 The `register_maintenance_tool()` call at the bottom of each file is scanned by the registry, which then uses `exec()` to generate wrapper functions. These wrappers automatically unwrap the MCP envelope from responses, extracting the flat data for internal use.
 
@@ -301,34 +285,12 @@ Both routes use the same action handler but different backend handlers for outpu
 
 ### Auto-Generated Wrappers
 
-The registry automatically generates wrapper functions using `exec()` that unwrap the MCP envelope from action responses. Actions use `success_payload(data)` which wraps data in MCP format:
+The registry automatically generates wrapper functions using `exec()` that unwrap the MCP envelope from action responses. Actions use `success_payload(data)` (see `hh/gateway/response/json_standard.py`) which wraps data in MCP format with `{"content": [{"type": "text", "text": {...actual data...}}]}`.
 
-```python
-{
-    "content": [{"type": "text", "text": {...actual data...}}]
-}
-```
-
-The generated wrapper functions extract the flat data from this envelope:
-
-```python
-@register_maintenance('tool_name')
-def tool_name() -> bool:
-    gateway = get_gateway()
-    if not gateway.response.has_action_response():
-        report_error("backend", "No action response available")
-        return False
-    
-    # Extract flat data from MCP envelope: content[0]["text"]
-    action_response = gateway.response.get_action_response()
-    if "content" in action_response and action_response["content"]:
-        content_item = action_response["content"][0]
-        if content_item.get("type") == "text" and "text" in content_item:
-            flat_data = content_item["text"]
-            # Replace wrapped response with flat data
-            gateway.response.set_action_response(flat_data)
-    return True
-```
+The generated wrapper functions use the `_maintenance_wrapper_template()` function (see `hh/gateway/registry/maintenance.py` - `_maintenance_wrapper_template()` function) to extract flat data from the envelope. The template function:
+- Verifies `gateway.response.has_action_response()` exists
+- Extracts flat data from `action_response["content"][0]["text"]`
+- Replaces the wrapped response with flat data
 
 Since maintenance operations are internal-only and never sent to external systems, the MCP protocol envelope is automatically unwrapped, leaving clean flat data for ResponseMaintenance to format as JSON.
 
@@ -361,32 +323,11 @@ Maintenance tools integrate with the Gateway backend system:
 The maintenance backend implements a clever envelope unwrapping mechanism since maintenance operations are purely internal:
 
 **Action Handler Flow**:
-1. Action uses `success_payload(data)` which creates MCP-style wrapper:
-   ```python
-   {
-       "content": [
-           {
-               "type": "text", 
-               "text": dict(data)  # The actual data
-           }
-       ]
-   }
-   ```
+1. Action uses `success_payload(data)` (see `hh/gateway/response/json_standard.py`) which creates MCP-style wrapper with `{"content": [{"type": "text", "text": dict(data)}]}`
 
-2. Maintenance backend wrapper automatically unwraps this envelope:
-   ```python
-   # Extract flat data from MCP-wrapped action_response
-   action_response = gateway.response.get_action_response()
-   flat_data = action_response["content"][0]["text"]
-   # Replace wrapped response with flat data
-   gateway.response.set_action_response(flat_data)
-   ```
+2. Maintenance backend wrapper automatically unwraps this envelope using `_maintenance_wrapper_template()` (see `hh/gateway/registry/maintenance.py` - `_maintenance_wrapper_template()` function), which extracts flat data from `action_response["content"][0]["text"]` and replaces the wrapped response
 
-3. Parser backend receives unwrapped flat data directly:
-   ```python
-   # No need for get_data() extraction - data is already flat
-   source_data = get_data(gateway.response.get_action_response())
-   ```
+3. Parser backend receives unwrapped flat data directly (see `hh/deploy/maint/maintenance_jobs_status.py` for parser backend implementation)
 
 This eliminates the external protocol envelope overhead since maintenance commands never leave the system boundary.
 

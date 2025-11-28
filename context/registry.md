@@ -289,17 +289,9 @@ The business logic execution layer that implements the core functionality of com
 
 Action modules are executed by the gateway after command resolution and provide the core business logic that backends then format for presentation.
 
-### Example Implementation (command_list)
+### Example Implementation
 
-```python
-@register_action("command_list")
-@register_command("command_list")
-def command_list() -> bool:
-    # Reads from JSON cache files
-    # Loads command registry data
-    # Returns structured command list data
-    # Uses gateway.set_action_response() for results
-```
+See `hh/gateway/registry/utils.py` - `command_list()` function for a complete example of action module implementation with dual registration (`@register_action` + `@register_command`).
 
 ### Global Module
 
@@ -372,17 +364,9 @@ The backend handler layer that processes action response data through different 
 
 Backend modules are executed by the gateway after action completion and provide backend-specific processing and output.
 
-### Example Implementation (render_command_list)
+### Example Implementation
 
-```python
-@register_http('command_list')
-@register_parser('command_list')
-def command_list() -> bool:
-    # Gets action response data from gateway
-    # Renders command list using render system (formats as CLI tables or HTML based on backend type)
-    # Adds formatted output to gateway response
-    # Uses field configurations for table formatting
-```
+See `hh/gateway/registry/render_command_list.py` - `command_list()` function for a complete example of backend handler implementation with dual registration (`@register_parser` + `@register_http`).
 
 ### Global Module
 

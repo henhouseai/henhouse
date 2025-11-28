@@ -205,19 +205,9 @@ MCP is registered as a backend type in `hh/gateway/registry/backend.py`:
 
 ### Response Data Structure
 
-Actions use `success_payload(data)` from `hh/gateway/response/json_standard.py` which creates:
-```python
-{
-    "content": [
-        {
-            "type": "text",
-            "text": dict(data)  # The actual data dict
-        }
-    ]
-}
-```
+Actions use `success_payload(data)` from `hh/gateway/response/json_standard.py` which creates a structure with `{"content": [{"type": "text", "text": dict(data)}]}`.
 
-`ResponseMCP.get_output()` then:
+`ResponseMCP.get_output()` (see `hh/gateway/response/response_mcp.py` - `ResponseMCP.get_output()` method) then:
 1. Makes deep copy of `action_response` to avoid modifying original
 2. Takes `action_response["content"][0]["text"]` (dict)
 3. Serializes entire response to JSON: `json.dumps(jsonrpc_response, indent=2, default=str)`
@@ -290,31 +280,7 @@ Both `mcp_wrapper.py` and database connection use same detection:
    - `hh/source_code_file/mcp_utils.py` - For source code file tools
    - Or create new `mcp_utils.py` in appropriate module folder (will be auto-discovered by scanner)
 
-2. **Register Tool**: Use decorator on a placeholder function:
-   ```python
-   from hh.gateway.registry.mcp_whitelist import register_mcp_tool
-
-   @register_mcp_tool(
-       tool_name='new_tool',
-       description='Tool description',
-       inputSchema={
-           'type': 'object',
-           'properties': {
-               'arg1': {
-                   'type': 'string',
-                   'description': 'Argument description'
-               }
-           },
-           'required': ['arg1']
-       },
-       tiers=[1, 2, 3, 4],  # Or specific tiers like [3, 4] for admin/root only
-       requires_approval=False,
-       crud_type='read'
-   )
-   def _tool_registration():
-       """Registration placeholder for new_tool."""
-       pass
-   ```
+2. **Register Tool**: Use `@register_mcp_tool` decorator on a placeholder function. See `hh/gateway/registry/mcp_whitelist.py` - `register_mcp_tool()` function for the decorator definition, and see existing `mcp_utils.py` files (e.g., `hh/page/mcp_utils.py`, `hh/gateway/registry/mcp_utils.py`) for registration examples.
 
 3. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
 

@@ -28,10 +28,10 @@ This document covers the planned implementation of the Tier 2 (verified) authent
 - **Tier 4 (Root)**: HTTP Basic Auth on `panel.{domain}` subdomain
 
 ### Current State
-- Tier 1, 3, 4 are working (static tier per Flask instance)
-- Tier 2 does not exist yet (orphaned user/DB account)
+- Tier 1, 3, 4 are working (static tier per instance)
+- Tier 2 does not exist yet
 - No session management currently implemented
-- Tier determined by Flask script name (`app_guest.py` → guest)
+- Tier determined by instance configuration
 
 ### Design Principles
 - **Standard Patterns**: Use Flask-Session or standard Flask session patterns
@@ -204,64 +204,18 @@ CREATE TABLE sessions (
 
 ### Flask Session Configuration
 
-**Option A: Flask-Session Extension**
-```python
-from flask_session import Session
-
-app.config['SESSION_TYPE'] = 'sqlalchemy'
-app.config['SESSION_SQLALCHEMY'] = db
-app.config['SESSION_PERMANENT'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-Session(app)
-```
-
-**Option B: Custom Database Session**
-```python
-from flask import session
-
-# Custom session middleware
-@app.before_request
-def load_session():
-    session_id = request.cookies.get('session_id')
-    if session_id:
-        # Lookup in database
-        session_data = get_session_from_db(session_id)
-        if session_data:
-            session['tier'] = session_data['tier']
-            session['email'] = session_data['email']
-            update_session_activity(session_id)
-        else:
-            # Expired/invalid, clear cookie
-            session.clear()
-    else:
-        # No session, default to tier 1
-        session['tier'] = 1
-```
+**Session Implementation Options:**
+- Use existing session framework (e.g., Flask-Session) with database backend
+- Implement custom database-backed session middleware
+- Session data stored in database, cookie only stores session_id
+- Session loading on each request to determine tier
 
 ### Session Helper Functions
 
-```python
-def get_session_tier():
-    """Get current user's tier from session."""
-    return session.get('tier', 1)
-
-def set_session_tier(tier, email):
-    """Create new session with tier and email."""
-    session_id = generate_session_id()
-    expires_at = datetime.now() + timedelta(days=30)
-    create_session_in_db(session_id, tier, email, expires_at)
-    response.set_cookie('session_id', session_id, max_age=30*24*60*60)
-    session['tier'] = tier
-    session['email'] = email
-
-def clear_session():
-    """Invalidate current session."""
-    session_id = request.cookies.get('session_id')
-    if session_id:
-        delete_session_from_db(session_id)
-    session.clear()
-    response.set_cookie('session_id', '', expires=0)
-```
+Required functions for session management:
+- Get current user's tier from session (defaults to tier 1)
+- Create new session with tier and email
+- Invalidate current session and clear cookie
 
 ### Session Cleanup
 
@@ -292,7 +246,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 - Database migration script
 - Permission grant script
 
-**Estimated Time**: 1-2 hours
 
 ### Phase 2: Token System
 
@@ -305,8 +258,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 **Files:**
 - `hh/auth/magic_link.py` (token functions)
 - `hh/auth/rate_limit.py` (rate limiting)
-
-**Estimated Time**: 2-3 hours
 
 ### Phase 3: Email System
 
@@ -322,8 +273,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 - `hh/auth/templates/` (email templates)
 - Configuration file for SMTP settings
 
-**Estimated Time**: 3-4 hours
-
 ### Phase 4: Flask Session Setup
 
 **Tasks:**
@@ -336,8 +285,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 **Files:**
 - `hh/auth/session.py` (session management)
 - Modify `hh/deploy/flask/app.py` (add session middleware)
-
-**Estimated Time**: 2-3 hours
 
 ### Phase 5: Magic Link Routes
 
@@ -353,8 +300,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 - Modify `hh/deploy/flask/app.py` (register routes)
 - `hh/deploy/site/templates/auth/` (error pages)
 
-**Estimated Time**: 2-3 hours
-
 ### Phase 6: Gateway Integration
 
 **Tasks:**
@@ -369,8 +314,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 - Modify Gateway credential loading (likely in connection module)
 - Test with verified tier operations
 
-**Estimated Time**: 3-4 hours
-
 ### Phase 7: Testing & Security
 
 **Tasks:**
@@ -382,10 +325,6 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 6. Security audit (token strength, SQL injection, etc.)
 7. Performance testing (session lookup overhead)
 
-**Estimated Time**: 2-3 hours
-
-**Total Estimated Time**: 15-22 hours
-
 ---
 
 ## 6. Integration Points
@@ -393,7 +332,7 @@ DELETE FROM magic_links WHERE expires_at < NOW() OR (used = TRUE AND created_at 
 ### With Flask App
 
 **Current State:**
-- Tier determined by script name (`app_guest.py` → guest)
+- Tier determined by instance configuration
 - No session management
 - Static tier per instance
 

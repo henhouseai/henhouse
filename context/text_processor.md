@@ -23,19 +23,10 @@ Each decorator is a pure function that receives text input and returns transform
 ### Format-Agnostic Design
 
 The system generates different output formats by changing the final decorator:
-
-```python
-# JSON output (default)
-parser = TextProcessor(final_decorator='mcp')
-
-# CLI table output  
-parser = TextProcessor(final_decorator='parser')
-
-# Same input, different outputs:
-# Input: [[home page]]
-# JSON: {"type": "page_link", "resolved_page": {"id": 1, "name": "home page"}}
-# Parser: Formatted CLI table with page link information
-```
+- See `hh/tp/tp.py` - `TextProcessor.__init__()` and `_apply_final_decorator()` methods
+- JSON output (default): `TextProcessor(final_decorator='mcp')` - See `hh/tp/tp_decorators.py` - `mcp_decorator()` function
+- CLI table output: `TextProcessor(final_decorator='parser')` - See `hh/tp/tp_decorators.py` - `parser_decorator()` function
+- Same input produces different outputs based on final decorator selection
 
 ## Syntax Reference
 
@@ -117,33 +108,20 @@ Note: Most decorators work with internal JSON structures (`{"type": "...", "valu
 ### Core Classes
 
 #### TextProcessor
-Main processing class:
-
-```python
-class TextProcessor:
-    def __init__(self, first_decorator=None, final_decorator=None):
-        # Initialize with optional global decorators
-        
-    def process(self, content: str) -> Optional[str]:
-        # Main processing method - returns None if preprocessing fails
-        
-    def update_links_table(self, conn, page_id: int) -> bool:
-        # Database integration for link management
-```
+Main processing class - See `hh/tp/tp.py`:
+- `__init__(first_decorator=None, final_decorator=None)` - Initialize with optional global decorators
+- `process(content: str) -> Optional[str]` - Main processing method, returns None if preprocessing fails
+- `preprocess(content: str)` - Parses and resolves markup, returns list of JSON structures
+- `postprocess(preprocessed_elements, final_decorator=None)` - Applies decorators and final formatting
+- `update_links_table(conn, page_id: int) -> bool` - Database integration for link management
 
 #### Decorator Registry
-Manages decorator discovery and loading:
-
-```python
-@register_tp_decorator('decorator_name')
-def my_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Union[str, Dict[str, Any]]:
-    """Custom decorator function
-    
-    Regular decorators return Dict[str, Any] (JSON structure)
-    Final decorators return str (formatted output)
-    """
-    return transformed_text
-```
+Manages decorator discovery and loading - See `hh/tp/tp_decorator_registry.py`:
+- `@register_tp_decorator('decorator_name')` - Registration decorator pattern
+- `get_tp_decorator(name: str)` - Retrieves decorator function from registry
+- Decorator function signature: `def decorator_name(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Union[str, Dict[str, Any]]`
+- Regular decorators return `Dict[str, Any]` (JSON structure), final decorators return `str` (formatted output)
+- See `hh/tp/tp_decorators.py` for built-in decorator examples
 
 ### Parsing Architecture
 
@@ -207,118 +185,43 @@ Updates database tables with parsed link information:
 ## Usage Examples
 
 ### Basic Text Processing
-```python
-from hh.tp.tp import TextProcessor
-
-# Simple processing (defaults to JSON output)
-processor = TextProcessor()
-result = processor.process("Hello [[world]]!")
-# Output: JSON string with text and page link data
-
-# CLI table output
-parser_processor = TextProcessor(final_decorator='parser')
-result = parser_processor.process("Check out [[home page]]")
-# Output: Formatted CLI table showing the page link
-
-# Pure decorator example
-result = processor.process("@pi(5)")
-# Output: {"type": "custom", "value": "3.14159"}
-```
+See `hh/tp/tp.py` - `TextProcessor` class:
+- `TextProcessor()` - Simple processing (defaults to JSON output via 'mcp' final decorator)
+- `TextProcessor(final_decorator='parser')` - CLI table output
+- `process()` method - Main processing method that handles text with markup
+- Pure decorator examples: `@pi(5)`, `@echo('text')` - See `hh/tp/tp_decorators.py` for built-in decorators
 
 ### Format-Specific Processing
-```python
-# JSON output (default)
-json_processor = TextProcessor()  # or final_decorator='mcp'
-json_result = json_processor.process("{{main page}}")
-# Returns JSON structure
-
-# CLI table output
-parser_processor = TextProcessor(final_decorator='parser')
-parser_result = parser_processor.process("{{main page}}")
-# Returns formatted table with image info
-```
+See `hh/tp/tp.py` - `TextProcessor` class:
+- JSON output: `TextProcessor()` or `TextProcessor(final_decorator='mcp')` - See `hh/tp/tp_decorators.py` - `mcp_decorator()` function
+- CLI table output: `TextProcessor(final_decorator='parser')` - See `hh/tp/tp_decorators.py` - `parser_decorator()` function
+- HTML output: `TextProcessor(final_decorator='http')` - See `hh/tp/tp_decorators.py` - `http_decorator()` function
 
 ### Database Integration
-```python
-import pymysql
-
-# Process content and update database
-processor = TextProcessor()
-result = processor.process("Check out [[feature page]] and {{gallery}}")
-
-# Update links table
-conn = pymysql.connect(...)
-processor.update_links_table(conn, page_id=123)
-```
+See `hh/page/page_content.py` - `PageContentMixin.modify_text()` method:
+- TextProcessor integration with database connection via `gateway.conn`
+- `processor.update_links_table(gateway.conn, page_id)` - Updates `links` and `image_links` tables
+- Connection uses standard Henhouse Connection class methods (`read()`, `create()`, `delete()`)
 
 ### Custom Decorators
-```python
-from hh.tp.tp_decorator_registry import register_tp_decorator
-
-@register_tp_decorator('uppercase')
-def uppercase_decorator(text, **kwargs):
-    """Convert custom value to uppercase"""
-    if isinstance(text, dict) and text.get('type') == 'custom':
-        value = text.get('value', '')
-        return {
-            "type": "custom",
-            "value": str(value).upper()
-        }
-    return text
-
-@register_tp_decorator('multiply')
-def multiply_decorator(text, **kwargs):
-    """Multiply numeric custom value"""
-    factor = kwargs.get('arg0', 2)
-    if isinstance(text, dict) and text.get('type') == 'custom':
-        try:
-            value = float(text['value'])
-            return {
-                "type": "custom",
-                "value": str(value * float(factor))
-            }
-        except:
-            return text
-    return text
-
-# Usage
-processor = TextProcessor()
-result = processor.process("@uppercase @echo('hello')")
-# Output: {"type": "custom", "value": "HELLO"}
-```
+See `hh/tp/tp_decorators.py` for example decorator implementations:
+- `@register_tp_decorator('decorator_name')` - Registration pattern
+- `hh/tp/tp_image_decorators.py` - Image-specific decorators
+- `hh/tp/other_decorators.py` - Additional decorator examples
+- Decorator function signature: `def decorator_name(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Union[str, Dict[str, Any]]`
 
 ## Advanced Features
 
 ### Decorator Argument Parsing
 Decorators receive arguments as `arg0`, `arg1`, `arg2`, etc. in `kwargs`:
-
-```python
-# String arguments
-@echo('Hello, World!')  # kwargs['arg0'] = 'Hello, World!'
-
-# Numeric arguments  
-@pi(5)  # kwargs['arg0'] = 5
-
-# Multiple arguments
-@repeat(3, ', ')  # kwargs['arg0'] = 3, kwargs['arg1'] = ', '
-
-# Accessing in decorator function
-def my_decorator(text, **kwargs):
-    first_arg = kwargs.get('arg0')
-    second_arg = kwargs.get('arg1')
-    # ...
-```
+- See `hh/tp/tp.py` - `_parse_decorator_arguments()` method for argument parsing logic
+- See `hh/tp/tp_decorators.py` - `pi_decorator()`, `echo_decorator()`, `repeat_decorator()` for examples of argument access
+- Argument access pattern: `kwargs.get('arg0')`, `kwargs.get('arg1')`, etc.
 
 ### Nested Element Support
-Supports nested structures:
-
-```python
-# Image-links with custom captions
-[[main page][{{gallery}{Custom Gallery Caption}}]]
-
-# Multiple levels of nesting
-@hero @center [[feature][{{banner}{Feature Banner}}]]
-```
+Supports nested structures (links within images, decorators on nested elements):
+- See `hh/tp/tp.py` - `_parse_unparsed_text()`, `_parse_decorated_element()`, `_parse_base_element()` methods for parsing logic
+- Nested parsing handles: `[[page][{{image}{caption}}]]`, `@decorator [[link]]`, etc.
 
 ### Error Recovery
 Provides error handling:
@@ -331,12 +234,13 @@ Provides error handling:
 ## Integration Points
 
 ### Henhouse System Integration
-- Debug system integration with trace/log/debug/warn functions (via `register_debug_init`)
-- Error reporting through Henhouse error system (`report_error("textprocessor", ...)` and `report_error("link_resolution", ...)`)
-- Gateway access for configuration (uses `get_gateway()` for database connections)
+- Debug system integration with trace/log/debug/warn functions (via `register_debug_init`) - See `hh/tp/tp.py` - `_initialize_debug()` function
+- Error reporting through Henhouse error system (`report_error("textprocessor", ...)` and `report_error("link_resolution", ...)`) - See `hh/tp/tp.py` throughout for error reporting
+- Gateway access for database connections: Uses `get_gateway().conn` for internal lookups (e.g., primary image lookup) - See `hh/tp/tp.py` - `_resolve_image_info()` method
+- Database connection parameter: `update_links_table(conn, page_id)` receives Connection instance from caller - See `hh/page/page_content.py` - `PageContentMixin.modify_text()` for usage pattern
 - Standard Henhouse database connection patterns (Connection class with `read()`, `create()`, `delete()` methods)
-- Page registry integration (`get_page()`, `find_page()`)
-- Image registry integration (`get_image()`)
+- Page registry integration (`get_page()`, `find_page()`) - See `hh/tp/tp.py` - `_resolve_link_info()` and `_resolve_image_info()` methods
+- Image registry integration (`get_image()`) - See `hh/tp/tp.py` - `_resolve_image_info()` method
 
 ### Extensibility
 - Plugin architecture for new decorators
@@ -348,18 +252,10 @@ Provides error handling:
 
 ### Global Decorators
 Apply decorators to all processed content:
-
-```python
-# Apply first decorator to all elements, then use parser output
-processor = TextProcessor(
-    first_decorator='uppercase',  # Applied to every element first
-    final_decorator='parser'      # Final conversion to CLI tables
-)
-
-# Common pattern: just specify final output format
-processor = TextProcessor(final_decorator='mcp')  # Default
-processor = TextProcessor(final_decorator='parser')  # CLI tables
-```
+- See `hh/tp/tp.py` - `TextProcessor.__init__()` method for `first_decorator` and `final_decorator` parameters
+- `first_decorator` - Applied to every element first (before user decorators)
+- `final_decorator` - Final conversion to output format ('mcp' for JSON, 'parser' for CLI tables, 'http' for HTML)
+- Common pattern: `TextProcessor(final_decorator='parser')` for CLI table output
 
 ### Decorator Discovery
 Discovers decorators by:

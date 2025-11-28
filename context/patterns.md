@@ -6,7 +6,8 @@ This document describes the architectural patterns used throughout the Henhouse 
 
 - The basic patterns are demonstrated by simple action-parser pairs that show the core architectural components.
 - **Action Functions** Action functions do something, often CRUD related to the db, and store their result as JSON thru the gateway response setters
-- **Backend Functions** Backend functions transform action responses into formatted output for different interfaces. Parser backends produce CLI table output, HTTP backends produce HTML output. Other backend examples include mcp.
+- **Backend Functions** Backend functions transform action responses into formatted output for different interfaces. Parser backends produce CLI table output.
+- **See also**: Real examples in `hh/deploy/maint/maintenance_jobs_status.py` (functions `maintenance_jobs_status_action` and `maintenance_jobs_status_parser`) and `hh/deploy/maint/page_cache_refresh.py` (functions `page_cache_refresh_action` and `page_cache_refresh_parser`)
 
 ### Example 1: 
 
@@ -35,7 +36,7 @@ def basic_example() -> bool:
         report_error("action", f"We have a new problem: {reason}")
         trace_out()
         return False
-    gateway.set_action_response(success_payload(result))
+    gateway.response.set_action_response(success_payload(result))
     log("All done.")
     trace_out()
     return True
@@ -44,30 +45,30 @@ def basic_example() -> bool:
 **render_basic_example.py**
 
 ```python
-@register_http('basic_example')
 @register_parser('basic_example')
 def basic_example() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        report_error("backend", "No gateway available")
         trace_out()
         return False    
-    if not gateway.has_action_response():
+    if not gateway.response.has_action_response():
         warn("No action response available")
-        gateway.backend_error("No action response available")
+        report_error("backend", "No action response available")
         trace_out()
         return False    
-    json_data = gateway.get_action_response()
+    json_data = gateway.response.get_action_response()
     source_data = get_data(json_data)    
     result = process(data)
     if check_for_new_problems(result):
         warn("Something went wrong.")
-        gateway.backend_error(f"We have a new problem: {reason}")
+        report_error("backend", f"We have a new problem: {reason}")
         trace_out()
         return False
-    gateway.add_backend_response(result)
-    log(f"Parser execution completed successfully with {len(result)} characters")
+    gateway.response.add_output(result)
+    log(f"Parser execution completed successfully")
     trace_out()
     return True
 ```
@@ -116,53 +117,50 @@ def list_example() -> bool:
 **render_list_example.py**
 
 ```python
-@register_http('list_example')
 @register_parser('list_example')
 def list_example() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        report_error("backend", "No gateway available")
         trace_out()
         return False
-    if not gateway.has_action_response():
+    if not gateway.response.has_action_response():
         warn("No action response available")
-        gateway.backend_error("No action response available")
+        report_error("backend", "No action response available")
         trace_out()
         return False
-    json_data = gateway.get_action_response()
+    json_data = gateway.response.get_action_response()
     try:
         lines = []
         lines.append(render_header_block('l_list_example_header'))
         source_data = get_data(json_data)
         if not render_items_section(source_data, lines):
             warn("Failed to render items section")
-            gateway.backend_error("Failed to render items section")
+            report_error("backend", "Failed to render items section")
             trace_out()
             return False
-        break_section(lines)
-        result = finalize_output(lines)
-        if len(result) == 0:
-            warn("Backend response is empty")
-        gateway.add_backend_response(result)
-        log(f"Parser execution completed successfully with {len(result)} lines.")
+        gateway.response.add_output(lines)
+        log(f"Parser execution completed successfully")
         trace_out()
         return True
     except Exception as e:
         warn("Parser execution raised an exception.")
-        gateway.backend_error(f"Parser execution raised an exception: {e}")
+        report_error("backend", f"Parser execution raised an exception: {e}")
         trace_out()
         return False
 ```
 
 ## Key Pattern Elements
 
-1. **Decorators**: `@register_action` and `@register_command` for actions; `@register_parser` and `@register_http` for backend handlers (typically both decorators on the same function)
+1. **Decorators**: `@register_action` and `@register_command` for actions; `@register_parser` for backend handlers
+   - **Note**: This document focuses on the parser backend registration pattern because it demonstrates the system dynamics most clearly. Other backends (HTTP, MCP, Maintenance) register in various different manners, but those patterns are not covered here.
 2. **Tracing**: Always use `trace_in()` and `trace_out()` for debugging
 3. **Gateway Checks**: Always verify gateway availability
 4. **Error Handling**: Consistent try/catch with proper error responses
 5. **Return Values**: Always return `bool` (True for success, False for failure)
-6. **Response Handling**: Actions use `gateway.set_action_response()`; parsers use `gateway.add_backend_response()`
+6. **Response Handling**: Actions use `gateway.response.set_action_response()`; parsers use `gateway.response.add_output()`
 
 ## Error Handling System
 
@@ -182,6 +180,7 @@ def some_action():
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        report_error("action", "No gateway available")
         trace_out()
         return False
     if error_condition:
@@ -193,6 +192,8 @@ def some_action():
     return True
 ```
 
+**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_action`
+
 ### Example 4: **Example Error Pattern for Parsers:**
 ```python
 def some_parser():
@@ -200,22 +201,25 @@ def some_parser():
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        report_error("backend", "No gateway available")
         trace_out()
         return False
-    if not gateway.has_action_response():
+    if not gateway.response.has_action_response():
         warn("No action response available for parsing")
-        gateway.backend_error("No action response available")
+        report_error("backend", "No action response available")
         trace_out()
         return False
     if business_logic_fails:
         warn("Business logic validation failed")
-        gateway.backend_error("Business logic validation failed")
+        report_error("backend", "Business logic validation failed")
         trace_out()
         return False
     log("All steps done.")
     trace_out()
     return True
 ```
+
+**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_parser`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_parser`
 
 ### Example 5: **Example Error Pattern for Complex Chaining Logic:**
 
@@ -227,35 +231,38 @@ def some_function():
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available.")
+        report_error("action", "No gateway available.")
         trace_out()
         return False
-	if not step1_done():
-		warn("step 1 not done.")
+    if not step1_done():
+        warn("step 1 not done.")
         report_error("action", "step 1 not done.")
-    if not is_error()
-    	do_step2()
-	if not step2_done():
-		warn("step 2 not done.")
-		report_error("action", "step 2 not done.")
-    if not is_error()
-    	do_step3()
-	if not step3_done():
-		warn("step 3 not done.")
-		report_error("action", "step 3 not done.")
-    if not is_error()
-    	do_step4()
-	if not step2_done():
-		warn("step 4 not done.")
-		report_error("action", "step 4 not done.")
-    result = is_error()
-	if result:
-	    log("All steps done.")
-	else
-	    log("problems encountered.")
-	do_some_cleanup()
+    if not is_error():
+        do_step2()
+    if not step2_done():
+        warn("step 2 not done.")
+        report_error("action", "step 2 not done.")
+    if not is_error():
+        do_step3()
+    if not step3_done():
+        warn("step 3 not done.")
+        report_error("action", "step 3 not done.")
+    if not is_error():
+        do_step4()
+    if not step4_done():
+        warn("step 4 not done.")
+        report_error("action", "step 4 not done.")
+    result = not is_error()
+    if result:
+        log("All steps done.")
+    else:
+        log("problems encountered.")
+    do_some_cleanup()
     trace_out()
     return result
 ```
+
+**Note**: This ladder logic pattern is useful when multiple steps depend on each other. Each step only executes if no errors have occurred so far. The final result is the inverse of `is_error()` (True if no errors, False if errors occurred).
 
 ### Example 6: **Example Error Pattern with Try/Except Blocks:**
 
@@ -267,28 +274,33 @@ def some_function():
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
+        report_error("action", "No gateway available")
         trace_out()
         return False
     if not step1_done():
         warn("step 1 not done")
         report_error("action", f"step 1 failed because {reason}")
         trace_out()
-		return False
-	try:
-		result = do_step2()
-		if not result:
-			warn("step 2 failed")
+        return False
+    try:
+        result = do_step2()
+        if not result:
+            warn("step 2 failed")
             report_error("action", f"step 2 failed because {reason}")
-		else
-			log("All steps done.")
-		trace_out()
-		return result
-	except Exception as e:
-		warn("step 2 raised exception")
-        report_error("backend", f"step 2 raised exception: {str(e)}")
+            trace_out()
+            return False
+        else:
+            log("All steps done.")
+            trace_out()
+            return result
+    except Exception as e:
+        warn("step 2 raised exception")
+        report_error("action", f"step 2 raised exception: {str(e)}")
         trace_out()
-		return False    
+        return False
 ```
+
+**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_action`
 
 ## Common Error and Debug System Practices:
 
@@ -297,13 +309,15 @@ def some_function():
 - Always check both gateway and connection: `if not gateway or not gateway.conn:`
 - Use warn() for simple messages to the user.
 - Use report_error("action", message) for business logic errors inside methods decorated with @register_action or @register_command
-- Use gateway.backend_error() for business logic errors inside methods decorated with @register_parser or @register_http
-- Use if not is_error(): to protect any blocks of code from running if any previous error state has been logged
+- Use report_error("backend", message) for business logic errors inside methods decorated with @register_parser
+- Use `if not is_error():` to protect any blocks of code from running if any previous error state has been logged
 - Use trace_out() before returning False for proper cleanup
 - The report_error() system is what triggers the code protection feature and should only be used when legitimate errors occur
 - The global warn() system is what puts user friendly messages into the top of output stream.
 - The boolean bubble-up system is what generates a list of errors at every level back up to the gateway, not just a single error message.
 - Database operations use `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
+
+**See also**: `hh/deploy/maint/maintenance_jobs_status.py` for examples of all these patterns
 
 ## Medium Complexity Patterns
 
@@ -338,7 +352,7 @@ from hh.gateway.error.error_store import report_error, is_error
 
 @register_action('some_db_read_action')
 @register_command('some_db_read_action')
-def some_db_read_action(conn) -> bool:
+def some_db_read_action() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -353,7 +367,7 @@ def some_db_read_action(conn) -> bool:
             "count": len(results),
             "items": results
         }
-        gateway.set_action_response(success_payload(data))
+        gateway.response.set_action_response(success_payload(data))
         log(f"database returned {len(results)} items.")
         trace_out()
         return True
@@ -364,6 +378,8 @@ def some_db_read_action(conn) -> bool:
         return False
 ```
 
+**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `count_stale_pages`, `hh/deploy/maint/page_cache_refresh.py` function `fetch_stale_page_id`
+
 ### Example 8: **Simple Database Write Operations**
 
 **some_db_write_action.py**
@@ -373,7 +389,7 @@ from hh.gateway.error.error_store import report_error, is_error
 
 @register_action('some_db_write_action')
 @register_command('some_db_write_action')
-def some_db_write_action(conn) -> bool:
+def some_db_write_action() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -393,8 +409,8 @@ def some_db_write_action(conn) -> bool:
             "message": "Record created successfully",
             "id": lastrowid
         }
-        gateway.set_action_response(success_payload(data))
-        log("Hello, Database!")
+        gateway.response.set_action_response(success_payload(data))
+        log("Record created successfully")
         trace_out()
         return True
     except Exception as e:
@@ -413,7 +429,7 @@ from hh.gateway.error.error_store import report_error, is_error
 
 @register_action('some_complex_action')
 @register_command('some_complex_action')
-def some_complex_action(conn) -> bool:
+def some_complex_action() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -442,20 +458,26 @@ def some_complex_action(conn) -> bool:
             "count": len(processed_data),
             "processed_items": processed_data
         }
-        gateway.set_action_response(success_payload(data))
+        gateway.response.set_action_response(success_payload(data))
         log("complex data mutation successful.")
         trace_out()
         return True
     except Exception as e:
         warn(f"Complex operation failed: {str(e)}")
-        report_error("backend", f"Complex operation failed: {str(e)}")
+        report_error("action", f"Complex operation failed: {str(e)}")
         trace_out()
         return False
 ```
 
 ## Table Rendering in Backend 
 
-Powerful generalized system for formatting CLI table output with rich control over formatting with tons of customizable features and overrides
+Powerful generalized system for formatting CLI table output with rich control over formatting with tons of customizable features and overrides.
+
+**See also**: 
+- `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_parser` - basic table with dynamic field types
+- `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_parser` - table with conditional rows
+- `hh/gateway/registry/render_command_list.py` function `command_list` - multi-column table with separators
+- `hh/gateway/system/dependency_list.py` function `dependency_list_parser` - table with conditional columns
 
 ### Example 10: **Table Rendering Functions**
 
@@ -464,8 +486,7 @@ Powerful generalized system for formatting CLI table output with rich control ov
 ```python
 from typing import List, TypedDict
 from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
-from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
-from hh.render.config.config import break_section
+from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.json.json_standard import get_data
 from hh.text.text import safe_str
 
@@ -506,13 +527,11 @@ def render_items_section(source_data, lines):
             block_type=block
         )
         lines.append(rendered_block)
-        break_section(lines)
         log(f"Rendered items table with {table_data.num_rows()} rows")
     if not gateway.is_no('meta'):                                  # render a recursive metadata parsing table
         log("Rendering meta data")
         lines.append(render_block(data, block_type='meta'))
-        break_section(lines)
-	log("All done.")
+    log("All done.")
     trace_out()
     return True
 ```
@@ -593,8 +612,7 @@ This example extends Example 10 to show how field types can be selected dynamica
 ```python
 from typing import List, TypedDict
 from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
-from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
-from hh.render.config.config import break_section
+from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.json.json_standard import get_data
 from hh.text.text import safe_str
 
@@ -644,13 +662,11 @@ def render_items_section(source_data, lines):
             block_type=block
         )
         lines.append(rendered_block)
-        break_section(lines)
         log(f"Rendered items table with {table_data.num_rows()} rows")
     if not gateway.is_no('meta'):
         log("Rendering meta data")
         lines.append(render_block(data, block_type='meta'))
-        break_section(lines)
-	log("All done.")
+    log("All done.")
     trace_out()
     return True
 ```

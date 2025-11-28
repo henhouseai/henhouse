@@ -1,0 +1,650 @@
+# Henhouse TypeScript System Architecture
+
+This document covers the TypeScript/ES modules system that provides client-side interactivity for the Henhouse HTTP interface, including overlay management, page data handling, RPC integration, and form processing.
+
+## Table of Contents
+
+1. [System Overview](#1-system-overview)
+2. [Core Overlay System](#2-core-overlay-system)
+3. [PageData System](#3-pagedata-system)
+4. [RPC Integration](#4-rpc-integration)
+5. [Action Handlers](#5-action-handlers)
+6. [Form Patterns](#6-form-patterns)
+7. [Debug Integration](#7-debug-integration)
+8. [Derived PageData Classes](#8-derived-pagedata-classes)
+9. [File Upload](#9-file-upload)
+10. [Best Practices](#10-best-practices)
+
+## Agent Quick Reference
+
+- **Overlay System**: `OverlayManager.getInstance().show()` - Singleton pattern for modal management (see `overlay-manager.ts`)
+- **PageData Pattern**: Handlers live in PageData classes (one file per derived class)
+- **Field Registration**: Use `getField('fieldName', 'form')` to auto-register editable fields (see `page-data.ts` - `getField()` method)
+- **Field IDs**: Standardized as `#page-field-{fieldName}` (e.g., `#page-field-name`)
+- **Content Structure**: Use array-based system: `content: Array<string | HTMLElement>`, `contentHeaders: Array<string>` (see `overlay.ts` - `OverlayOptions` interface)
+- **Operation Processing**: UPDATE uses `processOperationsIncrementally()`, CREATE/DELETE use direct `rpc.call()` (see `page-data.ts` - `processOperationsIncrementally()` method)
+- **Error Handling**: Return objects with `_showMessage`, errors stack as individual overlay content divs (see `overlay.ts` - `handleSubmit()` method)
+- **Debug Options**: Always present but collapsed by default (see `overlay-debug-options.ts`)
+- **Redirect Handling**: Use `_redirectAfterFade: 'parent' | 'self' | '/url' | null` (see `overlay.ts` - `handleRedirect()` method)
+
+## Agent Training Notes
+
+### Overlay System Usage
+- Always use `OverlayManager.getInstance().show()` - never instantiate directly (see `overlay-manager.ts`)
+- Content should use array-based structure with headers for multiple sections (see `overlay-content.ts` - `render()` method)
+- Debug options automatically available when submit button is shown (see `overlay.ts` - `mount()` method)
+- Errors automatically stack as separate content sections (see `overlay.ts` - `handleSubmit()` method)
+
+### PageData Handler Pattern
+- All CRUD handlers live in PageData classes (base or derived) - see `page-data.ts` for base handlers
+- Use `getField('fieldName', 'form')` to register fields for editing (see `page-data.ts` - `getField()` method)
+- Use `getField('fieldName')` or `getField('fieldName', 'display')` for read-only display
+- Handlers accept `rpc` as first parameter
+
+### Form Field Management
+- Fields auto-register when accessed with `context: 'form'` (see `page-data.ts` - `getField()` method)
+- Field IDs must follow `#page-field-{fieldName}` pattern (see `page-manager.ts` - `registerField()` method)
+- PageManager handles change detection and optimal MCP tool selection (see `page-manager.ts` - `selectOptimalMappings()` method)
+- Use `processOperationsIncrementally()` for UPDATE operations with multiple fields (see `page-data.ts` - `processOperationsIncrementally()` method)
+
+### RPC Integration
+- Use `rpc.call(method, params, debugOptions?)` for MCP calls (see `rpc-client.ts` - `call()` method)
+- Debug options automatically captured from overlay if not provided (see `rpc-client.ts` - `call()` method)
+- Errors return `RPCError` with multiple error messages (see `rpc-client.ts` - `RPCError` class)
+- Debug data automatically extracted and displayed in separate overlay (see `rpc-client.ts` - `extractMCPData()` method)
+
+### Error Handling
+- Return objects with `_showMessage` for success messages (see `overlay.ts` - `handleSubmit()` method)
+- Throw errors for validation failures (will be caught and displayed)
+- Multiple errors automatically stack as separate red content sections (see `overlay.ts` - `handleSubmit()` method)
+- Use `_autoFade: true` for successful operations that should auto-close
+
+---
+
+## 1. System Overview
+
+The TypeScript system provides client-side interactivity for the Henhouse HTTP interface, using ES modules architecture. The system integrates with the Python MCP backend through JSON-RPC 2.0 calls and provides an overlay system for user interactions.
+
+### Architecture Flow
+
+Python HTTP Backend renders HTML with seed data and action links → TypeScript App (`app.ts`) loads page data and attaches handlers → User interaction triggers overlay → Overlay system shows modal and captures form data → RPC Client (`rpc-client.ts`) makes MCP JSON-RPC call → Python Gateway executes MCP tool and returns JSON → TypeScript components update DOM and manage state
+
+### Key Components
+
+- **OverlayManager** (`overlay-manager.ts`): Singleton manager for all modal overlays
+- **PageData/PageManager** (`page-data.ts`, `page-manager.ts`): Field management and form processing system
+- **RPCClient** (`rpc-client.ts`): MCP JSON-RPC wrapper with debug integration
+- **Action Handlers**: CRUD operation handlers in PageData classes
+- **Debug System**: Integrated debug options and table rendering (`overlay-debug-options.ts`, `overlay-debug-table.ts`)
+
+### File Structure
+
+Core files in `hh/deploy/site/ts/`:
+- `app.ts` - Main entry point, action handler registration
+- `overlay-manager.ts` - OverlayManager singleton
+- `overlay.ts` - Base Overlay component
+- `overlay-backdrop.ts`, `overlay-window.ts`, `overlay-header.ts`, `overlay-content.ts` - Overlay subcomponents
+- `overlay-debug-options.ts`, `overlay-debug-table.ts` - Debug UI components
+- `rpc-client.ts` - MCP RPC client
+- `page-manager.ts` - Field registry and form processing
+- `page-data.ts` - Base PageData class
+- `page-data-factory.ts` - Factory for derived classes
+- Derived classes: `source-code-file-page-data.ts`, `mcp-request-page-data.ts`, `mcp-action-page-data.ts`, `work-page-data.ts`, `work-docket-page-data.ts`
+- `upload-handler.ts` - Image upload handler
+- `seed.ts` - Seed data reader
+
+---
+
+## 2. Core Overlay System
+
+The overlay system provides modal dialogs for user interactions, using a component-based architecture.
+
+### OverlayManager
+
+**File**: `overlay-manager.ts`
+
+Singleton manager for all overlay instances. Handles z-index stacking, focus management, keyboard shortcuts, and event routing.
+
+**Key Methods**:
+- `getInstance()`: Get singleton instance
+- `show(options)`: Show new overlay, returns Overlay instance
+- `close(overlay)`: Close specific overlay with fade
+- `closeAll()`: Close all overlays
+- `getTopOverlay()`: Get topmost overlay (highest z-index)
+- `isActive()`: Check if any overlay is active
+
+See `overlay-manager.ts` for the `OverlayOptions` interface definition.
+
+### Overlay Component
+
+**File**: `overlay.ts`
+
+Base overlay component that handles lifecycle, rendering, and state management.
+
+**Content Structure**: Array-based system with optional headers:
+- `content: Array<string | HTMLElement>` - Array of content items
+- `contentHeaders: Array<string>` - Optional headers for each content section (empty string = no header)
+
+See `overlay.ts` - `OverlayOptions` interface for complete options structure.
+
+**State Management**: See `overlay.ts` - `OverlayState` interface:
+- `isVisible`: Overlay visibility state
+- `isLoading`: Loading state (hides submit button, shows spinner)
+- `messages`: Array of messages `[{ type: 'success' | 'error', text: string }]` (preferred over single error/success)
+
+**Submit Result Format**: See `overlay.ts` - `handleSubmit()` method for result object structure with `_showMessage`, `_autoFade`, `_redirectAfterFade`, `debug`, etc.
+
+**Error Handling**: See `overlay.ts` - `handleSubmit()` method:
+- Thrown errors are caught and displayed
+- `RPCError` with multiple errors displays all errors as separate content sections
+- Each error appears as red overlay content div
+- Errors prevent auto-fade (user must acknowledge)
+
+### Overlay Components
+
+- **OverlayBackdrop** (`overlay-backdrop.ts`): Dark backdrop behind modal window
+- **OverlayWindow** (`overlay-window.ts`): Modal window container with positioning
+- **OverlayHeader** (`overlay-header.ts`): Header bar with title and action buttons
+- **OverlayContent** (`overlay-content.ts`): Content container supporting single or array-based content with collapsible sections
+
+**Content Headers**: See `overlay-content.ts` - `render()` method:
+- Headers with text create collapsible sections (expand/collapse button)
+- Empty string headers create sections without headers
+- "Response" sections default to collapsed, "Request" sections default to expanded
+
+---
+
+## 3. PageData System
+
+The PageData system provides field management and form processing that handles field registration, change detection, and MCP tool selection.
+
+### PageData Base Class
+
+**File**: `page-data.ts`
+
+Base class for all page data types. Provides field access, field mapping, and handler methods.
+
+**Field Access Pattern**: See `page-data.ts` - `getField()` method:
+- Read-only field: `getField('name')` or `getField('name', 'display')`
+- Editable field: `getField('name', 'form')` - automatically registers field with PageManager
+
+**Field Registration**: See `page-data.ts` - `getField()` method:
+- `getField(fieldName, 'form')` automatically registers field with PageManager
+- Field type auto-detected based on value type
+- Read-only fields (id, class, link, etc.) never register for editing
+
+**Field Mappings**: See `page-data.ts` - `getFieldMappings()` method:
+- Each PageData class defines field-to-MCP-tool mappings
+- Priority system: `priority: 0` = exact match, `priority: 1` = small group, `priority: 2+` = larger groups
+- `buildParams` function constructs MCP tool parameters
+
+**Handler Methods**: See `page-data.ts` for handler examples (`modify_name()`, `modify_text()`, `delete_page()`, `add_page()`, `combo()`, `Upload()`):
+- All CRUD handlers follow pattern: `async handlerName(rpc: any): Promise<void>`
+- Register fields with `getField('fieldName', 'form')`
+- Create form HTML with standardized field IDs
+- Use `processOperationsIncrementally()` for UPDATE operations
+
+### PageManager
+
+**File**: `page-manager.ts`
+
+Singleton manager for field registry, change detection, and form submission.
+
+**Field Registry**: See `page-manager.ts` - `registerField()` method:
+- Tracks which fields are being edited
+- Stores original values for change detection
+- Maps fields to DOM selectors (`#page-field-{fieldName}`)
+
+**Change Detection**: See `page-manager.ts` - `detectChangedFields()` method:
+- Returns array of field names that have changed
+- Compares current form values to original registered values
+
+**Optimal MCP Tool Selection**: See `page-manager.ts` - `selectOptimalMappings()` method:
+- Uses weighted set cover algorithm with exact match preference
+- Returns array of `{ mapping, fields }` pairs
+- Prefers exact matches (priority 0) over grouped operations
+
+**Form Value Extraction**: See `page-manager.ts` - `extractFormValues()` method:
+- Returns `{ fieldName: value }` object
+- Handles checkboxes, numbers, text inputs automatically
+
+**Field Lifecycle**: See `page-manager.ts` methods:
+1. Field registered when `getField('fieldName', 'form')` called
+2. Field tracked in registry with original value
+3. User edits field in form
+4. `detectChangedFields()` identifies changes
+5. `selectOptimalMappings()` selects MCP tools
+6. Operations execute
+7. Fields cleared from registry after successful update
+
+### PageDataFactory
+
+**File**: `page-data-factory.ts`
+
+Factory pattern for creating appropriate PageData instance based on page class.
+
+See `page-data-factory.ts` - `create()` method:
+- Returns: `PageData`, `SourceCodeFilePageData`, `MCPRequestPageData`, `MCPActionPageData`, `WorkDocketPageData`
+- Maps page class names to appropriate derived class
+
+---
+
+## 4. RPC Integration
+
+The RPC client provides an interface for making MCP JSON-RPC calls with automatic debug option handling and error management.
+
+### RPCClient
+
+**File**: `rpc-client.ts`
+
+MCP JSON-RPC wrapper with debug integration and error handling.
+
+**Basic Usage**: See `rpc-client.ts` - `call()` method:
+- `await rpc.call('get_page', { id: 123 })`
+- Returns `RPCCallResult` with `data` and optional `debug` fields
+
+**Debug Options**: See `rpc-client.ts` - `call()` method:
+- Debug options automatically captured from current overlay if not provided
+- Or provide explicitly as third parameter
+- Merged into RPC params (debug → params.debug = 1, log → params.log = 1, etc.)
+
+**Error Handling**: See `rpc-client.ts` - `call()` method and `RPCError` class:
+- `RPCError` extends Error with `errors` array, `code`, optional `debug`, and `requestInfo`
+- Multiple errors extracted from `error.data.errors` array
+- Debug data extracted from `error.data.content` array
+
+**Response Structure**: See `rpc-client.ts` - `extractMCPData()` method:
+- MCP responses have structure: `{ content: [{ type: "text", text: "<JSON_STRING>" }] }`
+- Automatically parses all content items and separates main data from debug data
+- Debug data identified by presence of `entries` array
+
+**Specialized Methods**: See `rpc-client.ts`:
+- `getPage(pageId)`: Get page data as PageData instance
+- `showError('operationName', error)`: Display error to user
+
+---
+
+## 5. Action Handlers
+
+Action handlers are CRUD operation methods that live in PageData classes (base or derived). The app.ts file handles registration and routing.
+
+### Handler Registration
+
+**File**: `app.ts`
+
+Action handlers are registered in two ways:
+
+1. **Persistent Actions**: Server-rendered action links with `data-source` attribute
+   - Loaded from `get_page` response `available_actions`
+   - Attached to DOM elements by ID
+   - Handlers found in PageData class
+
+2. **Hot-Cache Actions**: Dynamically discovered actions
+   - Also from `available_actions` but with `source: 'hot_cache'`
+   - Can be added/removed dynamically
+   - Same handler lookup pattern
+
+**Handler Lookup Order**: See `app.ts` - `attachAppActionHandlers()` method:
+1. Check PageData class for method matching action ID
+2. Warn if handler not found
+
+**Handler Signature**: See `page-data.ts` for handler examples:
+- `async actionId(rpc: any): Promise<void>`
+
+### Handler Location Pattern
+
+**Standard Pattern**: Handlers live in PageData classes
+- Base handlers: `page-data.ts` (modify_name, modify_text, delete_page, add_page, combo, Upload)
+- Derived handlers: `source-code-file-page-data.ts` (source_code_file_combo)
+- One file per page class type
+
+### Handler Types
+
+**UPDATE Handlers** (modify_name, modify_text, combo): See `page-data.ts` - `modify_name()`, `modify_text()`, `combo()` methods:
+- Use `processOperationsIncrementally()` for multiple field updates
+- Register fields with `getField('fieldName', 'form')`
+- Use PageManager for change detection and optimal tool selection
+
+**CREATE Handlers** (add_page): See `page-data.ts` - `add_page()` method:
+- Direct `rpc.call()` (no field registry needed)
+- Form validation before submission
+- Redirect to new page after creation
+
+**DELETE Handlers** (delete_page): See `page-data.ts` - `delete_page()` method:
+- Direct `rpc.call()` with confirmation
+- Redirect to parent after deletion
+
+---
+
+## 6. Form Patterns
+
+Forms follow standardized patterns for field registration, change detection, and submission.
+
+### Field Registration Pattern
+
+**Standard Approach**: See `page-data.ts` - `getField()` method:
+- Use `getField()` with `'form'` context
+- Field automatically registered with PageManager
+- Field type auto-detected (text, textarea, checkbox, number)
+
+**Field ID Standardization**: See `page-manager.ts` - `registerField()` method:
+- All form fields must use standardized IDs: `#page-field-{fieldName}`
+- Pattern: `#page-field-{fieldName}`
+
+### Form HTML Structure
+
+**Standard Form Sections**: See `page-data.ts` - `combo()` method for example:
+- Editable fields section with form inputs
+- Read-only fields section with display grid
+- Use array-based content structure with headers
+
+### Operation Processing Patterns
+
+**UPDATE Operations**: See `page-data.ts` - `modify_name()`, `modify_text()`, `combo()` methods:
+- Use `processOperationsIncrementally()` for multiple fields
+- Pattern: detect changed fields → select optimal mappings → extract form values → process operations incrementally
+- Update DOM after successful operations
+
+**CREATE Operations**: See `page-data.ts` - `add_page()` method:
+- Direct `rpc.call()` with form validation
+- Redirect to new page after creation using `_redirectAfterFade`
+
+**DELETE Operations**: See `page-data.ts` - `delete_page()` method:
+- Direct `rpc.call()` with confirmation checkbox
+- Redirect to parent after deletion using `_redirectAfterFade: 'parent'`
+
+### processOperationsIncrementally
+
+**Purpose**: See `page-data.ts` - `processOperationsIncrementally()` method:
+- Process multiple MCP operations sequentially, updating overlay as each completes
+- Features: processes operations one at a time, updates overlay with success/error messages incrementally, handles debug data for each operation, captures debug options once at start
+
+**Return Value**: See `page-data.ts` - `processOperationsIncrementally()` method:
+- Returns object with `success`, `noChanges`, `operations`, `successes`, `errors`, `debug` fields
+
+---
+
+## 7. Debug Integration
+
+The debug system is integrated into the overlay and RPC systems. Users can enable debug output for MCP calls from overlay forms.
+
+### Debug Options Component
+
+**File**: `overlay-debug-options.ts`
+
+Debug options UI component that appears in overlay footer when submit button is shown.
+
+**Standard Behavior**: See `overlay-debug-options.ts`:
+- Always present in overlay footer (when submit button shown)
+- Collapsed by default (like response section)
+- Expandable section with checkboxes and filter inputs
+- Checkboxes: Debug, Log
+- Filter inputs: Blacklist, Graylist, Whitelist, Limit
+
+**Debug Options Interface**: See `overlay-debug-options.ts` - `DebugOptions` interface:
+- `debug: boolean`, `log: boolean`, `white?: string`, `gray?: string`, `black?: string`, `debugLimit?: number`
+
+**Accessing Debug Options**: See `overlay.ts` - `getDebugOptions()` method:
+- `overlay.getDebugOptions()` returns `DebugOptions` or null
+
+### Debug Options in RPC Calls
+
+**Automatic Capture**: See `rpc-client.ts` - `call()` method:
+- RPC calls automatically capture debug options from current overlay
+- Or provide explicitly as third parameter
+
+**Debug Options Merging**: See `rpc-client.ts` - `call()` method:
+- Debug options merged into RPC params (debug → params.debug = 1, log → params.log = 1, white → params.white, etc.)
+
+### Debug Data Display
+
+**Automatic Extraction**: See `rpc-client.ts` - `extractMCPData()` method:
+- RPC responses automatically extract debug data from MCP content items
+
+**Debug Table Overlay**: See `overlay.ts` - `showDebugTable()` method and `debug-helper.ts`:
+- When debug data is present, a separate overlay window is automatically created
+- Request section (expanded by default): Tool name and arguments
+- Response section (collapsed by default): Response data JSON
+- Debug table section (no header): Debug entries table
+
+**Debug Table Format**: See `overlay-debug-table.ts`:
+- Columns: Time, Level, Module, File, Function, Message
+- Color-coded by module, filename, function
+- Timestamps as deltas from first entry
+
+### Debug Helper
+
+**File**: `debug-helper.ts`
+
+Helper function for creating debug overlay windows.
+
+See `debug-helper.ts` - `handleRPCResponseWithDebug()` function:
+- Automatically creates overlay with Request/Response/Debug sections
+- Handles both success and error responses
+- Only creates overlay if debug data has entries
+
+---
+
+## 8. Derived PageData Classes
+
+Derived PageData classes extend the base class to provide page-type-specific field mappings and handlers.
+
+### Factory Pattern
+
+**File**: `page-data-factory.ts`
+
+Factory creates appropriate PageData instance based on page class.
+
+See `page-data-factory.ts` - `create()` method:
+- Returns: `PageData`, `SourceCodeFilePageData`, `MCPRequestPageData`, `MCPActionPageData`, `WorkDocketPageData`
+- Maps page class names to appropriate derived class
+
+### SourceCodeFilePageData
+
+**File**: `source-code-file-page-data.ts`
+
+Handles source code file pages with `file_path` and `language` fields.
+
+**Field Mappings**: See `source-code-file-page-data.ts` - `getFieldMappings()` method:
+- `file_path` → `modify_file_path` (priority 0)
+- `language` → `modify_language` (priority 0)
+
+**Handler**: See `source-code-file-page-data.ts` - `source_code_file_combo()` method:
+- Edit text, file_path, and language together
+
+### MCPRequestPageData
+
+**File**: `mcp-request-page-data.ts`
+
+Handles MCP request pages with transaction fields.
+
+**Field Mappings**: See `mcp-request-page-data.ts`:
+- Group mapping for all transaction fields to `modify_mcp_request`
+- Priority 1 (group operation)
+
+### MCPActionPageData
+
+**File**: `mcp-action-page-data.ts`
+
+Handles MCP action request pages.
+
+**Field Mappings**: See `mcp-action-page-data.ts`:
+- Group mapping for all action fields to `modify_mcp_action_request`
+- Priority 1 (group operation)
+
+### WorkPageData
+
+**File**: `work-page-data.ts`
+
+Base class for work pages (work docket, ask, task, step). Provides shared functionality for `status`, `meta`, and `sort_order` fields.
+
+**Field Mappings**: See `work-page-data.ts`:
+- `status` → `modify_work_status` (priority 0)
+- `sort_order` → `modify_work_sort_order` (priority 0)
+
+### WorkDocketPageData
+
+**File**: `work-docket-page-data.ts`
+
+Extends `WorkPageData` to handle work docket pages. Inherits `status` and `sort_order` field mappings from base class.
+
+### Creating New Derived Classes
+
+**Pattern**: See `source-code-file-page-data.ts` for example:
+1. Create new file: `{page-class}-page-data.ts`
+2. Extend `PageData` base class
+3. Override `getFieldMappings()` to add class-specific mappings
+4. Add handler methods for class-specific operations
+5. Register in `PageDataFactory.create()`
+
+---
+
+## 9. File Upload
+
+The upload handler provides image file upload functionality with progress tracking and sequential processing.
+
+### UploadHandler
+
+**File**: `upload-handler.ts`
+
+Handles image file uploads with multi-file support.
+
+**Usage**: See `upload-handler.ts`:
+- `new UploadHandler(rpc, seedData)` then `await handler.handle()`
+
+**Features**: See `upload-handler.ts`:
+- Multiple file selection
+- Upload progress bars
+- Sequential processing (upload all, then process one at a time)
+- Debug options support
+- Success/error messages per file
+
+**Upload Flow**: See `upload-handler.ts`:
+1. User selects files (via "Choose Files" button)
+2. Files added to overlay with pending status
+3. User clicks "Upload"
+4. All files upload in parallel (with progress bars)
+5. Files convert to "pending processing" state
+6. Files process sequentially (one MCP call per file)
+7. Success/error messages shown per file
+8. Overlay auto-fades and refreshes page on success
+
+**Debug Integration**: See `upload-handler.ts`:
+- Debug options captured when "Upload" clicked
+- Same debug options applied to all file processing calls
+- Debug overlays shown for each file with debug data
+
+---
+
+## 10. Best Practices
+
+### Handler Development
+
+**Location**: Always put handlers in PageData classes (base or derived)
+- One file per page class type
+- Keeps related code together
+
+**Naming**: Handler method names match action IDs exactly
+- Action ID: `modify_name` → Method: `async modify_name(rpc: any)`
+- Action ID: `source_code_file_combo` → Method: `async source_code_file_combo(rpc: any)`
+
+**Error Handling**: Use standardized error pattern
+- Return objects with `_showMessage` for success
+- Throw errors for validation failures
+- Multiple errors automatically stack as separate content sections
+- Use `_autoFade: true` for successful operations
+
+**Field Registration**: Always use `getField()` pattern
+- `getField('fieldName', 'form')` for editable fields
+- `getField('fieldName')` or `getField('fieldName', 'display')` for read-only
+- Never manually call `PageManager.registerField()`
+
+**Field IDs**: Always use standardized pattern
+- `#page-field-{fieldName}` (e.g., `#page-field-name`, `#page-field-text`)
+- Required for automatic form value extraction
+
+### Content Structure
+
+**Array-Based System** (required): See `overlay-content.ts` - `render()` method:
+- All content must be provided as an array, even for single items
+- `content: Array<string | HTMLElement>`
+- `contentHeaders: Array<string>` (empty string = no header)
+
+### Operation Processing
+
+**UPDATE Operations**: Use `processOperationsIncrementally()`
+- Multiple fields can change
+- Optimal MCP tool selection
+- Incremental feedback to user
+
+**CREATE Operations**: Direct `rpc.call()`
+- Single operation
+- No field registry needed
+- Redirect after creation
+
+**DELETE Operations**: Direct `rpc.call()` with confirmation
+- Confirmation checkbox required
+- Redirect to parent after deletion
+
+### Debug Integration
+
+**Always Support Debug Options**:
+- Debug options automatically available in overlay
+- RPC calls automatically capture options
+- Debug data automatically displayed in separate overlay
+
+**Debug Options State**:
+- Always present in footer but collapsed by default
+- Collapses automatically when form is submitted
+- User expands when needed
+
+### Redirect Handling
+
+**Standardized Redirect Pattern**: See `overlay.ts` - `handleRedirect()` method:
+- `_redirectAfterFade: 'parent'` - Redirect to parent page
+- `_redirectAfterFade: 'self'` - Refresh current page
+- `_redirectAfterFade: '/url'` - Redirect to specific URL
+- Omit or null = no redirect, just fade
+
+**When to Redirect**:
+- DELETE: Always redirect to parent
+- CREATE: Redirect to new page
+- UPDATE: Usually no redirect (DOM updated dynamically)
+- Exception: Text updates may refresh page due to processing complexity
+
+### Form Patterns
+
+**Standard Form Structure**: See `page-data.ts` - `combo()` method for example:
+- Editable fields section with form inputs
+- Read-only fields section with display grid
+- Use array-based content structure with headers
+
+**Field Cleanup**: Always clear field registry on cancel/unmount:
+- `onCancel: () => { pageManager.clearFieldRegistry(); }`
+- `onUnmount: () => { pageManager.clearFieldRegistry(); }`
+
+### RPC Call Patterns
+
+**Standard RPC Call**: See `rpc-client.ts` - `call()` method:
+- `const result = await rpc.call('tool_name', { param1: value1, param2: value2 })`
+- `result.data` contains response
+- `result.debug` contains debug data if present
+
+**Error Handling**: See `rpc-client.ts` - `call()` method:
+- `try/catch` with `RPCError` handling
+- Errors automatically displayed in overlay
+- No need to manually handle display
+
+---
+
+## Summary
+
+The TypeScript system provides client-side functionality for the Henhouse HTTP interface:
+
+- **Overlay System**: Component-based modal dialogs with array-based content structure
+- **PageData Architecture**: Field management and form processing with automatic MCP tool selection
+- **RPC Integration**: MCP JSON-RPC wrapper with automatic debug handling
+- **Standardized Patterns**: Consistent handler patterns, field registration, and error handling
+- **Debug Integration**: Debug system integrated with overlay UI
+
+The system can be extended with new page types and handlers following the patterns documented above.
