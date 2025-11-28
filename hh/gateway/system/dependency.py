@@ -40,9 +40,19 @@ def check_dependency(dependency_name: str) -> tuple[bool, str]:
     """Check if a dependency is available.
     
     Returns (is_available, error_message).
+    
+    Note: Some packages have different import names than their package names.
+    For example, the "pillow" package is imported as "PIL".
     """
+    # Special cases for packages with different import names
+    import_name_map = {
+        "pillow": "PIL",  # Pillow package is imported as PIL
+    }
+    
+    import_name = import_name_map.get(dependency_name, dependency_name)
+    
     try:
-        __import__(dependency_name)
+        __import__(import_name)
         return True, ""
     except ImportError as e:
         return False, str(e)
