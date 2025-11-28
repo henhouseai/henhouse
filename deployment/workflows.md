@@ -75,7 +75,7 @@ If you need to rollback to a previous commit:
 
 **Using Stage Branches for Recovery**:
 
-Stage branches provide a mechanism for recovering and referencing previous working states:
+Stage branches provide a mechanism for recovering and referencing previous working states. The `stage` script (available as `stage.py` or `stage.ps1` on Windows) provides interactive tools for managing stage branches on your laptop.
 
 1. **Create Stage Branch from Server**:
    ```bash
@@ -83,30 +83,48 @@ Stage branches provide a mechanism for recovering and referencing previous worki
    ```
    - Creates timestamped stage branch: `stage/linux/{timestamp}-{description}` (see `git.md`)
    - Pushes current server state to remote
-   - Creates `stage` signal file in repository
+   - Creates `stage` signal file in repository with the message
 
 2. **Pull Stage Branch on Laptop**:
    ```bash
-   hen pull_project
+   stage pull
    ```
-   - Or manually: `git checkout stage/linux/{timestamp}-{description}`
-   - Extracts the stage branch to local repository (see `git.md`)
+   - Fetches remote branches and finds the latest stage branch
+   - Materializes the stage branch contents into a local `./stage` directory
+   - Creates a `.stage_changes.json` manifest file listing all changes (added, modified, deleted, renamed files)
+   - The `stage` signal file from the branch contains the recovery message
 
-3. **Access Stage Folder**:
-   - After pull, `{repo_root}/stage` file contains the recovery message
-   - Can use this to:
-     - **Manual Recovery**: Review files in that commit, copy specific files back
-     - **Agent Recovery**: Point agent to stage folder: "Look in the stage folder, see the previous working version that you forgot how it worked. I've recovered a copy for you."
-     - **Interactive Recovery**: Use git's interactive tools to selectively restore files
+   **Finding a Specific Stage Branch**:
+   ```bash
+   stage find "search term"
+   ```
+   - Searches stage branches for one containing the search term in its message
+   - Pulls the matching stage branch if found
+   - Useful when you have multiple stage branches and need a specific one
 
-4. **Selective File Recovery** (Optional):
+3. **Review and Apply Changes**:
+   ```bash
+   stage push
+   ```
+   - Compares files in `./stage` directory with your main codebase
+   - Provides interactive review interface showing:
+     - **DELETE**: Files that exist in main but not in stage (would be deleted)
+     - **ADD**: Files that exist in stage but not in main (would be added)
+     - **EDIT**: Files that differ between stage and main (would be updated)
+     - **RENAME**: Files that were renamed (if detected in manifest)
+     - **WARNINGS**: Encoding, line ending, or indentation issues
+   - For each change, you can accept (Y) or skip (N)
+   - Accepted changes are immediately applied to your main codebase
+   - After review, the `./stage` directory is automatically cleaned up
+
+4. **Manual Recovery** (Alternative):
    ```bash
    git checkout stage/linux/{timestamp}-{description} -- {file_path}
    ```
-   - Restores specific files from stage branch
-   - Allows granular recovery without full rollback
+   - Restores specific files from stage branch without using the stage script
+   - Allows granular recovery without full interactive review
 
-**Result**: Previous working state available for reference and recovery.
+**Result**: Previous working state available for reference and recovery, with interactive tools for selective restoration.
 
 ## Development-to-Production Sync Workflow
 
