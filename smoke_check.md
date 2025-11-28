@@ -1,4 +1,12 @@
+# Smoke Check Examples
 
+This document shows example output from running various Henhouse commands on different platforms. Use this as a reference to verify your installation is working correctly.
+
+## Dependency List
+
+### Windows PowerShell
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen dependency-list
 
   🏠 Henhouse:   Dependency List:
@@ -13,7 +21,169 @@ PS C:\Users\lee\Desktop\henhouse> hen dependency-list
     │ ✅  Dependency Installed │ pygments       │ source_code_file_content     │
     │ ✅  Dependency Installed │ pymysql        │ connection                   │
     └──────────────────────────┴────────────────┴──────────────────────────────┘
-PS C:\Users\lee\Desktop\henhouse> hen class-list     
+```
+
+**Note**: On Windows, some dependencies like `grp`, `pwd` are Unix-specific and will show as missing. This is expected.
+
+### Unix (Ubuntu Server) with Debug Logging
+
+```bash
+lee@henhouse:/henhouse$ hen dependency-list -log
+
+  🏠 Henhouse:   Dependency List:
+
+    ┌──────────────────────────┬────────────────┬──────────────────────────────┐
+    │ 📦  Dependencies         │ 6 dependencies │ required by                  │
+    ╞══════════════════════════╪════════════════╪══════════════════════════════╡
+    │ ✅  Dependency Installed │ grp            │ process_manager              │
+    │ ✅  Dependency Installed │ pillow         │ utils                        │
+    │ ✅  Dependency Installed │ psutil         │ process_manager              │
+    │ ✅  Dependency Installed │ pwd            │ file_system, process_manager │
+    │ ✅  Dependency Installed │ pygments       │ source_code_file_content     │
+    │ ✅  Dependency Installed │ pymysql        │ connection                   │
+    └──────────────────────────┴────────────────┴──────────────────────────────┘
+
+  ┌──────────────┬───────────────────────────┬─────────────────────────────┬─────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  label       │  folder                   │            file             │                       function  │  message                                                                                                                   │
+  ╞══════════════╪═══════════════════════════╪═════════════════════════════╪═════════════════════════════════╪════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │         _initialize_connection  │  Standard connection type selected                                                                                         │
+  │  🔸  Log:    │  /hh/deploy/              │          utils.py           │         detect_project_context  │  Detecting project context                                                                                                 │
+  │  🔸  Log:    │  /hh/deploy/              │          utils.py           │         detect_project_context  │  Found project: henhouse at /henhouse                                                                                      │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                      _load_dsn  │  DSN loaded from config: /home/lee/.henhouse.cnf, host=localhost, database=henhouse                                        │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │        _detect_user_tier_level  │  Detected tier: root (index 3 → level 4)                                                                                   │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │        _detect_user_tier_level  │  User tier level: 4                                                                                                        │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                      _load_dsn  │  DSN loaded from config: /home/lee/.henhouse.cnf, host=localhost, database=henhouse                                        │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                     initialize  │  Main database connection opened: host=localhost, database=henhouse                                                        │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                     initialize  │  Cache database connection opened: host=localhost, database=henhouse_cache                                                 │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                     initialize  │  History database connection skipped (not yet implemented)                                                                 │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                     initialize  │  All database connections initialized successfully                                                                         │
+  │  🔸  Log:    │  /hh/gateway/response/    │         response.py         │                       __init__  │  Response initialized with empty buffer                                                                                    │
+  │  🐛  Debug:  │  /hh/gateway/response/    │         response.py         │            set_user_tier_level  │  User tier level detected: 4 (root)                                                                                        │
+  │  🔸  Log:    │  /hh/gateway/response/    │         response.py         │            set_user_tier_level  │  Set user tier level: 4                                                                                                    │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │           _initialize_response  │  Set user tier level 4 in response                                                                                         │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │           _initialize_response  │  Initialized parser response handler: hh.gateway.response.response_parser.ResponseParser                                   │
+  │  🔸  Log:    │  /hh/gateway/system/      │       file_system.py        │                       __init__  │  FileSystem initialized (OS: ubuntu, dry_run=False)                                                                        │
+  │  🔸  Log:    │  /hh/gateway/system/      │     process_manager.py      │                       __init__  │  ProcessManager initialized (OS: linux)                                                                                    │
+  │  🔸  Log:    │  /hh/gateway/registry/    │          cache.py           │    discover_base_registrations  │  Found base cache with 5 backends and 103 commands                                                                         │
+  │  🔸  Log:    │  /hh/gateway/registry/    │          cache.py           │           check_command_exists  │  Command 'dependency_list' exists: True                                                                                    │
+  │  🔸  Log:    │  /hh/gateway/registry/    │          cache.py           │    discover_base_registrations  │  Found base cache with 5 backends and 103 commands                                                                         │
+  │  🔸  Log:    │  /hh/gateway/registry/    │          cache.py           │           check_backend_exists  │  Backend 'parser' exists: True                                                                                             │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │                      decorator  │  register_command buffering 'dependency_list' from 'hh.gateway.system.dependency_list' (action_args=None)                  │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │                inner_decorator  │  Registered action: dependency_list -> hh.gateway.system.dependency_list.dependency_list                                   │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │                inner_decorator  │  Registered parser: dependency_list -> hh.gateway.system.dependency_list.dependency_list_parser                            │
+  │  🔸  Log:    │  /hh/gateway/registry/    │          cache.py           │       check_command_in_backend  │  Found command 'dependency_list' in backend 'parser' cache                                                                 │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │                       __init__  │  Stored backend handler info for 'dependency_list': hh.gateway.system.dependency_list.dependency_list_parser               │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │                 select_backend  │  Found backend 'parser' with function: 'hh.gateway.registry.registry.backend_stub'                                         │
+  │  🔸  Log:    │  /hh/gateway/registry/    │          cache.py           │       check_command_in_backend  │  Found command 'dependency_list' in backend 'action' cache                                                                 │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │                 select_command  │  Found command 'dependency_list' from action cache with function 'hh.gateway.system.dependency_list.dependency_list'       │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │        _configure_debug_module  │  Debug module configuration completed                                                                                      │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Gateway initialization completed, dispatching...                                                                          │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │             load_action_module  │  Action module loaded: 'hh.gateway.system.dependency_list' with function: 'dependency_list'                                │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Action module loaded: hh.gateway.system.dependency_list                                                                   │
+  │  🔸  Log:    │  /hh/gateway/registry/    │         registry.py         │            load_backend_module  │  Backend module loaded: 'hh.gateway.system.dependency_list' with function: 'dependency_list_parser'                        │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Backend module loaded: hh.gateway.system.dependency_list                                                                  │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Starting action execution: hh.gateway.system.dependency_list.dependency_list                                              │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.gateway.connection.connection for dependency registration                                                     │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.gateway.system.process_manager for dependency registration                                                    │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.gateway.system.dependency_list for dependency registration                                                    │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.gateway.system.dependency for dependency registration                                                         │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.gateway.system.file_system for dependency registration                                                        │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.image.utils for dependency registration                                                                       │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │  _scan_and_import_dependencies  │  Imported hh.source_code_file.source_code_file_content for dependency registration                                         │
+  │  🔸  Log:    │  /hh/gateway/system/      │     dependency_list.py      │                dependency_list  │  Checked 6 dependencies, all_available=True                                                                                │
+  │  🔸  Log:    │  /hh/gateway/response/    │      json_standard.py       │                success_payload  │  Created success payload with 4 data keys                                                                                  │
+  │  🔸  Log:    │  /hh/gateway/response/    │         response.py         │            set_action_response  │  Set action response: 676 characters                                                                                       │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Action execution completed successfully in 0.040s                                                                         │
+  │  🔸  Log:    │  /hh/gateway/response/    │         response.py         │            has_action_response  │  Has action response: True                                                                                                 │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Starting backend execution: hh.gateway.system.dependency_list.dependency_list_parser                                      │
+  │  🔸  Log:    │  /hh/gateway/response/    │         response.py         │            get_action_response  │  Retrieved action response: <class 'dict'>                                                                                 │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │           render_parser_header  │  Parser backend detected - using CLI header renderer                                                                       │
+  │  🔸  Log:    │  /hh/deploy/cache/        │  cache_cleanup_registry.py  │                      decorator  │  Registered cache cleanup: config_registry -> hh.render.config.config_registry.cleanup_config_registry_cache (cache_dir:   │
+  │              │                           │                             │                                 │  hh/render/config/cache)                                                                                                   │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Label 'l_main_header' not in hot cache, checking cold cache                                                               │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Found label 'l_main_header' in cold cache from hh.render.config.config_labels, updated hot cache                          │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Icon 'tab' not in hot cache, checking cold cache                                                                          │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'tab' in cold cache from hh.render.config.config_labels, updated hot cache                                     │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Icon 'blank_emoji' not in hot cache, checking cold cache                                                                  │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'blank_emoji' in cold cache from hh.render.config.config_labels, updated hot cache                             │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Label 'l_dependency_list' not in hot cache, checking cold cache                                                           │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Found label 'l_dependency_list' in cold cache from hh.gateway.registry.config_labels, updated hot cache                   │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'tab' in hot cache                                                                                             │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'blank_emoji' in hot cache                                                                                     │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │           render_parser_header  │  Added main header:   🏠 Henhouse:                                                                                         │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │           render_parser_header  │  Added sub header:   Dependency List:                                                                                      │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │           render_parser_header  │  Generated header with 2 parts (header_id= stored but not used)                                                            │
+  │  🔸  Log:    │  /hh/render/              │          render.py          │                finalize_output  │  Finalized output: 3 input lines -> 3 output lines                                                                         │
+  │  🔸  Log:    │  /hh/render/              │          render.py          │                   render_block  │  Rendering block: 7 rows, table_class=standard, block_type=list, table_id=                                                 │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │          render_flexible_table  │  Rendering flexible table: 7 rows, table_class=standard                                                                    │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │          render_flexible_table  │  Identified columns: ['label', 'info', 'col_b']                                                                            │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │          render_flexible_table  │  Set final column 'col_b' width and overflow                                                                               │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │          render_flexible_table  │  Applied table overrides: {'margin_l': 4}                                                                                  │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Icon 'dependency_header' not in hot cache, checking cold cache                                                            │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'dependency_header' in cold cache from hh.gateway.registry.config_labels, updated hot cache                    │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Label 'l_dependency_header' not in hot cache, checking cold cache                                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Found label 'l_dependency_header' in cold cache from hh.gateway.registry.config_labels, updated hot cache                 │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'tab' in hot cache                                                                                             │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                       get_icon  │  Found icon 'blank_emoji' in hot cache                                                                                     │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Label 'l_dependency_available' not in hot cache, checking cold cache                                                      │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │  discover_config_registrations  │  Found config registry cache with 403 icons and 510 labels (last scan: 222.6s ago)                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Found label 'l_dependency_available' in cold cache from hh.gateway.registry.config_labels, updated hot cache              │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Found label 'l_dependency_available' in hot cache                                                                         │
+  │  🔸  Log:    │  /hh/render/config/       │     config_registry.py      │                      get_label  │  Found label 'l_dependency_available' in hot cache                                                                         │
+  │  🔸  Log:    │  /hh/render/              │      render_parser.py       │          render_flexible_table  │  Rendered flexible table with 7 rows                                                                                       │
+  │  🔸  Log:    │  /hh/render/              │          render.py          │                finalize_output  │  Finalized output: 2 input lines -> 2 output lines                                                                         │
+  │  🔸  Log:    │  /hh/gateway/response/    │         response.py         │                     add_output  │  Added output:                                                                                                             │
+  │              │                           │                             │                                 │    🏠 Henhouse:   Dependency List:                                                                                         │
+  │              │                           │                             │                                 │                                                                                                                            │
+  │              │                           │                             │                                 │      ┌──────────────────────────┬────────────────┬──────────────────────────────┐                                          │
+  │              │                           │                             │                                 │      │ 📦  Dependencies         │ 6 dependencies │ required by                  │                                          │
+  │              │                           │                             │                                 │      ╞══════════════════════════╪════════════════╪══════════════════════════════╡                                          │
+  │              │                           │                             │                                 │      │ ✅  Dependency Installed │ grp            │ process_manager              │                                          │
+  │              │                           │                             │                                 │      │ ✅  Dependency Installed │ pillow         │ utils                        │                                          │
+  │              │                           │                             │                                 │      │ ✅  Dependency Installed │ psutil         │ process_manager              │                                          │
+  │              │                           │                             │                                 │      │ ✅  Dependency Installed │ pwd            │ file_system, process_manager │                                          │
+  │              │                           │                             │                                 │      │ ✅  Dependency Installed │ pygments       │ source_code_file_content     │                                          │
+  │              │                           │                             │                                 │      │ ✅  Dependency Installed │ pymysql        │ connection                   │                                          │
+  │              │                           │                             │                                 │      └──────────────────────────┴────────────────┴──────────────────────────────┘                                          │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Backend execution completed successfully in 0.040s                                                                        │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                _process_errors  │  Error check result: False                                                                                                 │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                _process_errors  │  No errors detected                                                                                                        │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Starting commit process...                                                                                                │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Committing file operations...                                                                                             │
+  │  🔸  Log:    │  /hh/gateway/system/      │       file_system.py        │                         commit  │  FileSystem commit starting...                                                                                             │
+  │  🔸  Log:    │  /hh/gateway/system/      │       file_system.py        │                         commit  │  No file operations to execute                                                                                             │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Refreshing stale image caches...                                                                                          │
+  │  🔸  Log:    │  /hh/image/               │      image_registry.py      │     refresh_stale_image_caches  │  No images in hot cache to refresh                                                                                         │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Refreshing stale file caches...                                                                                           │
+  │  🔸  Log:    │  /hh/file/                │      file_registry.py       │      refresh_stale_file_caches  │  No files in hot cache to refresh                                                                                          │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Refreshing stale page caches...                                                                                           │
+  │  🔸  Log:    │  /hh/page/                │      page_registry.py       │      refresh_stale_page_caches  │  No pages in hot cache to refresh                                                                                          │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Committing database transactions...                                                                                       │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                         commit  │  No transaction to commit                                                                                                  │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                        _commit  │  Commit process completed                                                                                                  │
+  │  🔸  Log:    │  /hh/gateway/             │         gateway.py          │                       dispatch  │  Closing database connections...                                                                                           │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                          close  │  Starting connection cleanup...                                                                                            │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                          close  │  Cache database connection closed                                                                                          │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                          close  │  Main database connection closed                                                                                           │
+  │  🔸  Log:    │  /hh/gateway/connection/  │        connection.py        │                          close  │  All database connections closed successfully                                                                              │
+  └──────────────┴───────────────────────────┴─────────────────────────────┴─────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Note**: The `-log` flag provides detailed debug output showing the Gateway execution flow, including connection initialization, registry lookups, action execution, and backend rendering.
+
+## System Registry Commands
+
+### Class List
+
+```powershell
+PS C:\Users\lee\Desktop\henhouse> hen class-list
 
   🏠 Henhouse:   Page Class Registry
 
@@ -26,7 +196,11 @@ PS C:\Users\lee\Desktop\henhouse> hen class-list
     │ ✅  Loaded Class │ source_code_file │ ✅ Loaded │ hh.source_code_file.source_code_file     │
     │ ✅  Loaded Class │ work_docket      │ ✅ Loaded │ hh.work_docket.work_docket               │
     └──────────────────┴──────────────────┴───────────┴──────────────────────────────────────────┘
+```
 
+### Backend List
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen backend-list
 
   🏠 Henhouse:   Backend List:
@@ -40,8 +214,12 @@ PS C:\Users\lee\Desktop\henhouse> hen backend-list
     │ 🔲  Found:  │ mcp         │ hh.gateway.registry.mcp         │
     │ ✅  Loaded: │ parser      │ hh.gateway.registry.parser      │
     └─────────────┴─────────────┴─────────────────────────────────┘
+```
 
-PS C:\Users\lee\Desktop\henhouse> hen action-list 
+### Action List
+
+```powershell
+PS C:\Users\lee\Desktop\henhouse> hen action-list
 
   🏠 Henhouse:   Action List:
 
@@ -158,7 +336,11 @@ PS C:\Users\lee\Desktop\henhouse> hen action-list
     │ 🔲  Found:  │ modify_work_sort_order       │ hh.work.modify_work_sort_order                  │
     │ 🔲  Found:  │ modify_work_status           │ hh.work.modify_work_status                      │
     └─────────────┴──────────────────────────────┴─────────────────────────────────────────────────┘
+```
 
+### Command List
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen command-list
 
   🏠 Henhouse:   Command List:
@@ -291,7 +473,11 @@ PS C:\Users\lee\Desktop\henhouse> hen command-list
     │ 🔲  Found:   │ modify_work_sort_order       │ hh.work.modify_work_sort_order                  │                       │
     │ 🔲  Found:   │ modify_work_status           │ hh.work.modify_work_status                      │                       │
     └──────────────┴──────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────┘
+```
 
+### HTTP List
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen http-list
 
   🏠 Henhouse:   HTTP List:
@@ -305,7 +491,11 @@ PS C:\Users\lee\Desktop\henhouse> hen http-list
     ├────────────┼────────────┼────────────────────────────┤
     │ 🔲  Found: │ show_page  │ hh.page.render_show_page   │
     └────────────┴────────────┴────────────────────────────┘
+```
 
+### Parser List
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen parser-list
 
   🏠 Henhouse:   Parser List:
@@ -436,7 +626,11 @@ PS C:\Users\lee\Desktop\henhouse> hen parser-list
     │ 🔲  Found:   │ modify_work_sort_order       │ hh.work.render_show_work_page                        │
     │ 🔲  Found:   │ modify_work_status           │ hh.work.render_show_work_page                        │
     └──────────────┴──────────────────────────────┴──────────────────────────────────────────────────────┘
+```
 
+### MCP List
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen mcp-list
 
   🏠 Henhouse:   MCP List:
@@ -512,7 +706,11 @@ PS C:\Users\lee\Desktop\henhouse> hen mcp-list
     │ 🔲  Found:  │ unsubscribe_task             │ hh.gateway.registry.mcp │
     │ 🔲  Found:  │ upload_images                │ hh.gateway.registry.mcp │
     └─────────────┴──────────────────────────────┴─────────────────────────┘
+```
 
+### Maintenance List
+
+```powershell
 PS C:\Users\lee\Desktop\henhouse> hen maintenance-list
 
   🏠 Henhouse:   Maintenance List:
@@ -533,3 +731,10 @@ PS C:\Users\lee\Desktop\henhouse> hen maintenance-list
     └────────────┴─────────────────────────┴─────────────────────────────────┘
 
 PS C:\Users\lee\Desktop\henhouse> 
+
+
+
+
+
+
+

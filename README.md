@@ -49,11 +49,13 @@ sudo hen deploy
 
 ### Basic Usage
 
-The basic command format is:
+**Command Syntax**: The basic command format is:
 
 ```bash
 python hen.py command-name -arg value
 ```
+
+**Shorthand Command**: You can use the shorter `hen` command if the project folder is in your PATH. The PowerShell scripts (`.ps1` files) in the project folder provide wrapper scripts that enable this shorthand syntax. If the project folder is not in your PATH, you'll need to use the full `python hen.py` syntax or provide the full path to the `hen` script.
 
 **Example Commands** (Windows PowerShell):
 
