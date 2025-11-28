@@ -1240,12 +1240,22 @@ The log coordinator runs as part of the meta-daemon and provides a simple HTTP A
    - Create configuration file schema and validation
    - Build configuration caching for Flask tiers
    - Add configuration backup and rollback capabilities
+   - **Location**: JSON state/config file in project directory (not deployed)
+   - **Cache Integration**: Registered via cache cleanup system so it can be purged safely
 
-2. **Meta-Daemon Framework**
-   - Create basic meta-daemon with start/stop/status commands
+2. **Unified Daemon Manager Framework**
+   - **CLI Action**: Build CLI action (living under project folder, not deployed) that can `start|stop|status` any daemon
+   - **Unified Management**: Same manager understands both web app daemons (four Flask tiers) and maintenance jobs
+   - **Behavioral Requirements**:
+     - `start`/`stop` with optional job args (`start page-cache`, `stop orphan`, or no args = all jobs)
+     - `status` reports each job individually (running/stopped, PID info, last heartbeat, etc.)
+     - Must work identically on Windows/Mac/Linux for dev testing
+     - Provide hooks so a future cron/systemd entry can invoke the manager on reboot to auto-start everything according to the JSON config
+   - **Design Philosophy**: Straightforward—read JSON, exec subprocesses, log results. No hidden state, no new micro-frameworks
    - Implement daemon process management utilities
    - Add cross-platform process discovery and control
    - Build heartbeat and health monitoring system
+   - **Future Integration**: Eventually the web UI (root/admin panel) can drive it
 
 3. **Logging Coordination**
    - Implement log coordinator service
@@ -1254,7 +1264,7 @@ The log coordinator runs as part of the meta-daemon and provides a simple HTTP A
    - Build log monitoring and alerting
 
 **Deliverables**:
-- Basic daemon manager CLI (`daemon-manager start/stop/status`)
+- Unified daemon manager CLI (`daemon-manager start/stop/status`) for Flask tiers + maintenance jobs
 - JSON configuration file with manual daemon management
 - Coordinated logging system for multiple daemons
 - Process management utilities for spawning/terminating daemons
@@ -1342,6 +1352,31 @@ The log coordinator runs as part of the meta-daemon and provides a simple HTTP A
 - Optimized performance and resource usage
 - Comprehensive monitoring and alerting
 - Documentation and operational procedures
+
+### Phase 3: Deployment + Nginx Integration
+
+**Deployment Script Integration**:
+1. **Deploy Scripts Alignment**
+   - Update `hh/deploy/http/deploy_http.py` (and the SSL variant) plus `nginx_config_helpers.py`
+   - Accept desired counts per Flask tier (guest/verified/admin/root) and emit Nginx upstream config with that many workers
+   - Know how many maintenance daemons to expect and include them in restart routines
+   - Allow SSL vs. non-SSL flows via a single script with a flag (non-SSL used only temporarily for Let's Encrypt challenges)
+
+2. **Nginx Reload + Daemon Coordination**
+   - After writing configs, the deploy script should call the daemon manager to start/stop the correct number of Flask instances and maintenance jobs
+   - Then reload Nginx to pick up new upstream configurations
+   - Ensure atomic updates: config changes → daemon restarts → Nginx reload
+
+3. **Auto-Start on Reboot**
+   - Provide a root-owned cron/systemd unit that runs the daemon manager (via sudo gateway wrapper)
+   - Configured stack comes back automatically after a reboot—no manual intervention
+   - Reads JSON config to determine which daemons to start
+
+**Deliverables**:
+- Updated deployment scripts with daemon count parameters
+- Nginx config generation with dynamic upstream worker counts
+- Integrated daemon manager calls in deployment workflow
+- Cron/systemd unit for automatic startup on reboot
 
 ### Implementation Milestones
 

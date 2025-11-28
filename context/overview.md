@@ -389,7 +389,7 @@ The following documents provide detailed implementation information beyond this 
 
 - **gateway.md**: Essential reading for understanding how the system orchestrates requests, manages state, and coordinates all subsystems. Required for any work involving request handling, database connections, file operations, or extending Gateway functionality.
 - **page.md**: Essential reading for content management work. Covers the extensible page system architecture, mixin patterns, validation functions, and how to create new page types. Required for any work involving pages, images, files, or content processing.
-- **deployment_overview.md**: Essential reading for understanding the deployment system architecture, multi-tier infrastructure setup, and production deployment workflows. Required for any work involving server setup, deployment operations, or production environment management.
+- **deployment.md**: Essential reading for understanding the deployment system architecture, multi-tier infrastructure setup, and production deployment workflows. Required for any work involving server setup, deployment operations, or production environment management.
 
 ### **gateway.md**
 
@@ -474,7 +474,7 @@ The following documents provide detailed implementation information beyond this 
 - **Command Structure**: How to structure new commands following established patterns
 - **Integration Examples**: How to implement actions, create backend handlers, and integrate with Gateway system
 
-### **deployment_overview.md**
+### **deployment.md**
 
 - **Deployment Architecture**: Comprehensive overview of the "set it up once, deploy repeatedly" deployment philosophy
 - **Installation System**: One-time infrastructure setup with tier-based users, SSH keys, credential files, and git repositories
@@ -492,14 +492,6 @@ The following documents provide detailed implementation information beyond this 
 ## **Future Development**
 
 This section documents planned features and architectural expansions.
-
-### **Deployment System**
-
-- Automated deployment triggers from stage branch pushes with health check integration
-- Multi-environment support for staging, production, and development with environment-specific configuration
-- Enhanced security features including automated SSL certificate renewal and security audit logging
-- Performance optimization with incremental deployment (only changed files) and parallel service restart
-- Deployment status dashboard and monitoring for visibility into deployment operations
 
 ### **Database**
 
@@ -548,15 +540,17 @@ This section documents planned features and architectural expansions.
 
 - Auto-scaling orchestration system providing dynamic horizontal scaling for all daemon types based on load metrics
 - Meta-daemon architecture with centralized monitoring, scaling decisions, and daemon lifecycle management
+- **Unified Daemon Manager**: CLI action (project folder, not deployed) that can `start|stop|status` any daemon (Flask tiers + maintenance jobs) with optional job args, individual status reporting, cross-platform support (Windows/Mac/Linux), and hooks for cron/systemd auto-start on reboot
 - Flask tier scaling with fixed main daemons on ports 5001-5004 and dynamic sub-daemons on ports 5011-5049 for horizontal scaling
 - Maintenance worker pool with horizontal scaling based on job queue depth and processing rates
 - Async handoff pattern for Flask request delegation to sub-daemons using fire-and-forget patterns
-- JSON configuration system as single source of truth with atomic updates and configuration caching
+- JSON configuration system as single source of truth with atomic updates and configuration caching (JSON state/config file in project directory, registered via cache cleanup system)
 - Rolling boxcar averaging for scaling decisions to prevent jitter and rapid oscillation
 - Coordinated logging system for multiple daemons with log coordinator service or file locking
 - Tempo signaling from Flask tiers to meta-daemon for request frequency and response time metrics
 - Cross-platform process management supporting Windows, macOS, and Linux with platform-specific abstractions
-- Implementation phases: foundation (JSON config, meta-daemon, logging), multi-worker support, auto-scaling, async handoff, production hardening
+- **Deployment Integration**: Deploy scripts accept desired counts per Flask tier, emit Nginx upstream config, coordinate daemon restarts with Nginx reload, support SSL/non-SSL flows, and provide auto-start on reboot via cron/systemd
+- Implementation phases: foundation (unified daemon manager, JSON config, logging), multi-worker support, auto-scaling, async handoff, production hardening, deployment + Nginx integration
 
 ### **Distributed Knowledge Architecture (Aggregator System)**
 
