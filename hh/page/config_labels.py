@@ -72,5 +72,9 @@ from hh.render.config.config_registry import register_label
 @register_label('class_details_header',               'Class Details',             '📋')
 @register_label('loaded_class',                       'Loaded Class',              '✅')
 @register_label('failed_class',                       'Failed Class',              '❌')
+@register_label('get_page_section_header',            'Page Section',              '📄')
+@register_label('section',                            'Section:',                  '📋')
+@register_label('view_type',                          'View Type:',                '👁️')
+@register_label('dom_content',                        'DOM Content:',              '📄')
 def _register_config():
     pass

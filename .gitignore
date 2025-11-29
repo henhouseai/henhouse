@@ -46,7 +46,5 @@ tp-decorators.json
 config-registry.json
 
 # Project folders
-features/
-docs/
-core/
+legacy/
 logs/

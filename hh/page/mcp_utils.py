@@ -410,6 +410,23 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='images',
     app_action_label='Upload'
 )
+@register_mcp_tool(
+    tool_name='get_page_section',
+    description='Get HTML snippet for a specific page section (images, children, files) in the requested view mode (table or tile).',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'integer', 'description': 'Page ID'},
+            'section': {'type': 'string', 'description': 'Section name: images, children, or files', 'enum': ['images', 'children', 'files']},
+            'view_type': {'type': 'string', 'description': 'View mode: table, tile, or auto (defaults based on backend)', 'enum': ['table', 'tile', 'auto']},
+            'class_name': {'type': 'string', 'description': 'For children sections, filter by specific class (optional)'}
+        },
+        'required': ['id', 'section']
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""
     pass
