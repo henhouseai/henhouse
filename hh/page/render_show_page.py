@@ -369,7 +369,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                     
                     from hh.render.html.page_group import PageGroup
                     page_group = PageGroup(children_data, page_id, class_name, target_width=300)
-                    content_html = page_group.render(set_response=False)  # Get HTML string without setting response
+                    content_html = page_group.render()  # Get HTML string (includes wrapper divs)
                     # Prepend header and set response
                     gateway.response.add_child_pages(header_html + content_html)
                     continue  # Skip table rendering
@@ -557,7 +557,7 @@ def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None
             header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
             
             image_group = ImageGroup(images_data, page_id, target_width=300)
-            content_html = image_group.render(set_response=False)  # Get HTML string without setting response
+            content_html = image_group.render()  # Get HTML string (includes wrapper divs)
             # Prepend header and set response
             gateway.response.set_image_group(header_html + content_html)
         else:

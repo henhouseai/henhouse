@@ -46,14 +46,11 @@ class TileGroup:
         log(f"Added tile to group (total: {len(self.tiles)})")
         trace_out()
     
-    def render(self, set_response: bool = True) -> str:
+    def render(self) -> str:
         """Render the tile group as HTML <ul> structure.
         
-        Args:
-            set_response: If True, call finalize_output which may set response (default True)
-        
         Returns:
-            HTML string: <ul> with <li> elements containing tiles
+            HTML string: Wrapped content div with <ul> containing tiles
         """
         trace_in()
         
@@ -71,11 +68,9 @@ class TileGroup:
         html_parts.append('</ul>')
         result = ''.join(html_parts)
         
-        # Call finalize_output hook (overridden by derived classes)
-        if set_response:
-            html_output = self.finalize_output(result)
-        else:
-            html_output = result
+        # Always call finalize_output hook (overridden by derived classes)
+        # This wraps the content in divs with IDs - it doesn't set response
+        html_output = self.finalize_output(result)
         
         log(f"Generated tile group HTML for {len(self.tiles)} tiles")
         trace_out()

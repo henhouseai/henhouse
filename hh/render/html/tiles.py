@@ -75,19 +75,24 @@ class Tile:
         return best_instance
     
     def _render_image_html(self) -> str:
-        """Render the image HTML for this tile."""
+        """Render the image HTML for this tile, wrapped in a 300px container."""
         trace_in()
         best_instance = self._find_best_image_instance()
         
+        # Wrap image in a fixed-width container div (300px, no padding/border)
         if best_instance and best_instance.get('src'):
             src_path = best_instance['src']
             img_src = f'/srv/images/{src_path}'
             alt_text = self.text or ""
             # Format with proper indentation (8 spaces for content inside <div class="tileWrapper">)
-            img_html = f'        <img src="{img_src}" alt="{alt_text}">\n'
+            img_html = (
+                f'        <div class="imageWrapper">\n'
+                f'          <img src="{img_src}" alt="{alt_text}">\n'
+                f'        </div>\n'
+            )
         else:
-            # Empty image - create div to maintain width (CSS handles width)
-            img_html = f'        <div class="emptyTileImage"></div>\n'
+            # Empty image - create div to maintain 300px width
+            img_html = f'        <div class="imageWrapper"><div class="emptyTileImage"></div></div>\n'
         
         trace_out()
         return img_html

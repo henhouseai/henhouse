@@ -29,11 +29,37 @@ div.tileWrapper * {
     text-decoration: none;
 }
 
+/* Image Wrapper - Fixed 300px width, no padding/border */
+div.tileWrapper div.imageWrapper {
+    width: 300px;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+}
+
+div.tileWrapper div.imageWrapper img {
+    width: 300px;
+    height: auto;
+    display: block;
+    margin: 0;
+    padding: 0;
+}
+
+div.tileWrapper div.imageWrapper div.emptyTileImage {
+    width: 300px;
+    height: 200px;
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+}
+
 div.tileWrapper div.tileText {
     padding: 5px;
     text-align: center;
     text-decoration: none;
     font-size: 12pt;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 div.tileWrapper div.emptyTileText {

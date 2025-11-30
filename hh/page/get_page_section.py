@@ -92,7 +92,7 @@ def get_page_section_action() -> bool:
             if view_type == "tile":
                 # Render as tiles (no headers for get_page_section - only content)
                 image_group = ImageGroup(images_data, page_id, target_width=300)
-                dom_content = image_group.render(set_response=False)  # Returns HTML string
+                dom_content = image_group.render()  # Returns HTML string (includes wrapper divs)
             else:
                 # Render as table (shouldn't happen for MCP, but handle it)
                 from hh.render.render import FieldConfig, TableData, render_block
@@ -153,7 +153,7 @@ def get_page_section_action() -> bool:
                 if view_type == "tile":
                     # Render as tiles (no headers for get_page_section - only content)
                     page_group = PageGroup(children_data, page_id, class_name, target_width=300)
-                    dom_content = page_group.render(set_response=False)  # Returns HTML string
+                    dom_content = page_group.render()  # Returns HTML string (includes wrapper divs)
                 else:
                     # Render as table (shouldn't happen for MCP, but handle it)
                     from hh.render.render import FieldConfig, TableData, render_block
