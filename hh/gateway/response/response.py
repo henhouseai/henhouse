@@ -39,6 +39,9 @@ class Response:
         self.page_text: str = ""
         self.upper_content: List[str] = []
         self.lower_content: List[str] = []
+        self.child_pages: List[str] = []
+        self.image_group: str = ""
+        self.file_group: str = ""
         self.admin: bool = False
         self.user_info_html: str = ""
         self.site_links_html: str = ""
@@ -192,6 +195,39 @@ class Response:
             log(f"Added lower content: {len(processed_content)} characters")
         else:
             log("Skipped empty lower content")
+        trace_out()
+    
+    def add_child_pages(self, content: str) -> None:
+        """Add content to the child pages section."""
+        trace_in()
+        # Filter out empty content - only add if content has non-whitespace or is exactly "\n"
+        if content and (content.strip() or content == "\n"):
+            # Convert "\n" to empty string, otherwise use content as-is
+            processed_content = "" if content == "\n" else content
+            self.child_pages.append(processed_content)
+            log(f"Added child pages: {len(processed_content)} characters")
+        else:
+            log("Skipped empty child pages content")
+        trace_out()
+    
+    def set_image_group(self, content: str) -> None:
+        """Set the image group section content."""
+        trace_in()
+        if content and content.strip():
+            self.image_group = content
+            log(f"Set image group: {len(content)} characters")
+        else:
+            log("Skipped empty image group content")
+        trace_out()
+    
+    def set_file_group(self, content: str) -> None:
+        """Set the file group section content."""
+        trace_in()
+        if content and content.strip():
+            self.file_group = content
+            log(f"Set file group: {len(content)} characters")
+        else:
+            log("Skipped empty file group content")
         trace_out()
     
     def has_action_response(self) -> bool:

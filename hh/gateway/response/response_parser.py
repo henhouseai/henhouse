@@ -14,7 +14,7 @@ class ResponseParser(Response):
     """
     
     def get_output(self) -> str:
-        """Return CLI output - includes upper_content, page_text, lower_content, then backend response."""
+        """Return CLI output - includes upper_content, page_text, lower_content, child_pages, image_group, file_group, then backend response."""
         parts = []
         
         # Upper content (path and badge headers)
@@ -27,11 +27,25 @@ class ResponseParser(Response):
         if self.page_text:
             parts.append(self.page_text)
         
-        # Lower content (images, children, extra data)
+        # Lower content
         if self.lower_content:
             lower_content_text = "\n".join(self.lower_content)
             if lower_content_text:
                 parts.append(lower_content_text)
+        
+        # Child pages
+        if self.child_pages:
+            child_pages_text = "\n".join(self.child_pages)
+            if child_pages_text:
+                parts.append(child_pages_text)
+        
+        # Image group
+        if self.image_group:
+            parts.append(self.image_group)
+        
+        # File group
+        if self.file_group:
+            parts.append(self.file_group)
         
         # Error output if present
         if self.error_output and "rendered" in self.error_output:

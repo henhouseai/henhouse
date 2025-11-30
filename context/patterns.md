@@ -488,7 +488,7 @@ from typing import List, TypedDict
 from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.json.json_standard import get_data
-from hh.text.text import safe_str
+from hh.render.config.config import safe_str
 
 def render_items_section(source_data, lines):
     trace_in()
@@ -614,7 +614,7 @@ from typing import List, TypedDict
 from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.json.json_standard import get_data
-from hh.text.text import safe_str
+from hh.render.config.config import safe_str
 
 def render_items_section(source_data, lines):
     trace_in()

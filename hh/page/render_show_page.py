@@ -5,6 +5,7 @@ from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.render.config.config import dc, safe_str
+from hh.render.html.image_group import render_image_group_html
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import get_data
@@ -376,7 +377,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                     block_type=block,
                     table_id=f'child_pages_{class_name}'
                 )
-                gateway.response.set_lower_content(children_block)
+                gateway.response.add_child_pages(children_block)
     trace_out()
 
 
@@ -431,7 +432,7 @@ def render_children_section(children_data: List[Dict[str, Union[str, int]]]) -> 
     trace_out()
 
 
-def render_images_section(images_data: List[Dict[str, Any]]) -> None:
+def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None) -> None:
     trace_in()
     block = 'images'
     gateway = get_gateway()
@@ -439,48 +440,11 @@ def render_images_section(images_data: List[Dict[str, Any]]) -> None:
         warn("No gateway available")
         trace_out()
         return False
-    if not gateway.is_no(block) and images_data:
+    if not gateway.is_no(block) and images_data and page_id is not None:
         log(f"Rendering images section with {len(images_data)} images")
-        # Create header row
-        images_rows = TableData()
-        images_rows.add_row(
-            'images_header',
-            label='Images',
-            rank='Rank',
-            id='ID',
-            caption='Caption',
-            uploaded='Uploaded',
-            instances='Instances'
-        )
-        # Create data rows for each image
-        for image in images_data:
-            image_id = image.get('id')
-            instances_count = len(image.get('instances', []))
-            images_rows.add_row(
-                'image_item',
-                rank=str(image.get('image_rank', 'N/A')),
-                id=str(image_id) if image_id is not None else 'N/A',
-                caption=safe_str(image.get('caption', 'untitled')),
-                uploaded=safe_str(image.get('uploaded', 'N/A')),
-                instances=str(instances_count)
-            )
-            # Add image link metadata to label, rank, id, and caption columns
-            if image_id is not None:
-                images_rows.add_image_link_to_column('label', image_id)
-                images_rows.add_image_link_to_column('rank', image_id)
-                images_rows.add_image_link_to_column('id', image_id)
-                images_rows.add_image_link_to_column('caption', image_id)
-        if images_rows.num_rows() > 0:
-            images_block = render_block(
-                images_rows,
-                FieldConfig()
-                    .add_header('images_header')
-                    .add_simple(['image_item']),
-                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
-                block_type=block,
-                table_id='image_group'
-            )
-            gateway.response.set_lower_content(images_block)
+        image_group_html = render_image_group_html(images_data, page_id)
+        if image_group_html:
+            gateway.response.set_image_group(image_group_html)
     trace_out()
 
 
@@ -534,7 +498,7 @@ def render_files_section(files_data: List[Dict[str, Any]]) -> None:
                 block_type=block,
                 table_id='file_group',
             )
-            gateway.response.set_lower_content(files_block)
+            gateway.response.set_file_group(files_block)
     trace_out()
 
 
@@ -707,8 +671,9 @@ def show_page() -> bool:
     children_by_class = source_data.get('children_by_class', {})
     images_data = source_data.get('images', [])
     files_data = source_data.get('files', [])
+    page_id = page_data.get('id')
     if images_data:
-        render_images_section(images_data)
+        render_images_section(images_data, page_id=page_id)
     if files_data:
         render_files_section(files_data)
     if children_by_class:

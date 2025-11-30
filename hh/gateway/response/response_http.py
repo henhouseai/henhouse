@@ -209,7 +209,7 @@ class ResponseHTTP(Response):
             user_action_links_html=user_action_links_html,
         )
         
-        # Build content divs in order: upper_content, page_text, lower_content, then backend response
+        # Build content divs in order: upper_content, page_text, lower_content, child_pages, image_group, file_group, then backend response
         content_divs = []
         if self.upper_content:
             upper_content_html = "\n".join(self.upper_content)
@@ -232,6 +232,14 @@ class ResponseHTTP(Response):
             lower_content_html = "\n".join(self.lower_content)
             if lower_content_html:
                 content_divs.append(lower_content_html)
+        if self.child_pages:
+            child_pages_html = "\n".join(self.child_pages)
+            if child_pages_html:
+                content_divs.append(child_pages_html)
+        if self.image_group:
+            content_divs.append(self.image_group)
+        if self.file_group:
+            content_divs.append(self.file_group)
         if body_content:
             content_divs.append(body_content)
         

@@ -13,7 +13,7 @@ from hh.gateway.registry.registry import (
 )
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.page.page_registry import get_page
-from hh.render.html.tiles import render_image_tile_link
+from hh.render.html.image_group import render_image_group_html
 from hh.render.render import (
     FieldConfig,
     TableData,
@@ -88,30 +88,7 @@ def get_page_section_action() -> bool:
         dom_content = ""
         if section == "images":
             images_data = page.get_images_data()
-            if view_type == "tile":
-                # Render as tiles
-                page_id_str = str(page_id)
-                header_id = f"pageImageGroupHeader_{page_id_str}"
-                content_id = f"pageImageGroup_{page_id_str}"
-                
-                header_html = f'<div id="{header_id}" class="contentHeader">IMAGES</div>'
-                content_html = f'<div id="{content_id}" class="content pageImageGroup"><ul>'
-                
-                for image in images_data:
-                    tile_html = render_image_tile_link(image, target_width=300)
-                    content_html += f"<li>{tile_html}</li>"
-                
-                content_html += "</ul></div><div class=\"clearboth\"></div>"
-                dom_content = header_html + content_html
-            else:
-                # Render as table (for parser backend testing)
-                dom_content = "<table><tr><th>Rank</th><th>ID</th><th>Caption</th></tr>"
-                for image in images_data:
-                    image_id = image.get("id", "N/A")
-                    rank = image.get("image_rank", "N/A")
-                    caption = image.get("caption", "untitled")
-                    dom_content += f"<tr><td>{rank}</td><td>{image_id}</td><td>{caption}</td></tr>"
-                dom_content += "</table>"
+            dom_content = render_image_group_html(images_data, page_id, view_type=view_type)
         else:
             warn(f"Section {section} not yet implemented")
             report_error("action", f"Section {section} not yet implemented")
