@@ -8,6 +8,7 @@ CSS_ALWAYS_INCLUDE: List[str] = [
     'hh/deploy/site/css/site.css',
     'hh/deploy/site/css/ansi-colors.css',
     'hh/deploy/site/css/tables.css',
+    'hh/deploy/site/css/tiles.css',
     'hh/deploy/site/css/pygments.css',
     'hh/deploy/site/css/overlay.css',
 ]
@@ -22,6 +23,7 @@ CSS_WHITELIST: List[str] = [
     'hh/deploy/site/css/site-root.css',
     'hh/deploy/site/css/ansi-colors.css',
     'hh/deploy/site/css/tables.css',
+    'hh/deploy/site/css/tiles.css',
     'hh/deploy/site/css/pygments.css',
     'hh/deploy/site/css/overlay.css',
     # Infographic CSS files

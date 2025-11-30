@@ -1,0 +1,187 @@
+/* Tile View CSS - Layout and structure (colors handled by tier-specific CSS files) */
+
+/* Tile Link */
+a.tileLink {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    text-decoration: none;
+}
+
+/* Tile Wrapper */
+div.tileWrapper {
+    position: relative;
+    display: block;
+    border: 1px solid var(--tile-wrapper-border, #45584b);
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    padding: 5px 0;
+    background-color: var(--tile-wrapper, #21262d);
+    color: var(--tile-wrapper-text, #d4d4d4);
+    text-align: center;
+    text-decoration: none;
+}
+
+div.tileWrapper * {
+    color: var(--tile-wrapper-text, #d4d4d4);
+    background-color: transparent;
+    text-decoration: none;
+}
+
+div.tileWrapper div.tileText {
+    padding: 5px;
+    text-align: center;
+    text-decoration: none;
+    font-size: 12pt;
+}
+
+div.tileWrapper div.emptyTileText {
+    display: none;
+}
+
+/* Tile Hover States */
+a.tileLink:hover div.tileWrapper,
+a.tileLink:hover div.tileWrapper div.tileText,
+a.tileLink:hover div.tileWrapper div.tileText * {
+    color: var(--hover-tile-wrapper-text, #d4d4d4);
+    background-color: var(--hover-tile-wrapper, #30363d);
+    text-decoration: none;
+}
+
+a.tileLink:hover div.tileWrapper {
+    border: 1px solid var(--hover-tile-wrapper-border, #56d364);
+}
+
+/* Tile Active States */
+a.tileLink:active div.tileWrapper,
+a.tileLink:active div.tileWrapper div.tileText,
+a.tileLink:active div.tileWrapper div.tileText * {
+    color: var(--active-tile-wrapper-text, #d4d4d4);
+    background-color: var(--active-tile-wrapper, #161b22);
+    text-decoration: none;
+}
+
+a.tileLink:active div.tileWrapper {
+    border: 1px solid var(--active-tile-wrapper-border, #79c0ff);
+}
+
+/* Hidden Tile States */
+div.hiddenTile,
+div.hiddenTile div.tileText,
+div.hiddenTile div.tileText * {
+    background-color: var(--hidden-tile-wrapper, #161b22);
+    color: var(--hidden-tile-wrapper-text, #8b949e);
+}
+
+div.hiddenTile,
+div.hiddenTile div.imgWrapper {
+    border: 1px solid var(--hidden-tile-wrapper-border, #30363d);
+}
+
+a.tileLink:hover div.hiddenTile,
+a.tileLink:hover div.hiddenTile div.tileText,
+a.tileLink:hover div.hiddenTile div.tileText * {
+    color: var(--hover-hidden-tile-wrapper-text, #8b949e);
+    background-color: var(--hover-hidden-tile-wrapper, #21262d);
+    text-decoration: none;
+}
+
+a.tileLink:hover div.hiddenTile,
+a.tileLink:hover div.hiddenTile div.imgWrapper {
+    border: 1px solid var(--hover-hidden-tile-wrapper-border, #45584b);
+}
+
+a.tileLink:active div.hiddenTile,
+a.tileLink:active div.hiddenTile div.tileText,
+a.tileLink:active div.hiddenTile div.tileText * {
+    color: var(--active-hidden-tile-wrapper-text, #8b949e);
+    background-color: var(--active-hidden-tile-wrapper, #0d1117);
+    text-decoration: none;
+}
+
+a.tileLink:active div.hiddenTile,
+a.tileLink:active div.hiddenTile div.imgWrapper {
+    border: 1px solid var(--active-hidden-tile-wrapper-border, #30363d);
+}
+
+/* Private Tile States */
+div.privateTile,
+div.privateTile div.tileText,
+div.privateTile div.tileText * {
+    background-color: var(--private-tile-wrapper, #1e1e1e);
+    color: var(--private-tile-wrapper-text, #a371f7);
+}
+
+div.privateTile,
+div.privateTile div.imgWrapper {
+    border: 1px solid var(--private-tile-wrapper-border, #a371f7);
+}
+
+a.tileLink:hover div.privateTile,
+a.tileLink:hover div.privateTile div.tileText,
+a.tileLink:hover div.privateTile div.tileText * {
+    color: var(--hover-private-tile-wrapper-text, #c49fff);
+    background-color: var(--hover-private-tile-wrapper, #2d1e3e);
+    text-decoration: none;
+}
+
+a.tileLink:hover div.privateTile,
+a.tileLink:hover div.privateTile div.imgWrapper {
+    border: 1px solid var(--hover-private-tile-wrapper-border, #c49fff);
+}
+
+a.tileLink:active div.privateTile,
+a.tileLink:active div.privateTile div.tileText,
+a.tileLink:active div.privateTile div.tileText * {
+    color: var(--active-private-tile-wrapper-text, #c49fff);
+    background-color: var(--active-private-tile-wrapper, #1a0f28);
+    text-decoration: none;
+}
+
+a.tileLink:active div.privateTile,
+a.tileLink:active div.privateTile div.imgWrapper {
+    border: 1px solid var(--active-private-tile-wrapper-border, #c49fff);
+}
+
+/* Page Image Group - Tile List Styling */
+div.pageImageGroup {
+    font-size: 12pt;
+    clear: left;
+}
+
+div.pageImageGroup ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+div.pageImageGroup ul li {
+    display: inline;
+    float: left;
+    margin: 3px 2px;
+}
+
+/* Page Group - Tile List Styling */
+div.pageGroup {
+    font-size: 12pt;
+    clear: left;
+}
+
+div.pageGroup ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+div.pageGroup ul li {
+    display: inline;
+    float: left;
+    margin: 3px 2px;
+}
+
+/* Clearfix */
+div.clearboth {
+    clear: both;
+}
+

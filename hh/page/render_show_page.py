@@ -5,7 +5,7 @@ from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.render.config.config import dc, safe_str
-from hh.render.html.image_group import render_image_group_html
+from hh.render.html.image_group import ImageGroup
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import get_data
@@ -303,7 +303,7 @@ def render_lower_content_section(lower_content: List[str]) -> None:
     trace_out()
 
 
-def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]]) -> None:
+def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]], page_id: int = None) -> None:
     trace_in()
     block = 'children'
     gateway = get_gateway()
@@ -311,18 +311,86 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
         warn("No gateway available")
         trace_out()
         return False
+    
     if not gateway.is_no(block) and children_by_class:
         log(f"Rendering children by class section with {len(children_by_class)} classes")
+        
+        # Get page object to call _get_children_for_class() with view_type
+        page = None
+        if page_id:
+            from hh.page.page_registry import get_page
+            page = get_page(page_id)
+        
+        # Determine view_type based on backend
+        if gateway.backend == "parser":
+            # Parser backend: force table format
+            view_type = 'table'
+        else:
+            # HTTP backend: default to 'auto' which becomes 'tile'
+            view_type = 'auto'
+        
         for class_name, class_data in children_by_class.items():
-            children_data = class_data.get('children', [])
+            # Re-fetch children data with appropriate view_type
+            if page:
+                children_data = page._get_children_for_class(class_name, view_type=view_type)
+            else:
+                # Fallback to existing data if page not available
+                children_data = class_data.get('children', [])
+            
             if not children_data:
                 continue
-            log(f"Rendering {len(children_data)} children for class '{class_name}'")
             
+            log(f"Rendering {len(children_data)} children for class '{class_name}' (view_type: {view_type})")
+            
+            # Check data format
+            data_format = children_data[0].get('_format', 'table') if children_data else 'table'
+            
+            # Error check: parser backend should never receive tile data
+            if gateway.backend == "parser" and data_format == 'tile':
+                warn(f"Parser backend received tile-formatted data for class '{class_name}' - this should never happen")
+                report_error("backend", f"Parser backend received tile data for class '{class_name}'")
+                trace_out()
+                return False
+            
+            if data_format == 'tile' and gateway.backend == "http":
+                # Render as tiles using PageGroup (requires page_id for headers/content IDs)
+                if page_id is None:
+                    warn(f"page_id is required for tile rendering of class '{class_name}'")
+                    # Fall through to table rendering
+                else:
+                    # Generate toggle header (stays static, doesn't get swapped)
+                    page_id_str = str(page_id)
+                    class_name_safe = class_name.replace('_', '-')
+                    header_id = f"child_pages_{class_name_safe}_header_{page_id_str}"
+                    from hh.render.html.page_group import snake_case_to_title_case
+                    human_readable_name = snake_case_to_title_case(class_name)
+                    opposite_view = "table"
+                    header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite_view}">{human_readable_name}</a></div>'
+                    
+                    from hh.render.html.page_group import PageGroup
+                    page_group = PageGroup(children_data, page_id, class_name, target_width=300)
+                    content_html = page_group.render(set_response=False)  # Get HTML string without setting response
+                    # Prepend header and set response
+                    gateway.response.add_child_pages(header_html + content_html)
+                    continue  # Skip table rendering
+            
+            # Render as table (parser backend, HTTP with table override, or HTTP tiles without page_id)
+            # Generate toggle header for HTTP backend (if page_id available)
+            header_html = ""
+            if gateway.backend == "http" and page_id is not None:
+                page_id_str = str(page_id)
+                class_name_safe = class_name.replace('_', '-')
+                header_id = f"child_pages_{class_name_safe}_header_{page_id_str}"
+                from hh.render.html.page_group import snake_case_to_title_case
+                human_readable_name = snake_case_to_title_case(class_name)
+                opposite_view = "tile"
+                header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite_view}">{human_readable_name}</a></div>'
+            
+            # Render as table (existing logic)
             # Get all field names dynamically from first child, preserving order
-            # Exclude metadata fields like 'field_type' from display
+            # Exclude metadata fields like 'field_type' and '_format' from display
             first_child = children_data[0]
-            field_names = [k for k in first_child.keys() if not k.startswith('_') and k != 'field_type']
+            field_names = [k for k in first_child.keys() if not k.startswith('_') and k != 'field_type' and k != '_format']
             
             # Check if any child has children - if not, remove num_children column
             if 'num_children' in field_names:
@@ -332,7 +400,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
             
             # Create header row dynamically using field names
             children_rows = TableData()
-            header_kwargs = {'label': f'Child Pages ({class_name})'}
+            header_kwargs = {}
             for field_name in field_names:
                 header_kwargs[field_name] = field_name.replace('_', ' ').title()
             children_rows.add_row('children_header', **header_kwargs)
@@ -342,7 +410,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
             for child in children_data:
                 field_type = child.get('field_type', 'page')
                 field_types.add(field_type)
-            field_types_list = sorted(list(field_types))  # Sort for consistent ordering
+            field_types_list = sorted(list(field_types))
             
             # Create data rows dynamically for each child
             for child in children_data:
@@ -356,17 +424,17 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                         data_kwargs[field_name] = safe_str(value)
                     else:
                         data_kwargs[field_name] = str(value)
-                # Use field_type from child data, default to 'page' if not present
                 field_type = child.get('field_type', 'page')
                 children_rows.add_row(field_type, **data_kwargs)
                 
-                # Add page link metadata to first three fields: label, first data field, and second data field
+                # Add page link metadata to first three fields
                 if child_id is not None:
                     children_rows.add_page_link_to_column('label', child_id)
                     if len(field_names) > 0:
                         children_rows.add_page_link_to_column(field_names[0], child_id)
                     if len(field_names) > 1:
                         children_rows.add_page_link_to_column(field_names[1], child_id)
+            
             if children_rows.num_rows() > 0:
                 children_block = render_block(
                     children_rows,
@@ -377,7 +445,12 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                     block_type=block,
                     table_id=f'child_pages_{class_name}'
                 )
-                gateway.response.add_child_pages(children_block)
+                # Prepend header if available (HTTP backend with page_id)
+                if header_html:
+                    gateway.response.add_child_pages(header_html + children_block)
+                else:
+                    # No header - use lower_content for backward compatibility
+                    gateway.response.set_lower_content(children_block)
     trace_out()
 
 
@@ -440,11 +513,112 @@ def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None
         warn("No gateway available")
         trace_out()
         return False
-    if not gateway.is_no(block) and images_data and page_id is not None:
+    
+    if not gateway.is_no(block) and images_data:
+        # For HTTP backend with tiles, page_id is required for headers/content IDs
+        # For parser backend or HTTP with tables, page_id is optional (backward compatible)
+        if gateway.backend == "http" and page_id is None:
+            warn("page_id is required for HTTP backend image rendering")
+            trace_out()
+            return False
         log(f"Rendering images section with {len(images_data)} images")
-        image_group_html = render_image_group_html(images_data, page_id)
-        if image_group_html:
-            gateway.response.set_image_group(image_group_html)
+        
+        # Determine view_type based on backend
+        if gateway.backend == "parser":
+            # Parser backend: force table format
+            view_type = 'table'
+        else:
+            # HTTP backend: default to 'auto' which becomes 'tile'
+            # Check URL override flag
+            if gateway.request.is_set("image_table"):
+                view_type = 'table'
+            else:
+                view_type = 'auto'
+        
+        # Check data format (if images_data has _format field, use it)
+        data_format = images_data[0].get('_format', 'table') if images_data else 'table'
+        
+        # Error check: parser backend should never receive tile data
+        if gateway.backend == "parser" and data_format == 'tile':
+            warn("Parser backend received tile-formatted image data - this should never happen")
+            report_error("backend", "Parser backend received tile image data")
+            trace_out()
+            return False
+        
+        if data_format == 'tile' and gateway.backend == "http":
+            # Render as tiles using ImageGroup (HTTP backend only)
+            if page_id is None:
+                warn("page_id is required for tile rendering")
+                trace_out()
+                return False
+            page_id_str = str(page_id)
+            header_id = f"pageImageGroupHeader_{page_id_str}"
+            opposite_view = "table"
+            header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
+            
+            image_group = ImageGroup(images_data, page_id, target_width=300)
+            content_html = image_group.render(set_response=False)  # Get HTML string without setting response
+            # Prepend header and set response
+            gateway.response.set_image_group(header_html + content_html)
+        else:
+            # Render as table (parser backend or HTTP with table override)
+            # For parser backend: no HTML wrappers, just CLI table
+            # For HTTP backend: wrap in HTML divs with header
+            images_rows = TableData()
+            images_rows.add_row(
+                'images_header',
+                label='Images',
+                rank='Rank',
+                id='ID',
+                caption='Caption',
+                uploaded='Uploaded',
+                instances='Instances'
+            )
+            for image in images_data:
+                image_id = image.get('id')
+                instances_count = len(image.get('instances', []))
+                images_rows.add_row(
+                    'image_item',
+                    rank=str(image.get('image_rank', 'N/A')),
+                    id=str(image_id) if image_id is not None else 'N/A',
+                    caption=safe_str(image.get('caption', 'untitled')),
+                    uploaded=safe_str(image.get('uploaded', 'N/A')),
+                    instances=str(instances_count)
+                )
+                if image_id is not None:
+                    images_rows.add_image_link_to_column('label', image_id)
+                    images_rows.add_image_link_to_column('rank', image_id)
+                    images_rows.add_image_link_to_column('id', image_id)
+                    images_rows.add_image_link_to_column('caption', image_id)
+            
+            if images_rows.num_rows() > 0:
+                images_block = render_block(
+                    images_rows,
+                    FieldConfig()
+                        .add_header('images_header')
+                        .add_simple(['image_item']),
+                    table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                    block_type=block,
+                    table_id='image_group'
+                )
+                
+                if gateway.backend == "http":
+                    # HTTP backend: wrap in HTML divs with header
+                    if page_id is not None:
+                        page_id_str = str(page_id)
+                        header_id = f"pageImageGroupHeader_{page_id_str}"
+                        content_id = f"pageImageGroup_{page_id_str}"
+                        opposite_view = "tile"
+                        header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
+                        content_html = f'<div id="{content_id}" class="content pageImageGroup">{images_block}</div>'
+                        gateway.response.set_image_group(header_html + content_html)
+                    else:
+                        # HTTP backend but no page_id - use lower_content for backward compatibility
+                        gateway.response.set_lower_content(images_block)
+                else:
+                    # Parser backend: no HTML wrappers, just CLI table (backward compatible)
+                    gateway.response.set_lower_content(images_block)
+    
     trace_out()
 
 
@@ -677,7 +851,7 @@ def show_page() -> bool:
     if files_data:
         render_files_section(files_data)
     if children_by_class:
-        render_children_by_class_section(children_by_class)
+        render_children_by_class_section(children_by_class, page_id=page_id)
     lower_content = source_data.get('lower_content', [])
     if lower_content:
         render_lower_content_section(lower_content)

@@ -55,6 +55,7 @@ class ViewToggle {
       // Extract section and view_type from data attributes
       const section = linkElement.getAttribute('data-section');
       const viewType = linkElement.getAttribute('data-view-type');
+      const className = linkElement.getAttribute('data-class-name'); // For children sections
 
       if (!section) {
         console.warn('Toggle link missing data-section attribute');
@@ -66,12 +67,26 @@ class ViewToggle {
         return;
       }
 
-      // Make MCP call to get_page_section
-      const result = await this.rpc.call('get_page_section', {
+      // For children sections, class_name is required
+      if (section === 'children' && !className) {
+        console.warn('Toggle link missing data-class-name attribute for children section');
+        return;
+      }
+
+      // Build MCP call parameters
+      const params: any = {
         id: parseInt(pageId, 10),
         section: section,
         view_type: viewType
-      });
+      };
+
+      // Add class_name for children sections
+      if (section === 'children' && className) {
+        params.class_name = className;
+      }
+
+      // Make MCP call to get_page_section
+      const result = await this.rpc.call('get_page_section', params);
 
       // Extract dom_content from response
       const domContent = result.data?.dom_content;
@@ -81,7 +96,7 @@ class ViewToggle {
       }
 
       // Replace DOM chunks
-      this.replaceSectionContent(pageId, section, domContent);
+      this.replaceSectionContent(pageId, section, domContent, className);
 
     } catch (error) {
       console.error('Error handling view toggle:', error);
@@ -92,22 +107,31 @@ class ViewToggle {
   /**
    * Replace the section content in the DOM.
    * @param pageId - Page ID string
-   * @param section - Section name (e.g., 'images')
+   * @param section - Section name (e.g., 'images', 'children')
    * @param htmlContent - HTML content to insert
+   * @param className - Optional class name for children sections
    */
-  private replaceSectionContent(pageId: string, section: string, htmlContent: string): void {
+  private replaceSectionContent(pageId: string, section: string, htmlContent: string, className?: string | null): void {
     // Create a temporary container to parse the HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
 
     // Determine element IDs based on section type
-    // For now, only images section is supported
     let headerId: string;
     let contentId: string;
     
     if (section === 'images') {
       headerId = `pageImageGroupHeader_${pageId}`;
       contentId = `pageImageGroup_${pageId}`;
+    } else if (section === 'children') {
+      if (!className) {
+        console.warn('Class name required for children section');
+        return;
+      }
+      // Convert class_name to safe format (replace underscores with hyphens)
+      const classNameSafe = className.replace(/_/g, '-');
+      headerId = `child_pages_${classNameSafe}_header_${pageId}`;
+      contentId = `child_pages_${classNameSafe}_${pageId}`;
     } else {
       console.warn(`Section ${section} not yet supported for view toggle`);
       return;

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
@@ -19,7 +19,126 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
+class Tile:
+    """Represents a single tile with image, text, link, and metadata."""
+    
+    def __init__(
+        self,
+        image: Optional[Dict[str, Any]] = None,
+        text: str = "",
+        link: str = "#",
+        metadata: Optional[Dict[str, Any]] = None,
+        target_width: int = 300
+    ):
+        """Initialize a tile.
+        
+        Args:
+            image: Dict with 'instances' list (all image sizes), can be None/empty
+            text: Display text/caption for the tile
+            link: URL href for the tile link
+            metadata: Optional dict for extra data (JS actions, onClick IDs, etc.)
+            target_width: Target width for tile rendering (default 300)
+        """
+        trace_in()
+        self.image = image or {}
+        self.text = text
+        self.link = link
+        self.metadata = metadata or {}
+        self.target_width = target_width
+        log(f"Created tile: text='{text}', link='{link}', has_image={bool(self.image.get('instances'))}")
+        trace_out()
+    
+    def _find_best_image_instance(self) -> Optional[Dict[str, Any]]:
+        """Find the best image instance for the target width."""
+        trace_in()
+        instances = self.image.get('instances', [])
+        if not instances:
+            trace_out()
+            return None
+        
+        target_width = self.target_width
+        best_instance = None
+        
+        # Find smallest instance that's >= target_width
+        for instance in instances:
+            width = instance.get('width', 0)
+            if width >= target_width:
+                if best_instance is None or width < best_instance.get('width', 0):
+                    best_instance = instance
+        
+        # If no instance is large enough, use largest available
+        if best_instance is None:
+            best_instance = max(instances, key=lambda x: x.get('width', 0))
+        
+        log(f"Selected image instance: width={best_instance.get('width') if best_instance else 'N/A'}")
+        trace_out()
+        return best_instance
+    
+    def _render_image_html(self) -> str:
+        """Render the image HTML for this tile."""
+        trace_in()
+        best_instance = self._find_best_image_instance()
+        
+        if best_instance and best_instance.get('src'):
+            src_path = best_instance['src']
+            img_src = f'/srv/images/{src_path}'
+            alt_text = self.text or ""
+            # Format with proper indentation (8 spaces for content inside <div class="tileWrapper">)
+            img_html = f'        <img src="{img_src}" alt="{alt_text}">\n'
+        else:
+            # Empty image - create div to maintain width (CSS handles width)
+            img_html = f'        <div class="emptyTileImage"></div>\n'
+        
+        trace_out()
+        return img_html
+    
+    def render(self, as_link: bool = True, link_id: Optional[str] = None) -> str:
+        """Render the tile as HTML.
+        
+        Args:
+            as_link: If True, wrap in <a> tag, otherwise just render tile div
+            link_id: Optional ID for link (if provided, no href attribute)
+        
+        Returns:
+            HTML string for the tile
+        """
+        trace_in()
+        img_html = self._render_image_html()
+        caption_html = self.text if self.text else ""
+        
+        # Render tile wrapper
+        classes = ["tileWrapper"]
+        if self.metadata.get('extra_class'):
+            classes.append(self.metadata['extra_class'])
+        class_attr = " ".join(classes)
+        tile_text_class = "tileText" + (" emptyTileText" if not caption_html else "")
+        
+        # Format tile HTML with proper indentation (for use inside <li>)
+        # <li> is at 2 spaces, <a> at 4 spaces, <div> at 6 spaces, content at 8 spaces
+        tile_html = (
+            f'      <div class="{class_attr}">\n'
+            f'{img_html}'
+            f'        <div class="{tile_text_class}">{caption_html}</div>\n'
+            f'      </div>'
+        )
+        
+        # Wrap in link if requested
+        if as_link:
+            if link_id:
+                a_attrs = f'id="{link_id}"'
+            else:
+                a_attrs = f'href="{self.link}"'
+            result = f'    <a class="tileLink" {a_attrs}>\n{tile_html}\n    </a>'
+        else:
+            result = tile_html
+        
+        log(f"Rendered tile (width: {self.target_width}, as_link: {as_link})")
+        trace_out()
+        return result
+
+
 def render_tile(img_html: str, target_width: int, caption_html: str = "", extra_class: str = "") -> str:
+    """Legacy utility function for rendering a tile from pre-built HTML components."""
     trace_in()
     classes = ["tileWrapper"]
     if extra_class:
@@ -38,85 +157,13 @@ def render_tile(img_html: str, target_width: int, caption_html: str = "", extra_
 
 
 def render_tile_link(href: str, img_html: str, target_width: int, caption_html: str = "", extra_class: str = "", link_id: Optional[str] = None) -> str:
+    """Legacy utility function for rendering a tile link from pre-built HTML components."""
     trace_in()
     a_attrs = (
         f'id="{link_id}"' if link_id else f'href="{href}"'
     )
     result = f"<a class=\"tileLink\" {a_attrs}>{render_tile(img_html, target_width, caption_html, extra_class)}</a>"
     log(f"Rendered tile link (href: {href}, width: {target_width})")
-    trace_out()
-    return result
-
-
-def render_image_tile(image_data: Dict[str, Any], target_width: int = 300, caption: Optional[str] = None) -> str:
-    """Render a single image tile HTML.
-    
-    Args:
-        image_data: Image data dict with 'id', 'caption', 'instances' (list of dicts with 'src', 'width', 'height')
-        target_width: Target width for image (default 300)
-        caption: Optional caption override (uses image_data['caption'] if not provided)
-    
-    Returns:
-        HTML string for image tile
-    """
-    trace_in()
-    image_id = image_data.get('id')
-    instances = image_data.get('instances', [])
-    image_caption = caption if caption is not None else image_data.get('caption', '')
-    
-    # Find best instance for target width
-    best_instance = None
-    if instances:
-        for instance in instances:
-            width = instance.get('width', 0)
-            if width >= target_width:
-                if best_instance is None or width < best_instance.get('width', 0):
-                    best_instance = instance
-        # If no instance is large enough, use largest available
-        if best_instance is None:
-            best_instance = max(instances, key=lambda x: x.get('width', 0))
-    
-    # Build img tag
-    if best_instance and best_instance.get('src'):
-        src_path = best_instance['src']
-        img_src = f'/srv/images/{src_path}'
-        img_html = f'<img src="{img_src}" alt="{image_caption}" style="width: {target_width}px;">'
-        log(f"Rendering image tile {image_id}: using instance {src_path} (width: {best_instance.get('width', 0)})")
-    else:
-        # Fallback if no instance
-        img_html = f'<img src="" alt="{image_caption}" style="width: {target_width}px;">'
-        warn(f"No image instance found for image {image_id}")
-    
-    result = render_tile(img_html, target_width, image_caption)
-    log(f"Generated image tile HTML for image {image_id}")
-    trace_out()
-    return result
-
-
-def render_image_tile_link(image_data: Dict[str, Any], target_width: int = 300, link_href: Optional[str] = None, caption: Optional[str] = None) -> str:
-    """Render an image tile wrapped in a link.
-    
-    Args:
-        image_data: Image data dict with 'id', 'caption', 'instances'
-        target_width: Target width for image (default 300)
-        link_href: Optional link URL (defaults to /img/{image_id})
-        caption: Optional caption override
-    
-    Returns:
-        HTML string for image tile link
-    """
-    trace_in()
-    image_id = image_data.get('id')
-    if link_href is None and image_id:
-        from hh.render.html.link_helpers import create_image_link
-        link_href = create_image_link(image_id)
-    elif link_href is None:
-        link_href = '#'
-    
-    log(f"Rendering image tile link for image {image_id} (target_width: {target_width})")
-    tile_html = render_image_tile(image_data, target_width, caption)
-    result = f'<a class="tileLink" href="{link_href}">{tile_html}</a>'
-    log(f"Generated image tile link HTML for image {image_id}")
     trace_out()
     return result
 

@@ -40,7 +40,11 @@ This document covers the planned implementation of hot-swapping view modes (tabl
 - **Client-Side Swapping**: TypeScript only replaces DOM chunks
 - **Backend-Aware Defaults**: HTTP defaults to tile, parser defaults to table
 - **Independent Toggles**: Each section/class group toggles independently
-- **URL Override**: Flags can force specific modes for testing
+- **Data Format Selection**: Switch/case logic in data retrieval methods (`_get_children_for_class()`), not rendering
+- **Generic Rendering**: Rendering functions are class-agnostic, work for all page types
+- **Derived Class Overrides**: Page classes can override data retrieval methods to customize defaults
+- **Parser Backend Isolation**: Parser backend always forces table format, never receives tile data
+- **Generalized Tile System**: Same tile rendering infrastructure works for images, pages, and files
 
 ---
 
@@ -409,51 +413,143 @@ document.addEventListener('click', (e) => {
 
 ### Overview
 
-After image groups are working, expand the system to support children sections with per-class independent toggles.
+After image groups are working, expand the system to support children sections with per-class independent toggles. This phase generalizes the tile rendering system to work for both images and pages, and implements the switch/case logic in data retrieval methods that can be overridden by derived page classes.
 
 ### Key Differences from Images
 
 1. **Multiple Class Groups:** Each class type has its own toggle
-2. **Per-Class Defaults:** Each page class can specify its default view type
-3. **Class-Specific Rendering:** Different classes may render differently
+2. **Per-Class Defaults:** Each page class can override `_get_children_for_class()` to set its default view type via switch/case
+3. **Data Format Selection:** Switch/case happens in data retrieval, not rendering
 4. **Independent Toggles:** Each class group toggles independently
+5. **Generalized Tile Rendering:** Same tile rendering system works for images, pages, and future files
+
+### Architecture: Data Retrieval vs Rendering
+
+**Critical Distinction:**
+- **Data Retrieval** (`_get_children_for_class()`): Returns data dictionaries, contains switch/case logic, can be overridden by derived classes
+- **Rendering** (`render_children_by_class_section()`): Receives data dicts, detects format, calls appropriate renderer (generic, no overrides)
+
+**Data Flow:**
+1. `render_children_by_class_section()` calls `_get_children_for_class(child_class, view_type='auto')`
+2. `_get_children_for_class()` has switch/case:
+   - `'table'` → returns data formatted for table rendering
+   - `'tile'` → returns data formatted for tile rendering  
+   - `'auto'` → derived classes can override to choose default (falls through to 'tile' in base)
+3. Renderer receives data dicts, detects format, calls appropriate renderer:
+   - Table data → existing `render_block()` (handles HTTP vs parser automatically)
+   - Tile data → new generalized tile renderer (HTTP only, unless forced)
 
 ### Implementation Approach
 
-**Step 1:** Extend `get_page_section` to support `class_name` parameter
-- Filter children by class when `class_name` specified
-- Render only that class group
+**Step 1: Modify `_get_children_for_class()` in `PageDisplayMixin`**
+- Add `view_type: str = 'auto'` parameter
+- Keep return type: `List[Dict[str, Any]]` (data dictionaries, NOT HTML)
+- Add switch/case logic:
+  ```python
+  if view_type == 'table':
+      # Return data formatted for table (current format)
+      return children_data  # Existing format
+  elif view_type == 'tile':
+      # Return data formatted for tiles (may need different structure)
+      return tile_formatted_data
+  else:  # 'auto'
+      # Default: fall through to 'tile' (can be overridden by derived classes)
+      view_type = 'tile'
+      return tile_formatted_data
+  ```
+- **Parser Backend Override:** In `render_children_by_class_section()`, check `gateway.backend == "parser"` and force `view_type='table'` before calling
+- **Error Checking:** If parser backend receives tile data, report backend error (should never happen)
 
-**Step 2:** Update `render_children_by_class_section()` to support view_type
-- Add `view_type` parameter
-- Generate toggle header per class: `child_pages_{class_name}_header_{page_id}`
-- Generate content div per class: `child_pages_{class_name}_{page_id}`
-- Each class group toggles independently
+**Step 2: Create Generalized Tile Group Rendering Function**
+- New function: `render_tile_group(items_data, page_id, group_type, target_width=300)`
+- Generalizes tile rendering for images, pages, and future files
+- Parameters:
+  - `items_data`: List of data dicts (images, pages, or files)
+  - `page_id`: Parent page ID for unique element IDs
+  - `group_type`: 'images', 'pages', or 'files' (for CSS classes and IDs)
+  - `target_width`: Tile width (default 300px)
+- Generates HTML structure: `<ul class="tileGroup {group_type}">` with `<li>` elements
+- Calls appropriate tile renderer per item:
+  - Images → `render_image_tile_link()`
+  - Pages → `render_page_tile_link()` (to be created)
+  - Files → `render_file_tile_link()` (future)
 
-**Step 3:** Implement per-class default logic
-- Add method to page classes: `get_default_children_view_type(class_name)`
-- Some classes default to tile, some to table
-- Matches legacy `getChildrenOf()` auto mode behavior
+**Step 3: Create Page Tile Rendering Functions**
+- Add to `hh/render/html/tiles.py`:
+  - `render_page_tile(page_data, target_width=300)` - Single page tile HTML
+  - `render_page_tile_link(page_data, target_width=300, link_href=None)` - Page tile wrapped in link
+- Use `display_name` from page data (derived field)
+- Fallback: if `display_name == ""`, use `"(no name)"`
+- Image handling:
+  - Get first image from page if exists
+  - Wrap image in div with fixed width: `<div style="width: {target_width}px;">{img or empty}</div>`
+  - If no image, empty div maintains width (Polaroid metaphor: image area can be empty, caption area always has text)
+- Use `create_page_link()` from `link_helpers.py` for links
 
-**Step 4:** Extend TypeScript to handle class-specific toggles
-- Update click handler to extract `data-class-name` attribute
-- Pass `class_name` to `get_page_section` call
-- Replace correct class-specific DOM chunk
+**Step 4: Update `render_children_by_class_section()`**
+- **Parser Backend Check:** If `gateway.backend == "parser"`, force `view_type='table'` (not backend) when calling `_get_children_for_class()` to override 'auto' mode
+- For each class in `children_by_class`:
+  - Get human-readable class name (convert snake_case to Title Case: `"source_code_file"` → `"Source Code Files"`)
+  - Determine `view_type`: if parser backend, use `'table'`; otherwise use `'auto'`
+  - Call `_get_children_for_class(child_class, view_type=view_type)` → receives data dicts
+  - Detect data format (check view_type used or add metadata flag)
+  - **If table format:**
+    - Use existing `render_block()` logic (already handles HTTP vs parser automatically)
+    - Do NOT pass backend override - let `render_block()` auto-detect backend
+  - **If tile format:**
+    - Call existing generalized `render_tile_group()` function with `group_type='pages'` (HTTP only, parser should never reach here)
+    - Error check: if parser backend, report error (should never receive tile data)
+  - Generate toggle header: `<div id="child_pages_{class_name}_header_{page_id}" class="contentHeader">`
+    - Header text: human-readable class name (e.g., "Source Code Files")
+    - Toggle link: `<a class="updatePageView_{page_id}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite}">`
+  - Generate content div: `<div id="child_pages_{class_name}_{page_id}" class="content">`
+  - Remove "Child Pages (class_name)" header column from table (header is now in contentHeader div)
 
-### Per-Class Default Pattern
+**Step 5: Extend `get_page_section` for Children**
+- When `section='children'` and `class_name` provided:
+  - Call `_get_children_for_class(class_name, view_type=requested_view_type)`
+  - Receives data dicts back
+  - Detect format and call appropriate renderer:
+    - **Table format:** `render_block()` with `backend='http'` override (ONLY place backend override is used - because `get_page_section` is called via MCP but needs HTML output)
+    - **Tile format:** `render_tile_group()` with `group_type='pages'` (uses existing generalized function)
+  - Wrap with toggle header + content div
+  - Return HTML in `dom_content` field
 
-**Example:**
-```python
-class WorkDocketContentMixin:
-    @classmethod
-    def get_default_children_view_type(cls, child_class: str) -> str:
-        """Return default view type for children of specific class."""
-        if child_class == 'ask':
-            return 'tile'  # Asks default to tile view
-        elif child_class == 'task':
-            return 'table'  # Tasks default to table view
-        return 'auto'  # Default fallback
-```
+**Step 6: Extend TypeScript for Class-Specific Toggles**
+- Update `view-toggle.ts` click handler:
+  - Extract `data-class-name` attribute from toggle links
+  - Pass `class_name` to `get_page_section` MCP call
+  - Replace correct class-specific DOM chunk: `child_pages_{class_name}_{page_id}`
+
+**Step 7: Derived Class Overrides (Future)**
+- Derived page classes can override `_get_children_for_class()` method
+- Their override can change the 'auto' case to default to 'table' instead of 'tile'
+- Example: `SourceCodeFilePage` might override to default to 'table' for source code files
+- Matches legacy pattern where each class's `getChildrenOf()` had its own switch/case
+
+### Human-Readable Class Names
+
+**Conversion Function:**
+- Simple helper: `snake_case_to_title_case(class_name: str) -> str`
+- Converts: `"source_code_file"` → `"Source Code Files"`
+- Converts: `"page"` → `"Pages"`
+- Used for content header text and removes need for "Child Pages (class_name)" column header
+
+### Error Checking
+
+**Parser Backend Validation:**
+- In `render_children_by_class_section()`, after calling `_get_children_for_class()`:
+  - If `gateway.backend == "parser"` and received tile-formatted data, report backend error
+  - This should never happen since parser forces `view_type='table'`, but provides safety check
+
+### Generalized Tile Rendering
+
+**Unified System:**
+- `render_tile_group()` works for images, pages, and future files
+- Same HTML structure, CSS classes, and layout
+- Allows unified CSS styling for all tile groups
+- Each item type has its own tile renderer (`render_image_tile_link()`, `render_page_tile_link()`, etc.)
+- But the group container and layout are shared
 
 ---
 
@@ -473,9 +569,11 @@ class WorkDocketContentMixin:
 
 ### With Render System
 
-- **Table Rendering:** Existing table rendering functions for table mode
-- **Tile Rendering:** New tile rendering functions for tile mode
-- **HTML Generation:** Both modes generate HTML strings
+- **Table Rendering:** Existing `render_block()` function handles table mode (automatically detects HTTP vs parser backend)
+- **Tile Rendering:** Generalized `render_tile_group()` function for tile mode (HTTP only, unless forced)
+- **Data Format Detection:** Renderer detects whether data is formatted for table or tile rendering
+- **Backend Override:** `render_block()` accepts `backend` parameter to force HTML rendering even when called through MCP
+- **HTML Generation:** Both modes generate HTML strings (for HTTP) or table text (for parser)
 
 ### With MCP Backend
 
@@ -492,9 +590,10 @@ class WorkDocketContentMixin:
 ### Backend Isolation
 
 - **HTTP Backend:** Uses `show_page` action which calls mixin methods that check backend
-- **Parser Backend:** Always renders table mode, no toggle functionality
-- **MCP Backend:** `get_page_section` calls same mixin methods, returns JSON for TypeScript client
-- **Shared Logic:** Both `show_page` and `get_page_section` call the same mixin rendering methods
+- **Parser Backend:** Always forces `view_type='table'` in `render_children_by_class_section()`, never receives tile data
+- **MCP Backend:** `get_page_section` calls same mixin methods, returns JSON with HTML in `dom_content` field
+- **Shared Logic:** Both `show_page` and `get_page_section` call the same mixin data retrieval methods
+- **Error Checking:** Parser backend validates it never receives tile-formatted data (reports error if it does)
 
 ---
 
@@ -510,20 +609,28 @@ class WorkDocketContentMixin:
 - [x] Create `get_page_section` action
 - [x] Register parser backend for `get_page_section`
 - [x] Register MCP tool for `get_page_section`
-- [ ] Create `view-toggle.ts` TypeScript module
-- [ ] Wire toggle handler into app.ts (minimal)
+- [x] Create `view-toggle.ts` TypeScript module
+- [x] Wire toggle handler into app.ts (minimal)
 - [x] Implement URL flag support (`image_table=1`)
-- [x] Test end-to-end toggle functionality (MCP testing complete, web UI pending)
+- [x] Test end-to-end toggle functionality (MCP testing complete, web UI verified working)
 - [x] Verify parser backend unaffected
+- [x] Add backend override parameter to `render_block()` to force HTML rendering
 
 ### Children by Class (Future)
 
-- [ ] Extend `get_page_section` to support `class_name` parameter
-- [ ] Update `render_children_by_class_section()` for view_type support
-- [ ] Implement per-class toggle headers
-- [ ] Add per-class default logic to page classes
-- [ ] Extend TypeScript for class-specific toggles
+- [ ] Modify `_get_children_for_class()` to accept `view_type` parameter and return data dicts with switch/case logic
+- [ ] Add parser backend check in `render_children_by_class_section()` to force `view_type='table'`
+- [ ] Create generalized `render_tile_group()` function for images, pages, and files
+- [ ] Create `render_page_tile()` and `render_page_tile_link()` functions in `tiles.py`
+- [ ] Update `render_children_by_class_section()` to detect data format and call appropriate renderer
+- [ ] Add human-readable class name conversion function
+- [ ] Implement toggle headers per class group with human-readable names
+- [ ] Remove "Child Pages (class_name)" header column from tables
+- [ ] Extend `get_page_section` to support `class_name` parameter for children
+- [ ] Add error checking for parser backend receiving tile data
+- [ ] Extend TypeScript for class-specific toggles with `data-class-name` attribute
 - [ ] Test independent toggles per class group
+- [ ] Test parser backend always receives table format
 
 ---
 
@@ -691,7 +798,49 @@ class WorkDocketContentMixin:
 - Called in DOMContentLoaded handler
 - Minimal wiring - auto-initializes on page load
 
-**Status**: ✅ Both tile→table and table→tile toggles should now work in web UI. Table view toggle header was added to match tile view behavior.
+**Status**: ✅ Both tile→table and table→tile toggles verified working in web UI. Table view toggle header was added to match tile view behavior. Backend override parameter added to `render_block()` to ensure HTML rendering even when called through MCP backend.
+
+**Phase 4.5: Backend Override Fix** ✅ COMPLETE
+- Added `backend` parameter to `render_block()` function in `hh/render/render.py`
+- Parameter allows overriding gateway.backend for rendering decisions
+- Validates backend against BACKEND_TYPES, falls back to gateway.backend if invalid
+- Updated `render_image_group_html()` to pass `backend='http'` when calling `render_block()` for table mode
+- Ensures HTML tables are rendered even when called through MCP backend
+- Verified via smoke test: table view now returns HTML tables instead of parser tables
 
 This document will be updated as implementation progresses and design decisions are finalized.
+
+---
+
+## Architectural Decisions: Children by Class Implementation
+
+### Key Clarifications (2025-01-XX)
+
+**Data Retrieval vs Rendering Separation:**
+- `_get_children_for_class()` returns **data dictionaries** (not HTML)
+- Switch/case logic lives in `_get_children_for_class()` to determine data format
+- Rendering functions are generic and class-agnostic
+- Renderer detects data format and calls appropriate renderer (table or tile)
+
+**Parser Backend Handling:**
+- Parser backend **forces** `view_type='table'` in `render_children_by_class_section()` before calling `_get_children_for_class()`
+- This ensures parser never receives tile-formatted data
+- Error checking: if parser receives tile data, report backend error (safety check)
+
+**Generalized Tile System:**
+- `render_tile_group()` function works for images, pages, and future files
+- Same HTML structure and CSS classes for all tile groups
+- Each item type has its own tile renderer, but group container is shared
+- Allows unified CSS styling across all tile types
+
+**Derived Class Overrides:**
+- Page classes can override `_get_children_for_class()` to customize 'auto' default
+- Override changes switch/case 'auto' case to fall through to their preferred default
+- No rendering overrides - rendering is always generic
+
+**Content Headers:**
+- Each class group gets its own `<div class="contentHeader">` with human-readable class name
+- Header text: converted from snake_case (e.g., "source_code_file" → "Source Code Files")
+- Removes need for "Child Pages (class_name)" header column in tables
+- Toggle link in header uses `data-class-name` attribute for class-specific toggling
 

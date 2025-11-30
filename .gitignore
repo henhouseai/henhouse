@@ -48,3 +48,4 @@ config-registry.json
 # Project folders
 legacy/
 logs/
+stage/

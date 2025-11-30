@@ -306,5 +306,34 @@ ul.menuGroup li.header a {
     --syntax-type: #bc8cff;           /* Light purple for types */
     --syntax-error: #f85149;          /* Bright red for errors */
     --syntax-success: #3fb950;       /* Green for success/inserted */
+    
+    /* Tile Colors - Purple Theme */
+    --tile-wrapper: #21262d;
+    --tile-wrapper-text: #d4d4d4;
+    --tile-wrapper-border: #7a4fd5;
+    --hover-tile-wrapper: #30363d;
+    --hover-tile-wrapper-text: #d4d4d4;
+    --hover-tile-wrapper-border: #bc8cff;
+    --active-tile-wrapper: #161b22;
+    --active-tile-wrapper-text: #d4d4d4;
+    --active-tile-wrapper-border: #a371f7;
+    --hidden-tile-wrapper: #161b22;
+    --hidden-tile-wrapper-text: #8b949e;
+    --hidden-tile-wrapper-border: #3a2a4a;
+    --hover-hidden-tile-wrapper: #21262d;
+    --hover-hidden-tile-wrapper-text: #8b949e;
+    --hover-hidden-tile-wrapper-border: #7a4fd5;
+    --active-hidden-tile-wrapper: #1a0d1a;
+    --active-hidden-tile-wrapper-text: #8b949e;
+    --active-hidden-tile-wrapper-border: #3a2a4a;
+    --private-tile-wrapper: #1e1e1e;
+    --private-tile-wrapper-text: #a371f7;
+    --private-tile-wrapper-border: #a371f7;
+    --hover-private-tile-wrapper: #2d1e3e;
+    --hover-private-tile-wrapper-text: #c49fff;
+    --hover-private-tile-wrapper-border: #c49fff;
+    --active-private-tile-wrapper: #1a0f28;
+    --active-private-tile-wrapper-text: #c49fff;
+    --active-private-tile-wrapper-border: #c49fff;
 }
 

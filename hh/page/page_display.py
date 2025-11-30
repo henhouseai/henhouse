@@ -169,7 +169,7 @@ class PageDisplayMixin:
         return children_by_class
 
 
-    def _get_children_for_class(self, child_class: str) -> List[Dict[str, Any]]:
+    def _get_children_for_class(self, child_class: str, view_type: str = 'auto') -> List[Dict[str, Any]]:
         trace_in()
         # Get the Page subclass for this child_class from the registry
         PageClass = get_page_class(child_class)
@@ -178,24 +178,62 @@ class PageDisplayMixin:
             report_error("action", f"Page class '{child_class}' not found")
             trace_out()
             return []
-        # Call the class's static get_children_query() method
-        query, params = PageClass._get_children_query(self.id)
-        log(f"Using query for class '{child_class}': {query[:100]}...")
-        results = self.gateway.conn.read(query, params)
-        children_data = []
-        if results:
-            for row in results:
-                child_page = get_page(page_id=row['id'])
-                if child_page:
-                    child_data = child_page._get_child_page_data()
-                    # Add child count for this child page
-                    child_count = child_page.get_child_count()
-                    child_data['num_children'] = child_count
-                    # Add field type for row rendering
-                    child_data['field_type'] = child_page._get_child_row_field_type()
-                    children_data.append(child_data)
         
-        log(f"Loaded {len(children_data)} children for class '{child_class}'")
-        trace_out()
-        return children_data
+        # Switch/case logic based on view_type
+        if view_type == 'table':
+            # Return data formatted for table rendering (current format)
+            query, params = PageClass._get_children_query(self.id)
+            log(f"Using query for class '{child_class}': {query[:100]}...")
+            results = self.gateway.conn.read(query, params)
+            children_data = []
+            if results:
+                for row in results:
+                    child_page = get_page(page_id=row['id'])
+                    if child_page:
+                        child_data = child_page._get_child_page_data()
+                        # Add child count for this child page
+                        child_count = child_page.get_child_count()
+                        child_data['num_children'] = child_count
+                        # Add field type for row rendering
+                        child_data['field_type'] = child_page._get_child_row_field_type()
+                        # Add format metadata
+                        child_data['_format'] = 'table'
+                        children_data.append(child_data)
+            
+            log(f"Loaded {len(children_data)} children for class '{child_class}' (table format)")
+            trace_out()
+            return children_data
+        
+        elif view_type == 'tile':
+            # Return data formatted for tile rendering
+            query, params = PageClass._get_children_query(self.id)
+            log(f"Using query for class '{child_class}': {query[:100]}...")
+            results = self.gateway.conn.read(query, params)
+            children_data = []
+            if results:
+                for row in results:
+                    child_page = get_page(page_id=row['id'])
+                    if child_page:
+                        child_data = child_page._get_child_page_data()
+                        # Add display_name (derived field)
+                        display_name = child_page._get_display_name()
+                        child_data['display_name'] = display_name
+                        # Add first image for tile rendering
+                        images_data = child_page.get_images_data()
+                        if images_data and len(images_data) > 0:
+                            child_data['images'] = [images_data[0]]  # Just first image
+                        else:
+                            child_data['images'] = []
+                        # Add format metadata
+                        child_data['_format'] = 'tile'
+                        children_data.append(child_data)
+            
+            log(f"Loaded {len(children_data)} children for class '{child_class}' (tile format)")
+            trace_out()
+            return children_data
+        
+        else:  # 'auto'
+            # Default: fall through to 'tile' (can be overridden by derived classes)
+            view_type = 'tile'
+            return self._get_children_for_class(child_class, view_type='tile')
 
