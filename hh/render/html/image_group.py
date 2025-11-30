@@ -127,7 +127,8 @@ def render_image_group_html(
                     .add_simple(['image_item']),
                 table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
                 block_type='images',
-                table_id='image_group'
+                table_id='image_group',
+                backend='http'
             )
             # Wrap table in content div with unique ID
             content_html = f'<div id="{content_id}" class="content pageImageGroup">{images_block}</div>'

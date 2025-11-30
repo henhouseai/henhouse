@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Union, TypedDict
+from typing import Dict, List, Union, TypedDict, Optional
 from hh.render.config.config import ic, dc, break_section
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.registry.backend import BACKEND_TYPES
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -189,7 +190,8 @@ def render_block(
     table_class: str = 'standard',
     table_overrides: Dict[str, Union[str, int, bool]] = None,
     block_type: str = None,
-    table_id: str = None
+    table_id: str = None,
+    backend: Optional[str] = None
 ) -> str:
     trace_in()
     gateway = get_gateway()
@@ -230,7 +232,16 @@ def render_block(
         return result
     
     # Check backend type and lazy import appropriate renderer
-    backend = gateway.backend if hasattr(gateway, 'backend') else None
+    # If backend parameter is provided and valid, use it; otherwise fall back to gateway.backend
+    if backend is not None:
+        if backend in BACKEND_TYPES:
+            log(f"Using override backend: {backend}")
+        else:
+            warn(f"Invalid backend override '{backend}', falling back to gateway.backend")
+            backend = gateway.backend if hasattr(gateway, 'backend') else None
+    else:
+        backend = gateway.backend if hasattr(gateway, 'backend') else None
+    
     if backend == "http":
         log("HTTP backend detected, using HTML renderer")
         from hh.render.render_http import render_html_table
