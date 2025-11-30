@@ -7,6 +7,7 @@ import { getSeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
 import { PageManager } from './page-manager.js';
 import { TestHandlers } from './test.js';
+import { initializeViewToggle } from './view-toggle.js';
 class ActionManager {
     constructor() {
         this.hotCacheActionIds = new Set(); // Track hot-cache loaded action IDs
@@ -238,6 +239,8 @@ class ActionManager {
 document.addEventListener('DOMContentLoaded', async () => {
     const actionManager = new ActionManager();
     actionManager.init();
+    // Initialize view toggle system
+    initializeViewToggle();
     // Load page data and populate app actions
     await actionManager.loadPageAndSetupActions();
 });

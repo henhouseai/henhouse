@@ -36,6 +36,7 @@ JS_WHITELIST: List[str] = [
     'hh/deploy/site/js/overlay-debug-table.js',
     'hh/deploy/site/js/debug-helper.js',
     'hh/deploy/site/js/upload-handler.js',
+    'hh/deploy/site/js/view-toggle.js',
     'hh/deploy/site/js/test.js',
     # Infographic JavaScript files
     'hh/deploy/site/infographic/infographic-json.js',

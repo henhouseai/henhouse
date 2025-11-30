@@ -9,6 +9,7 @@ import { RPCClient } from './rpc-client.js';
 import { PageManager } from './page-manager.js';
 import { AppAction } from './page-data.js';
 import { TestHandlers } from './test.js';
+import { initializeViewToggle } from './view-toggle.js';
 
 class ActionManager {
   private rpc: RPCClient;
@@ -273,6 +274,9 @@ class ActionManager {
 document.addEventListener('DOMContentLoaded', async () => {
   const actionManager = new ActionManager();
   actionManager.init();
+  
+  // Initialize view toggle system
+  initializeViewToggle();
   
   // Load page data and populate app actions
   await actionManager.loadPageAndSetupActions();

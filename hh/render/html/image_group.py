@@ -86,6 +86,12 @@ def render_image_group_html(
     else:
         # Render as table
         log(f"Rendering {len(images_data)} images as table for page {page_id}")
+        page_id_str = str(page_id)
+        header_id = f"pageImageGroupHeader_{page_id_str}"
+        content_id = f"pageImageGroup_{page_id_str}"
+        opposite_view = "tile"
+        header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
+        
         images_rows = TableData()
         images_rows.add_row(
             'images_header',
@@ -123,9 +129,12 @@ def render_image_group_html(
                 block_type='images',
                 table_id='image_group'
             )
+            # Wrap table in content div with unique ID
+            content_html = f'<div id="{content_id}" class="content pageImageGroup">{images_block}</div>'
+            result = header_html + content_html
             log(f"Generated table HTML for {len(images_data)} images")
             trace_out()
-            return images_block
+            return result
         log("No images to render")
         trace_out()
         return ""

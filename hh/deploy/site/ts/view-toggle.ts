@@ -1,0 +1,175 @@
+/**
+ * View Toggle System - handles hot-swapping between table and tile views for page sections.
+ * Listens for clicks on toggle links and replaces DOM chunks via MCP calls.
+ */
+
+import { RPCClient } from './rpc-client.js';
+
+class ViewToggle {
+  private rpc: RPCClient;
+
+  constructor() {
+    this.rpc = new RPCClient();
+    this.initialize();
+  }
+
+  /**
+   * Initialize the view toggle system by setting up event listeners.
+   */
+  private initialize(): void {
+    // Use event delegation to handle clicks on toggle links
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      
+      // Check if clicked element is a toggle link or inside one
+      const toggleLink = target.closest('a[class*="updatePageView_"]') as HTMLElement;
+      if (!toggleLink) {
+        return;
+      }
+
+      e.preventDefault();
+      this.handleToggleClick(toggleLink);
+    });
+  }
+
+  /**
+   * Handle click on a toggle link.
+   * @param linkElement - The clicked toggle link element
+   */
+  private async handleToggleClick(linkElement: HTMLElement): Promise<void> {
+    try {
+      // Extract page_id from class name (e.g., "updatePageView_635" -> "635")
+      const classList = Array.from(linkElement.classList);
+      const updateClass = classList.find(cls => cls.startsWith('updatePageView_'));
+      if (!updateClass) {
+        console.warn('Could not find updatePageView class in toggle link');
+        return;
+      }
+
+      const pageId = updateClass.replace('updatePageView_', '');
+      if (!pageId) {
+        console.warn('Could not extract page ID from toggle link');
+        return;
+      }
+
+      // Extract section and view_type from data attributes
+      const section = linkElement.getAttribute('data-section');
+      const viewType = linkElement.getAttribute('data-view-type');
+
+      if (!section) {
+        console.warn('Toggle link missing data-section attribute');
+        return;
+      }
+
+      if (!viewType) {
+        console.warn('Toggle link missing data-view-type attribute');
+        return;
+      }
+
+      // Make MCP call to get_page_section
+      const result = await this.rpc.call('get_page_section', {
+        id: parseInt(pageId, 10),
+        section: section,
+        view_type: viewType
+      });
+
+      // Extract dom_content from response
+      const domContent = result.data?.dom_content;
+      if (!domContent || typeof domContent !== 'string') {
+        console.warn('get_page_section did not return dom_content');
+        return;
+      }
+
+      // Replace DOM chunks
+      this.replaceSectionContent(pageId, section, domContent);
+
+    } catch (error) {
+      console.error('Error handling view toggle:', error);
+      // Could show error to user via overlay or console
+    }
+  }
+
+  /**
+   * Replace the section content in the DOM.
+   * @param pageId - Page ID string
+   * @param section - Section name (e.g., 'images')
+   * @param htmlContent - HTML content to insert
+   */
+  private replaceSectionContent(pageId: string, section: string, htmlContent: string): void {
+    // Create a temporary container to parse the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+
+    // Determine element IDs based on section type
+    // For now, only images section is supported
+    let headerId: string;
+    let contentId: string;
+    
+    if (section === 'images') {
+      headerId = `pageImageGroupHeader_${pageId}`;
+      contentId = `pageImageGroup_${pageId}`;
+    } else {
+      console.warn(`Section ${section} not yet supported for view toggle`);
+      return;
+    }
+
+    // Find header and content elements in the parsed HTML
+    const headerElement = tempDiv.querySelector(`#${headerId}`);
+    const contentElement = tempDiv.querySelector(`#${contentId}`);
+
+    if (!headerElement || !contentElement) {
+      console.warn(`Could not find header or content elements in HTML for page ${pageId}, section ${section}`);
+      return;
+    }
+
+    // Find existing elements in the DOM
+    const existingHeader = document.getElementById(headerId);
+    const existingContent = document.getElementById(contentId);
+
+    if (!existingHeader || !existingContent) {
+      console.warn(`Could not find existing header or content elements for page ${pageId}, section ${section}`);
+      return;
+    }
+
+    // Replace header (preserve the element, just update its content)
+    existingHeader.innerHTML = headerElement.innerHTML;
+
+    // Replace content (preserve the element, just update its content)
+    existingContent.innerHTML = contentElement.innerHTML;
+
+    // Handle clearboth div if present in new HTML
+    const clearboth = tempDiv.querySelector('.clearboth');
+    if (clearboth) {
+      // Check if clearboth already exists after content
+      const existingClearboth = existingContent.nextElementSibling;
+      if (existingClearboth && existingClearboth.classList.contains('clearboth')) {
+        // Already exists, do nothing
+      } else {
+        // Insert clearboth after content
+        const clearbothDiv = document.createElement('div');
+        clearbothDiv.className = 'clearboth';
+        existingContent.parentNode?.insertBefore(clearbothDiv, existingContent.nextSibling);
+      }
+    } else {
+      // If new HTML doesn't have clearboth, remove existing one if present
+      const existingClearboth = existingContent.nextElementSibling;
+      if (existingClearboth && existingClearboth.classList.contains('clearboth')) {
+        existingClearboth.remove();
+      }
+    }
+  }
+}
+
+// Initialize view toggle system when DOM is ready
+let viewToggleInstance: ViewToggle | null = null;
+
+export function initializeViewToggle(): void {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      viewToggleInstance = new ViewToggle();
+    });
+  } else {
+    viewToggleInstance = new ViewToggle();
+  }
+}
+
