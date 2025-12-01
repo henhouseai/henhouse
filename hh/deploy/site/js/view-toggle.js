@@ -135,30 +135,10 @@ class ViewToggle {
             console.warn(`Could not find existing content element for page ${pageId}, section ${section}`);
             return;
         }
-        // Replace content (preserve the element, just update its content)
-        existingContent.innerHTML = contentElement.innerHTML;
-        // Handle clearboth div if present in new HTML
-        const clearboth = tempDiv.querySelector('.clearboth');
-        if (clearboth) {
-            // Check if clearboth already exists after content
-            const existingClearboth = existingContent.nextElementSibling;
-            if (existingClearboth && existingClearboth.classList.contains('clearboth')) {
-                // Already exists, do nothing
-            }
-            else {
-                // Insert clearboth after content
-                const clearbothDiv = document.createElement('div');
-                clearbothDiv.className = 'clearboth';
-                existingContent.parentNode?.insertBefore(clearbothDiv, existingContent.nextSibling);
-            }
-        }
-        else {
-            // If new HTML doesn't have clearboth, remove existing one if present
-            const existingClearboth = existingContent.nextElementSibling;
-            if (existingClearboth && existingClearboth.classList.contains('clearboth')) {
-                existingClearboth.remove();
-            }
-        }
+        // Replace the entire element with the new one (including wrapper div with correct class)
+        // The new element already includes clearboth if needed, so just replace the whole thing
+        const newElement = contentElement.cloneNode(true);
+        existingContent.parentNode?.replaceChild(newElement, existingContent);
     }
 }
 // Initialize view toggle system when DOM is ready
