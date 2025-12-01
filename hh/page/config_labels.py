@@ -76,5 +76,11 @@ from hh.render.config.config_registry import register_label
 @register_label('section',                            'Section:',                  '📋')
 @register_label('view_type',                          'View Type:',                '👁️')
 @register_label('dom_content',                        'DOM Content:',              '📄')
+@register_label('get_browser_header',                 'Browser HTML',              '🌐')
+@register_label('path_html',                          'Path HTML:',                '🔸')
+@register_label('badges_html',                        'Badges HTML:',              '🏷️')
+@register_label('text_html',                          'Text HTML:',                '📄')
+@register_label('children_html',                      'Children HTML:',            '👶')
+@register_label('images_html',                        'Images HTML:',              '🎨')
 def _register_config():
     pass

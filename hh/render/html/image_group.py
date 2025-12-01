@@ -31,19 +31,21 @@ def _initialize_debug():
 class ImageGroup(TileGroup):
     """Tile group for rendering images as tiles."""
     
-    def __init__(self, images_data: List[Dict[str, Any]], page_id: int, target_width: int = 300):
+    def __init__(self, images_data: List[Dict[str, Any]], page_id: int, target_width: int = 300, wrapper_extra_classes: str = None):
         """Initialize image group by parsing image data and creating tiles.
         
         Args:
             images_data: List of image data dicts with 'id', 'caption', 'instances', 'image_rank'
             page_id: Page ID for generating unique element IDs
             target_width: Target width for tiles (default 300)
+            wrapper_extra_classes: Additional CSS classes for the wrapper div
         """
         trace_in()
         super().__init__(target_width=target_width)
         self.page_id = page_id
         self.page_id_str = str(page_id)
         self.content_id = f"pageImageGroup_{self.page_id_str}"
+        self.wrapper_extra_classes = wrapper_extra_classes
         
         # Parse image data and create tiles
         for image_data in images_data:
@@ -78,8 +80,14 @@ class ImageGroup(TileGroup):
         """
         trace_in()
         
+        # Build class string: always "content pageImageGroup", plus any extra classes
+        class_parts = ['content', 'pageImageGroup']
+        if self.wrapper_extra_classes:
+            class_parts.append(self.wrapper_extra_classes)
+        class_str = ' '.join(class_parts)
+        
         # Wrap content in div with unique ID, with clearboth inside to contain floats
-        content_html = f'<div id="{self.content_id}" class="content pageImageGroup">{html_content}<div class="clearboth"></div></div>'
+        content_html = f'<div id="{self.content_id}" class="{class_str}">{html_content}<div class="clearboth"></div></div>'
         
         log(f"Finalized image group output for page {self.page_id}")
         trace_out()

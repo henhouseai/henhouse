@@ -171,10 +171,12 @@ class HtmlTableBuilder:
             class_parts.append(self.wrapper_extra_classes)
         class_str = ' '.join(class_parts)
         
-        div_tag = f'<div class="{class_str}"'
+        # Standardize: id always comes before class
+        div_tag = '<div'
         if wrapper_id:
             escaped_id = html.escape(str(wrapper_id), quote=True)
             div_tag += f' id="{escaped_id}"'
+        div_tag += f' class="{class_str}"'
         div_tag += '>\n'
         html_parts = [div_tag]
         table_tag = '  <table class="pageTableView" cellpadding="0" cellspacing="0">\n'

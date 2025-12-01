@@ -411,6 +411,22 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Upload'
 )
 @register_mcp_tool(
+    tool_name='get_browser',
+    description='Get browser HTML for page selection overlay. Returns structured HTML sections with metadata for browser overlay.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'integer', 'description': 'The ID of the page to display in browser'},
+            'name': {'type': 'string', 'description': 'The name/link of the page to display (alternative to id)'},
+            'link': {'type': 'string', 'description': 'The link of the page to display (alternative to id or name)'}
+        },
+        'required': []
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
     tool_name='get_page_section',
     description='Get HTML snippet for a specific page section (images, children, files) in the requested view mode (table or tile).',
     inputSchema={

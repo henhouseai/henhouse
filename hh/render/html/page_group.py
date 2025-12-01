@@ -60,7 +60,8 @@ class PageGroup(TileGroup):
         children_data: List[Dict[str, Any]],
         page_id: int,
         class_name: str,
-        target_width: int = 300
+        target_width: int = 300,
+        wrapper_extra_classes: str = None
     ):
         """Initialize page group by parsing page data and creating tiles.
         
@@ -69,6 +70,7 @@ class PageGroup(TileGroup):
             page_id: Parent page ID for generating unique element IDs
             class_name: Child page class name (e.g., "source_code_file")
             target_width: Target width for tiles (default 300)
+            wrapper_extra_classes: Additional CSS classes for the wrapper div
         """
         trace_in()
         super().__init__(target_width=target_width)
@@ -77,6 +79,7 @@ class PageGroup(TileGroup):
         self.page_id_str = str(page_id)
         self.class_name_safe = class_name.replace('_', '-')
         self.content_id = f"child_pages_{self.class_name_safe}_{self.page_id_str}"
+        self.wrapper_extra_classes = wrapper_extra_classes
         
         # Parse page data and create tiles
         for page_data in children_data:
@@ -118,8 +121,14 @@ class PageGroup(TileGroup):
         """
         trace_in()
         
+        # Build class string: always "content pageGroup", plus any extra classes
+        class_parts = ['content', 'pageGroup']
+        if self.wrapper_extra_classes:
+            class_parts.append(self.wrapper_extra_classes)
+        class_str = ' '.join(class_parts)
+        
         # Wrap content in div with unique ID, with clearboth inside to contain floats
-        content_html = f'<div id="{self.content_id}" class="content pageGroup">{html_content}<div class="clearboth"></div></div>'
+        content_html = f'<div id="{self.content_id}" class="{class_str}">{html_content}<div class="clearboth"></div></div>'
         
         log(f"Finalized page group output for class '{self.class_name}' on page {self.page_id}")
         trace_out()

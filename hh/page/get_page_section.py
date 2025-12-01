@@ -81,6 +81,11 @@ def get_page_section_action() -> bool:
             else:
                 view_type = "table"
 
+        # Check for overlay flag
+        overlay_mode = gateway.request.is_set('overlay') if gateway.request else False
+        wrapper_id_prefix = 'overlay_' if overlay_mode else ''
+        wrapper_extra_classes = 'overlay' if overlay_mode else None
+
         # Render section based on type
         dom_content = ""
         if section == "images":
@@ -122,8 +127,8 @@ def get_page_section_action() -> bool:
                 
                 if images_rows.num_rows() > 0:
                     page_id_str = str(page_id)
-                    content_id = f"pageImageGroup_{page_id_str}"
-                    # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
+                    content_id = f"{wrapper_id_prefix}pageImageGroup_{page_id_str}"
+                    # Render block with wrapper configuration
                     dom_content = render_block(
                         images_rows,
                         FieldConfig()
@@ -132,7 +137,8 @@ def get_page_section_action() -> bool:
                         table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
                         block_type='images',
                         backend='http',  # Force HTTP for MCP
-                        wrapper_id=content_id
+                        wrapper_id=content_id,
+                        wrapper_extra_classes=wrapper_extra_classes
                     )
         elif section == "children":
             # Get class_name parameter (required for children section)
@@ -210,8 +216,8 @@ def get_page_section_action() -> bool:
                     if children_rows.num_rows() > 0:
                         page_id_str = str(page_id)
                         class_name_safe = class_name.replace('_', '-')
-                        content_id = f"child_pages_{class_name_safe}_{page_id_str}"
-                        # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
+                        content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
+                        # Render block with wrapper configuration
                         dom_content = render_block(
                             children_rows,
                             FieldConfig()
@@ -220,7 +226,8 @@ def get_page_section_action() -> bool:
                             table_overrides={'margin_l': 4},
                             block_type='children',
                             backend='http',  # Force HTTP for MCP
-                            wrapper_id=content_id
+                            wrapper_id=content_id,
+                            wrapper_extra_classes=wrapper_extra_classes
                         )
             else:
                 warn(f"No children found for class '{class_name}'")
