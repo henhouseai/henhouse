@@ -377,8 +377,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                     header_id = f"child_pages_{class_name_safe}_header_{page_id_str}"
                     from hh.render.html.page_group import snake_case_to_title_case
                     human_readable_name = snake_case_to_title_case(class_name)
-                    opposite_view = "table"
-                    header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite_view}">{human_readable_name}</a></div>'
+                    header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a></div>'
                     
                     from hh.render.html.page_group import PageGroup
                     page_group = PageGroup(children_data, page_id, class_name, target_width=300)
@@ -445,8 +444,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                     content_id = f"child_pages_{class_name_safe}_{page_id_str}"
                     from hh.render.html.page_group import snake_case_to_title_case
                     human_readable_name = snake_case_to_title_case(class_name)
-                    opposite_view = "tile"
-                    header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite_view}">{human_readable_name}</a></div>\n'
+                    header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a></div>\n'
                     # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
                     children_block = render_block(
                         children_rows,
@@ -591,8 +589,7 @@ def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None
                 return False
             page_id_str = str(page_id)
             header_id = f"pageImageGroupHeader_{page_id_str}"
-            opposite_view = "table"
-            header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
+            header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images">IMAGES</a></div>'
             
             image_group = ImageGroup(images_data, page_id, target_width=300)
             content_html = image_group.render()  # Get HTML string (includes wrapper divs)

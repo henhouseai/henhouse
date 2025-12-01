@@ -52,18 +52,12 @@ class ViewToggle {
         return;
       }
 
-      // Extract section and view_type from data attributes
+      // Extract section from data attributes
       const section = linkElement.getAttribute('data-section');
-      const viewType = linkElement.getAttribute('data-view-type');
       const className = linkElement.getAttribute('data-class-name'); // For children sections
 
       if (!section) {
         console.warn('Toggle link missing data-section attribute');
-        return;
-      }
-
-      if (!viewType) {
-        console.warn('Toggle link missing data-view-type attribute');
         return;
       }
 
@@ -72,6 +66,23 @@ class ViewToggle {
         console.warn('Toggle link missing data-class-name attribute for children section');
         return;
       }
+
+      // Auto-detect current view type by checking next sibling
+      const headerElement = linkElement.closest('.contentHeader') as HTMLElement;
+      if (!headerElement) {
+        console.warn('Could not find header element');
+        return;
+      }
+      
+      const nextSibling = headerElement.nextElementSibling as HTMLElement;
+      if (!nextSibling) {
+        console.warn('Could not find next sibling element to detect current view');
+        return;
+      }
+
+      // Detect current view: if next sibling contains a table, current view is 'table', otherwise 'tile'
+      const hasTable = nextSibling.querySelector('table') !== null;
+      const viewType = hasTable ? 'tile' : 'table'; // Request opposite of current view
 
       // Build MCP call parameters
       const params: any = {
@@ -116,12 +127,10 @@ class ViewToggle {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
 
-    // Determine element IDs based on section type
-    let headerId: string;
+    // Determine content element ID based on section type
     let contentId: string;
     
     if (section === 'images') {
-      headerId = `pageImageGroupHeader_${pageId}`;
       contentId = `pageImageGroup_${pageId}`;
     } else if (section === 'children') {
       if (!className) {
@@ -130,33 +139,27 @@ class ViewToggle {
       }
       // Convert class_name to safe format (replace underscores with hyphens)
       const classNameSafe = className.replace(/_/g, '-');
-      headerId = `child_pages_${classNameSafe}_header_${pageId}`;
       contentId = `child_pages_${classNameSafe}_${pageId}`;
     } else {
       console.warn(`Section ${section} not yet supported for view toggle`);
       return;
     }
 
-    // Find header and content elements in the parsed HTML
-    const headerElement = tempDiv.querySelector(`#${headerId}`);
+    // Find content element in the parsed HTML (header is not in returned HTML)
     const contentElement = tempDiv.querySelector(`#${contentId}`);
 
-    if (!headerElement || !contentElement) {
-      console.warn(`Could not find header or content elements in HTML for page ${pageId}, section ${section}`);
+    if (!contentElement) {
+      console.warn(`Could not find content element in HTML for page ${pageId}, section ${section}`);
       return;
     }
 
-    // Find existing elements in the DOM
-    const existingHeader = document.getElementById(headerId);
+    // Find existing content element in the DOM
     const existingContent = document.getElementById(contentId);
 
-    if (!existingHeader || !existingContent) {
-      console.warn(`Could not find existing header or content elements for page ${pageId}, section ${section}`);
+    if (!existingContent) {
+      console.warn(`Could not find existing content element for page ${pageId}, section ${section}`);
       return;
     }
-
-    // Replace header (preserve the element, just update its content)
-    existingHeader.innerHTML = headerElement.innerHTML;
 
     // Replace content (preserve the element, just update its content)
     existingContent.innerHTML = contentElement.innerHTML;
