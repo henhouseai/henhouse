@@ -158,16 +158,16 @@ div.errorContentWrapper div.contentHeader {
 
 div.contentHeader a:first-child:link,
 div.contentHeader a:first-child:visited {
-    color: #d4d4d4;
+    color: #d4d4d4 !important;
 }
 
 div.contentHeader a:not(:first-child) {
-    color: #ffa657;
+    color: #ffa657 !important;
 }
 
 div.contentHeader a:link,
 div.contentHeader a:visited {
-    color: #d4d4d4;
+    color: #d4d4d4 !important;
 }
 
 div.contentHeader a:hover,
