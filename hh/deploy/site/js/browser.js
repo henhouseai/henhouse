@@ -65,25 +65,32 @@ export class Browser {
             if (this.mode !== 'page' && sections.images) {
                 contentParts.push(sections.images);
             }
-            // Create overlay
-            const overlayManager = OverlayManager.getInstance();
-            this.overlay = overlayManager.show({
-                header: this.getBrowserTitle(),
-                content: contentParts,
-                contentHeaders: contentParts.map(() => ''),
-                closable: true,
-                showSubmit: true,
-                submitLabel: this.getSubmitLabel(),
-                cancelLabel: 'Cancel',
-                onCancel: () => {
-                    if (this.onCancel) {
-                        this.onCancel();
+            // Check if overlay already exists - if so, update it instead of creating new one
+            if (this.overlay) {
+                // Update existing overlay content
+                this.updateOverlayContent(contentParts);
+            }
+            else {
+                // Create new overlay
+                const overlayManager = OverlayManager.getInstance();
+                this.overlay = overlayManager.show({
+                    header: this.getBrowserTitle(),
+                    content: contentParts,
+                    contentHeaders: contentParts.map(() => ''),
+                    closable: true,
+                    showSubmit: true,
+                    submitLabel: this.getSubmitLabel(),
+                    cancelLabel: 'Cancel',
+                    onCancel: () => {
+                        if (this.onCancel) {
+                            this.onCancel();
+                        }
+                    },
+                    onSubmit: async () => {
+                        return await this.handleSubmit();
                     }
-                },
-                onSubmit: async () => {
-                    return await this.handleSubmit();
-                }
-            });
+                });
+            }
             // Set up link interception after a short delay to ensure DOM is ready
             setTimeout(() => {
                 this.injectAndIntercept();
@@ -92,6 +99,56 @@ export class Browser {
         catch (error) {
             console.error('Error loading browser:', error);
             this.rpc.showError('browser', error);
+        }
+    }
+    /**
+     * Update existing overlay content without creating a new overlay.
+     */
+    updateOverlayContent(contentParts) {
+        if (!this.overlay)
+            return;
+        const windowEl = document.getElementById('overlayWindow');
+        if (!windowEl) {
+            // Overlay was closed, create a new one
+            this.overlay = null;
+            this.loadAndRender();
+            return;
+        }
+        // Find all overlayContent divs (there may be multiple if there were headers)
+        const existingContentDivs = windowEl.querySelectorAll('.overlayContent');
+        // Remove old content divs (but keep header, buttons, and debug options)
+        existingContentDivs.forEach(div => div.remove());
+        // Also remove any content headers that might exist
+        const existingHeaders = windowEl.querySelectorAll('.overlayContentHeader');
+        existingHeaders.forEach(header => header.remove());
+        // Add new content - combine all parts into one HTML string
+        const contentHTML = contentParts.join('');
+        // Find where to insert (after header, before debug options)
+        const headerEl = windowEl.querySelector('.overlay-header');
+        const debugOptions = windowEl.querySelector('.overlay-debug-options');
+        // Create a container for all content
+        const newContentContainer = document.createElement('div');
+        newContentContainer.className = 'overlayContent';
+        newContentContainer.innerHTML = contentHTML;
+        if (headerEl) {
+            // Insert after header
+            if (debugOptions && debugOptions.previousSibling) {
+                // Insert before debug options
+                windowEl.insertBefore(newContentContainer, debugOptions);
+            }
+            else {
+                // Insert after header
+                headerEl.insertAdjacentElement('afterend', newContentContainer);
+            }
+        }
+        else {
+            // Fallback: append to window
+            windowEl.appendChild(newContentContainer);
+        }
+        // Update submit button label
+        const submitBtn = windowEl.querySelector('#submitOverlayWindow');
+        if (submitBtn) {
+            submitBtn.textContent = this.getSubmitLabel();
         }
     }
     /**
