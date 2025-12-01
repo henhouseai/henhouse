@@ -339,8 +339,8 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
             # Parser backend: force table format
             view_type = 'table'
         else:
-            # HTTP backend: default to 'auto' which becomes 'tile'
-            view_type = 'auto'
+            # HTTP backend: don't pass view_type, let each class use its own default
+            view_type = None
         
         for class_name, class_data in children_by_class.items():
             # Re-fetch children data with appropriate view_type using static getChildrenOf method
@@ -348,7 +348,11 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                 from hh.page.page_class_registry import get_page_class
                 PageClass = get_page_class(class_name)
                 if PageClass:
-                    children_data = PageClass.getChildrenOf(page.id, view_type=view_type)
+                    if view_type is not None:
+                        children_data = PageClass.getChildrenOf(page.id, view_type=view_type)
+                    else:
+                        # Don't pass view_type - let class use its own default
+                        children_data = PageClass.getChildrenOf(page.id)
                 else:
                     # Fallback to existing data if class not found
                     children_data = class_data.get('children', [])
