@@ -184,8 +184,9 @@ div.pageImageGroup ul {
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(0, 300px));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 300px));
     gap: 6px 4px; /* row-gap column-gap - replaces margin on li */
+    width: 100%; /* Ensure grid fills container */
 }
 
 div.pageImageGroup ul li {
@@ -204,8 +205,9 @@ div.pageGroup ul {
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(0, 300px));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 300px));
     gap: 6px 4px; /* row-gap column-gap - replaces margin on li */
+    width: 100%; /* Ensure grid fills container */
 }
 
 div.pageGroup ul li {
