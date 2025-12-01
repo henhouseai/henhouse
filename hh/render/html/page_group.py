@@ -118,8 +118,8 @@ class PageGroup(TileGroup):
         """
         trace_in()
         
-        # Wrap content in div with unique ID
-        content_html = f'<div id="{self.content_id}" class="content pageGroup">{html_content}</div><div class="clearboth"></div>'
+        # Wrap content in div with unique ID, with clearboth inside to contain floats
+        content_html = f'<div id="{self.content_id}" class="content pageGroup">{html_content}<div class="clearboth"></div></div>'
         
         log(f"Finalized page group output for class '{self.class_name}' on page {self.page_id}")
         trace_out()

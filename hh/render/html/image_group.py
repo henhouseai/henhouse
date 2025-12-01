@@ -78,8 +78,8 @@ class ImageGroup(TileGroup):
         """
         trace_in()
         
-        # Wrap content in div with unique ID
-        content_html = f'<div id="{self.content_id}" class="content pageImageGroup">{html_content}</div><div class="clearboth"></div>'
+        # Wrap content in div with unique ID, with clearboth inside to contain floats
+        content_html = f'<div id="{self.content_id}" class="content pageImageGroup">{html_content}<div class="clearboth"></div></div>'
         
         log(f"Finalized image group output for page {self.page_id}")
         trace_out()
