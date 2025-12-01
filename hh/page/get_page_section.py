@@ -81,10 +81,6 @@ def get_page_section_action() -> bool:
             else:
                 view_type = "table"
 
-        # Check URL override flag
-        if gateway.request.is_set("image_table") and section == "images":
-            view_type = "table"
-
         # Render section based on type
         dom_content = ""
         if section == "images":

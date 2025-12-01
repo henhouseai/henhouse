@@ -466,7 +466,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                             .add_header('children_header')
                             .add_simple(field_types_list),
                         table_overrides={'margin_l': 4},
-                        block_type=block,
+                        block_type=block
                     )
                     gateway.response.set_lower_content(children_block)
     trace_out()
@@ -544,47 +544,8 @@ def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None
             return False
         log(f"Rendering images section with {len(images_data)} images")
         
-        # Determine view_type based on backend
         if gateway.backend == "parser":
-            # Parser backend: force table format
-            view_type = 'table'
-        else:
-            # HTTP backend: default to 'auto' which becomes 'tile'
-            # Check URL override flag
-            if gateway.request.is_set("image_table"):
-                view_type = 'table'
-            else:
-                view_type = 'auto'
-        
-        # Check data format (if images_data has _format field, use it)
-        data_format = images_data[0].get('_format', 'table') if images_data else 'table'
-        
-        # Error check: parser backend should never receive tile data
-        if gateway.backend == "parser" and data_format == 'tile':
-            warn("Parser backend received tile-formatted image data - this should never happen")
-            report_error("backend", "Parser backend received tile image data")
-            trace_out()
-            return False
-        
-        if data_format == 'tile' and gateway.backend == "http":
-            # Render as tiles using ImageGroup (HTTP backend only)
-            if page_id is None:
-                warn("page_id is required for tile rendering")
-                trace_out()
-                return False
-            page_id_str = str(page_id)
-            header_id = f"pageImageGroupHeader_{page_id_str}"
-            opposite_view = "table"
-            header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
-            
-            image_group = ImageGroup(images_data, page_id, target_width=300)
-            content_html = image_group.render()  # Get HTML string (includes wrapper divs)
-            # Prepend header and set response
-            gateway.response.set_image_group(header_html + content_html)
-        else:
-            # Render as table (parser backend or HTTP with table override)
-            # For parser backend: no HTML wrappers, just CLI table
-            # For HTTP backend: wrap in HTML divs with header
+            # Parser backend: render as table (no HTML wrappers, just CLI table)
             images_rows = TableData()
             images_rows.add_row(
                 'images_header',
@@ -613,47 +574,30 @@ def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None
                     images_rows.add_image_link_to_column('caption', image_id)
             
             if images_rows.num_rows() > 0:
-                if gateway.backend == "http":
-                    # HTTP backend: configure wrapper and render with header
-                    if page_id is not None:
-                        page_id_str = str(page_id)
-                        header_id = f"pageImageGroupHeader_{page_id_str}"
-                        content_id = f"pageImageGroup_{page_id_str}"
-                        opposite_view = "tile"
-                        header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>\n'
-                        # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
-                        images_block = render_block(
-                            images_rows,
-                            FieldConfig()
-                                .add_header('images_header')
-                                .add_simple(['image_item']),
-                            table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
-                            block_type=block,
-                            wrapper_id=content_id
-                        )
-                        gateway.response.set_image_group(header_html + images_block)
-                    else:
-                        # HTTP backend but no page_id - render without wrapper configuration
-                        images_block = render_block(
-                            images_rows,
-                            FieldConfig()
-                                .add_header('images_header')
-                                .add_simple(['image_item']),
-                            table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
-                            block_type=block
-                        )
-                        gateway.response.set_lower_content(images_block)
-                else:
-                    # Parser backend: no HTML wrappers, just CLI table (backward compatible)
-                    images_block = render_block(
-                        images_rows,
-                        FieldConfig()
-                            .add_header('images_header')
-                            .add_simple(['image_item']),
-                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
-                        block_type=block
-                    )
-                    gateway.response.set_lower_content(images_block)
+                images_block = render_block(
+                    images_rows,
+                    FieldConfig()
+                        .add_header('images_header')
+                        .add_simple(['image_item']),
+                    table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                    block_type=block
+                )
+                gateway.response.set_lower_content(images_block)
+        else:
+            # HTTP backend: render as tiles
+            if page_id is None:
+                warn("page_id is required for tile rendering")
+                trace_out()
+                return False
+            page_id_str = str(page_id)
+            header_id = f"pageImageGroupHeader_{page_id_str}"
+            opposite_view = "table"
+            header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
+            
+            image_group = ImageGroup(images_data, page_id, target_width=300)
+            content_html = image_group.render()  # Get HTML string (includes wrapper divs)
+            # Prepend header and set response
+            gateway.response.set_image_group(header_html + content_html)
     
     trace_out()
 
