@@ -190,8 +190,9 @@ def render_block(
     table_class: str = 'standard',
     table_overrides: Dict[str, Union[str, int, bool]] = None,
     block_type: str = None,
-    table_id: str = None,
-    backend: Optional[str] = None
+    backend: Optional[str] = None,
+    wrapper_id: Optional[str] = None,
+    wrapper_extra_classes: Optional[str] = None
 ) -> str:
     trace_in()
     gateway = get_gateway()
@@ -199,10 +200,7 @@ def render_block(
         warn("No gateway available")
         trace_out()
         return ""
-    # Convert None to empty string for downstream functions
-    if table_id is None:
-        table_id = ""
-    log(f"Rendering block: {table_data.num_rows()} rows, table_class={table_class}, block_type={block_type}, table_id={table_id}")
+    log(f"Rendering block: {table_data.num_rows()} rows, table_class={table_class}, block_type={block_type}, wrapper_id={wrapper_id}")
     if block_type and gateway.is_no(block_type):
         log(f"Block type '{block_type}' disabled, returning empty")
         trace_out()
@@ -220,7 +218,6 @@ def render_block(
             meta_table_overrides.update(table_overrides)
         result = render_meta_table(
             table_data, 
-            table_id,
             FieldConfig()
                 .add_header('meta_header')
                 .add_simple(['meta', 'sub_meta']), 
@@ -245,9 +242,9 @@ def render_block(
     if backend == "http":
         log("HTTP backend detected, using HTML renderer")
         from hh.render.render_http import render_html_table
-        result = render_html_table(table_data, table_id, field_configs, table_class, table_overrides)
+        result = render_html_table(table_data, field_configs, table_class, table_overrides, wrapper_id=wrapper_id, wrapper_extra_classes=wrapper_extra_classes)
     else:
         from hh.render.render_parser import render_flexible_table
-        result = render_flexible_table(table_data, table_id, field_configs, table_class, table_overrides)
+        result = render_flexible_table(table_data, field_configs, table_class, table_overrides)
     trace_out()
     return result

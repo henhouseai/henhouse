@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Union, Any, Optional
 import json
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
@@ -27,7 +27,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def render_path_section(page_data: Dict[str, Any]) -> None:
+def render_path_section(page_data: Dict[str, Any], page_id: Optional[int] = None) -> None:
     """Render the breadcrumb path section"""
     trace_in()
     gateway = get_gateway()
@@ -41,10 +41,10 @@ def render_path_section(page_data: Dict[str, Any]) -> None:
         log(f"Building path HTML for HTTP backend with {len(path_data)} levels")
         path_items = []
         for path_item in path_data:
-            page_id = path_item.get('id')
-            if page_id is not None:
-                name = path_item.get('name') or path_item.get('title') or f"Page {page_id}"
-                link_href = f"{page_id}"
+            path_item_id = path_item.get('id')
+            if path_item_id is not None:
+                name = path_item.get('name') or path_item.get('title') or f"Page {path_item_id}"
+                link_href = f"{path_item_id}"
                 path_items.append(f'<li><a href="{link_href}">{safe_str(name)}</a></li>')
         if path_items:
             path_html = f'<ul class="path">{"".join(path_items)}</ul>'
@@ -63,19 +63,22 @@ def render_path_section(page_data: Dict[str, Any]) -> None:
     )
     # Create data rows for each path level
     for i, path_item in enumerate(path_data):
-        page_id = path_item.get('id')
-        name = path_item.get('name', f"Page {page_id}" if page_id else 'Unknown')
+        path_item_id = path_item.get('id')
+        name = path_item.get('name', f"Page {path_item_id}" if path_item_id else 'Unknown')
         path_rows.add_row(
             'page_path',
-            id=str(page_id) if page_id is not None else 'Unknown',
+            id=str(path_item_id) if path_item_id is not None else 'Unknown',
             name=safe_str(name)
         )
         # Add page link metadata to label, id, and name columns
-        if page_id is not None:
-            path_rows.add_page_link_to_column('label', page_id)
-            path_rows.add_page_link_to_column('id', page_id)
-            path_rows.add_page_link_to_column('name', page_id)
+        if path_item_id is not None:
+            path_rows.add_page_link_to_column('label', path_item_id)
+            path_rows.add_page_link_to_column('id', path_item_id)
+            path_rows.add_page_link_to_column('name', path_item_id)
     if path_rows.num_rows() > 0:
+        # Generate wrapper_id with page_id if available
+        wrapper_id = f'pagePath_{page_id}' if page_id is not None else None
+        
         path_block = render_block(
             path_rows,
             FieldConfig()
@@ -83,13 +86,13 @@ def render_path_section(page_data: Dict[str, Any]) -> None:
                 .add_simple(['page_path']),
             table_overrides={'margin_l': 4},
             block_type='path',
-            table_id='page_path'
+            wrapper_id=wrapper_id
         )
         gateway.response.set_upper_content(path_block)
     trace_out()
 
 
-def render_badge_headers_section(badge_headers: Dict[str, Any]) -> None:
+def render_badge_headers_section(badge_headers: Dict[str, Any], page_id: Optional[int] = None) -> None:
     trace_in()
     block = 'badges'
     gateway = get_gateway()
@@ -109,7 +112,7 @@ def render_badge_headers_section(badge_headers: Dict[str, Any]) -> None:
                 render_page_summary_badge(badge_data)
             else:
                 # Generic badge rendering for other badge types
-                render_generic_badge(badge_name, badge_data)
+                render_generic_badge(badge_name, badge_data, page_id=page_id)
     trace_out()
 
 
@@ -220,6 +223,9 @@ def render_page_summary_badge(badge_data: Dict[str, Any]) -> None:
         field_config_list.insert(-1, 'page_text')  # Insert before page_num_children
     
     if page_data.num_rows() > 0:
+        # Generate wrapper_id with page_id if available
+        wrapper_id = f'pageSummary_{page_id}' if page_id is not None else None
+        
         badge_block = render_block(
             page_data,
             FieldConfig()
@@ -227,13 +233,13 @@ def render_page_summary_badge(badge_data: Dict[str, Any]) -> None:
                 .add_simple(field_config_list),
             table_overrides={'margin_l': 4},
             block_type='badge_headers',
-            table_id='page_summary'
+            wrapper_id=wrapper_id
         )
         gateway.response.set_upper_content(badge_block)
     trace_out()
 
 
-def render_generic_badge(badge_name: str, badge_data: Dict[str, Any]) -> None:
+def render_generic_badge(badge_name: str, badge_data: Dict[str, Any], page_id: Optional[int] = None) -> None:
     trace_in()
     gateway = get_gateway()
     # Create header row
@@ -258,6 +264,13 @@ def render_generic_badge(badge_name: str, badge_data: Dict[str, Any]) -> None:
             value=safe_str(value)
         )
     if badge_rows.num_rows() > 0:
+        # Generate wrapper_id with page_id if available
+        if page_id is not None:
+            badge_name_safe = badge_name.replace('_', '-')
+            wrapper_id = f'badge_{badge_name_safe}_{page_id}'
+        else:
+            wrapper_id = None
+        
         badge_block = render_block(
             badge_rows,
             FieldConfig()
@@ -265,7 +278,7 @@ def render_generic_badge(badge_name: str, badge_data: Dict[str, Any]) -> None:
                 .add_simple(['extra_data_item']),
             table_overrides={'margin_l': 4},
             block_type='badge_headers',
-            table_id=f'badge_{badge_name}'
+            wrapper_id=wrapper_id
         )
         gateway.response.set_upper_content(badge_block)
     trace_out()
@@ -375,18 +388,6 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                     continue  # Skip table rendering
             
             # Render as table (parser backend, HTTP with table override, or HTTP tiles without page_id)
-            # Generate toggle header for HTTP backend (if page_id available)
-            header_html = ""
-            if gateway.backend == "http" and page_id is not None:
-                page_id_str = str(page_id)
-                class_name_safe = class_name.replace('_', '-')
-                header_id = f"child_pages_{class_name_safe}_header_{page_id_str}"
-                from hh.render.html.page_group import snake_case_to_title_case
-                human_readable_name = snake_case_to_title_case(class_name)
-                opposite_view = "tile"
-                header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite_view}">{human_readable_name}</a></div>'
-            
-            # Render as table (existing logic)
             # Get all field names dynamically from first child, preserving order
             # Exclude metadata fields like 'field_type' and '_format' from display
             first_child = children_data[0]
@@ -436,25 +437,42 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
                         children_rows.add_page_link_to_column(field_names[1], child_id)
             
             if children_rows.num_rows() > 0:
-                children_block = render_block(
-                    children_rows,
-                    FieldConfig()
-                        .add_header('children_header')
-                        .add_simple(field_types_list),
-                    table_overrides={'margin_l': 4},
-                    block_type=block,
-                    table_id=f'child_pages_{class_name}'
-                )
-                # Prepend header if available (HTTP backend with page_id)
-                if header_html:
+                if gateway.backend == "http" and page_id is not None:
+                    # HTTP backend: configure wrapper and render with header
+                    page_id_str = str(page_id)
+                    class_name_safe = class_name.replace('_', '-')
+                    header_id = f"child_pages_{class_name_safe}_header_{page_id_str}"
+                    content_id = f"child_pages_{class_name_safe}_{page_id_str}"
+                    from hh.render.html.page_group import snake_case_to_title_case
+                    human_readable_name = snake_case_to_title_case(class_name)
+                    opposite_view = "tile"
+                    header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}" data-view-type="{opposite_view}">{human_readable_name}</a></div>\n'
+                    # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
+                    children_block = render_block(
+                        children_rows,
+                        FieldConfig()
+                            .add_header('children_header')
+                            .add_simple(field_types_list),
+                        table_overrides={'margin_l': 4},
+                        block_type=block,
+                        wrapper_id=content_id
+                    )
                     gateway.response.add_child_pages(header_html + children_block)
                 else:
-                    # No header - use lower_content for backward compatibility
+                    # Parser backend or no page_id - render without wrapper configuration
+                    children_block = render_block(
+                        children_rows,
+                        FieldConfig()
+                            .add_header('children_header')
+                            .add_simple(field_types_list),
+                        table_overrides={'margin_l': 4},
+                        block_type=block,
+                    )
                     gateway.response.set_lower_content(children_block)
     trace_out()
 
 
-def render_children_section(children_data: List[Dict[str, Union[str, int]]]) -> None:
+def render_children_section(children_data: List[Dict[str, Union[str, int]]], page_id: Optional[int] = None) -> None:
     trace_in()
     block = 'children'
     gateway = get_gateway()
@@ -492,6 +510,9 @@ def render_children_section(children_data: List[Dict[str, Union[str, int]]]) -> 
                 children_rows.add_page_link_to_column('id', child_id)
                 children_rows.add_page_link_to_column('name', child_id)
         if children_rows.num_rows() > 0:
+            # Generate wrapper_id with page_id if available
+            wrapper_id = f'childPages_{page_id}' if page_id is not None else None
+            
             children_block = render_block(
                 children_rows,
                 FieldConfig()
@@ -499,7 +520,7 @@ def render_children_section(children_data: List[Dict[str, Union[str, int]]]) -> 
                     .add_simple(['child_page']),
                 table_overrides={'margin_l': 4},
                 block_type=block,
-                table_id='child_pages'
+                wrapper_id=wrapper_id
             )
             gateway.response.set_lower_content(children_block)
     trace_out()
@@ -592,37 +613,52 @@ def render_images_section(images_data: List[Dict[str, Any]], page_id: int = None
                     images_rows.add_image_link_to_column('caption', image_id)
             
             if images_rows.num_rows() > 0:
-                images_block = render_block(
-                    images_rows,
-                    FieldConfig()
-                        .add_header('images_header')
-                        .add_simple(['image_item']),
-                    table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
-                    block_type=block,
-                    table_id='image_group'
-                )
-                
                 if gateway.backend == "http":
-                    # HTTP backend: wrap in HTML divs with header
+                    # HTTP backend: configure wrapper and render with header
                     if page_id is not None:
                         page_id_str = str(page_id)
                         header_id = f"pageImageGroupHeader_{page_id_str}"
                         content_id = f"pageImageGroup_{page_id_str}"
                         opposite_view = "tile"
-                        header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>'
-                        content_html = f'<div id="{content_id}" class="content pageImageGroup">{images_block}</div>'
-                        gateway.response.set_image_group(header_html + content_html)
+                        header_html = f'<div id="{header_id}" class="contentHeader"><a class="updatePageView_{page_id_str}" data-section="images" data-view-type="{opposite_view}">IMAGES</a></div>\n'
+                        # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
+                        images_block = render_block(
+                            images_rows,
+                            FieldConfig()
+                                .add_header('images_header')
+                                .add_simple(['image_item']),
+                            table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                            block_type=block,
+                            wrapper_id=content_id
+                        )
+                        gateway.response.set_image_group(header_html + images_block)
                     else:
-                        # HTTP backend but no page_id - use lower_content for backward compatibility
+                        # HTTP backend but no page_id - render without wrapper configuration
+                        images_block = render_block(
+                            images_rows,
+                            FieldConfig()
+                                .add_header('images_header')
+                                .add_simple(['image_item']),
+                            table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                            block_type=block
+                        )
                         gateway.response.set_lower_content(images_block)
                 else:
                     # Parser backend: no HTML wrappers, just CLI table (backward compatible)
+                    images_block = render_block(
+                        images_rows,
+                        FieldConfig()
+                            .add_header('images_header')
+                            .add_simple(['image_item']),
+                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                        block_type=block
+                    )
                     gateway.response.set_lower_content(images_block)
     
     trace_out()
 
 
-def render_files_section(files_data: List[Dict[str, Any]]) -> None:
+def render_files_section(files_data: List[Dict[str, Any]], page_id: Optional[int] = None) -> None:
     trace_in()
     block = 'files'
     gateway = get_gateway()
@@ -663,6 +699,9 @@ def render_files_section(files_data: List[Dict[str, Any]]) -> None:
                 files_rows.add_file_link_to_column('name', file_path)
                 files_rows.add_file_link_to_column('path', file_path)
         if files_rows.num_rows() > 0:
+            # Generate wrapper_id with page_id if available
+            wrapper_id = f'fileGroup_{page_id}' if page_id is not None else None
+            
             files_block = render_block(
                 files_rows,
                 FieldConfig()
@@ -670,13 +709,13 @@ def render_files_section(files_data: List[Dict[str, Any]]) -> None:
                     .add_simple(['file_item']),
                 table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
                 block_type=block,
-                table_id='file_group',
+                wrapper_id=wrapper_id
             )
             gateway.response.set_file_group(files_block)
     trace_out()
 
 
-def render_extra_data_section(extra_data: Dict[str, Any]) -> None:
+def render_extra_data_section(extra_data: Dict[str, Any], page_id: Optional[int] = None) -> None:
     trace_in()
     block = 'extra_data'
     gateway = get_gateway()
@@ -736,12 +775,15 @@ def render_extra_data_section(extra_data: Dict[str, Any]) -> None:
             # Add all row types to field config
             field_config.add_simple(row_types)
             
+            # Generate wrapper_id with page_id if available
+            wrapper_id = f'extraData_{page_id}' if page_id is not None else None
+            
             extra_block = render_block(
                 extra_rows,
                 field_config,
                 table_overrides={'margin_l': 4},
                 block_type=block,
-                table_id='extra_data'
+                wrapper_id=wrapper_id
             )
             gateway.response.set_lower_content(extra_block)
     trace_out()
@@ -831,10 +873,11 @@ def show_page() -> bool:
     
     # Render all sections - response classes handle output format differences
     cache_built_at = source_data.pop('cache_built_at', None)
-    render_path_section(page_data)
+    page_id = page_data.get('id')
+    render_path_section(page_data, page_id=page_id)
     badge_headers = source_data.get('badge_headers', {})
     if badge_headers:
-        render_badge_headers_section(badge_headers)
+        render_badge_headers_section(badge_headers, page_id=page_id)
     
     render_text_section(page_data)
     
@@ -845,11 +888,10 @@ def show_page() -> bool:
     children_by_class = source_data.get('children_by_class', {})
     images_data = source_data.get('images', [])
     files_data = source_data.get('files', [])
-    page_id = page_data.get('id')
     if images_data:
         render_images_section(images_data, page_id=page_id)
     if files_data:
-        render_files_section(files_data)
+        render_files_section(files_data, page_id=page_id)
     if children_by_class:
         render_children_by_class_section(children_by_class, page_id=page_id)
     lower_content = source_data.get('lower_content', [])
@@ -871,7 +913,7 @@ def show_page() -> bool:
         ]
     }
     if extra_data:
-        render_extra_data_section(extra_data)
+        render_extra_data_section(extra_data, page_id=page_id)
     
     log(f"Show page handler executed successfully")
     

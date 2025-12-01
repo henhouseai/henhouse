@@ -25,10 +25,11 @@ def _initialize_debug():
 class HtmlTableBuilder:
     """HTML table builder - mirrors TableBuilder API but outputs HTML."""
     
-    def __init__(self, class_name: str, table_id: str):
+    def __init__(self, class_name: str, wrapper_id: Optional[str] = None, wrapper_extra_classes: Optional[str] = None):
         trace_in()
         self.class_name = class_name  # Store for potential future use
-        self.table_id = table_id  # Unique identifier for DOM access
+        self.wrapper_id = wrapper_id  # ID for wrapper div
+        self.wrapper_extra_classes = wrapper_extra_classes  # Extra classes for wrapper div
         self.columns: Dict[str, List[str]] = {}  # column_name -> list of cell values
         self.column_order: List[str] = []  # Order of columns
         self.config = {
@@ -42,7 +43,7 @@ class HtmlTableBuilder:
             'margin_t': 0,
             'margin_b': 0,
         }
-        log(f"HtmlTableBuilder initialized for class: {class_name}, table_id: {table_id}")
+        log(f"HtmlTableBuilder initialized for class: {class_name}, wrapper_id: {wrapper_id}")
         trace_out()
     
     def set_columns(self, columns: str) -> 'HtmlTableBuilder':
@@ -161,10 +162,18 @@ class HtmlTableBuilder:
         
         log(f"Rendering HTML table: {len(column_list)} columns, {num_rows} rows")
         
-        # Start building HTML - add ID to parent div if provided
-        div_tag = '<div class="content tableViewDiv"'
-        if self.table_id:
-            escaped_id = html.escape(str(self.table_id), quote=True)
+        # Start building HTML - build wrapper div with configurable ID and classes
+        wrapper_id = self.wrapper_id
+        
+        # Build class string: always "content tableViewDiv", plus any extra classes
+        class_parts = ['content', 'tableViewDiv']
+        if self.wrapper_extra_classes:
+            class_parts.append(self.wrapper_extra_classes)
+        class_str = ' '.join(class_parts)
+        
+        div_tag = f'<div class="{class_str}"'
+        if wrapper_id:
+            escaped_id = html.escape(str(wrapper_id), quote=True)
             div_tag += f' id="{escaped_id}"'
         div_tag += '>\n'
         html_parts = [div_tag]

@@ -25,7 +25,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def render_flexible_table(table_data: TableData, table_id: str, field_configs: FieldConfig = None, table_class: str = 'standard', table_overrides: Dict[str, Union[str, int, bool]] = None) -> str:
+def render_flexible_table(table_data: TableData, field_configs: FieldConfig = None, table_class: str = 'standard', table_overrides: Dict[str, Union[str, int, bool]] = None) -> str:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -57,7 +57,7 @@ def render_flexible_table(table_data: TableData, table_id: str, field_configs: F
         log("No columns found, returning empty")
         trace_out()
         return ""
-    tb = TableBuilder(table_class, table_id)
+    tb = TableBuilder(table_class)
     tb.set_columns(','.join(columns))
     if len(columns) > 1:
         final_column = columns[-1]
@@ -124,7 +124,6 @@ def render_flexible_table(table_data: TableData, table_id: str, field_configs: F
 
 def render_meta_table(
     table_data: TableData, 
-    table_id: str,
     field_configs: FieldConfig = None, 
     table_class: str = 'div', 
     table_overrides: Dict[str, Union[str, int, bool]] = None,
@@ -156,12 +155,12 @@ def render_meta_table(
         nested_overrides.pop('margin_b', None)
         for key, value in meta_obj.items():
             if isinstance(value, dict):
-                nested_content = render_dict_contents(value, table_id, field_configs, table_class, nested_overrides, block_type)
+                nested_content = render_dict_contents(value, field_configs, table_class, nested_overrides, block_type)
                 width = get_max_width(nested_content)
                 if width > max_sub_meta_width:
                     max_sub_meta_width = width
             elif isinstance(value, list):
-                nested_content = render_list_contents(value, table_id, field_configs, table_class, nested_overrides, block_type)
+                nested_content = render_list_contents(value, field_configs, table_class, nested_overrides, block_type)
                 width = get_max_width(nested_content)
                 if width > max_sub_meta_width:
                     max_sub_meta_width = width
@@ -172,7 +171,7 @@ def render_meta_table(
         modified_overrides['column_widths'] = {'value': max_sub_meta_width}
         modified_overrides['column_align'] = {'label': 'right', 'key': 'center'}
         from hh.render.render import render_block
-        result = render_block(meta_table_data, field_configs, 'double', modified_overrides, 'div', table_id=table_id)
+        result = render_block(meta_table_data, field_configs, 'double', modified_overrides, 'div')
         log(f"Rendered meta table with {meta_table_data.num_rows()} rows")
         trace_out()
         return result
@@ -212,7 +211,6 @@ def render_simple_value(value: Union[str, int, bool, None]) -> str:
 
 def render_list_contents(
     value_list: List[Union[Dict, List, str, int, bool]], 
-    table_id: str,
     field_configs: FieldConfig = None, 
     table_class: str = 'div',
     table_overrides: Dict[str, Union[str, int, bool]] = None,
@@ -231,12 +229,12 @@ def render_list_contents(
     max_sub_meta_width = mc('config_trim_width')
     for item in value_list:
         if isinstance(item, dict):
-            nested_content = render_dict_contents(item, table_id, field_configs, table_class, table_overrides, block_type)
+            nested_content = render_dict_contents(item, field_configs, table_class, table_overrides, block_type)
             width = get_max_width(nested_content)
             if width > max_sub_meta_width:
                 max_sub_meta_width = width
         elif isinstance(item, list):
-            nested_content = render_list_contents(item, table_id, field_configs, table_class, table_overrides, block_type)
+            nested_content = render_list_contents(item, field_configs, table_class, table_overrides, block_type)
             width = get_max_width(nested_content)
             if width > max_sub_meta_width:
                 max_sub_meta_width = width
@@ -247,11 +245,10 @@ def render_list_contents(
     if table_overrides:
         sub_meta_overrides.update(table_overrides)
     from hh.render.render import render_block
-    return render_block(list_table_data, field_configs, table_class, sub_meta_overrides, block_type, table_id=table_id)
+    return render_block(list_table_data, field_configs, table_class, sub_meta_overrides, block_type)
 
 def render_dict_contents(
     value_dict: Dict[str, Union[Dict, List, str, int, bool]], 
-    table_id: str,
     field_configs: FieldConfig = None, 
     table_class: str = 'div',
     table_overrides: Dict[str, Union[str, int, bool]] = None,
@@ -270,12 +267,12 @@ def render_dict_contents(
     max_sub_meta_width = mc('config_trim_width')
     for key, value in value_dict.items():
         if isinstance(value, dict):
-            nested_content = render_dict_contents(value, table_id, field_configs, table_class, table_overrides, block_type)
+            nested_content = render_dict_contents(value, field_configs, table_class, table_overrides, block_type)
             width = get_max_width(nested_content)
             if width > max_sub_meta_width:
                 max_sub_meta_width = width
         elif isinstance(value, list):
-            nested_content = render_list_contents(value, table_id, field_configs, table_class, table_overrides, block_type)
+            nested_content = render_list_contents(value, field_configs, table_class, table_overrides, block_type)
             width = get_max_width(nested_content)
             if width > max_sub_meta_width:
                 max_sub_meta_width = width
@@ -286,7 +283,7 @@ def render_dict_contents(
     if table_overrides:
         sub_meta_overrides.update(table_overrides)
     from hh.render.render import render_block
-    return render_block(dict_table_data, field_configs, table_class, sub_meta_overrides, block_type, table_id=table_id)
+    return render_block(dict_table_data, field_configs, table_class, sub_meta_overrides, block_type)
 
 
 def render_parser_header(subheader_key: str, header_id: str) -> str:

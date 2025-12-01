@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 # Import shared data structures from render module
@@ -21,7 +21,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def render_html_table(table_data: TableData, table_id: str, field_configs: FieldConfig = None, table_class: str = 'standard', table_overrides: Dict[str, Union[str, int, bool]] = None) -> str:
+def render_html_table(table_data: TableData, field_configs: FieldConfig = None, table_class: str = 'standard', table_overrides: Dict[str, Union[str, int, bool]] = None, wrapper_id: Optional[str] = None, wrapper_extra_classes: Optional[str] = None) -> str:
     """HTML renderer - renders tables as HTML for web output."""
     trace_in()
     gateway = get_gateway()
@@ -31,7 +31,7 @@ def render_html_table(table_data: TableData, table_id: str, field_configs: Field
         return ""
     log("HTTP backend detected - using HTML renderer")
     from hh.render.html.html_flexible import render_html_flexible_table
-    result = render_html_flexible_table(table_data, table_id, field_configs, table_class, table_overrides)
+    result = render_html_flexible_table(table_data, field_configs, table_class, table_overrides, wrapper_id=wrapper_id, wrapper_extra_classes=wrapper_extra_classes)
     log(f"HTML renderer completed: {len(result)} characters")
     trace_out()
     return result

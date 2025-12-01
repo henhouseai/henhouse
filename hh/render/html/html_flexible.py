@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 from hh.render.html.html_table import HtmlTableBuilder
 from hh.render.html.link_helpers import create_page_link, create_image_link, create_image_file_link, create_file_link
 from hh.render.render import TableData, FieldConfig
@@ -25,10 +25,11 @@ def _initialize_debug():
 
 def render_html_flexible_table(
     table_data: TableData, 
-    table_id: str,
     field_configs: FieldConfig = None, 
     table_class: str = 'standard', 
-    table_overrides: Dict[str, Union[str, int, bool]] = None
+    table_overrides: Dict[str, Union[str, int, bool]] = None,
+    wrapper_id: Optional[str] = None,
+    wrapper_extra_classes: Optional[str] = None
 ) -> str:
     """Render table data as HTML - mirrors render_flexible_table() but uses HtmlTableBuilder."""
     trace_in()
@@ -70,8 +71,8 @@ def render_html_flexible_table(
         trace_out()
         return ""
     
-    # Create HTML table builder with table_id
-    tb = HtmlTableBuilder(table_class, table_id)
+    # Create HTML table builder with wrapper configuration
+    tb = HtmlTableBuilder(table_class, wrapper_id=wrapper_id, wrapper_extra_classes=wrapper_extra_classes)
     tb.set_columns(','.join(columns))
     
     # Set final column width/overflow if multiple columns (stored for future, not used in Phase 1)

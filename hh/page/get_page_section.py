@@ -127,17 +127,17 @@ def get_page_section_action() -> bool:
                 if images_rows.num_rows() > 0:
                     page_id_str = str(page_id)
                     content_id = f"pageImageGroup_{page_id_str}"
-                    images_block = render_block(
+                    # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
+                    dom_content = render_block(
                         images_rows,
                         FieldConfig()
                             .add_header('images_header')
                             .add_simple(['image_item']),
                         table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
                         block_type='images',
-                        table_id='image_group',
-                        backend='http'  # Force HTTP for MCP
+                        backend='http',  # Force HTTP for MCP
+                        wrapper_id=content_id
                     )
-                    dom_content = f'<div id="{content_id}" class="content pageImageGroup">{images_block}</div>'
         elif section == "children":
             # Get class_name parameter (required for children section)
             class_name = gateway.get_arg("class_name")
@@ -208,17 +208,17 @@ def get_page_section_action() -> bool:
                         page_id_str = str(page_id)
                         class_name_safe = class_name.replace('_', '-')
                         content_id = f"child_pages_{class_name_safe}_{page_id_str}"
-                        children_block = render_block(
+                        # Render block with wrapper configuration (no extra classes - just content tableViewDiv)
+                        dom_content = render_block(
                             children_rows,
                             FieldConfig()
                                 .add_header('children_header')
                                 .add_simple(field_types_list),
                             table_overrides={'margin_l': 4},
                             block_type='children',
-                            table_id=f'child_pages_{class_name_safe}',
-                            backend='http'  # Force HTTP for MCP
+                            backend='http',  # Force HTTP for MCP
+                            wrapper_id=content_id
                         )
-                        dom_content = f'<div id="{content_id}" class="content pageGroup">{children_block}</div>'
             else:
                 warn(f"No children found for class '{class_name}'")
                 dom_content = ""
@@ -305,7 +305,7 @@ def get_page_section_parser() -> bool:
                     ]
                 ),
                 block_type="maintenance",
-                table_overrides={"margin_l": 4},
+                table_overrides={"margin_l": 4}
             )
         )
 

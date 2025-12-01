@@ -25,15 +25,14 @@ def _initialize_debug():
     warn = get_warn(True)
 
 class TableBuilder:
-    def __init__(self, class_name: str, table_id: str):
+    def __init__(self, class_name: str):
         trace_in()
         self.class_name = class_name
-        self.table_id = table_id  # Store for CLI output (not used, but available)
         self.columns: Dict[str, List[str]] = {}
         self.column_order: List[str] = []
         self.hrules_after_rows: List[int] = []
         self.config = load_table_config(class_name)
-        log(f"TableBuilder initialized for class: {class_name}, table_id: {table_id}")
+        log(f"TableBuilder initialized for class: {class_name}")
         trace_out()
 
     def set_columns(self, columns: str) -> 'TableBuilder':
