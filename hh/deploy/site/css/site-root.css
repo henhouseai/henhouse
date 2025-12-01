@@ -6,18 +6,6 @@ body {
     background: #1a0d1a;
 }
 
-/* Global link styling - purple theme */
-a {
-    color: #a371f7;
-    text-decoration: none;
-}
-a:hover {
-    color: #bc8cff;
-    text-decoration: underline;
-}
-a:visited {
-    color: #a371f7;
-}
 
 .container {
     background: #161b22;
@@ -340,5 +328,18 @@ ul.menuGroup li.header a {
     --active-private-tile-wrapper: #1a0f28;
     --active-private-tile-wrapper-text: #c49fff;
     --active-private-tile-wrapper-border: #c49fff;
+}
+
+/* Global link styling - purple theme (at end so specific rules can override) */
+a {
+    color: #a371f7;
+    text-decoration: none;
+}
+a:hover {
+    color: #bc8cff;
+    text-decoration: underline;
+}
+a:visited {
+    color: #a371f7;
 }
 

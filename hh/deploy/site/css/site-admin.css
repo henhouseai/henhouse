@@ -6,18 +6,6 @@ body {
     background: #1a0d0d;
 }
 
-/* Global link styling - orange theme */
-a {
-    color: #ffa657;
-    text-decoration: none;
-}
-a:hover {
-    color: #ffb366;
-    text-decoration: underline;
-}
-a:visited {
-    color: #ffa657;
-}
 
 .container {
     background: #161b22;
@@ -340,5 +328,18 @@ ul.menuGroup li.header a {
     --active-private-tile-wrapper: #1a0f28;
     --active-private-tile-wrapper-text: #c49fff;
     --active-private-tile-wrapper-border: #c49fff;
+}
+
+/* Global link styling - orange theme (at end so specific rules can override) */
+a {
+    color: #ffa657;
+    text-decoration: none;
+}
+a:hover {
+    color: #ffb366;
+    text-decoration: underline;
+}
+a:visited {
+    color: #ffa657;
 }
 
