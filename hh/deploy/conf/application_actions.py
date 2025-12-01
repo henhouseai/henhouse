@@ -18,41 +18,11 @@ def populate_application_action_links(page_id: int = None) -> None:
         return
     
     # Create "test" group with header text
-    gateway.response.add_application_action_group('test', 'TEST')
+    #gateway.response.add_application_action_group('test', 'TEST')
     
     # Add actions to "test" group
-    gateway.response.add_application_action_link('test', 'test_one', 'test one')
-    gateway.response.add_application_action_link('test', 'test_two', 'test two')
-    gateway.response.add_application_action_link('test', 'test_three', 'test three')
-    gateway.response.add_application_action_link('test', 'test_four', 'test four')
-    gateway.response.add_application_action_link('test', 'test_five', 'test five')
-    gateway.response.add_application_action_link('test', 'test_six', 'test six')
-    gateway.response.add_application_action_link('test', 'test_seven', 'test seven')
-    
-    # Create "overlay" group for overlay system testing
-    gateway.response.add_application_action_group('overlay', 'OVERLAY TESTS')
-    
-    # Add overlay test actions
-    gateway.response.add_application_action_link('overlay', 'overlay_test_one', 'Simple Overlay')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_two', 'Overlay with HTML')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_three', 'Overlay with Submit')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_four', 'Overlay Multiple')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_five', 'Focus Trap Test')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_six', 'Backdrop Click Test')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_seven', 'Textarea Enter Test')
-    gateway.response.add_application_action_link('overlay', 'overlay_test_eight', 'Close All Test')
-    
-    # Create "style" group for styling and edge case tests
-    gateway.response.add_application_action_group('style', 'STYLE TESTS')
-    
-    # Add style test actions
-    gateway.response.add_application_action_link('style', 'style_test_one', 'Empty Content')
-    gateway.response.add_application_action_link('style', 'style_test_two', 'Long Content')
-    gateway.response.add_application_action_link('style', 'style_test_three', 'Complex HTML')
-    gateway.response.add_application_action_link('style', 'style_test_four', 'Error Message')
-    gateway.response.add_application_action_link('style', 'style_test_five', 'Success Message')
-    gateway.response.add_application_action_link('style', 'style_test_six', 'Loading State')
-    gateway.response.add_application_action_link('style', 'style_test_seven', 'Special Characters')
-    gateway.response.add_application_action_link('style', 'style_test_eight', 'Table/Form Content')
+    #gateway.response.add_application_action_link('test', 'test_one', 'test one')
+    #gateway.response.add_application_action_link('test', 'test_two', 'test two')
+    #gateway.response.add_application_action_link('test', 'test_three', 'test three')
     
 

@@ -11,34 +11,11 @@ JS_ALWAYS_INCLUDE: List[str] = [
 ]
 
 # Full whitelist of all JS files that can be included via gateway.add_js_link()
+# Can include both individual files and folders (folders will deploy all .js files recursively, flattened)
 JS_WHITELIST: List[str] = [
-    # JavaScript files from hh/deploy/site folder
-    'hh/deploy/site/js/seed.js',
-    'hh/deploy/site/js/rpc-client.js',
-    'hh/deploy/site/js/app.js',
-    'hh/deploy/site/js/page-manager.js',
-    'hh/deploy/site/js/page-data-factory.js',
-    'hh/deploy/site/js/page-data.js',
-    'hh/deploy/site/js/source-code-file-page-data.js',
-    'hh/deploy/site/js/mcp-request-page-data.js',
-    'hh/deploy/site/js/mcp-action-page-data.js',
-    'hh/deploy/site/js/work-page-data.js',
-    'hh/deploy/site/js/work-docket-page-data.js',
-    'hh/deploy/site/js/page-data-derived.js',
-    # Overlay system JavaScript files (deployed flat to site/js/)
-    'hh/deploy/site/js/overlay-manager.js',
-    'hh/deploy/site/js/overlay.js',
-    'hh/deploy/site/js/overlay-backdrop.js',
-    'hh/deploy/site/js/overlay-window.js',
-    'hh/deploy/site/js/overlay-header.js',
-    'hh/deploy/site/js/overlay-content.js',
-    'hh/deploy/site/js/overlay-debug-options.js',
-    'hh/deploy/site/js/overlay-debug-table.js',
-    'hh/deploy/site/js/debug-helper.js',
-    'hh/deploy/site/js/upload-handler.js',
-    'hh/deploy/site/js/view-toggle.js',
-    'hh/deploy/site/js/test.js',
-    # Infographic JavaScript files
+    # Deploy entire js folder (all .js files will be deployed flat to site/js/)
+    'hh/deploy/site/js',
+    # Infographic JavaScript files (individual files from different folder)
     'hh/deploy/site/infographic/infographic-json.js',
     'hh/deploy/site/infographic/infographic-glossary-json.js',
     'hh/deploy/site/infographic/infographic-gateway-access-methods-json.js',

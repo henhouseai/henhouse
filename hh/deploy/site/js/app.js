@@ -6,7 +6,6 @@
 import { getSeedData } from './seed.js';
 import { RPCClient } from './rpc-client.js';
 import { PageManager } from './page-manager.js';
-import { TestHandlers } from './test.js';
 import { initializeViewToggle } from './view-toggle.js';
 class ActionManager {
     constructor() {
@@ -209,9 +208,6 @@ class ActionManager {
      * Initialize all action handlers.
      */
     init() {
-        // Register test handlers (temporary - will be removed eventually)
-        const testHandlers = new TestHandlers(this.rpc, this.seedData);
-        testHandlers.registerHandlers((id, handler) => this.attachHandler(id, handler));
         // All CRUD handlers now live in PageData classes
         // No handlers registered here anymore
     }

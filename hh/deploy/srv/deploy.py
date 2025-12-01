@@ -356,18 +356,34 @@ def deploy() -> bool:
             # Deploy JS files
             js_dest = site_dest / 'js'
             js_dest.mkdir(exist_ok=True)
-            for js_file in JS_WHITELIST:
-                source_js = source / js_file
-                if source_js.exists():
-                    dest_js = js_dest / source_js.name
-                    if dest_js.exists():
-                        dest_js.unlink()
-                    shutil.copy2(source_js, dest_js)
-                    site_deployed.append(f"js/{source_js.name}")
-                    js_count += 1
-                    log(f"Deployed JS file: {js_file} -> site/js/{source_js.name}")
+            for js_item in JS_WHITELIST:
+                source_item = source / js_item
+                if source_item.exists():
+                    if source_item.is_dir():
+                        # If it's a directory, deploy all .js files in it (preserving subfolder structure)
+                        for js_file in source_item.rglob('*.js'):
+                            # Calculate relative path from source_item to preserve subfolder structure
+                            relative_path = js_file.relative_to(source_item)
+                            dest_js = js_dest / relative_path
+                            # Create parent directories if they don't exist
+                            dest_js.parent.mkdir(parents=True, exist_ok=True)
+                            if dest_js.exists():
+                                dest_js.unlink()
+                            shutil.copy2(js_file, dest_js)
+                            site_deployed.append(f"js/{relative_path.as_posix()}")
+                            js_count += 1
+                            log(f"Deployed JS file from folder: {js_file} -> site/js/{relative_path.as_posix()}")
+                    else:
+                        # If it's a file, deploy it directly to js root
+                        dest_js = js_dest / source_item.name
+                        if dest_js.exists():
+                            dest_js.unlink()
+                        shutil.copy2(source_item, dest_js)
+                        site_deployed.append(f"js/{source_item.name}")
+                        js_count += 1
+                        log(f"Deployed JS file: {js_item} -> site/js/{source_item.name}")
                 else:
-                    log(f"JS file not found: {js_file}")
+                    log(f"JS file/folder not found: {js_item}")
             
             # Deploy CSS files
             css_dest = site_dest / 'css'
