@@ -328,7 +328,7 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
     if not gateway.is_no(block) and children_by_class:
         log(f"Rendering children by class section with {len(children_by_class)} classes")
         
-        # Get page object to call _get_children_for_class() with view_type
+        # Get page object for getChildrenOf() calls
         page = None
         if page_id:
             from hh.page.page_registry import get_page
@@ -343,9 +343,15 @@ def render_children_by_class_section(children_by_class: Dict[str, Dict[str, Any]
             view_type = 'auto'
         
         for class_name, class_data in children_by_class.items():
-            # Re-fetch children data with appropriate view_type
+            # Re-fetch children data with appropriate view_type using static getChildrenOf method
             if page:
-                children_data = page._get_children_for_class(class_name, view_type=view_type)
+                from hh.page.page_class_registry import get_page_class
+                PageClass = get_page_class(class_name)
+                if PageClass:
+                    children_data = PageClass.getChildrenOf(page.id, view_type=view_type)
+                else:
+                    # Fallback to existing data if class not found
+                    children_data = class_data.get('children', [])
             else:
                 # Fallback to existing data if page not available
                 children_data = class_data.get('children', [])

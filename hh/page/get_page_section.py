@@ -143,8 +143,15 @@ def get_page_section_action() -> bool:
                 trace_out()
                 return False
             
-            # Get children data with requested view_type
-            children_data = page._get_children_for_class(class_name, view_type=view_type)
+            # Get children data with requested view_type using static getChildrenOf method
+            from hh.page.page_class_registry import get_page_class
+            PageClass = get_page_class(class_name)
+            if PageClass:
+                children_data = PageClass.getChildrenOf(page.id, view_type=view_type)
+            else:
+                warn(f"Page class '{class_name}' not found")
+                report_error("action", f"Page class '{class_name}' not found")
+                children_data = []
             if children_data:
                 if view_type == "tile":
                     # Render as tiles (no headers for get_page_section - only content)

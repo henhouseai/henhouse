@@ -151,9 +151,14 @@ class PageDisplayMixin:
             for row in results:
                 child_class = row['class']
                 log(f"Found child class: {child_class}")
-                # For each class, get its children using that class's query
-                # This is where derived classes' get_children_query() gets called
-                children_data = self._get_children_for_class(child_class)
+                # For each class, get its children using that class's static getChildrenOf method
+                # This is where derived classes' getChildrenOf() gets called
+                PageClass = get_page_class(child_class)
+                if PageClass is None:
+                    warn(f"Page class '{child_class}' not found")
+                    report_error("action", f"Page class '{child_class}' not found")
+                    continue
+                children_data = PageClass.getChildrenOf(self.id)
                 if children_data:
                     children_by_class[child_class] = {
                         'class': child_class,
@@ -169,23 +174,38 @@ class PageDisplayMixin:
         return children_by_class
 
 
-    def _get_children_for_class(self, child_class: str, view_type: str = 'auto') -> List[Dict[str, Any]]:
+    @classmethod
+    def getChildrenOf(cls, parent_id: int, view_type: str = 'tile') -> List[Dict[str, Any]]:
+        """
+        Class method to get children of a specific class type for a parent page.
+        Matches legacy getChildrenOf() pattern - called as class method on child class.
+        Each child class can override this to customize default view_type and class-specific behavior.
+        
+        Uses the class's own _get_children_query() method to get children of that specific class.
+        
+        Args:
+            parent_id: ID of the parent page
+            view_type: 'table' or 'tile' (default 'tile' for base class)
+        
+        Returns:
+            List of child page data dictionaries
+        """
         trace_in()
-        # Get the Page subclass for this child_class from the registry
-        PageClass = get_page_class(child_class)
-        if PageClass is None:
-            warn(f"Page class '{child_class}' not found")
-            report_error("action", f"Page class '{child_class}' not found")
+        gateway = get_gateway()
+        if not gateway or not gateway.conn:
+            warn("Gateway or connection not available")
+            report_error("connection", "Gateway or connection not available")
             trace_out()
             return []
         
-        # Switch/case logic based on view_type
+        # Use the class's own _get_children_query() method
+        query, params = cls._get_children_query(parent_id)
+        log(f"Using query for class '{cls.__name__}': {query[:500]}...")
+        results = gateway.conn.read(query, params)
+        children_data = []
+        
         if view_type == 'table':
-            # Return data formatted for table rendering (current format)
-            query, params = PageClass._get_children_query(self.id)
-            log(f"Using query for class '{child_class}': {query[:100]}...")
-            results = self.gateway.conn.read(query, params)
-            children_data = []
+            # Return data formatted for table rendering
             if results:
                 for row in results:
                     child_page = get_page(page_id=row['id'])
@@ -199,17 +219,9 @@ class PageDisplayMixin:
                         # Add format metadata
                         child_data['_format'] = 'table'
                         children_data.append(child_data)
-            
-            log(f"Loaded {len(children_data)} children for class '{child_class}' (table format)")
-            trace_out()
-            return children_data
-        
-        elif view_type == 'tile':
+            log(f"Loaded {len(children_data)} children for class 'page' (table format)")
+        else:  # view_type == 'tile'
             # Return data formatted for tile rendering
-            query, params = PageClass._get_children_query(self.id)
-            log(f"Using query for class '{child_class}': {query[:100]}...")
-            results = self.gateway.conn.read(query, params)
-            children_data = []
             if results:
                 for row in results:
                     child_page = get_page(page_id=row['id'])
@@ -227,13 +239,8 @@ class PageDisplayMixin:
                         # Add format metadata
                         child_data['_format'] = 'tile'
                         children_data.append(child_data)
-            
-            log(f"Loaded {len(children_data)} children for class '{child_class}' (tile format)")
-            trace_out()
-            return children_data
+            log(f"Loaded {len(children_data)} children for class 'page' (tile format)")
         
-        else:  # 'auto'
-            # Default: fall through to 'tile' (can be overridden by derived classes)
-            view_type = 'tile'
-            return self._get_children_for_class(child_class, view_type='tile')
+        trace_out()
+        return children_data
 

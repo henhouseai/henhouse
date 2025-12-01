@@ -139,14 +139,13 @@ class SourceCodeFileContentMixin:
         
         return 'source_code_file'
     
-    def _get_children_for_class(self, child_class: str, view_type: str = 'auto') -> List[Dict[str, Any]]:
-        """Override to default to 'table' mode for source code files when view_type is 'auto'."""
-        if view_type == 'auto':
-            # Source code files default to table view instead of tile view
-            return super()._get_children_for_class(child_class, view_type='table')
-        else:
-            # For explicit 'table' or 'tile', use parent implementation
-            return super()._get_children_for_class(child_class, view_type=view_type)
+    @classmethod
+    def getChildrenOf(cls, parent_id: int, view_type: str = 'table') -> List[Dict[str, Any]]:
+        """
+        Override to default to 'table' mode for source code files.
+        Calls the base implementation with the view_type (defaults to 'table' instead of 'tile').
+        """
+        return super().getChildrenOf(parent_id, view_type)
     
     def _add_lower_content(self) -> List[str]:
         if not self.file_path:

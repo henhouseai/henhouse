@@ -250,6 +250,14 @@ See `PageContentMixin._add_page_class_information()` and `_delete_page_class_inf
 - Default: Returns only 'page' class children, sorted by name
 - Example: See `WorkDocketContentMixin._get_children_query()` in `hh/work_docket/work_docket_content.py` for custom ordering by metadata sort_order
 
+**`getChildrenOf(parent_id: int, view_type: str = 'tile')`** - Static Method
+- Override to customize default view_type and class-specific child retrieval behavior
+- Called as static method on child class (e.g., `SourceCodeFile.getChildrenOf(parent_id)`)
+- Matches legacy `getChildrenOf()` pattern where each class handles its own children
+- Default: `view_type='tile'` in base class, can be overridden (e.g., `SourceCodeFile` defaults to `'table'`)
+- Uses the class's own `_get_children_query()` to get children of that specific class
+- Example: See `SourceCodeFileContentMixin.getChildrenOf()` in `hh/source_code_file/source_code_file_content.py` for class-specific override
+
 **`_copy_page_class_information(new_page_id: int)`** - Instance Method
 - Override to customize what happens when a page is copied
 - Called during `copy_page()` operation
@@ -410,18 +418,19 @@ The Page class uses multiple inheritance with nine specialized mixins, each prov
 **Key Methods**:
 - `show_page()` - Returns complete display data dictionary (standard output format)
 - `_get_children_by_class()` - Groups children by class (cached in `children_by_class` field)
-- `_get_children_for_class(child_class, view_type='auto')` - Gets children for specific class using that class's query, with view type support for table/tile rendering
+- `getChildrenOf(parent_id, view_type='tile')` - Static method to get children of a specific class type for a parent page (matches legacy pattern)
 
 **Extension Points** (all can be overridden):
 - `_add_upper_content()` - Add content above main page content
 - `_add_lower_content()` - Add content below main page content
 - `_add_badge_headers()` - Customize badge headers
 - `_get_child_row_field_type()` - Customize field type when displayed as child row
+- `getChildrenOf(parent_id, view_type='tile')` - Static method override to customize default view_type and class-specific behavior
 
-**View Type Support**: The `_get_children_for_class()` method supports a `view_type` parameter:
+**View Type Support**: The `getChildrenOf()` static method supports a `view_type` parameter:
 - `'table'` → Returns data formatted for table rendering (standard format with field_type, num_children)
 - `'tile'` → Returns data formatted for tile rendering (includes display_name, images array with first image)
-- `'auto'` → Defaults to 'tile' in base class (derived classes can override to customize default)
+- Default: `'tile'` in base class, can be overridden by derived classes (e.g., `SourceCodeFile` defaults to `'table'`)
 - Parser backend always forces `view_type='table'` to ensure CLI compatibility
 - Data format is indicated by `_format` metadata field ('table' or 'tile')
 

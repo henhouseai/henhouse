@@ -628,10 +628,10 @@ Derives from `TileGroup` to render child pages as tiles.
 - Allows forcing HTML rendering even when called through MCP backend
 - Used by `get_page_section` action to ensure HTML output
 
-**View Type Logic**: Data retrieval methods (e.g., `_get_children_for_class()`) support `view_type` parameter:
+**View Type Logic**: Data retrieval methods (e.g., `getChildrenOf()`) support `view_type` parameter:
 - `'table'` → Returns data formatted for table rendering
 - `'tile'` → Returns data formatted for tile rendering (includes images, display_name, etc.)
-- `'auto'` → Defaults to 'tile' (can be overridden by derived classes)
+- Default: `'tile'` in base class (can be overridden by derived classes via default parameter)
 
 ### Usage Pattern
 
@@ -647,8 +647,10 @@ html_content = image_group.render()  # Returns HTML string with wrapper div
 **Page Tiles**:
 ```python
 from hh.render.html.page_group import PageGroup
+from hh.page.page_class_registry import get_page_class
 
-children_data = page._get_children_for_class(class_name, view_type='tile')
+PageClass = get_page_class(class_name)
+children_data = PageClass.getChildrenOf(page_id, view_type='tile')
 page_group = PageGroup(children_data, page_id, class_name, target_width=300)
 html_content = page_group.render()  # Returns HTML string with wrapper div
 ```
