@@ -116,8 +116,8 @@ class ViewToggle {
         return;
       }
 
-      // Replace DOM chunks
-      this.replaceSectionContent(pageId, section, domContent, className);
+      // Replace DOM chunks - pass linkElement to check if in overlay
+      this.replaceSectionContent(pageId, section, domContent, className, linkElement);
 
     } catch (error) {
       console.error('Error handling view toggle:', error);
@@ -131,17 +131,22 @@ class ViewToggle {
    * @param section - Section name (e.g., 'images', 'children')
    * @param htmlContent - HTML content to insert
    * @param className - Optional class name for children sections
+   * @param linkElement - The toggle link element (to check if in overlay)
    */
-  private replaceSectionContent(pageId: string, section: string, htmlContent: string, className?: string | null): void {
+  private replaceSectionContent(pageId: string, section: string, htmlContent: string, className: string | null | undefined, linkElement: HTMLElement): void {
     // Create a temporary container to parse the HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
 
     // Determine content element ID based on section type
+    // Check if we're in an overlay (has overlay_ prefix)
+    const isInOverlay = linkElement.closest('#overlayWindow') !== null;
+    const prefix = isInOverlay ? 'overlay_' : '';
+    
     let contentId: string;
     
     if (section === 'images') {
-      contentId = `pageImageGroup_${pageId}`;
+      contentId = `${prefix}pageImageGroup_${pageId}`;
     } else if (section === 'children') {
       if (!className) {
         console.warn('Class name required for children section');
@@ -149,7 +154,7 @@ class ViewToggle {
       }
       // Convert class_name to safe format (replace underscores with hyphens)
       const classNameSafe = className.replace(/_/g, '-');
-      contentId = `child_pages_${classNameSafe}_${pageId}`;
+      contentId = `${prefix}child_pages_${classNameSafe}_${pageId}`;
     } else {
       console.warn(`Section ${section} not yet supported for view toggle`);
       return;

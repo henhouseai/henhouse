@@ -173,6 +173,10 @@ export class Browser {
         // Find all links
         const links = container.querySelectorAll('a[href]');
         links.forEach(link => {
+            // Skip toggle links - let view-toggle.ts handle them
+            if (link.classList.toString().includes('updatePageView_')) {
+                return;
+            }
             const href = link.getAttribute('href');
             if (!href)
                 return;
@@ -238,26 +242,30 @@ export class Browser {
      */
     async handleSubmit() {
         let result;
+        let message;
         if (this.mode === 'page') {
             result = this.currentPageId;
+            message = `Page ${result} selected successfully`;
         }
         else if (this.mode === 'image') {
             if (this.selectedImageIds.length === 0) {
                 throw new Error('Please select at least one image');
             }
             result = [...this.selectedImageIds];
+            message = `${result.length} image${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
         }
         else {
             if (this.selectedFileIds.length === 0) {
                 throw new Error('Please select at least one file');
             }
             result = [...this.selectedFileIds];
+            message = `${result.length} file${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
         }
         try {
             await this.onSubmit(result);
-            // Show success and auto-close after delay
+            // Show success with ID information and auto-close after delay
             return {
-                _showMessage: 'Selection submitted successfully',
+                _showMessage: message,
                 _autoFade: true
             };
         }

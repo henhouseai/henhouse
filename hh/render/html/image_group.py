@@ -31,20 +31,21 @@ def _initialize_debug():
 class ImageGroup(TileGroup):
     """Tile group for rendering images as tiles."""
     
-    def __init__(self, images_data: List[Dict[str, Any]], page_id: int, target_width: int = 300, wrapper_extra_classes: str = None):
+    def __init__(self, images_data: List[Dict[str, Any]], page_id: int, target_width: int = 300, wrapper_id: str = None, wrapper_extra_classes: str = None):
         """Initialize image group by parsing image data and creating tiles.
         
         Args:
             images_data: List of image data dicts with 'id', 'caption', 'instances', 'image_rank'
             page_id: Page ID for generating unique element IDs
             target_width: Target width for tiles (default 300)
+            wrapper_id: Custom wrapper ID (if None, uses default pageImageGroup_{page_id})
             wrapper_extra_classes: Additional CSS classes for the wrapper div
         """
         trace_in()
         super().__init__(target_width=target_width)
         self.page_id = page_id
         self.page_id_str = str(page_id)
-        self.content_id = f"pageImageGroup_{self.page_id_str}"
+        self.content_id = wrapper_id if wrapper_id else f"pageImageGroup_{self.page_id_str}"
         self.wrapper_extra_classes = wrapper_extra_classes
         
         # Parse image data and create tiles

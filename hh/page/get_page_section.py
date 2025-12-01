@@ -82,7 +82,7 @@ def get_page_section_action() -> bool:
                 view_type = "table"
 
         # Check for overlay flag
-        overlay_mode = gateway.request.is_set('overlay') if gateway.request else False
+        overlay_mode = gateway.is_set('overlay') if gateway else False
         wrapper_id_prefix = 'overlay_' if overlay_mode else ''
         wrapper_extra_classes = 'overlay' if overlay_mode else None
 
@@ -92,7 +92,10 @@ def get_page_section_action() -> bool:
             images_data = page.get_images_data()
             if view_type == "tile":
                 # Render as tiles (no headers for get_page_section - only content)
-                image_group = ImageGroup(images_data, page_id, target_width=300)
+                page_id_str = str(page_id)
+                content_id = f"{wrapper_id_prefix}pageImageGroup_{page_id_str}"
+                image_group = ImageGroup(images_data, page_id, target_width=300, 
+                                        wrapper_id=content_id, wrapper_extra_classes=wrapper_extra_classes)
                 dom_content = image_group.render()  # Returns HTML string (includes wrapper divs)
             else:
                 # Render as table (shouldn't happen for MCP, but handle it)
@@ -161,7 +164,11 @@ def get_page_section_action() -> bool:
             if children_data:
                 if view_type == "tile":
                     # Render as tiles (no headers for get_page_section - only content)
-                    page_group = PageGroup(children_data, page_id, class_name, target_width=300)
+                    page_id_str = str(page_id)
+                    class_name_safe = class_name.replace('_', '-')
+                    content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
+                    page_group = PageGroup(children_data, page_id, class_name, target_width=300,
+                                          wrapper_id=content_id, wrapper_extra_classes=wrapper_extra_classes)
                     dom_content = page_group.render()  # Returns HTML string (includes wrapper divs)
                 else:
                     # Render as table (shouldn't happen for MCP, but handle it)

@@ -61,6 +61,7 @@ class PageGroup(TileGroup):
         page_id: int,
         class_name: str,
         target_width: int = 300,
+        wrapper_id: str = None,
         wrapper_extra_classes: str = None
     ):
         """Initialize page group by parsing page data and creating tiles.
@@ -70,6 +71,7 @@ class PageGroup(TileGroup):
             page_id: Parent page ID for generating unique element IDs
             class_name: Child page class name (e.g., "source_code_file")
             target_width: Target width for tiles (default 300)
+            wrapper_id: Custom wrapper ID (if None, uses default child_pages_{class_name}_{page_id})
             wrapper_extra_classes: Additional CSS classes for the wrapper div
         """
         trace_in()
@@ -78,7 +80,7 @@ class PageGroup(TileGroup):
         self.class_name = class_name
         self.page_id_str = str(page_id)
         self.class_name_safe = class_name.replace('_', '-')
-        self.content_id = f"child_pages_{self.class_name_safe}_{self.page_id_str}"
+        self.content_id = wrapper_id if wrapper_id else f"child_pages_{self.class_name_safe}_{self.page_id_str}"
         self.wrapper_extra_classes = wrapper_extra_classes
         
         # Parse page data and create tiles
