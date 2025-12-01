@@ -10,8 +10,8 @@ import { OverlayHeader } from './overlay-header.js';
 import { OverlayContent } from './overlay-content.js';
 import { OverlayDebugTable, DebugData } from './overlay-debug-table.js';
 import { OverlayDebugOptions, DebugOptions } from './overlay-debug-options.js';
-import { PageManager } from './page-manager.js';
-import { getSeedData } from './seed.js';
+import { PageManager } from '../page-manager.js';
+import { getSeedData } from '../seed.js';
 
 export interface OverlayState {
   isVisible: boolean;

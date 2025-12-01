@@ -2,7 +2,7 @@
  * MCPActionPageData - Handles MCP action request pages.
  * Dynamic fields are automatically discovered by base class.
  */
-import { PageData } from './page-data.js';
+import { PageData } from '../page-data.js';
 export class MCPActionPageData extends PageData {
     constructor(data) {
         super(data);

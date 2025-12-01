@@ -1,27 +1,26 @@
 /**
- * MCPRequestPageData - Handles MCP request pages with transaction fields.
+ * MCPActionPageData - Handles MCP action request pages.
  * Dynamic fields are automatically discovered by base class.
  */
 
-import { PageData, GetPageResponse, FieldMapping } from './page-data.js';
+import { PageData, GetPageResponse, FieldMapping } from '../page-data.js';
 
-export class MCPRequestPageData extends PageData {
+export class MCPActionPageData extends PageData {
   constructor(data: GetPageResponse) {
     super(data);
   }
 
   /**
-   * Override to provide field mappings for MCP request specific fields
+   * Override to provide field mappings for MCP action request specific fields
    */
   protected getFieldMappings(): FieldMapping[] {
     return [
       ...super.getFieldMappings(), // Include base page mappings (name, text)
-      // MCP request specific mappings - all fields can be updated together
+      // MCP action request specific mappings - all fields can be updated together
       {
-        fields: ['input_request', 'output_response', 'status', 'create_request', 'read_request', 
-                 'update_request', 'delete_request', 'create_executed', 'read_executed', 
-                 'update_executed', 'delete_executed'],
-        mcpTool: 'modify_mcp_request',
+        fields: ['tool_name', 'arguments', 'extraction_spec', 'status', 'result',
+                 'is_create', 'is_read', 'is_update', 'is_delete'],
+        mcpTool: 'modify_mcp_action_request',
         priority: 1, // Group operation - lower priority than individual setters
         buildParams: (fields, values, pageId) => {
           const params: any = { page_id: pageId };

@@ -3,7 +3,7 @@
  * Pure data model - business logic is in PageManager.
  */
 import { PageManager } from './page-manager.js';
-import { OverlayManager } from './overlay-manager.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
 import { getSeedData } from './seed.js';
 export class PageData {
     constructor(data) {
@@ -904,6 +904,33 @@ export class PageData {
         const { UploadHandler } = await import('./upload-handler.js');
         const handler = new UploadHandler(rpc, getSeedData());
         await handler.handle();
+    }
+    /**
+     * Handler for move_page: Move page to new parent (smoke test with browser)
+     */
+    async move_page(rpc) {
+        const pageId = this.id;
+        if (!pageId) {
+            alert('No page ID found');
+            return;
+        }
+        try {
+            const { Browser } = await import('./browser.js');
+            const browser = new Browser({
+                mode: 'page',
+                initialPageId: pageId,
+                onSubmit: async (selectedPageId) => {
+                    // Smoke test: just show success message
+                    const targetId = Array.isArray(selectedPageId) ? selectedPageId[0] : selectedPageId;
+                    console.log(`Would move page ${pageId} to parent ${targetId}`);
+                    // In real implementation, would call rpc.call('move_page', { page_id: pageId, target_page: targetId })
+                }
+            });
+            await browser.show();
+        }
+        catch (error) {
+            rpc.showError('move_page', error);
+        }
     }
 }
 // Base page fields that are always present

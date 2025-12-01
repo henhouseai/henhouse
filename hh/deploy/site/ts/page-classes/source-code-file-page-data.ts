@@ -3,9 +3,9 @@
  * Dynamic fields (file_path, language) are automatically discovered by base class.
  */
 
-import { PageData, GetPageResponse, FieldMapping } from './page-data.js';
-import { PageManager } from './page-manager.js';
-import { OverlayManager } from './overlay-manager.js';
+import { PageData, GetPageResponse, FieldMapping } from '../page-data.js';
+import { PageManager } from '../page-manager.js';
+import { OverlayManager } from '../overlay/overlay-manager.js';
 
 export class SourceCodeFilePageData extends PageData {
   constructor(data: GetPageResponse) {

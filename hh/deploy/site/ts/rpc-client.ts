@@ -4,8 +4,8 @@
 
 import { PageData, GetPageResponse } from './page-data.js';
 import { PageDataFactory } from './page-data-factory.js';
-import { DebugData } from './overlay-debug-table.js';
-import { OverlayManager } from './overlay-manager.js';
+import { DebugData } from './overlay/overlay-debug-table.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
 
 export interface RPCRequest {
   jsonrpc: string;

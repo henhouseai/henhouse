@@ -3,8 +3,8 @@
  * Creates a debug overlay window if debug data is present in the response.
  */
 
-import { OverlayManager } from './overlay-manager.js';
-import { OverlayDebugTable, DebugData } from './overlay-debug-table.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
+import { OverlayDebugTable, DebugData } from './overlay/overlay-debug-table.js';
 
 export interface RPCResponseWithDebug {
   data?: any;

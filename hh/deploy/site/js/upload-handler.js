@@ -1,7 +1,7 @@
 /**
  * Upload handler for image uploads
  */
-import { OverlayManager } from './overlay-manager.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
 import { handleRPCResponseWithDebug } from './debug-helper.js';
 export class UploadHandler {
     constructor(rpc, seedData) {

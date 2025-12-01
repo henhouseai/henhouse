@@ -4,7 +4,7 @@
  */
 
 import { WorkPageData } from './work-page-data.js';
-import { GetPageResponse, FieldMapping } from './page-data.js';
+import { GetPageResponse, FieldMapping } from '../page-data.js';
 
 export class WorkDocketPageData extends WorkPageData {
   constructor(data: GetPageResponse) {

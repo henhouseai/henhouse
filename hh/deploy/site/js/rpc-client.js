@@ -2,7 +2,7 @@
  * RPC Client - custom MCP wrapper for JSON-RPC calls to the backend.
  */
 import { PageDataFactory } from './page-data-factory.js';
-import { OverlayManager } from './overlay-manager.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
 /**
  * Custom error class that can hold multiple error messages
  */

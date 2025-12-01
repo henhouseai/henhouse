@@ -2,8 +2,8 @@
  * Helper function to handle RPC responses with debug data.
  * Creates a debug overlay window if debug data is present in the response.
  */
-import { OverlayManager } from './overlay-manager.js';
-import { OverlayDebugTable } from './overlay-debug-table.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
+import { OverlayDebugTable } from './overlay/overlay-debug-table.js';
 /**
  * Check an RPC response for debug data and create a debug overlay if present.
  * @param rpcResult - The result from an RPC call (RPCCallResult or error with debug)

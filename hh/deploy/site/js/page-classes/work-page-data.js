@@ -3,9 +3,9 @@
  * Provides shared functionality for status, meta, and sort_order fields.
  * This is an abstract base class - derived classes should extend this.
  */
-import { PageData } from './page-data.js';
-import { PageManager } from './page-manager.js';
-import { OverlayManager } from './overlay-manager.js';
+import { PageData } from '../page-data.js';
+import { PageManager } from '../page-manager.js';
+import { OverlayManager } from '../overlay/overlay-manager.js';
 export class WorkPageData extends PageData {
     constructor(data) {
         super(data);
@@ -257,7 +257,7 @@ export class WorkPageData extends PageData {
                         const hasDebugData = result?.debug && Array.isArray(result.debug.entries) && result.debug.entries.length > 0;
                         // Show debug overlay if debug data is present
                         if (hasDebugData) {
-                            const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                            const { handleRPCResponseWithDebug } = await import('../debug-helper.js');
                             handleRPCResponseWithDebug(result, 'modify_work_meta_set_all', params);
                         }
                         if (result && result.success !== false) {
@@ -280,7 +280,7 @@ export class WorkPageData extends PageData {
                         const hasDebugData = error?.debug && Array.isArray(error.debug.entries) && error.debug.entries.length > 0;
                         // Show debug overlay for errors with debug data
                         if (hasDebugData) {
-                            const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                            const { handleRPCResponseWithDebug } = await import('../debug-helper.js');
                             handleRPCResponseWithDebug(error, 'modify_work_meta_set_all', {
                                 page_id: pageId,
                                 meta: metaJson

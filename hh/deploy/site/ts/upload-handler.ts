@@ -4,8 +4,8 @@
 
 import { RPCClient } from './rpc-client.js';
 import { SeedData } from './seed.js';
-import { OverlayManager } from './overlay-manager.js';
-import { DebugOptions } from './overlay-debug-options.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
+import { DebugOptions } from './overlay/overlay-debug-options.js';
 import { handleRPCResponseWithDebug } from './debug-helper.js';
 
 interface FileUploadStatus {

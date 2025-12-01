@@ -11,7 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node"
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "overlay/*.ts", "page-classes/*.ts"],
   "exclude": ["node_modules"]
 }
 

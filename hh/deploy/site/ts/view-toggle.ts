@@ -84,12 +84,22 @@ class ViewToggle {
       const hasTable = nextSibling.querySelector('table') !== null;
       const viewType = hasTable ? 'tile' : 'table'; // Request opposite of current view
 
+      // Auto-detect if we're in an overlay by checking for overlay_ ID prefix
+      const isInOverlay = headerElement.id.startsWith('overlay_') || 
+                         nextSibling.id?.startsWith('overlay_') ||
+                         linkElement.closest('#overlayWindow') !== null;
+
       // Build MCP call parameters
       const params: any = {
         id: parseInt(pageId, 10),
         section: section,
         view_type: viewType
       };
+
+      // Add overlay flag if in overlay
+      if (isInOverlay) {
+        params.overlay = 1;
+      }
 
       // Add class_name for children sections
       if (section === 'children' && className) {

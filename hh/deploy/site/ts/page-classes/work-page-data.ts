@@ -4,9 +4,9 @@
  * This is an abstract base class - derived classes should extend this.
  */
 
-import { PageData, GetPageResponse, FieldMapping } from './page-data.js';
-import { PageManager } from './page-manager.js';
-import { OverlayManager } from './overlay-manager.js';
+import { PageData, GetPageResponse, FieldMapping } from '../page-data.js';
+import { PageManager } from '../page-manager.js';
+import { OverlayManager } from '../overlay/overlay-manager.js';
 
 export class WorkPageData extends PageData {
   constructor(data: GetPageResponse) {
@@ -287,7 +287,7 @@ export class WorkPageData extends PageData {
             
             // Show debug overlay if debug data is present
             if (hasDebugData) {
-              const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+              const { handleRPCResponseWithDebug } = await import('../debug-helper.js');
               handleRPCResponseWithDebug(result, 'modify_work_meta_set_all', params);
             }
             
@@ -311,7 +311,7 @@ export class WorkPageData extends PageData {
             
             // Show debug overlay for errors with debug data
             if (hasDebugData) {
-              const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+              const { handleRPCResponseWithDebug } = await import('../debug-helper.js');
               handleRPCResponseWithDebug(error, 'modify_work_meta_set_all', {
                 page_id: pageId,
                 meta: metaJson

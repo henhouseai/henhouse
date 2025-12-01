@@ -2,10 +2,10 @@
  * PageData Factory - Creates appropriate PageData instance based on page class type.
  */
 import { PageData } from './page-data.js';
-import { SourceCodeFilePageData } from './source-code-file-page-data.js';
-import { MCPRequestPageData } from './mcp-request-page-data.js';
-import { MCPActionPageData } from './mcp-action-page-data.js';
-import { WorkDocketPageData } from './work-docket-page-data.js';
+import { SourceCodeFilePageData } from './page-classes/source-code-file-page-data.js';
+import { MCPRequestPageData } from './page-classes/mcp-request-page-data.js';
+import { MCPActionPageData } from './page-classes/mcp-action-page-data.js';
+import { WorkDocketPageData } from './page-classes/work-docket-page-data.js';
 export class PageDataFactory {
     /**
      * Create appropriate PageData instance based on page class type.
