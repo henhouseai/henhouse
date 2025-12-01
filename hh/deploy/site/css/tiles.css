@@ -29,16 +29,18 @@ div.tileWrapper * {
     text-decoration: none;
 }
 
-/* Image Wrapper - Fixed 300px width, no padding/border */
+/* Image Wrapper - Responsive width (max 300px), no padding/border */
 div.tileWrapper div.imageWrapper {
-    width: 300px;
+    width: 100%;
+    max-width: 300px;
     margin: 0 auto;
     padding: 0;
     border: 0;
 }
 
 div.tileWrapper div.imageWrapper img {
-    width: 300px;
+    width: 100%;
+    max-width: 300px;
     height: auto;
     display: block;
     margin: 0;
@@ -47,7 +49,8 @@ div.tileWrapper div.imageWrapper img {
 }
 
 div.tileWrapper div.imageWrapper div.emptyTileImage {
-    width: 300px;
+    width: 100%;
+    max-width: 300px;
     background-color: transparent;
     margin: 0;
     padding: 0;
@@ -180,12 +183,14 @@ div.pageImageGroup ul {
     list-style-type: none;
     margin: 0;
     padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(0, 300px));
+    gap: 6px 4px; /* row-gap column-gap - replaces margin on li */
 }
 
 div.pageImageGroup ul li {
-    display: inline;
-    float: left;
-    margin: 3px 2px;
+    display: block; /* Remove inline/float, grid handles layout */
+    margin: 0; /* Gap handles spacing now */
 }
 
 /* Page Group - Tile List Styling */
@@ -198,12 +203,14 @@ div.pageGroup ul {
     list-style-type: none;
     margin: 0;
     padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(0, 300px));
+    gap: 6px 4px; /* row-gap column-gap - replaces margin on li */
 }
 
 div.pageGroup ul li {
-    display: inline;
-    float: left;
-    margin: 3px 2px;
+    display: block; /* Remove inline/float, grid handles layout */
+    margin: 0; /* Gap handles spacing now */
 }
 
 /* Clearfix */
