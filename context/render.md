@@ -530,6 +530,145 @@ The HTTP/HTML-specific rendering module that handles table and header rendering 
 
 ---
 
+## 1.7. Tile Rendering System
+
+The tile rendering system provides an alternative to table views for displaying images and pages in a grid layout. It uses an object-oriented architecture with base classes and derived implementations.
+
+### Architecture
+
+**Base Classes**:
+- **`Tile`** (`hh/render/html/tiles.py`): Represents a single tile with image, text, link, and metadata
+- **`TileGroup`** (`hh/render/html/tile_group.py`): Base class for collections of tiles
+
+**Derived Classes**:
+- **`ImageGroup`** (`hh/render/html/image_group.py`): Renders images as tiles
+- **`PageGroup`** (`hh/render/html/page_group.py`): Renders child pages as tiles
+
+### Tile Class
+
+**File**: `hh/render/html/tiles.py`
+
+Represents a single tile with image, text, link, and metadata.
+
+**Key Methods**:
+- **`__init__(image, text, link, metadata, target_width)`**: Initialize tile with image dict (with 'instances' list), text caption, link href, optional metadata, and target width
+- **`render(as_link, link_id)`**: Render tile as HTML, optionally wrapped in link tag
+- **`_find_best_image_instance()`**: Selects best image instance based on target width (finds smallest instance >= target_width, falls back to largest)
+
+**Image Instance Selection**: Automatically selects the best image size from the instances list based on target_width parameter.
+
+**HTML Structure**:
+```html
+<div class="tileWrapper">
+  <div class="imageWrapper">
+    <img src="/srv/images/{path}" alt="{caption}">
+  </div>
+  <div class="tileText">{caption}</div>
+</div>
+```
+
+### TileGroup Base Class
+
+**File**: `hh/render/html/tile_group.py`
+
+Base class for groups of tiles. Provides common functionality for rendering tile collections.
+
+**Key Methods**:
+- **`__init__(target_width)`**: Initialize empty tile group with target width
+- **`add_tile(tile)`**: Add a Tile instance to the group
+- **`render()`**: Render all tiles as HTML `<ul>` structure
+- **`finalize_output(html_content)`**: Hook for derived classes to wrap output (overridden by ImageGroup/PageGroup)
+
+**HTML Structure**:
+```html
+<ul>
+  <li>
+    <a class="tileLink" href="{link}">
+      {tile_html}
+    </a>
+  </li>
+</ul>
+```
+
+### ImageGroup Class
+
+**File**: `hh/render/html/image_group.py`
+
+Derives from `TileGroup` to render images as tiles.
+
+**Key Methods**:
+- **`__init__(images_data, page_id, target_width)`**: Initialize with image data list, page ID for unique element IDs, and target width
+- **`finalize_output(html_content)`**: Wraps content in div with unique ID: `pageImageGroup_{page_id}`
+
+**Content ID Pattern**: `pageImageGroup_{page_id}` - Used for DOM replacement in view toggle system
+
+### PageGroup Class
+
+**File**: `hh/render/html/page_group.py`
+
+Derives from `TileGroup` to render child pages as tiles.
+
+**Key Methods**:
+- **`__init__(children_data, page_id, class_name, target_width)`**: Initialize with child page data, parent page ID, class name, and target width
+- **`finalize_output(html_content)`**: Wraps content in div with unique ID: `child_pages_{class_name}_{page_id}`
+
+**Content ID Pattern**: `child_pages_{class_name_safe}_{page_id}` - Class name converted to safe format (underscores to hyphens)
+
+**Helper Function**:
+- **`snake_case_to_title_case(class_name)`**: Converts snake_case to human-readable Title Case (e.g., "source_code_file" → "Source Code Files")
+
+### Integration with Render System
+
+**Wrapper ID Support**: The render system supports `wrapper_id` parameter in `render_block()` function:
+- **`render_block(table_data, field_configs, table_class, table_overrides, block_type, backend, wrapper_id, wrapper_extra_classes)`**
+- When `wrapper_id` is provided, HTML tables are wrapped in div with that ID
+- Used for DOM targeting in view toggle system
+
+**Backend Override**: The `render_block()` function supports `backend` parameter:
+- Allows forcing HTML rendering even when called through MCP backend
+- Used by `get_page_section` action to ensure HTML output
+
+**View Type Logic**: Data retrieval methods (e.g., `_get_children_for_class()`) support `view_type` parameter:
+- `'table'` → Returns data formatted for table rendering
+- `'tile'` → Returns data formatted for tile rendering (includes images, display_name, etc.)
+- `'auto'` → Defaults to 'tile' (can be overridden by derived classes)
+
+### Usage Pattern
+
+**Image Tiles**:
+```python
+from hh.render.html.image_group import ImageGroup
+
+images_data = page.get_images_data()
+image_group = ImageGroup(images_data, page_id, target_width=300)
+html_content = image_group.render()  # Returns HTML string with wrapper div
+```
+
+**Page Tiles**:
+```python
+from hh.render.html.page_group import PageGroup
+
+children_data = page._get_children_for_class(class_name, view_type='tile')
+page_group = PageGroup(children_data, page_id, class_name, target_width=300)
+html_content = page_group.render()  # Returns HTML string with wrapper div
+```
+
+**Table Rendering with Wrapper ID**:
+```python
+from hh.render.render import render_block, TableData, FieldConfig
+
+table_data = TableData()
+# ... add rows ...
+
+html_content = render_block(
+    table_data,
+    FieldConfig().add_header('header').add_simple(['item']),
+    wrapper_id=f"pageImageGroup_{page_id}"  # For DOM targeting
+)
+```
+
+---
+
 ## 2. Table Builder
 
 **File**: `hh/render/table/table.py`

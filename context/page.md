@@ -410,13 +410,20 @@ The Page class uses multiple inheritance with nine specialized mixins, each prov
 **Key Methods**:
 - `show_page()` - Returns complete display data dictionary (standard output format)
 - `_get_children_by_class()` - Groups children by class (cached in `children_by_class` field)
-- `_get_children_for_class(child_class)` - Gets children for specific class using that class's query
+- `_get_children_for_class(child_class, view_type='auto')` - Gets children for specific class using that class's query, with view type support for table/tile rendering
 
 **Extension Points** (all can be overridden):
 - `_add_upper_content()` - Add content above main page content
 - `_add_lower_content()` - Add content below main page content
 - `_add_badge_headers()` - Customize badge headers
 - `_get_child_row_field_type()` - Customize field type when displayed as child row
+
+**View Type Support**: The `_get_children_for_class()` method supports a `view_type` parameter:
+- `'table'` → Returns data formatted for table rendering (standard format with field_type, num_children)
+- `'tile'` → Returns data formatted for tile rendering (includes display_name, images array with first image)
+- `'auto'` → Defaults to 'tile' in base class (derived classes can override to customize default)
+- Parser backend always forces `view_type='table'` to ensure CLI compatibility
+- Data format is indicated by `_format` metadata field ('table' or 'tile')
 
 **Cache Fields**: `children_by_class` (computed via `_get_children_by_class()`)
 
@@ -706,6 +713,9 @@ The custom markup parsing system for page content. Implements decorator-based pr
 - Page/Image/File display data structure compatible with render system
 - `FieldConfig` used for table formatting
 - `render_show_page()` handles page display rendering for parser/HTTP backends
+- Tile rendering system (`TileGroup`, `ImageGroup`, `PageGroup`) provides alternative grid layout for images and children
+- View type support (`view_type` parameter) enables dynamic switching between table and tile views
+- Wrapper ID support in `render_block()` enables DOM targeting for view toggle system
 
 ### With MCP Backend (see mcp.md)
 - Page operations exposed as MCP tools via `mcp_utils.py`

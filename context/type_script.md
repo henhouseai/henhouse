@@ -499,7 +499,95 @@ Extends `WorkPageData` to handle work docket pages. Inherits `status` and `sort_
 
 ---
 
-## 9. File Upload
+## 9. View Toggle System
+
+The view toggle system enables hot-swapping between table and tile views for page sections (images, children by class) via client-side DOM replacement.
+
+### ViewToggle Class
+
+**File**: `view-toggle.ts`
+
+Handles dynamic view switching for page sections. Listens for clicks on toggle links and replaces DOM chunks via MCP calls.
+
+**Initialization**: See `view-toggle.ts` - `initializeViewToggle()` function:
+- Auto-initializes on DOM ready
+- Imported and called in `app.ts`
+- Minimal wiring required
+
+**Event Handling**: See `view-toggle.ts` - `initialize()` method:
+- Uses event delegation on document
+- Listens for clicks on `.updatePageView_{page_id}` links
+- Extracts page_id from class name pattern
+
+**Toggle Flow**: See `view-toggle.ts` - `handleToggleClick()` method:
+1. Extract page_id from class name (e.g., `updatePageView_635` → `635`)
+2. Extract `data-section` attribute (`images` or `children`)
+3. Extract `data-class-name` attribute (for children sections)
+4. Auto-detect current view type by checking for table element in DOM
+5. Request opposite view type via MCP call
+6. Replace DOM content with new HTML
+
+**MCP Integration**: See `view-toggle.ts` - `handleToggleClick()` method:
+- Calls `get_page_section` MCP tool via RPC client
+- Parameters: `id`, `section`, `view_type`, `class_name` (for children)
+- Extracts `dom_content` from response
+
+**DOM Replacement**: See `view-toggle.ts` - `replaceSectionContent()` method:
+- Determines content element ID based on section type:
+  - Images: `pageImageGroup_{page_id}`
+  - Children: `child_pages_{class_name}_{page_id}` (class_name converted to safe format)
+- Finds existing content element in DOM
+- Replaces innerHTML (preserves element structure)
+- Handles clearboth div insertion/removal for tile views
+
+**View Type Detection**: See `view-toggle.ts` - `handleToggleClick()` method:
+- Checks next sibling of header element for table element
+- If table present → current view is 'table', request 'tile'
+- If no table → current view is 'tile', request 'table'
+
+### Toggle Link Structure
+
+**HTML Pattern**: See `render_show_page.py` for header generation:
+```html
+<div id="pageImageGroupHeader_{page_id}" class="contentHeader">
+  <a class="updatePageView_{page_id}" 
+     data-section="images">IMAGES</a>
+</div>
+<div id="pageImageGroup_{page_id}" class="content pageImageGroup">
+  <!-- table or tile content -->
+</div>
+```
+
+**Children Sections**: See `render_show_page.py` for children headers:
+```html
+<div id="child_pages_{class_name}_header_{page_id}" class="contentHeader">
+  <a class="updatePageView_{page_id}" 
+     data-section="children" 
+     data-class-name="{class_name}">{Human Readable Name}</a>
+</div>
+<div id="child_pages_{class_name}_{page_id}" class="content">
+  <!-- table or tile content -->
+</div>
+```
+
+**Key Points**:
+- Headers are static (don't get swapped)
+- Only content divs are replaced
+- Each section/class has unique IDs for targeting
+- TypeScript auto-detects current view type
+
+### Integration with Render System
+
+**Server-Side Rendering**: All HTML generation happens server-side:
+- `get_page_section` action returns HTML in `dom_content` field
+- Supports both table and tile rendering
+- Wrapper IDs generated for DOM targeting
+
+**Backend Override**: See `render.py` - `render_block()` function:
+- `backend` parameter allows forcing HTML rendering when called via MCP
+- Ensures HTML tables are rendered even when gateway.backend is 'mcp'
+
+## 10. File Upload
 
 The upload handler provides image file upload functionality with progress tracking and sequential processing.
 
@@ -536,7 +624,7 @@ Handles image file uploads with multi-file support.
 
 ---
 
-## 10. Best Practices
+## 11. Best Practices
 
 ### Handler Development
 

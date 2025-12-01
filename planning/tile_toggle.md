@@ -331,9 +331,9 @@ document.addEventListener('click', (e) => {
 - Validates section is one of: 'images', 'children', 'files'
 - Loads page via `get_page(page_id)`
 - Determines view_type (check flags, use defaults)
-- Routes to `render_image_group_html()` for 'images' section
+- Routes to appropriate renderer based on section ('images' or 'children')
 - Returns JSON with `dom_content` field containing HTML string
-- Currently only supports 'images' section (children/files pending)
+- Supports 'images' and 'children' sections (files section pending, lower priority)
 
 **Step 3.3:** ✅ Implemented parser backend output
 - Creates table with metadata rows:
@@ -382,9 +382,9 @@ document.addEventListener('click', (e) => {
 - If set, forces table mode regardless of default
 - Allows testing and explicit table mode requests
 
-**Step 5.2:** ⚠️ URL flag tested (partial)
+**Step 5.2:** ✅ URL flag tested
 - Logic implemented and working
-- Full end-to-end web UI testing pending (TypeScript toggle not yet implemented)
+- Full end-to-end web UI testing complete (TypeScript toggle implemented and verified)
 
 ### Phase 6: Testing and Refinement
 
@@ -616,21 +616,21 @@ After image groups are working, expand the system to support children sections w
 - [x] Verify parser backend unaffected
 - [x] Add backend override parameter to `render_block()` to force HTML rendering
 
-### Children by Class (Future)
+### Children by Class ✅ COMPLETE
 
-- [ ] Modify `_get_children_for_class()` to accept `view_type` parameter and return data dicts with switch/case logic
-- [ ] Add parser backend check in `render_children_by_class_section()` to force `view_type='table'`
-- [ ] Create generalized `render_tile_group()` function for images, pages, and files
-- [ ] Create `render_page_tile()` and `render_page_tile_link()` functions in `tiles.py`
-- [ ] Update `render_children_by_class_section()` to detect data format and call appropriate renderer
-- [ ] Add human-readable class name conversion function
-- [ ] Implement toggle headers per class group with human-readable names
-- [ ] Remove "Child Pages (class_name)" header column from tables
-- [ ] Extend `get_page_section` to support `class_name` parameter for children
-- [ ] Add error checking for parser backend receiving tile data
-- [ ] Extend TypeScript for class-specific toggles with `data-class-name` attribute
-- [ ] Test independent toggles per class group
-- [ ] Test parser backend always receives table format
+- [x] Modify `_get_children_for_class()` to accept `view_type` parameter and return data dicts with switch/case logic
+- [x] Add parser backend check in `render_children_by_class_section()` to force `view_type='table'`
+- [x] Create generalized `render_tile_group()` function for images, pages, and files (TileGroup base class with ImageGroup and PageGroup)
+- [x] Create `render_page_tile()` and `render_page_tile_link()` functions in `tiles.py` (via Tile class)
+- [x] Update `render_children_by_class_section()` to detect data format and call appropriate renderer
+- [x] Add human-readable class name conversion function (`snake_case_to_title_case()` in page_group.py)
+- [x] Implement toggle headers per class group with human-readable names
+- [x] Remove "Child Pages (class_name)" header column from tables (header now in contentHeader div)
+- [x] Extend `get_page_section` to support `class_name` parameter for children
+- [x] Add error checking for parser backend receiving tile data
+- [x] Extend TypeScript for class-specific toggles with `data-class-name` attribute
+- [x] Test independent toggles per class group
+- [x] Test parser backend always receives table format
 
 ---
 
@@ -651,16 +651,22 @@ After image groups are working, expand the system to support children sections w
 
 **New Files (created):**
 - `hh/page/get_page_section.py` - New action for section rendering ✅
-- `hh/render/html/tiles.py` - Tile rendering functions ✅
-- `hh/render/html/image_group.py` - Image group rendering with table/tile support ✅
+- `hh/render/html/tiles.py` - Tile rendering functions (Tile class) ✅
+- `hh/render/html/tile_group.py` - Base TileGroup class for tile collections ✅
+- `hh/render/html/image_group.py` - ImageGroup class (derives from TileGroup) ✅
+- `hh/render/html/page_group.py` - PageGroup class (derives from TileGroup) ✅
+- `hh/deploy/site/ts/view-toggle.ts` - Client-side toggle handler ✅
 
 **Modified Files:**
-- `hh/page/render_show_page.py` - Updated to use `render_image_group_html()` function
-- `hh/gateway/response/response.py` - Added `set_image_group()` and `set_file_group()` methods
-- `hh/gateway/response/response_http.py` - Updated `_render_body()` to include `image_group` and `file_group` separately
-
-**Files (to be created):**
-- `hh/deploy/site/ts/view-toggle.ts` - Client-side toggle handler
+- `hh/page/render_show_page.py` - Updated to support table/tile rendering for images and children ✅
+- `hh/page/page_display.py` - Added `view_type` parameter to `_get_children_for_class()` with switch/case logic ✅
+- `hh/page/get_page_section.py` - Supports images and children sections with class_name parameter ✅
+- `hh/render/render.py` - Added `wrapper_id` and `backend` parameters to `render_block()` ✅
+- `hh/render/render_http.py` - Added `wrapper_id` parameter to `render_html_table()` ✅
+- `hh/render/html/html_flexible.py` - Added `wrapper_id` parameter support ✅
+- `hh/render/html/html_table.py` - Added `wrapper_id` support in HtmlTableBuilder ✅
+- `hh/gateway/response/response.py` - Added `set_image_group()`, `set_file_group()`, and `add_child_pages()` methods ✅
+- `hh/gateway/response/response_http.py` - Updated `_render_body()` to include `image_group`, `file_group`, and `child_pages` separately ✅
 
 ### Design Decisions
 
@@ -704,10 +710,10 @@ After image groups are working, expand the system to support children sections w
 **Phase 3: get_page_section Action** ✅ COMPLETE
 - Created `hh/page/get_page_section.py` with action and parser backend handlers
 - Registered as action, command, parser backend, and MCP tool
-- Parameters: `id` (page_id), `section` ('images'|'children'|'files'), `view_type` ('table'|'tile'|'auto')
+- Parameters: `id` (page_id), `section` ('images'|'children'|'files'), `view_type` ('table'|'tile'|'auto'), `class_name` (required for children section)
 - Returns JSON with `dom_content` field containing HTML snippet
 - Parser backend returns formatted table with metadata + `dom_content` row
-- Currently supports 'images' section only (children/files pending)
+- Supports 'images' and 'children' sections (files pending, lower priority)
 
 **Phase 4: Response Module Updates** ✅ COMPLETE
 - Added `set_image_group()` method to `Response` class
@@ -728,8 +734,9 @@ After image groups are working, expand the system to support children sections w
 
 **Web UI Status:**
 - Images render in tile mode by default (HTTP backend)
+- Children by class render in tile mode by default (HTTP backend)
+- Toggle functionality fully implemented and working (TypeScript client complete)
 - CSS layout needs refinement (acknowledged - will be fine-tuned after functionality complete)
-- Toggle functionality not yet implemented (TypeScript client pending)
 
 ### Implementation Details
 
@@ -744,7 +751,7 @@ After image groups are working, expand the system to support children sections w
 - Uses standard `render_block()` with `TableData` and `FieldConfig`
 - Columns: Images, Rank, ID, Caption, Uploaded, Instances
 - Image links added to label, rank, id, and caption columns
-- **Note**: Table view currently does NOT include toggle header (needs to be added)
+- Toggle headers included in both table and tile views
 
 **View Type Logic:**
 - Default determination in `render_image_group_html()`:
@@ -770,7 +777,7 @@ After image groups are working, expand the system to support children sections w
 
 1. ~~**Table View Toggle Header**: Table view currently doesn't include toggle header~~ ✅ FIXED - Both table and tile views now include toggle headers
 2. **CSS Refinement**: Image group CSS needs work for better layout (acknowledged - will be addressed after functionality is complete)
-3. **Children/Files Sections**: `get_page_section` only supports 'images' section currently - children and files sections need implementation
+3. ~~**Children/Files Sections**: `get_page_section` only supports 'images' section currently - children and files sections need implementation~~ ✅ COMPLETE - Children section fully implemented with class_name support. Files section still pending (lower priority).
 
 ### Next Steps
 
@@ -807,6 +814,27 @@ After image groups are working, expand the system to support children sections w
 - Updated `render_image_group_html()` to pass `backend='http'` when calling `render_block()` for table mode
 - Ensures HTML tables are rendered even when called through MCP backend
 - Verified via smoke test: table view now returns HTML tables instead of parser tables
+
+**Phase 5: Children by Class Implementation** ✅ COMPLETE
+- Modified `_get_children_for_class()` in `hh/page/page_display.py` to accept `view_type` parameter
+- Implemented switch/case logic: 'table' → table-formatted data, 'tile' → tile-formatted data, 'auto' → defaults to 'tile'
+- Created generalized tile system: `TileGroup` base class, `ImageGroup` and `PageGroup` derived classes
+- `Tile` class handles individual tile rendering with image selection and caption display
+- Updated `render_children_by_class_section()` to detect data format and call appropriate renderer
+- Added `snake_case_to_title_case()` helper for human-readable class names
+- Implemented toggle headers per class group with unique IDs: `child_pages_{class_name}_header_{page_id}`
+- Extended `get_page_section` to support `class_name` parameter for children sections
+- Added error checking: parser backend validates it never receives tile-formatted data
+- Extended TypeScript `view-toggle.ts` to handle `data-class-name` attribute for class-specific toggles
+- Wrapper ID support added throughout render system for DOM targeting
+- Both table and tile views now support bidirectional toggling for images and children by class
+
+**Implementation Notes:**
+- Tile system uses object-oriented design: `Tile` → `TileGroup` → `ImageGroup`/`PageGroup`
+- Each tile group generates unique content IDs for DOM replacement
+- Headers are static (don't get swapped), only content divs are replaced
+- TypeScript auto-detects current view type by checking for table element in DOM
+- Parser backend always forces table format, never receives tile data
 
 This document will be updated as implementation progresses and design decisions are finalized.
 
