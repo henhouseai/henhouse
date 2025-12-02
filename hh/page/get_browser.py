@@ -129,7 +129,9 @@ def get_browser() -> bool:
     
     text_html = render_text_section(
         page_data,
-        overlay_mode=overlay_mode
+        overlay_mode=overlay_mode,
+        wrapper_id_prefix=wrapper_id_prefix,
+        additional_classes=additional_classes
     ) or ""
     
     children_html = ""

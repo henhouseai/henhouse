@@ -41,15 +41,16 @@ export class OverlayContent {
       const hasWrapperDiv = (html: string): boolean => {
         if (typeof html !== 'string') return false;
         const trimmed = html.trim();
-        // Check if it starts with <div and contains both "content" and "overlay" classes
-        // (may have other classes like "tableViewDiv" in between)
+        // Check if it starts with <div and has "content" class
+        // This indicates it's already a complete wrapper div from the backend
         if (!trimmed.startsWith('<div')) return false;
-        // Match class="..." or class='...' containing both "content" and "overlay"
+        // Match class="..." or class='...' containing "content"
         const classPattern = /class=["']([^"']+)["']/;
         const match = trimmed.match(classPattern);
         if (!match) return false;
         const classes = match[1];
-        return classes.includes('content') && classes.includes('overlay');
+        // If it has "content" class, it's already wrapped (may or may not have "overlay")
+        return classes.includes('content');
       };
 
       // Helper function to parse HTML and append nodes directly

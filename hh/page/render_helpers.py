@@ -412,7 +412,9 @@ def render_generic_badge(
 
 def render_text_section(
     page_data: Dict[str, Union[str, int]],
-    overlay_mode: bool = False
+    overlay_mode: bool = False,
+    wrapper_id_prefix: str = '',
+    additional_classes: List[str] = None
 ) -> Optional[str]:
     """
     Render text content section.
@@ -472,11 +474,16 @@ def render_text_section(
     
     # Get page_id from page_data for ID attribute
     page_id = page_data.get('id')
-    prefix = 'overlay_' if overlay_mode else ''
-    id_attr = f' id="{prefix}page-text-{page_id}"' if page_id else ''
+    id_attr = f' id="{wrapper_id_prefix}page-text-{page_id}"' if page_id else ''
+    
+    # Build class string: always "content pageText", plus any additional classes
+    class_parts = ['content', 'pageText']
+    if additional_classes:
+        class_parts.extend(additional_classes)
+    class_str = ' '.join(class_parts)
     
     # Standardize: id always comes before class
-    wrapped_text = f'<div{id_attr} class="content pageText">{safe_str(processed_text)}</div>'
+    wrapped_text = f'<div{id_attr} class="{class_str}">{safe_str(processed_text)}</div>'
     
     if overlay_mode:
         trace_out()
