@@ -7,6 +7,7 @@ import { OverlayManager, OverlayOptions } from './overlay/overlay-manager.js';
 import { Overlay } from './overlay/overlay.js';
 import { RPCClient } from './rpc-client.js';
 import { getSeedData } from './seed.js';
+import { getViewToggleInstance, ViewToggleCallbacks } from './view-toggle.js';
 
 export type BrowserMode = 'page' | 'image' | 'file';
 
@@ -26,7 +27,7 @@ export class Browser {
   private mode: BrowserMode;
   private onSubmit: (result: number | number[]) => void | Promise<void>;
   private onCancel?: () => void;
-  private mutationObserver: MutationObserver | null = null;
+  private viewToggle: any = null; // ViewToggle instance for this browser
 
   constructor(options: BrowserOptions) {
     this.rpc = new RPCClient();
@@ -115,6 +116,9 @@ export class Browser {
           }
         });
       }
+
+    // Set up view toggle with callbacks for this browser instance
+    this.setupViewToggle();
 
     // Set up link interception after a short delay to ensure DOM is ready
     setTimeout(() => {
@@ -205,53 +209,32 @@ export class Browser {
   }
 
   /**
-   * Set up MutationObserver to watch for DOM changes and re-intercept links.
+   * Set up view toggle with callbacks to re-intercept links after content swaps.
    */
-  private setupMutationObserver(): void {
+  private setupViewToggle(): void {
     if (!this.overlay) return;
 
     const windowEl = document.getElementById('overlayWindow');
     if (!windowEl) return;
 
-    // Disconnect existing observer if any
-    if (this.mutationObserver) {
-      this.mutationObserver.disconnect();
-    }
-
-    // Create new observer to watch for added nodes (like when view-toggle swaps content)
-    this.mutationObserver = new MutationObserver((mutations) => {
-      let shouldReintercept = false;
-      for (const mutation of mutations) {
-        if (mutation.addedNodes.length > 0) {
-          // Check if any added nodes contain links
-          const addedNodes = Array.from(mutation.addedNodes);
-          for (const node of addedNodes) {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const element = node as HTMLElement;
-              if (element.querySelectorAll('a[href]').length > 0 || element.tagName === 'A') {
-                shouldReintercept = true;
-                break;
-              }
-            }
-          }
-          if (shouldReintercept) break;
-        }
-      }
-      if (shouldReintercept) {
-        // Re-intercept links after a short delay to ensure DOM is settled
-        setTimeout(() => {
-          if (windowEl) {
+    // Get the global view toggle instance
+    // Since view-toggle uses event delegation, we register callbacks with the global instance
+    const globalViewToggle = getViewToggleInstance();
+    
+    if (globalViewToggle) {
+      // Register callbacks that only run when swap is in this browser's overlay
+      const callbacks: ViewToggleCallbacks = {
+        onAfterSwap: (container: HTMLElement, context: any) => {
+          // Only re-intercept if the swap happened in this browser's overlay
+          if (context.isInOverlay && windowEl.contains(container)) {
             this.interceptLinks(windowEl);
           }
-        }, 50);
-      }
-    });
-
-    // Observe the overlay content area for child additions
-    this.mutationObserver.observe(windowEl, {
-      childList: true,
-      subtree: true
-    });
+        }
+      };
+      
+      globalViewToggle.setCallbacks(callbacks);
+      this.viewToggle = globalViewToggle;
+    }
   }
 
   /**

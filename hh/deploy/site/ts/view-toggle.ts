@@ -1,16 +1,54 @@
 /**
  * View Toggle System - handles hot-swapping between table and tile views for page sections.
  * Listens for clicks on toggle links and replaces DOM chunks via MCP calls.
+ * Supports callbacks for pre/post-processing of swapped content.
  */
 
 import { RPCClient } from './rpc-client.js';
 
+export interface ViewToggleCallbacks {
+  /**
+   * Called before DOM swap with the raw HTML string.
+   * Can modify the HTML and return the modified version.
+   * @param htmlContent - The HTML content to be inserted
+   * @param context - Context about the swap (pageId, section, etc.)
+   * @returns Modified HTML string (or original if no changes)
+   */
+  onBeforeSwap?: (htmlContent: string, context: ViewToggleContext) => string;
+
+  /**
+   * Called after DOM swap with the container element.
+   * Can manipulate the DOM, attach event listeners, etc.
+   * @param container - The container element where content was swapped
+   * @param context - Context about the swap (pageId, section, etc.)
+   */
+  onAfterSwap?: (container: HTMLElement, context: ViewToggleContext) => void;
+}
+
+export interface ViewToggleContext {
+  pageId: string;
+  section: string;
+  className?: string | null;
+  viewType: 'table' | 'tile';
+  isInOverlay: boolean;
+  linkElement: HTMLElement;
+}
+
 class ViewToggle {
   private rpc: RPCClient;
+  private callbacks: ViewToggleCallbacks;
 
-  constructor() {
+  constructor(callbacks?: ViewToggleCallbacks) {
     this.rpc = new RPCClient();
+    this.callbacks = callbacks || {};
     this.initialize();
+  }
+
+  /**
+   * Update callbacks for this instance.
+   */
+  setCallbacks(callbacks: ViewToggleCallbacks): void {
+    this.callbacks = { ...this.callbacks, ...callbacks };
   }
 
   /**
@@ -116,8 +154,18 @@ class ViewToggle {
         return;
       }
 
-      // Replace DOM chunks - pass linkElement to check if in overlay
-      this.replaceSectionContent(pageId, section, domContent, className, linkElement);
+      // Create context for callbacks
+      const context: ViewToggleContext = {
+        pageId,
+        section,
+        className,
+        viewType,
+        isInOverlay,
+        linkElement
+      };
+
+      // Replace DOM chunks with callbacks
+      this.replaceSectionContent(pageId, section, domContent, className, linkElement, context);
 
     } catch (error) {
       console.error('Error handling view toggle:', error);
@@ -132,11 +180,25 @@ class ViewToggle {
    * @param htmlContent - HTML content to insert
    * @param className - Optional class name for children sections
    * @param linkElement - The toggle link element (to check if in overlay)
+   * @param context - Context for callbacks
    */
-  private replaceSectionContent(pageId: string, section: string, htmlContent: string, className: string | null | undefined, linkElement: HTMLElement): void {
+  private replaceSectionContent(
+    pageId: string,
+    section: string,
+    htmlContent: string,
+    className: string | null | undefined,
+    linkElement: HTMLElement,
+    context: ViewToggleContext
+  ): void {
+    // Call onBeforeSwap callback if provided (allows HTML modification)
+    let processedHtml = htmlContent;
+    if (this.callbacks.onBeforeSwap) {
+      processedHtml = this.callbacks.onBeforeSwap(htmlContent, context);
+    }
+
     // Create a temporary container to parse the HTML
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlContent;
+    tempDiv.innerHTML = processedHtml;
 
     // Determine content element ID based on section type
     // Check if we're in an overlay (has overlay_ prefix)
@@ -180,19 +242,44 @@ class ViewToggle {
     // The new element already includes clearboth if needed, so just replace the whole thing
     const newElement = contentElement.cloneNode(true) as HTMLElement;
     existingContent.parentNode?.replaceChild(newElement, existingContent);
+
+    // Call onAfterSwap callback if provided (allows DOM manipulation after swap)
+    if (this.callbacks.onAfterSwap) {
+      // Find the container - use the parent of the replaced element or the element itself
+      const container = newElement.parentElement || newElement;
+      this.callbacks.onAfterSwap(container, context);
+    }
   }
 }
 
-// Initialize view toggle system when DOM is ready
+// Global view toggle instance (for main page)
 let viewToggleInstance: ViewToggle | null = null;
 
-export function initializeViewToggle(): void {
+/**
+ * Initialize the global view toggle system.
+ * @param callbacks - Optional callbacks for the global instance
+ */
+export function initializeViewToggle(callbacks?: ViewToggleCallbacks): void {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      viewToggleInstance = new ViewToggle();
+      viewToggleInstance = new ViewToggle(callbacks);
     });
   } else {
-    viewToggleInstance = new ViewToggle();
+    viewToggleInstance = new ViewToggle(callbacks);
   }
+}
+
+/**
+ * Get the global view toggle instance.
+ */
+export function getViewToggleInstance(): ViewToggle | null {
+  return viewToggleInstance;
+}
+
+/**
+ * Create a new view toggle instance with callbacks (useful for overlays).
+ */
+export function createViewToggle(callbacks?: ViewToggleCallbacks): ViewToggle {
+  return new ViewToggle(callbacks);
 }
 

@@ -1,12 +1,20 @@
 /**
  * View Toggle System - handles hot-swapping between table and tile views for page sections.
  * Listens for clicks on toggle links and replaces DOM chunks via MCP calls.
+ * Supports callbacks for pre/post-processing of swapped content.
  */
 import { RPCClient } from './rpc-client.js';
 class ViewToggle {
-    constructor() {
+    constructor(callbacks) {
         this.rpc = new RPCClient();
+        this.callbacks = callbacks || {};
         this.initialize();
+    }
+    /**
+     * Update callbacks for this instance.
+     */
+    setCallbacks(callbacks) {
+        this.callbacks = { ...this.callbacks, ...callbacks };
     }
     /**
      * Initialize the view toggle system by setting up event listeners.
@@ -94,8 +102,17 @@ class ViewToggle {
                 console.warn('get_page_section did not return dom_content');
                 return;
             }
-            // Replace DOM chunks - pass linkElement to check if in overlay
-            this.replaceSectionContent(pageId, section, domContent, className, linkElement);
+            // Create context for callbacks
+            const context = {
+                pageId,
+                section,
+                className,
+                viewType,
+                isInOverlay,
+                linkElement
+            };
+            // Replace DOM chunks with callbacks
+            this.replaceSectionContent(pageId, section, domContent, className, linkElement, context);
         }
         catch (error) {
             console.error('Error handling view toggle:', error);
@@ -109,11 +126,17 @@ class ViewToggle {
      * @param htmlContent - HTML content to insert
      * @param className - Optional class name for children sections
      * @param linkElement - The toggle link element (to check if in overlay)
+     * @param context - Context for callbacks
      */
-    replaceSectionContent(pageId, section, htmlContent, className, linkElement) {
+    replaceSectionContent(pageId, section, htmlContent, className, linkElement, context) {
+        // Call onBeforeSwap callback if provided (allows HTML modification)
+        let processedHtml = htmlContent;
+        if (this.callbacks.onBeforeSwap) {
+            processedHtml = this.callbacks.onBeforeSwap(htmlContent, context);
+        }
         // Create a temporary container to parse the HTML
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
+        tempDiv.innerHTML = processedHtml;
         // Determine content element ID based on section type
         // Check if we're in an overlay (has overlay_ prefix)
         const isInOverlay = linkElement.closest('#overlayWindow') !== null;
@@ -151,17 +174,39 @@ class ViewToggle {
         // The new element already includes clearboth if needed, so just replace the whole thing
         const newElement = contentElement.cloneNode(true);
         existingContent.parentNode?.replaceChild(newElement, existingContent);
+        // Call onAfterSwap callback if provided (allows DOM manipulation after swap)
+        if (this.callbacks.onAfterSwap) {
+            // Find the container - use the parent of the replaced element or the element itself
+            const container = newElement.parentElement || newElement;
+            this.callbacks.onAfterSwap(container, context);
+        }
     }
 }
-// Initialize view toggle system when DOM is ready
+// Global view toggle instance (for main page)
 let viewToggleInstance = null;
-export function initializeViewToggle() {
+/**
+ * Initialize the global view toggle system.
+ * @param callbacks - Optional callbacks for the global instance
+ */
+export function initializeViewToggle(callbacks) {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            viewToggleInstance = new ViewToggle();
+            viewToggleInstance = new ViewToggle(callbacks);
         });
     }
     else {
-        viewToggleInstance = new ViewToggle();
+        viewToggleInstance = new ViewToggle(callbacks);
     }
+}
+/**
+ * Get the global view toggle instance.
+ */
+export function getViewToggleInstance() {
+    return viewToggleInstance;
+}
+/**
+ * Create a new view toggle instance with callbacks (useful for overlays).
+ */
+export function createViewToggle(callbacks) {
+    return new ViewToggle(callbacks);
 }
