@@ -932,6 +932,51 @@ export class PageData {
             rpc.showError('move_page', error);
         }
     }
+    /**
+     * Handler for move_images_app: Move images to another page (smoke test with browser)
+     */
+    async move_images_app(rpc) {
+        const pageId = this.id;
+        if (!pageId) {
+            alert('No page ID found');
+            return;
+        }
+        try {
+            const { Browser } = await import('./browser.js');
+            // First, select images
+            const imageBrowser = new Browser({
+                mode: 'image',
+                initialPageId: pageId,
+                onSubmit: async (selectedImageIds) => {
+                    const imageIds = Array.isArray(selectedImageIds) ? selectedImageIds : [selectedImageIds];
+                    if (imageIds.length === 0) {
+                        throw new Error('No images selected');
+                    }
+                    // Then, select target page
+                    const pageBrowser = new Browser({
+                        mode: 'page',
+                        initialPageId: pageId,
+                        onSubmit: async (selectedPageId) => {
+                            // Smoke test: just show success message
+                            const targetId = Array.isArray(selectedPageId) ? selectedPageId[0] : selectedPageId;
+                            console.log(`Would move ${imageIds.length} image(s) (${imageIds.join(', ')}) to page ${targetId}`);
+                            // In real implementation, would call:
+                            // rpc.call('move_images', { 
+                            //   source_page: pageId, 
+                            //   target_page: targetId,
+                            //   image_ids: imageIds 
+                            // })
+                        }
+                    });
+                    await pageBrowser.show();
+                }
+            });
+            await imageBrowser.show();
+        }
+        catch (error) {
+            rpc.showError('move_images_app', error);
+        }
+    }
 }
 // Base page fields that are always present
 PageData.BASE_PAGE_FIELDS = [
