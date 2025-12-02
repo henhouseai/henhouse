@@ -259,7 +259,7 @@ export class UploadHandler {
     
       // Store references to buttons after overlay is shown (for disabling during upload)
       setTimeout(() => {
-        const headerEl = document.querySelector('#overlayWindow .overlayHeader') as HTMLElement;
+        const headerEl = document.querySelector('#overlayWindow .contentWrapperHeader.overlay') as HTMLElement;
         if (!headerEl) {
           console.error('Could not find overlay header');
           return;
@@ -349,7 +349,7 @@ export class UploadHandler {
       }
     } else {
       // No files yet, insert after header
-      const headerEl = this.overlayWindow.querySelector('.overlayHeader');
+      const headerEl = this.overlayWindow.querySelector('.contentWrapperHeader.overlay');
       if (headerEl && headerEl.nextSibling) {
         this.overlayWindow.insertBefore(fileDiv, headerEl.nextSibling);
       } else {
@@ -398,7 +398,7 @@ export class UploadHandler {
         placeholderContentDiv.appendChild(placeholderWrapper);
         
         // Insert placeholder after header
-        const headerEl = this.overlayWindow.querySelector('.overlayHeader');
+        const headerEl = this.overlayWindow.querySelector('.contentWrapperHeader.overlay');
         if (headerEl && headerEl.nextSibling) {
           this.overlayWindow.insertBefore(placeholderContentDiv, headerEl.nextSibling);
         } else {

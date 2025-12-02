@@ -16,7 +16,7 @@ export class OverlayHeader {
      */
     render() {
         const header = document.createElement('div');
-        header.className = 'overlayHeader';
+        header.className = 'contentWrapperHeader overlay';
         // Title
         if (this.props.title) {
             if (typeof this.props.title === 'string') {

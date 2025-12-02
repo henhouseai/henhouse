@@ -78,8 +78,8 @@
   overflow: auto;
 }
 
-/* Overlay header */
-#overlayWindow div.overlayHeader {
+/* Overlay header (contentWrapperHeader.overlay) */
+#overlayWindow .contentWrapperHeader.overlay {
   width: auto;
   margin: 3px;
   padding: 8px 6px 0 6px;
@@ -92,7 +92,7 @@
 }
 
 /* Overlay header buttons - base class */
-#overlayWindow div.overlayHeader a.overlay-button {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button {
   position: relative;
   top: -3px;
   margin-left: 10px;
@@ -107,76 +107,76 @@
   vertical-align: middle;
 }
 
-#overlayWindow div.overlayHeader a.overlay-button:hover {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button:hover {
   opacity: 0.9;
 }
 
-#overlayWindow div.overlayHeader a.overlay-button:active {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button:active {
   opacity: 0.8;
 }
 
 /* Cancel button modifier */
-#overlayWindow div.overlayHeader a.overlay-button-cancel {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-cancel {
   background-color: var(--overlay-header-cancel-button, #f44336);
   color: var(--overlay-header-cancel-button-text, #fff);
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-cancel:hover {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-cancel:hover {
   background-color: var(--overlay-header-cancel-button-hover, #da190b);
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-cancel:active {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-cancel:active {
   background-color: var(--overlay-header-cancel-button-active, #b71c1c);
 }
 
 /* Upload/Submit button modifier */
-#overlayWindow div.overlayHeader a.overlay-button-upload,
-#overlayWindow div.overlayHeader a.overlay-button-submit,
-#overlayWindow div.overlayHeader a.submitButton {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-upload,
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-submit,
+#overlayWindow .contentWrapperHeader.overlay a.submitButton {
   background-color: var(--overlay-header-submit-button, #4caf50);
   color: var(--overlay-header-submit-button-text, #fff);
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-upload:hover,
-#overlayWindow div.overlayHeader a.overlay-button-submit:hover,
-#overlayWindow div.overlayHeader a.submitButton:hover {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-upload:hover,
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-submit:hover,
+#overlayWindow .contentWrapperHeader.overlay a.submitButton:hover {
   background-color: var(--overlay-header-submit-button-hover, #45a049);
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-upload:active,
-#overlayWindow div.overlayHeader a.overlay-button-submit:active,
-#overlayWindow div.overlayHeader a.submitButton:active {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-upload:active,
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-submit:active,
+#overlayWindow .contentWrapperHeader.overlay a.submitButton:active {
   background-color: var(--overlay-header-submit-button-active, #3d8b40);
 }
 
 /* Middle button modifier (blue) */
-#overlayWindow div.overlayHeader a.overlay-button-middle,
-#overlayWindow div.overlayHeader a.middleButton {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-middle,
+#overlayWindow .contentWrapperHeader.overlay a.middleButton {
   background-color: #2196F3;
   color: white;
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-middle:hover,
-#overlayWindow div.overlayHeader a.middleButton:hover {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-middle:hover,
+#overlayWindow .contentWrapperHeader.overlay a.middleButton:hover {
   background-color: #1976D2;
 }
 
-#overlayWindow div.overlayHeader a.overlay-button-middle:active,
-#overlayWindow div.overlayHeader a.middleButton:active {
+#overlayWindow .contentWrapperHeader.overlay a.overlay-button-middle:active,
+#overlayWindow .contentWrapperHeader.overlay a.middleButton:active {
   background-color: #1565C0;
 }
 
 /* Legacy support for old class names */
-#overlayWindow div.overlayHeader a.cancelButton {
+#overlayWindow .contentWrapperHeader.overlay a.cancelButton {
   background-color: var(--overlay-header-cancel-button, #f44336);
   color: var(--overlay-header-cancel-button-text, #fff);
 }
 
-#overlayWindow div.overlayHeader a.cancelButton:hover {
+#overlayWindow .contentWrapperHeader.overlay a.cancelButton:hover {
   background-color: var(--overlay-header-cancel-button-hover, #da190b);
 }
 
-#overlayWindow div.overlayHeader a.cancelButton:active {
+#overlayWindow .contentWrapperHeader.overlay a.cancelButton:active {
   background-color: var(--overlay-header-cancel-button-active, #b71c1c);
 }
 
@@ -538,7 +538,7 @@
 }
 
 /* Debug options in overlay header */
-#overlayWindow div.overlayHeader .overlay-debug-options {
+#overlayWindow .contentWrapperHeader.overlay .overlay-debug-options {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -546,14 +546,14 @@
   position: relative;
 }
 
-#overlayWindow div.overlayHeader .overlay-debug-options label {
+#overlayWindow .contentWrapperHeader.overlay .overlay-debug-options label {
   display: inline-flex;
   align-items: center;
   margin-right: 10px;
   cursor: pointer;
 }
 
-#overlayWindow div.overlayHeader .overlay-debug-options input[type="checkbox"] {
+#overlayWindow .contentWrapperHeader.overlay .overlay-debug-options input[type="checkbox"] {
   margin-right: 5px;
 }
 

@@ -11,6 +11,7 @@ export class OverlayContent {
      */
     render() {
         const container = document.createElement('div');
+        container.className = 'contentWrapper overlay';
         const headers = this.props.headers || [];
         const contentItems = this.props.children || [];
         // Determine max length to iterate through both arrays
@@ -22,6 +23,26 @@ export class OverlayContent {
             if (!contentItem) {
                 continue;
             }
+            // Helper function to check if HTML string already has wrapper divs
+            const hasWrapperDiv = (html) => {
+                if (typeof html !== 'string')
+                    return false;
+                const trimmed = html.trim();
+                return trimmed.startsWith('<div') &&
+                    (trimmed.includes('class="content overlay') ||
+                        trimmed.includes("class='content overlay") ||
+                        trimmed.includes('class="contentHeader overlay') ||
+                        trimmed.includes("class='contentHeader overlay"));
+            };
+            // Helper function to parse HTML and append nodes directly
+            const appendHTMLContent = (html, target) => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                // Move all children from tempDiv to target
+                while (tempDiv.firstChild) {
+                    target.appendChild(tempDiv.firstChild);
+                }
+            };
             // Create header if header text exists and is not blank
             if (headerText !== undefined && headerText !== '') {
                 const headerDiv = document.createElement('div');
@@ -37,54 +58,124 @@ export class OverlayContent {
                 headerTextSpan.textContent = headerText;
                 headerDiv.appendChild(toggleBtn);
                 headerDiv.appendChild(headerTextSpan);
-                // Create content div
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'content overlay';
-                if (this.props.className) {
-                    contentDiv.className += ` ${this.props.className}`;
-                }
+                // Handle content item
                 if (typeof contentItem === 'string') {
-                    contentDiv.innerHTML = contentItem;
-                }
-                else {
-                    contentDiv.appendChild(contentItem);
-                }
-                // Set initial collapsed state based on header text
-                // Request: expanded, Response: collapsed
-                const isCollapsed = headerText.toLowerCase() === 'response';
-                if (isCollapsed) {
-                    contentDiv.style.display = 'none';
-                    toggleBtn.textContent = '▶'; // Collapsed state (right arrow)
-                }
-                // Add click handler for expand/collapse
-                toggleBtn.addEventListener('click', () => {
-                    const isCurrentlyCollapsed = contentDiv.style.display === 'none';
-                    if (isCurrentlyCollapsed) {
-                        contentDiv.style.display = '';
-                        toggleBtn.textContent = '▼';
+                    if (hasWrapperDiv(contentItem)) {
+                        // HTML already has wrapper divs - parse and append directly
+                        appendHTMLContent(contentItem, container);
+                        // Find the content div we just added to attach collapse handler
+                        const addedContentDiv = container.lastElementChild;
+                        if (addedContentDiv && addedContentDiv.classList.contains('content')) {
+                            // Set initial collapsed state based on header text
+                            const isCollapsed = headerText.toLowerCase() === 'response';
+                            if (isCollapsed) {
+                                addedContentDiv.style.display = 'none';
+                                toggleBtn.textContent = '▶';
+                            }
+                            // Add click handler for expand/collapse
+                            toggleBtn.addEventListener('click', () => {
+                                const isCurrentlyCollapsed = addedContentDiv.style.display === 'none';
+                                if (isCurrentlyCollapsed) {
+                                    addedContentDiv.style.display = '';
+                                    toggleBtn.textContent = '▼';
+                                }
+                                else {
+                                    addedContentDiv.style.display = 'none';
+                                    toggleBtn.textContent = '▶';
+                                }
+                            });
+                        }
+                        // Insert header before the content we just added
+                        container.insertBefore(headerDiv, container.lastElementChild);
                     }
                     else {
+                        // No wrapper - create content div and wrap
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'content overlay';
+                        if (this.props.className) {
+                            contentDiv.className += ` ${this.props.className}`;
+                        }
+                        contentDiv.innerHTML = contentItem;
+                        // Set initial collapsed state based on header text
+                        const isCollapsed = headerText.toLowerCase() === 'response';
+                        if (isCollapsed) {
+                            contentDiv.style.display = 'none';
+                            toggleBtn.textContent = '▶';
+                        }
+                        // Add click handler for expand/collapse
+                        toggleBtn.addEventListener('click', () => {
+                            const isCurrentlyCollapsed = contentDiv.style.display === 'none';
+                            if (isCurrentlyCollapsed) {
+                                contentDiv.style.display = '';
+                                toggleBtn.textContent = '▼';
+                            }
+                            else {
+                                contentDiv.style.display = 'none';
+                                toggleBtn.textContent = '▶';
+                            }
+                        });
+                        container.appendChild(headerDiv);
+                        container.appendChild(contentDiv);
+                    }
+                }
+                else {
+                    // HTMLElement - wrap in content div
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'content overlay';
+                    if (this.props.className) {
+                        contentDiv.className += ` ${this.props.className}`;
+                    }
+                    contentDiv.appendChild(contentItem);
+                    // Set initial collapsed state
+                    const isCollapsed = headerText.toLowerCase() === 'response';
+                    if (isCollapsed) {
                         contentDiv.style.display = 'none';
                         toggleBtn.textContent = '▶';
                     }
-                });
-                container.appendChild(headerDiv);
-                container.appendChild(contentDiv);
+                    // Add click handler
+                    toggleBtn.addEventListener('click', () => {
+                        const isCurrentlyCollapsed = contentDiv.style.display === 'none';
+                        if (isCurrentlyCollapsed) {
+                            contentDiv.style.display = '';
+                            toggleBtn.textContent = '▼';
+                        }
+                        else {
+                            contentDiv.style.display = 'none';
+                            toggleBtn.textContent = '▶';
+                        }
+                    });
+                    container.appendChild(headerDiv);
+                    container.appendChild(contentDiv);
+                }
             }
             else {
-                // No header - just create content div
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'content overlay';
-                if (this.props.className) {
-                    contentDiv.className += ` ${this.props.className}`;
-                }
+                // No header - just handle content
                 if (typeof contentItem === 'string') {
-                    contentDiv.innerHTML = contentItem;
+                    if (hasWrapperDiv(contentItem)) {
+                        // HTML already has wrapper divs - parse and append directly
+                        appendHTMLContent(contentItem, container);
+                    }
+                    else {
+                        // No wrapper - create content div and wrap
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'content overlay';
+                        if (this.props.className) {
+                            contentDiv.className += ` ${this.props.className}`;
+                        }
+                        contentDiv.innerHTML = contentItem;
+                        container.appendChild(contentDiv);
+                    }
                 }
                 else {
+                    // HTMLElement - wrap in content div
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'content overlay';
+                    if (this.props.className) {
+                        contentDiv.className += ` ${this.props.className}`;
+                    }
                     contentDiv.appendChild(contentItem);
+                    container.appendChild(contentDiv);
                 }
-                container.appendChild(contentDiv);
             }
         }
         return container;

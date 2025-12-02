@@ -33,7 +33,7 @@ export class OverlayHeader {
    */
   render(): HTMLElement {
     const header = document.createElement('div');
-    header.className = 'overlayHeader';
+    header.className = 'contentWrapperHeader overlay';
 
     // Title
     if (this.props.title) {

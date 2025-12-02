@@ -577,7 +577,11 @@ def render_children_by_class_section(
                 header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
                 from hh.render.html.page_group import snake_case_to_title_case
                 human_readable_name = snake_case_to_title_case(class_name)
-                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
+                # Add overlay class if in overlay mode
+                header_classes = 'contentHeader'
+                if additional_classes:
+                    header_classes += ' ' + ' '.join(additional_classes)
+                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
                 
                 from hh.render.html.page_group import PageGroup
                 wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
@@ -645,7 +649,11 @@ def render_children_by_class_section(
             content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
             from hh.render.html.page_group import snake_case_to_title_case
             human_readable_name = snake_case_to_title_case(class_name)
-            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
+            # Add overlay class if in overlay mode
+            header_classes = 'contentHeader'
+            if additional_classes:
+                header_classes += ' ' + ' '.join(additional_classes)
+            header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
             # Render block with wrapper configuration
             wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
             
@@ -772,7 +780,11 @@ def render_images_section(
             return None
         page_id_str = str(page_id)
         header_id = f"{wrapper_id_prefix}pageImageGroupHeader_{page_id_str}"
-        header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="images">IMAGES</a>\n</div>'
+        # Add overlay class if in overlay mode
+        header_classes = 'contentHeader'
+        if additional_classes:
+            header_classes += ' ' + ' '.join(additional_classes)
+        header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="images">IMAGES</a>\n</div>'
         
         wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
         image_group = ImageGroup(images_data, page_id, target_width=300, wrapper_extra_classes=wrapper_extra_classes)

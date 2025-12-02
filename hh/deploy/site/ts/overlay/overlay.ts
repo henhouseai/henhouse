@@ -266,7 +266,7 @@ export class Overlay {
 
     // Add messages in order (from messages array, or fallback to error/success for backward compatibility)
     if (this.state.messages && this.state.messages.length > 0) {
-      // Insert messages after header, in order
+      // Insert messages after header (contentWrapperHeader), in order
       let insertAfter = this.headerEl;
       for (const msg of this.state.messages) {
         const msgDiv = document.createElement('div');

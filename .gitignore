@@ -49,3 +49,4 @@ config-registry.json
 legacy/
 logs/
 stage/
+aoc/

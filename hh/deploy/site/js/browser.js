@@ -118,43 +118,34 @@ export class Browser {
             this.loadAndRender();
             return;
         }
-        // Find all content.overlay divs (there may be multiple if there were headers)
-        const existingContentDivs = windowEl.querySelectorAll('.content.overlay');
-        // Remove old content divs (but keep header, buttons, and debug options)
-        existingContentDivs.forEach(div => div.remove());
-        // Also remove any content headers that might exist
-        const existingHeaders = windowEl.querySelectorAll('.contentHeader.overlay');
-        existingHeaders.forEach(header => header.remove());
-        // Add new content - combine all parts into one HTML string
-        const contentHTML = contentParts.join('');
-        // Find where to insert (after header, before debug options)
-        const headerEl = windowEl.querySelector('.overlay-header');
-        const debugOptions = windowEl.querySelector('.overlay-debug-options');
-        // Create a temporary container to parse the HTML
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = contentHTML;
-        // Insert each content element directly (no wrapper)
-        const elementsToInsert = Array.from(tempDiv.children);
-        if (headerEl) {
-            // Insert after header
-            let insertAfter = headerEl;
-            for (const element of elementsToInsert) {
-                if (debugOptions && debugOptions.previousSibling === insertAfter) {
-                    // Insert before debug options
-                    windowEl.insertBefore(element, debugOptions);
-                }
-                else {
-                    insertAfter.insertAdjacentElement('afterend', element);
-                }
-                insertAfter = element;
+        // Find and clear the contentWrapper.overlay div (but keep the wrapper itself)
+        let contentWrapper = windowEl.querySelector('.contentWrapper.overlay');
+        // If contentWrapper doesn't exist, create it (shouldn't happen, but safety check)
+        if (!contentWrapper) {
+            const headerEl = windowEl.querySelector('.contentWrapperHeader.overlay');
+            contentWrapper = document.createElement('div');
+            contentWrapper.className = 'contentWrapper overlay';
+            if (headerEl) {
+                headerEl.insertAdjacentElement('afterend', contentWrapper);
+            }
+            else {
+                windowEl.appendChild(contentWrapper);
             }
         }
         else {
-            // Fallback: append to window
-            elementsToInsert.forEach(element => {
-                windowEl.appendChild(element);
-            });
+            // Clear all children of the contentWrapper
+            contentWrapper.innerHTML = '';
         }
+        // Add new content - combine all parts into one HTML string
+        const contentHTML = contentParts.join('');
+        // Create a temporary container to parse the HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = contentHTML;
+        // Insert each content element into the contentWrapper
+        const elementsToInsert = Array.from(tempDiv.children);
+        elementsToInsert.forEach(element => {
+            contentWrapper.appendChild(element);
+        });
         // Update submit button label
         const submitBtn = windowEl.querySelector('#submitOverlayWindow');
         if (submitBtn) {
