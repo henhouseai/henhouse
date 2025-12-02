@@ -28,11 +28,17 @@ export class OverlayContent {
                 if (typeof html !== 'string')
                     return false;
                 const trimmed = html.trim();
-                return trimmed.startsWith('<div') &&
-                    (trimmed.includes('class="content overlay') ||
-                        trimmed.includes("class='content overlay") ||
-                        trimmed.includes('class="contentHeader overlay') ||
-                        trimmed.includes("class='contentHeader overlay"));
+                // Check if it starts with <div and contains both "content" and "overlay" classes
+                // (may have other classes like "tableViewDiv" in between)
+                if (!trimmed.startsWith('<div'))
+                    return false;
+                // Match class="..." or class='...' containing both "content" and "overlay"
+                const classPattern = /class=["']([^"']+)["']/;
+                const match = trimmed.match(classPattern);
+                if (!match)
+                    return false;
+                const classes = match[1];
+                return classes.includes('content') && classes.includes('overlay');
             };
             // Helper function to parse HTML and append nodes directly
             const appendHTMLContent = (html, target) => {
