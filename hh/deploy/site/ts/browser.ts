@@ -145,14 +145,14 @@ export class Browser {
       return;
     }
 
-    // Find all overlayContent divs (there may be multiple if there were headers)
-    const existingContentDivs = windowEl.querySelectorAll('.overlayContent');
+    // Find all content.overlay divs (there may be multiple if there were headers)
+    const existingContentDivs = windowEl.querySelectorAll('.content.overlay');
     
     // Remove old content divs (but keep header, buttons, and debug options)
     existingContentDivs.forEach(div => div.remove());
 
     // Also remove any content headers that might exist
-    const existingHeaders = windowEl.querySelectorAll('.overlayContentHeader');
+    const existingHeaders = windowEl.querySelectorAll('.contentHeader.overlay');
     existingHeaders.forEach(header => header.remove());
 
     // Add new content - combine all parts into one HTML string
@@ -162,23 +162,30 @@ export class Browser {
     const headerEl = windowEl.querySelector('.overlay-header') as HTMLElement;
     const debugOptions = windowEl.querySelector('.overlay-debug-options') as HTMLElement;
     
-    // Create a container for all content
-    const newContentContainer = document.createElement('div');
-    newContentContainer.className = 'overlayContent';
-    newContentContainer.innerHTML = contentHTML;
+    // Create a temporary container to parse the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contentHTML;
+    
+    // Insert each content element directly (no wrapper)
+    const elementsToInsert = Array.from(tempDiv.children);
     
     if (headerEl) {
       // Insert after header
-      if (debugOptions && debugOptions.previousSibling) {
-        // Insert before debug options
-        windowEl.insertBefore(newContentContainer, debugOptions);
-      } else {
-        // Insert after header
-        headerEl.insertAdjacentElement('afterend', newContentContainer);
+      let insertAfter = headerEl;
+      for (const element of elementsToInsert) {
+        if (debugOptions && debugOptions.previousSibling === insertAfter) {
+          // Insert before debug options
+          windowEl.insertBefore(element as HTMLElement, debugOptions);
+        } else {
+          insertAfter.insertAdjacentElement('afterend', element as HTMLElement);
+        }
+        insertAfter = element as HTMLElement;
       }
     } else {
       // Fallback: append to window
-      windowEl.appendChild(newContentContainer);
+      elementsToInsert.forEach(element => {
+        windowEl.appendChild(element as HTMLElement);
+      });
     }
 
     // Update submit button label

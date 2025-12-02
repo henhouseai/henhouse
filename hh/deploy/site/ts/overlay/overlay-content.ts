@@ -39,7 +39,7 @@ export class OverlayContent {
       // Create header if header text exists and is not blank
       if (headerText !== undefined && headerText !== '') {
         const headerDiv = document.createElement('div');
-        headerDiv.className = 'overlayContentHeader';
+        headerDiv.className = 'contentHeader overlay';
         
         // Create expand/collapse button
         const toggleBtn = document.createElement('button');
@@ -57,7 +57,7 @@ export class OverlayContent {
         
         // Create content div
         const contentDiv = document.createElement('div');
-        contentDiv.className = 'overlayContent';
+        contentDiv.className = 'content overlay';
         
         if (this.props.className) {
           contentDiv.className += ` ${this.props.className}`;
@@ -94,7 +94,7 @@ export class OverlayContent {
       } else {
         // No header - just create content div
         const contentDiv = document.createElement('div');
-        contentDiv.className = 'overlayContent';
+        contentDiv.className = 'content overlay';
         
         if (this.props.className) {
           contentDiv.className += ` ${this.props.className}`;

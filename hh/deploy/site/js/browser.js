@@ -118,36 +118,42 @@ export class Browser {
             this.loadAndRender();
             return;
         }
-        // Find all overlayContent divs (there may be multiple if there were headers)
-        const existingContentDivs = windowEl.querySelectorAll('.overlayContent');
+        // Find all content.overlay divs (there may be multiple if there were headers)
+        const existingContentDivs = windowEl.querySelectorAll('.content.overlay');
         // Remove old content divs (but keep header, buttons, and debug options)
         existingContentDivs.forEach(div => div.remove());
         // Also remove any content headers that might exist
-        const existingHeaders = windowEl.querySelectorAll('.overlayContentHeader');
+        const existingHeaders = windowEl.querySelectorAll('.contentHeader.overlay');
         existingHeaders.forEach(header => header.remove());
         // Add new content - combine all parts into one HTML string
         const contentHTML = contentParts.join('');
         // Find where to insert (after header, before debug options)
         const headerEl = windowEl.querySelector('.overlay-header');
         const debugOptions = windowEl.querySelector('.overlay-debug-options');
-        // Create a container for all content
-        const newContentContainer = document.createElement('div');
-        newContentContainer.className = 'overlayContent';
-        newContentContainer.innerHTML = contentHTML;
+        // Create a temporary container to parse the HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = contentHTML;
+        // Insert each content element directly (no wrapper)
+        const elementsToInsert = Array.from(tempDiv.children);
         if (headerEl) {
             // Insert after header
-            if (debugOptions && debugOptions.previousSibling) {
-                // Insert before debug options
-                windowEl.insertBefore(newContentContainer, debugOptions);
-            }
-            else {
-                // Insert after header
-                headerEl.insertAdjacentElement('afterend', newContentContainer);
+            let insertAfter = headerEl;
+            for (const element of elementsToInsert) {
+                if (debugOptions && debugOptions.previousSibling === insertAfter) {
+                    // Insert before debug options
+                    windowEl.insertBefore(element, debugOptions);
+                }
+                else {
+                    insertAfter.insertAdjacentElement('afterend', element);
+                }
+                insertAfter = element;
             }
         }
         else {
             // Fallback: append to window
-            windowEl.appendChild(newContentContainer);
+            elementsToInsert.forEach(element => {
+                windowEl.appendChild(element);
+            });
         }
         // Update submit button label
         const submitBtn = windowEl.querySelector('#submitOverlayWindow');

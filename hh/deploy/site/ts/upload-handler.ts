@@ -88,8 +88,8 @@ export class UploadHandler {
       }
       
       // Find and remove the placeholder div by its specific class
-      const placeholderContentDiv = this.overlayWindow.querySelector('.overlayContent:has(.upload-placeholder)') ||
-                                     this.overlayWindow.querySelector('.overlayContent.upload-placeholder');
+      const placeholderContentDiv = this.overlayWindow.querySelector('.content.overlay:has(.upload-placeholder)') ||
+                                     this.overlayWindow.querySelector('.content.overlay.upload-placeholder');
       if (placeholderContentDiv && placeholderContentDiv.parentNode) {
         placeholderContentDiv.remove();
         this.placeholderDiv = null;
@@ -125,7 +125,7 @@ export class UploadHandler {
       onMount: () => {
         // Add upload-placeholder class immediately when overlay mounts (before it's visible)
         // This prevents flicker by ensuring correct styling from the start
-        const placeholderContentDiv = document.querySelector('#overlayWindow .overlayContent:has(.upload-placeholder)') as HTMLElement;
+        const placeholderContentDiv = document.querySelector('#overlayWindow .content.overlay:has(.upload-placeholder)') as HTMLElement;
         if (placeholderContentDiv) {
           placeholderContentDiv.classList.add('upload-placeholder');
           this.placeholderDiv = placeholderContentDiv;
@@ -296,7 +296,7 @@ export class UploadHandler {
     
     const fileDiv = document.createElement('div');
     fileDiv.id = fileId;
-    fileDiv.className = 'overlayContent upload-file-item';
+    fileDiv.className = 'content overlay upload-file-item';
     
     // Remove button (X)
     const removeBtn = document.createElement('button');
@@ -394,7 +394,7 @@ export class UploadHandler {
         placeholderWrapper.appendChild(placeholderText);
         
         const placeholderContentDiv = document.createElement('div');
-        placeholderContentDiv.className = 'overlayContent upload-placeholder';
+        placeholderContentDiv.className = 'content overlay upload-placeholder';
         placeholderContentDiv.appendChild(placeholderWrapper);
         
         // Insert placeholder after header
@@ -435,7 +435,7 @@ export class UploadHandler {
     fileDiv.innerHTML = '';
     
     // Change class
-    fileDiv.className = 'overlayContent pending-file-item';
+    fileDiv.className = 'content overlay pending-file-item';
     
     // Add file name
     const newFileNameDiv = document.createElement('div');

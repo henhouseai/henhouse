@@ -10,7 +10,7 @@ export class OverlayDebugOptions {
         this.container.className = 'overlay-debug-section';
         // Create header with expand/collapse button
         this.headerDiv = document.createElement('div');
-        this.headerDiv.className = 'overlayContentHeader';
+        this.headerDiv.className = 'contentHeader overlay';
         this.toggleBtn = document.createElement('button');
         this.toggleBtn.className = 'overlay-content-toggle';
         this.toggleBtn.textContent = '▶'; // Collapsed state (right arrow)
@@ -22,7 +22,7 @@ export class OverlayDebugOptions {
         this.headerDiv.appendChild(headerTextSpan);
         // Create content div (collapsed by default)
         this.contentDiv = document.createElement('div');
-        this.contentDiv.className = 'overlayContent overlay-debug-content';
+        this.contentDiv.className = 'content overlay overlay-debug-content';
         this.contentDiv.style.display = 'none'; // Start collapsed
         // Create table with 6 columns: Debug, Log, Blacklist, Graylist, Whitelist, Limit
         const debugTable = document.createElement('table');

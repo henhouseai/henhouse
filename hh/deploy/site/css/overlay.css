@@ -181,7 +181,7 @@
 }
 
 /* Overlay content area */
-#overlayWindow div.overlayContent {
+#overlayWindow .content.overlay {
   width: auto;
   padding: 4px;
   border: 1px solid var(--overlay-content-border, #000);
@@ -193,13 +193,13 @@
   text-align: left;
 }
 
-/* Remove padding from overlayContent when it contains a debug table */
-#overlayWindow div.overlayContent:has(.overlay-debug-table) {
+/* Remove padding from content.overlay when it contains a debug table */
+#overlayWindow .content.overlay:has(.overlay-debug-table) {
   padding: 0;
 }
 
 /* Overlay content header (for collapsible sections) */
-#overlayWindow div.overlayContentHeader {
+#overlayWindow .contentHeader.overlay {
   width: auto;
   padding: 4px 8px;
   margin: 3px;
@@ -213,11 +213,11 @@
   gap: 8px;
 }
 
-#overlayWindow div.overlayContentHeader:hover {
+#overlayWindow .contentHeader.overlay:hover {
   background-color: var(--overlay-header-link-hover, #f0f0f0);
 }
 
-#overlayWindow div.overlayContentHeader button.overlay-content-toggle {
+#overlayWindow .contentHeader.overlay button.overlay-content-toggle {
   background: none;
   border: none;
   padding: 2px 6px;
@@ -227,11 +227,11 @@
   flex-shrink: 0;
 }
 
-#overlayWindow div.overlayContentHeader button.overlay-content-toggle:hover {
+#overlayWindow .contentHeader.overlay button.overlay-content-toggle:hover {
   opacity: 0.7;
 }
 
-#overlayWindow div.overlayContentHeader .overlay-content-header-text {
+#overlayWindow .contentHeader.overlay .overlay-content-header-text {
   flex: 1;
 }
 
@@ -424,7 +424,7 @@
 
 /* Upload handler styles - chooseFilesButton now uses overlay-button base class */
 
-#overlayWindow .overlayContent.upload-placeholder {
+#overlayWindow .content.overlay.upload-placeholder {
   padding: 40px;
   text-align: center;
   color: #999;
