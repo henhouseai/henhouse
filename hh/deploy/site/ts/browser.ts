@@ -26,6 +26,7 @@ export class Browser {
   private mode: BrowserMode;
   private onSubmit: (result: number | number[]) => void | Promise<void>;
   private onCancel?: () => void;
+  private mutationObserver: MutationObserver | null = null;
 
   constructor(options: BrowserOptions) {
     this.rpc = new RPCClient();
@@ -115,10 +116,10 @@ export class Browser {
         });
       }
 
-      // Set up link interception after a short delay to ensure DOM is ready
-      setTimeout(() => {
-        this.injectAndIntercept();
-      }, 50);
+    // Set up link interception after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      this.injectAndIntercept();
+    }, 50);
 
     } catch (error) {
       console.error('Error loading browser:', error);
@@ -181,6 +182,9 @@ export class Browser {
     if (submitBtn) {
       submitBtn.textContent = this.getSubmitLabel();
     }
+
+    // Re-intercept links after content update
+    this.interceptLinks(windowEl);
   }
 
   /**
@@ -201,6 +205,56 @@ export class Browser {
   }
 
   /**
+   * Set up MutationObserver to watch for DOM changes and re-intercept links.
+   */
+  private setupMutationObserver(): void {
+    if (!this.overlay) return;
+
+    const windowEl = document.getElementById('overlayWindow');
+    if (!windowEl) return;
+
+    // Disconnect existing observer if any
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+    }
+
+    // Create new observer to watch for added nodes (like when view-toggle swaps content)
+    this.mutationObserver = new MutationObserver((mutations) => {
+      let shouldReintercept = false;
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          // Check if any added nodes contain links
+          const addedNodes = Array.from(mutation.addedNodes);
+          for (const node of addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node as HTMLElement;
+              if (element.querySelectorAll('a[href]').length > 0 || element.tagName === 'A') {
+                shouldReintercept = true;
+                break;
+              }
+            }
+          }
+          if (shouldReintercept) break;
+        }
+      }
+      if (shouldReintercept) {
+        // Re-intercept links after a short delay to ensure DOM is settled
+        setTimeout(() => {
+          if (windowEl) {
+            this.interceptLinks(windowEl);
+          }
+        }, 50);
+      }
+    });
+
+    // Observe the overlay content area for child additions
+    this.mutationObserver.observe(windowEl, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  /**
    * Intercept all links in the browser content.
    */
   private interceptLinks(container: HTMLElement): void {
@@ -210,6 +264,11 @@ export class Browser {
     links.forEach(link => {
       // Skip toggle links - let view-toggle.ts handle them
       if (link.classList.toString().includes('updatePageView_')) {
+        return;
+      }
+
+      // Skip links that already have our click handler (avoid duplicate listeners)
+      if ((link as any).__browserIntercepted) {
         return;
       }
 
@@ -224,6 +283,7 @@ export class Browser {
           e.preventDefault();
           this.retargetBrowser(pageId);
         });
+        (link as any).__browserIntercepted = true;
         return;
       }
 
@@ -235,6 +295,7 @@ export class Browser {
           e.preventDefault();
           this.handleImageClick(imageId);
         });
+        (link as any).__browserIntercepted = true;
         return;
       }
 
@@ -246,6 +307,7 @@ export class Browser {
         link.addEventListener('click', (e) => {
           e.preventDefault();
         });
+        (link as any).__browserIntercepted = true;
         return;
       }
     });

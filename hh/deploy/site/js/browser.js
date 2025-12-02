@@ -10,6 +10,7 @@ export class Browser {
         this.overlay = null;
         this.selectedImageIds = [];
         this.selectedFileIds = [];
+        this.mutationObserver = null;
         this.rpc = new RPCClient();
         this.mode = options.mode;
         this.onSubmit = options.onSubmit;
@@ -150,6 +151,8 @@ export class Browser {
         if (submitBtn) {
             submitBtn.textContent = this.getSubmitLabel();
         }
+        // Re-intercept links after content update
+        this.interceptLinks(windowEl);
     }
     /**
      * Inject HTML content and set up link interception.
@@ -167,6 +170,54 @@ export class Browser {
         this.interceptLinks(windowEl);
     }
     /**
+     * Set up MutationObserver to watch for DOM changes and re-intercept links.
+     */
+    setupMutationObserver() {
+        if (!this.overlay)
+            return;
+        const windowEl = document.getElementById('overlayWindow');
+        if (!windowEl)
+            return;
+        // Disconnect existing observer if any
+        if (this.mutationObserver) {
+            this.mutationObserver.disconnect();
+        }
+        // Create new observer to watch for added nodes (like when view-toggle swaps content)
+        this.mutationObserver = new MutationObserver((mutations) => {
+            let shouldReintercept = false;
+            for (const mutation of mutations) {
+                if (mutation.addedNodes.length > 0) {
+                    // Check if any added nodes contain links
+                    const addedNodes = Array.from(mutation.addedNodes);
+                    for (const node of addedNodes) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            const element = node;
+                            if (element.querySelectorAll('a[href]').length > 0 || element.tagName === 'A') {
+                                shouldReintercept = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (shouldReintercept)
+                        break;
+                }
+            }
+            if (shouldReintercept) {
+                // Re-intercept links after a short delay to ensure DOM is settled
+                setTimeout(() => {
+                    if (windowEl) {
+                        this.interceptLinks(windowEl);
+                    }
+                }, 50);
+            }
+        });
+        // Observe the overlay content area for child additions
+        this.mutationObserver.observe(windowEl, {
+            childList: true,
+            subtree: true
+        });
+    }
+    /**
      * Intercept all links in the browser content.
      */
     interceptLinks(container) {
@@ -175,6 +226,10 @@ export class Browser {
         links.forEach(link => {
             // Skip toggle links - let view-toggle.ts handle them
             if (link.classList.toString().includes('updatePageView_')) {
+                return;
+            }
+            // Skip links that already have our click handler (avoid duplicate listeners)
+            if (link.__browserIntercepted) {
                 return;
             }
             const href = link.getAttribute('href');
@@ -188,6 +243,7 @@ export class Browser {
                     e.preventDefault();
                     this.retargetBrowser(pageId);
                 });
+                link.__browserIntercepted = true;
                 return;
             }
             // Check if it's an image link (starts with /img/)
@@ -198,6 +254,7 @@ export class Browser {
                     e.preventDefault();
                     this.handleImageClick(imageId);
                 });
+                link.__browserIntercepted = true;
                 return;
             }
             // Check if it's a file link (starts with /file/)
@@ -208,6 +265,7 @@ export class Browser {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                 });
+                link.__browserIntercepted = true;
                 return;
             }
         });
