@@ -409,7 +409,7 @@ class PageImagesMixin:
                 warn(f"Failed to remove image {image_id} (rank {image_rank}) from page {self.id}")
                 report_error("action", f"Failed to remove image {image_id} (rank {image_rank})")
             # Reorder remaining images in this page
-            if not is_error() and not self._reorder_images():
+            if not is_error() and not self.reorder_images():
                 warn(f"Failed to reorder images after removing image {image_id}")
                 report_error("action", f"Failed to reorder images after removal")
         # Check if image should be deleted (no longer used by any pages)
