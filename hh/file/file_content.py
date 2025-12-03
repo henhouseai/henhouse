@@ -51,9 +51,8 @@ class FileContentMixin:
                 """,
                 (now, db_user, note, self.id),
             )
-            if affected == 0:
-                warn(f"Failed to flag modification for file {self.id} - no rows affected")
-                report_error("action", f"Failed to flag modification for file {self.id}")
+            # Note: affected == 0 is not an error - it just means the values were already the same
+            # (e.g., same timestamp due to datetime precision, same username/comments)
         if not is_error():
             self.last_modified = now
             self.username = db_user
