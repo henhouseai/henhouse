@@ -392,6 +392,24 @@ PageData.BASE_PAGE_FIELDS = [
     'last_modified', 'username', 'comments', 'path'
 ];
 // Apply mixins to PageData class
-Object.assign(PageData.prototype, PageActionsFields.prototype);
-Object.assign(PageData.prototype, PageActionsPages.prototype);
-Object.assign(PageData.prototype, PageActionsImages.prototype);
+function applyMixin(target, source) {
+    const sourcePrototype = source.prototype;
+    const targetPrototype = target.prototype;
+    // Get all property names from source prototype
+    const propertyNames = Object.getOwnPropertyNames(sourcePrototype);
+    for (const name of propertyNames) {
+        // Skip constructor
+        if (name === 'constructor') {
+            continue;
+        }
+        // Get property descriptor
+        const descriptor = Object.getOwnPropertyDescriptor(sourcePrototype, name);
+        if (descriptor && typeof descriptor.value === 'function') {
+            // Copy method to target prototype
+            targetPrototype[name] = descriptor.value;
+        }
+    }
+}
+applyMixin(PageData, PageActionsFields);
+applyMixin(PageData, PageActionsPages);
+applyMixin(PageData, PageActionsImages);
