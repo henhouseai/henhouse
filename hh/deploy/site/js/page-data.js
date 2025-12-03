@@ -991,9 +991,35 @@ export class PageData {
                                 if (browserOverlay) {
                                     const currentMessages = browserOverlay['state'].messages || [];
                                     const errorMsg = error instanceof Error ? error.message : String(error);
+                                    // Check if it's an RPCError with multiple errors
+                                    const detailedErrors = (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors))
+                                        ? error.errors
+                                        : [];
+                                    // Add main error message
+                                    const newMessages = [{ type: 'error', text: `Failed to copy image ${imageId}: ${errorMsg}` }];
+                                    // Add detailed errors if available
+                                    if (detailedErrors.length > 0) {
+                                        detailedErrors.forEach((err) => {
+                                            newMessages.push({
+                                                type: 'error',
+                                                text: `${err.type || 'error'}: ${err.content}`
+                                            });
+                                        });
+                                    }
                                     browserOverlay.setState({
-                                        messages: [...currentMessages, { type: 'error', text: `Failed to copy image ${imageId}: ${errorMsg}` }]
+                                        messages: [...currentMessages, ...newMessages]
                                     });
+                                    // Handle debug data if present
+                                    if (error && typeof error === 'object' && 'debug' in error) {
+                                        const errorDebug = error.debug;
+                                        if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
+                                            const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                                            handleRPCResponseWithDebug(error, 'copy_image', {
+                                                target_page: pageId,
+                                                image_id: imageId
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1082,9 +1108,32 @@ export class PageData {
                                 if (browserOverlay) {
                                     const currentMessages = browserOverlay['state'].messages || [];
                                     const errorMsg = error instanceof Error ? error.message : String(error);
+                                    // Check if it's an RPCError with multiple errors
+                                    const detailedErrors = (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors))
+                                        ? error.errors
+                                        : [];
+                                    // Add main error message
+                                    const newMessages = [{ type: 'error', text: `Failed to move images from page ${sourcePageId}: ${errorMsg}` }];
+                                    // Add detailed errors if available
+                                    if (detailedErrors.length > 0) {
+                                        detailedErrors.forEach((err) => {
+                                            newMessages.push({
+                                                type: 'error',
+                                                text: `${err.type || 'error'}: ${err.content}`
+                                            });
+                                        });
+                                    }
                                     browserOverlay.setState({
-                                        messages: [...currentMessages, { type: 'error', text: `Failed to move images from page ${sourcePageId}: ${errorMsg}` }]
+                                        messages: [...currentMessages, ...newMessages]
                                     });
+                                    // Handle debug data if present
+                                    if (error && typeof error === 'object' && 'debug' in error) {
+                                        const errorDebug = error.debug;
+                                        if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
+                                            const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                                            handleRPCResponseWithDebug(error, 'move_images', params);
+                                        }
+                                    }
                                 }
                             }
                         }
