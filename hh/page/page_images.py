@@ -26,8 +26,11 @@ def _initialize_page_images_debug():
 
 class PageImagesMixin:
 
-    def get_images_data(self) -> List[Dict[str, Any]]:
+    def get_images_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
         trace_in()
+        # If rebuild flag is set, clear the cache to force a rebuild
+        if rebuild:
+            self.images = []
         # Check if field is already populated
         if hasattr(self, 'images') and self.images:
             debug(f"Page {self.id}: returning cached images")
@@ -101,6 +104,8 @@ class PageImagesMixin:
         else:
             log("Image creation encountered problems")
         if image_id and not is_error():
+            # Rebuild hot cache immediately with the new image
+            self.get_images_data(rebuild=True)
             self.flag_page_modification("images updated")
         trace_out()
         return image_id
@@ -232,6 +237,8 @@ class PageImagesMixin:
                     report_error("action", f"Failed to set image {image_id} rank to {target_rank_for_image}")
         
         if not is_error() and copied_count > 0:
+            # Rebuild hot cache immediately with the copied images
+            self.get_images_data(rebuild=True)
             self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
@@ -283,6 +290,8 @@ class PageImagesMixin:
                     if not source_page.reorder_images():
                         warn(f"Failed to reorder images in source page {source_page_id}")
                         report_error("action", f"Failed to reorder images in source page {source_page_id}")
+                    # Rebuild source page hot cache immediately
+                    source_page.get_images_data(rebuild=True)
                 else:
                     warn(f"Failed to load source page {source_page_id} for reordering")
                     report_error("action", f"Failed to load source page {source_page_id}")
@@ -305,6 +314,8 @@ class PageImagesMixin:
         
         log(f"Successfully moved {moved_count} image instances to page {self.id}")
         if not is_error() and moved_count > 0:
+            # Rebuild hot cache immediately with the moved images
+            self.get_images_data(rebuild=True)
             self.flag_page_modification("images updated")
         trace_out()
         return not is_error()
@@ -389,6 +400,8 @@ class PageImagesMixin:
             
             if not is_error():
                 log(f"Successfully reordered image {image_id} to rank {new_rank} in page {self.id}")
+                # Rebuild hot cache immediately with updated ranks
+                self.get_images_data(rebuild=True)
         
         if not is_error():
             self.flag_page_modification("images updated")
@@ -412,6 +425,8 @@ class PageImagesMixin:
             if not is_error() and not self.reorder_images():
                 warn(f"Failed to reorder images after removing image {image_id}")
                 report_error("action", f"Failed to reorder images after removal")
+            # Rebuild hot cache immediately without the removed image
+            self.get_images_data(rebuild=True)
         # Check if image should be deleted (no longer used by any pages)
         if not is_error():
             image = get_image(image_id)
