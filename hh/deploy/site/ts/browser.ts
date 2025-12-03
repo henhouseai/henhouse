@@ -18,11 +18,17 @@ export interface BrowserOptions {
   onCancel?: () => void;
 }
 
+interface SelectedImage {
+  imageId: number;
+  tileHtml: string; // Cloned tile HTML
+  bufferIndex: number; // Index in buffer (for unique IDs)
+}
+
 export class Browser {
   private rpc: RPCClient;
   private overlay: Overlay | null = null;
   private currentPageId: number;
-  private selectedImageIds: number[] = [];
+  private selectedImages: SelectedImage[] = []; // Store image data with cloned HTML
   private selectedFileIds: number[] = [];
   private mode: BrowserMode;
   private onSubmit: (result: number | number[]) => void | Promise<void>;
@@ -71,7 +77,7 @@ export class Browser {
       const contentParts: string[] = [];
       
       // Add image buffer if in image mode
-      if (this.mode === 'image' && this.selectedImageIds.length > 0) {
+      if (this.mode === 'image' && this.selectedImages.length > 0) {
         contentParts.push(this.renderImageBuffer());
       }
       
@@ -123,6 +129,13 @@ export class Browser {
     // Set up link interception after a short delay to ensure DOM is ready
     setTimeout(() => {
       this.injectAndIntercept();
+      // Set up buffer click handlers if in image mode
+      if (this.mode === 'image') {
+        const windowEl = document.getElementById('overlayWindow');
+        if (windowEl) {
+          this.setupBufferClickHandlers(windowEl);
+        }
+      }
     }, 50);
 
     } catch (error) {
@@ -184,6 +197,11 @@ export class Browser {
 
     // Re-intercept links after content update
     this.interceptLinks(windowEl);
+    
+    // Set up buffer tile click handlers
+    if (this.mode === 'image') {
+      this.setupBufferClickHandlers(windowEl);
+    }
   }
 
   /**
@@ -271,7 +289,22 @@ export class Browser {
         const imageId = parseInt(imageMatch[1], 10);
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          this.handleImageClick(imageId);
+          // Find the tile element (parent <a> contains the tile)
+          const tileLink = link.closest('a.tileLink');
+          if (tileLink) {
+            this.handleImageClick(imageId, tileLink as HTMLElement);
+          }
+        });
+        (link as any).__browserIntercepted = true;
+        return;
+      }
+      
+      // Check if it's a buffer tile click (starts with selected_image_)
+      if (link.id && link.id.startsWith('selected_image_') && this.mode === 'image') {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const bufferIndex = parseInt(link.id.replace('selected_image_', ''), 10);
+          this.handleBufferImageClick(bufferIndex);
         });
         (link as any).__browserIntercepted = true;
         return;
@@ -300,22 +333,56 @@ export class Browser {
   }
 
   /**
-   * Handle image click (add to buffer or remove from buffer).
+   * Handle image click (always add to buffer - allows duplicates).
    */
-  private handleImageClick(imageId: number): void {
+  private handleImageClick(imageId: number, tileElement: HTMLElement): void {
     if (this.mode !== 'image') return;
 
-    const index = this.selectedImageIds.indexOf(imageId);
-    if (index === -1) {
-      // Add to buffer
-      this.selectedImageIds.push(imageId);
-    } else {
-      // Remove from buffer
-      this.selectedImageIds.splice(index, 1);
+    // Clone the tile DOM structure
+    const clonedTile = tileElement.cloneNode(true) as HTMLElement;
+    const bufferIndex = this.selectedImages.length;
+    
+    // Update the link ID to be unique for buffer
+    const linkElement = clonedTile.querySelector('a.tileLink');
+    if (linkElement) {
+      linkElement.id = `selected_image_${bufferIndex}`;
+      // Remove href to prevent navigation
+      linkElement.removeAttribute('href');
     }
+
+    // Store the cloned HTML
+    const tileHtml = clonedTile.outerHTML;
+    
+    // Add to buffer (always add, never remove - allows duplicates)
+    this.selectedImages.push({
+      imageId,
+      tileHtml,
+      bufferIndex
+    });
 
     // Re-render to update buffer
     this.loadAndRender();
+  }
+
+  /**
+   * Handle buffer tile click (remove from buffer).
+   */
+  private handleBufferImageClick(bufferIndex: number): void {
+    if (this.mode !== 'image') return;
+
+    // Find and remove the image at this buffer index
+    const index = this.selectedImages.findIndex(img => img.bufferIndex === bufferIndex);
+    if (index !== -1) {
+      this.selectedImages.splice(index, 1);
+      
+      // Re-index remaining items
+      this.selectedImages.forEach((img, idx) => {
+        img.bufferIndex = idx;
+      });
+      
+      // Re-render to update buffer
+      this.loadAndRender();
+    }
   }
 
   /**
@@ -329,10 +396,10 @@ export class Browser {
       result = this.currentPageId;
       message = `Page ${result} selected successfully`;
     } else if (this.mode === 'image') {
-      if (this.selectedImageIds.length === 0) {
+      if (this.selectedImages.length === 0) {
         throw new Error('Please select at least one image');
       }
-      result = [...this.selectedImageIds];
+      result = this.selectedImages.map(img => img.imageId);
       message = `${result.length} image${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
     } else {
       if (this.selectedFileIds.length === 0) {
@@ -359,14 +426,67 @@ export class Browser {
    * Render image buffer (tiles + table).
    */
   private renderImageBuffer(): string {
-    if (this.selectedImageIds.length === 0) {
+    if (this.selectedImages.length === 0) {
       return '';
     }
 
-    // TODO: Fetch image data for selected IDs and render tiles + table
-    // For now, just show a simple list
-    const imageList = this.selectedImageIds.map(id => `Image ${id}`).join(', ');
-    return `<div class="browser-buffer"><strong>Selected Images:</strong> ${imageList}</div>`;
+    // Build tiles HTML - wrap each tile in <li>
+    const tilesHtml = this.selectedImages.map(img => {
+      // Create a temporary container to parse and update the cloned HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = img.tileHtml;
+      
+      // Find and update the link element
+      const linkEl = tempDiv.querySelector('a.tileLink');
+      if (linkEl) {
+        linkEl.id = `selected_image_${img.bufferIndex}`;
+        linkEl.removeAttribute('href');
+      }
+      
+      // Get the updated HTML
+      const updatedHtml = tempDiv.innerHTML;
+      return `    <li>${updatedHtml}</li>`;
+    }).join('\n');
+
+    // Build table rows HTML (simple table with ID and caption)
+    const tableRowsHtml = this.selectedImages.map((img, idx) => {
+      // Extract caption from tile HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = img.tileHtml;
+      const captionEl = tempDiv.querySelector('.tileText');
+      const caption = captionEl ? (captionEl.textContent || '').trim() : '';
+      
+      return `      <tr>
+        <td>${idx + 1}</td>
+        <td><a id="selected_image_${img.bufferIndex}" class="bufferTableLink">${img.imageId}</a></td>
+        <td>${caption}</td>
+      </tr>`;
+    }).join('\n');
+
+    return `<div id="browserImageBuffer" class="content browserImageBuffer overlay">
+  <div id="browserImageBufferHeader" class="contentHeader overlay">
+    <h3>Selected Images (${this.selectedImages.length})</h3>
+  </div>
+  <div id="browserImageBufferTiles" class="content pageImageGroup overlay">
+    <ul class="tileList">
+${tilesHtml}
+    </ul>
+  </div>
+  <div id="browserImageBufferTable" class="content overlay">
+    <table class="dataTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>ID</th>
+          <th>Caption</th>
+        </tr>
+      </thead>
+      <tbody>
+${tableRowsHtml}
+      </tbody>
+    </table>
+  </div>
+</div>`;
   }
 
   /**
@@ -398,13 +518,42 @@ export class Browser {
   }
 
   /**
+   * Set up click handlers for buffer tiles and table rows.
+   */
+  private setupBufferClickHandlers(container: HTMLElement): void {
+    // Handle buffer tile clicks
+    const bufferTiles = container.querySelectorAll('#browserImageBuffer a.tileLink[id^="selected_image_"]');
+    bufferTiles.forEach(tile => {
+      if ((tile as any).__bufferIntercepted) return;
+      const bufferIndex = parseInt(tile.id.replace('selected_image_', ''), 10);
+      tile.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleBufferImageClick(bufferIndex);
+      });
+      (tile as any).__bufferIntercepted = true;
+    });
+
+    // Handle buffer table row clicks
+    const bufferTableLinks = container.querySelectorAll('#browserImageBufferTable a.bufferTableLink[id^="selected_image_"]');
+    bufferTableLinks.forEach(link => {
+      if ((link as any).__bufferIntercepted) return;
+      const bufferIndex = parseInt(link.id.replace('selected_image_', ''), 10);
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleBufferImageClick(bufferIndex);
+      });
+      (link as any).__bufferIntercepted = true;
+    });
+  }
+
+  /**
    * Get submit button label based on mode and selection.
    */
   private getSubmitLabel(): string {
     if (this.mode === 'page') {
       return 'Select Page';
     } else if (this.mode === 'image') {
-      const count = this.selectedImageIds.length;
+      const count = this.selectedImages.length;
       return count > 0 ? `Submit ${count} Image${count !== 1 ? 's' : ''}` : 'Submit';
     } else {
       const count = this.selectedFileIds.length;
