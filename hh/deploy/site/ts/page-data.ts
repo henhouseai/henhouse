@@ -1392,5 +1392,124 @@ export class PageData {
       rpc.showError('move_images_app', error);
     }
   }
+
+  /**
+   * Handler for delete_images_app: Delete images from their source pages
+   */
+  async delete_images_app(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const { Browser } = await import('./browser.js');
+      const browser = new Browser({
+        mode: 'image',
+        initialPageId: pageId,
+        onSubmit: async (result: any) => {
+          if (typeof result === 'object' && 'imageInstances' in result) {
+            const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
+            
+            // Get browser overlay to add messages incrementally and capture debug options
+            const browserOverlay = (browser as any).overlay;
+            
+            // Capture debug options from the browser overlay (where user sets them)
+            let capturedDebugOptions = browserOverlay ? browserOverlay.getDebugOptions() : null;
+            // If no debug options in browser overlay, use empty object
+            if (!capturedDebugOptions) {
+              capturedDebugOptions = { debug: false, log: false };
+            }
+            
+            // Track if any debug data was present
+            let hasDebugData = false;
+            
+            // Process each image instance individually (remove_image requires page_id, image_id, and rank)
+            for (const instance of imageResult.imageInstances) {
+              // Define params outside try block so it's accessible in catch block
+              const params = {
+                page_id: instance.source_page_id,
+                image_id: instance.image_id,
+                rank: instance.source_rank
+              };
+              
+              try {
+                // Call remove_image action for each instance
+                const response = await rpc.call('remove_image', params, capturedDebugOptions);
+                
+                // Handle debug data if present
+                if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+                  hasDebugData = true;
+                  const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                  handleRPCResponseWithDebug(response, 'remove_image', params);
+                }
+                
+                if (response && response.data) {
+                  // Add success message for this image instance
+                  if (browserOverlay) {
+                    const currentMessages = (browserOverlay as any)['state'].messages || [];
+                    browserOverlay.setState({
+                      messages: [...currentMessages, { type: 'success' as const, text: `Successfully removed image ${instance.image_id} (rank ${instance.source_rank}) from page ${instance.source_page_id}` }]
+                    });
+                  }
+                } else {
+                  throw new Error(`Failed to remove image ${instance.image_id} from page ${instance.source_page_id}`);
+                }
+              } catch (error) {
+                // Add error message for this image instance
+                if (browserOverlay) {
+                  const currentMessages = (browserOverlay as any)['state'].messages || [];
+                  const errorMsg = error instanceof Error ? error.message : String(error);
+                  
+                  // Check if it's an RPCError with multiple errors
+                  const detailedErrors = (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors))
+                    ? (error as any).errors
+                    : [];
+                  
+                  // Add main error message
+                  const newMessages = [{ type: 'error' as const, text: `Failed to remove image ${instance.image_id} (rank ${instance.source_rank}) from page ${instance.source_page_id}: ${errorMsg}` }];
+                  
+                  // Add detailed errors if available
+                  if (detailedErrors.length > 0) {
+                    detailedErrors.forEach((err: { type?: string; content: string }) => {
+                      newMessages.push({
+                        type: 'error' as const,
+                        text: `${err.type || 'error'}: ${err.content}`
+                      });
+                    });
+                  }
+                  
+                  browserOverlay.setState({
+                    messages: [...currentMessages, ...newMessages]
+                  });
+                  
+                  // Handle debug data if present
+                  if (error && typeof error === 'object' && 'debug' in error) {
+                    const errorDebug = (error as any).debug;
+                    if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
+                      const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                      handleRPCResponseWithDebug(error, 'remove_image', params);
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Return success with redirect flag (reload page after fade, unless debug data present)
+            const totalImages = imageResult.imageIds.length;
+            return {
+              _showMessage: `Completed removing ${totalImages} image instance(s)`,
+              _autoFade: !hasDebugData,
+              _redirectAfterFade: hasDebugData ? null : 'self'
+            };
+          }
+        }
+      });
+      await browser.show();
+    } catch (error) {
+      rpc.showError('delete_images_app', error);
+    }
+  }
 }
 
