@@ -364,7 +364,12 @@ export class Browser {
             message = `${result.length} file${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
         }
         try {
-            await this.onSubmit(result);
+            const submitResult = await this.onSubmit(result);
+            // If onSubmit returns a result object (with _showMessage, etc.), use it
+            // Otherwise, use default success message
+            if (submitResult && typeof submitResult === 'object' && ('_showMessage' in submitResult || '_autoFade' in submitResult || '_redirectAfterFade' in submitResult)) {
+                return submitResult;
+            }
             // Show success with ID information and auto-close after delay
             return {
                 _showMessage: message,
