@@ -36,8 +36,11 @@ def _initialize_page_files_debug():
 
 
 class PageFilesMixin:
-    def get_files_data(self) -> List[Dict[str, Any]]:
+    def get_files_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
         trace_in()
+        # If rebuild flag is set, clear the cache to force a rebuild
+        if rebuild:
+            self.files = []
         # Check if field is already populated
         if hasattr(self, 'files') and self.files:
             trace_out()
@@ -122,7 +125,7 @@ class PageFilesMixin:
                 self._flag_related_file(new_file_id, f"added to page {self.id}")
 
         if not is_error():
-            self._reset_cached_files()
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return new_file_id
@@ -190,7 +193,7 @@ class PageFilesMixin:
                 warn(f"Failed to add file {file_id} to page {self.id}")
                 report_error("action", f"Failed to add file {file_id} to page {self.id}")
             else:
-                self._reset_cached_files()
+                self.get_files_data(rebuild=True)
         trace_out()
         return not is_error()
 
@@ -205,7 +208,7 @@ class PageFilesMixin:
                 warn(f"Failed to remove file {file_id} from page {self.id}")
                 report_error("action", f"Failed to remove file {file_id} from page {self.id}")
             else:
-                self._reset_cached_files()
+                self.get_files_data(rebuild=True)
         trace_out()
         return not is_error()
 
@@ -229,7 +232,7 @@ class PageFilesMixin:
                 self._set_file_rank(file_id, original_count + i + 1, target_rank + i)
 
         if not is_error() and copied > 0:
-            self._reset_cached_files()
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
@@ -275,6 +278,8 @@ class PageFilesMixin:
                 source_page = get_page(page_id=page_id)
                 if source_page:
                     source_page.reorder_files()
+                    # Rebuild source page hot cache immediately
+                    source_page.get_files_data(rebuild=True)
 
         if not is_error() and target_rank is not None and moved_count > 0:
             for i, instance in enumerate(file_instances[:moved_count]):
@@ -282,7 +287,7 @@ class PageFilesMixin:
                 self._set_file_rank(file_id, original_count + i + 1, target_rank + i)
 
         if not is_error() and moved_count > 0:
-            self._reset_cached_files()
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
@@ -330,7 +335,7 @@ class PageFilesMixin:
             )
 
         if not is_error():
-            self._reset_cached_files()
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
@@ -361,7 +366,7 @@ class PageFilesMixin:
             warn(f"Failed to reorder files for page {self.id}: {exc}")
             report_error("action", f"Failed to reorder files for page {self.id}")
         if not is_error():
-            self._reset_cached_files()
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
@@ -379,7 +384,7 @@ class PageFilesMixin:
             if affected == 0:
                 warn(f"Failed to remove file {file_id} from page {self.id}")
                 report_error("action", f"Failed to remove file {file_id}")
-        if not is_error() and not self._reorder_files():
+        if not is_error() and not self.reorder_files():
             trace_out()
             return False
         if not is_error():
@@ -389,7 +394,8 @@ class PageFilesMixin:
                 if file_obj:
                     file_obj.delete_from_database()
             self._flag_related_file(file_id, f"removed from page {self.id}")
-            self._reset_cached_files()
+            # Rebuild hot cache immediately without the removed file
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
@@ -414,7 +420,7 @@ class PageFilesMixin:
                         file_obj.delete_from_database()
 
         if not is_error():
-            self._reset_cached_files()
+            self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
         trace_out()
         return not is_error()
@@ -436,9 +442,3 @@ class PageFilesMixin:
             (file_id,),
         )
         return results[0]["cnt"] if results else 0
-
-    def _reset_cached_files(self) -> None:
-        """Reset files field and flag cache refresh."""
-        if hasattr(self, "files"):
-            self.files = []
-        self._flag_cache_refresh()

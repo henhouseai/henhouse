@@ -169,7 +169,7 @@ class PageValidationMixin:
         return not is_error()
 
 
-    def check_children_recursive(self) -> List[int]:
+    def _check_children_recursive(self) -> List[int]:
         trace_in()
         child_array = []
         if not is_error():
@@ -181,7 +181,7 @@ class PageValidationMixin:
                 if not is_error():
                     child_page = get_page(page_id=child_id)
                     if child_page:
-                        grand_children = child_page.check_children_recursive()
+                        grand_children = child_page._check_children_recursive()
                         child_array.extend(grand_children)
                     else:
                         warn(f"Failed to load child page {child_id} for recursive check")

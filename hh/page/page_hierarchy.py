@@ -89,7 +89,7 @@ class PageHierarchyMixin:
         trace_in()
         children_data = []
         if not is_error():
-            child_ids = self.get_child_page_ids()
+            child_ids = self._get_child_page_ids()
         if not is_error():
             for i, child_id in enumerate(child_ids):
                 if not is_error():
@@ -108,7 +108,7 @@ class PageHierarchyMixin:
         return children_data
 
 
-    def get_child_page_ids(self) -> List[int]:
+    def _get_child_page_ids(self) -> List[int]:
         trace_in()
         child_ids = []
         if not is_error():
@@ -238,7 +238,7 @@ class PageHierarchyMixin:
             trace_out()
             return
         if not is_error():
-            child_ids = self.get_child_page_ids()
+            child_ids = self._get_child_page_ids()
             for child_id in child_ids:
                 if not is_error():
                     child_page = get_page(page_id=child_id)
