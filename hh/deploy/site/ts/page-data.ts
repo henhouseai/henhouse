@@ -1132,8 +1132,9 @@ export class PageData {
       const browser = new Browser({
         mode: 'page',
         initialPageId: pageId,
-        onSubmit: async (selectedPageId: number | number[]) => {
+        onSubmit: async (result: number | number[] | any) => {
           // Smoke test: just show success message
+          const selectedPageId = result as number | number[];
           const targetId = Array.isArray(selectedPageId) ? selectedPageId[0] : selectedPageId;
           console.log(`Would move page ${pageId} to parent ${targetId}`);
           // In real implementation, would call rpc.call('move_page', { page_id: pageId, target_page: targetId })
@@ -1146,7 +1147,61 @@ export class PageData {
   }
 
   /**
-   * Handler for move_images_app: Move images to another page (smoke test with browser)
+   * Handler for copy_images_app: Copy images to current page
+   */
+  async copy_images_app(rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      // Capture debug options from current top overlay before opening browser
+      const { OverlayManager } = await import('./overlay/overlay-manager.js');
+      const overlayManager = OverlayManager.getInstance();
+      const currentOverlay = overlayManager.getTopOverlay();
+      const capturedDebugOptions = currentOverlay ? currentOverlay.getDebugOptions() : null;
+
+      const { Browser } = await import('./browser.js');
+      const browser = new Browser({
+        mode: 'image',
+        initialPageId: pageId,
+        onSubmit: async (result: any) => {
+          if (typeof result === 'object' && 'imageIds' in result) {
+            const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
+            const imageIds = imageResult.imageIds.join(',');
+            
+            // Call copy_images action with captured debug options
+            const response = await rpc.call('copy_images', {
+              target_page: pageId,
+              image_id: imageIds
+            }, capturedDebugOptions);
+            
+            // Handle debug data if present
+            if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+              const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+              handleRPCResponseWithDebug(response, 'copy_images', {
+                target_page: pageId,
+                image_id: imageIds
+              });
+            }
+            
+            if (response && response.data) {
+              // Reload the page to show updated images
+              await rpc.reloadPage();
+            }
+          }
+        }
+      });
+      await browser.show();
+    } catch (error) {
+      rpc.showError('copy_images_app', error);
+    }
+  }
+
+  /**
+   * Handler for move_images_app: Move images to current page
    */
   async move_images_app(rpc: any): Promise<void> {
     const pageId = this.id;
@@ -1156,20 +1211,56 @@ export class PageData {
     }
 
     try {
+      // Capture debug options from current top overlay before opening browser
+      const { OverlayManager } = await import('./overlay/overlay-manager.js');
+      const overlayManager = OverlayManager.getInstance();
+      const currentOverlay = overlayManager.getTopOverlay();
+      const capturedDebugOptions = currentOverlay ? currentOverlay.getDebugOptions() : null;
+
       const { Browser } = await import('./browser.js');
       const browser = new Browser({
         mode: 'image',
         initialPageId: pageId,
-        onSubmit: async (selectedImageIds: number | number[]) => {
-          // Smoke test: just show success message with IDs
-          const imageIds = Array.isArray(selectedImageIds) ? selectedImageIds : [selectedImageIds];
-          console.log(`Selected ${imageIds.length} image(s): ${imageIds.join(', ')}`);
-          // In real implementation, would call:
-          // rpc.call('move_images', { 
-          //   source_page: pageId, 
-          //   target_page: targetId,
-          //   image_ids: imageIds 
-          // })
+        onSubmit: async (result: any) => {
+          if (typeof result === 'object' && 'imageInstances' in result) {
+            const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
+            
+            // Group image instances by source page
+            const instancesBySourcePage: { [key: number]: number[] } = {};
+            imageResult.imageInstances.forEach((instance: { image_id: number; source_page_id: number; source_rank: number }) => {
+              if (!instancesBySourcePage[instance.source_page_id]) {
+                instancesBySourcePage[instance.source_page_id] = [];
+              }
+              instancesBySourcePage[instance.source_page_id].push(instance.source_rank);
+            });
+            
+            // For move_images, we need to call it once per source page
+            // But move_images can handle multiple ranks from the same source page
+            for (const [sourcePageId, ranks] of Object.entries(instancesBySourcePage)) {
+              const sourceRanks = ranks.join(',');
+              const params = {
+                source_page: parseInt(sourcePageId, 10),
+                target_page: pageId,
+                source_rank: sourceRanks
+              };
+              
+              // Call move_images action with captured debug options
+              const response = await rpc.call('move_images', params, capturedDebugOptions);
+              
+              // Handle debug data if present
+              if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+                const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                handleRPCResponseWithDebug(response, 'move_images', params);
+              }
+              
+              if (!response || !response.data) {
+                throw new Error(`Failed to move images from page ${sourcePageId}`);
+              }
+            }
+            
+            // Reload the page to show updated images
+            await rpc.reloadPage();
+          }
         }
       });
       await browser.show();

@@ -244,7 +244,10 @@ export class Browser {
                     // Find the tile element (parent <a> contains the tile)
                     const tileLink = link.closest('a.tileLink');
                     if (tileLink) {
-                        this.handleImageClick(imageId, tileLink);
+                        // Extract data attributes for source page and rank
+                        const sourcePageId = parseInt(tileLink.getAttribute('data-page-id') || '0', 10);
+                        const sourceRank = parseInt(tileLink.getAttribute('data-image-rank') || '0', 10);
+                        this.handleImageClick(imageId, sourcePageId, sourceRank, tileLink);
                     }
                 });
                 link.__browserIntercepted = true;
@@ -283,7 +286,7 @@ export class Browser {
     /**
      * Handle image click (always add to buffer - allows duplicates).
      */
-    handleImageClick(imageId, tileElement) {
+    handleImageClick(imageId, sourcePageId, sourceRank, tileElement) {
         if (this.mode !== 'image')
             return;
         // Clone the tile DOM structure
@@ -301,6 +304,8 @@ export class Browser {
         // Add to buffer (always add, never remove - allows duplicates)
         this.selectedImages.push({
             imageId,
+            sourcePageId,
+            sourceRank,
             tileHtml,
             bufferIndex
         });
@@ -339,8 +344,17 @@ export class Browser {
             if (this.selectedImages.length === 0) {
                 throw new Error('Please select at least one image');
             }
-            result = this.selectedImages.map(img => img.imageId);
-            message = `${result.length} image${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
+            // For image mode, return full selection data including source page and rank
+            const imageResult = {
+                imageIds: this.selectedImages.map(img => img.imageId),
+                imageInstances: this.selectedImages.map(img => ({
+                    image_id: img.imageId,
+                    source_page_id: img.sourcePageId,
+                    source_rank: img.sourceRank
+                }))
+            };
+            result = imageResult;
+            message = `${this.selectedImages.length} image${this.selectedImages.length !== 1 ? 's' : ''} selected: ${imageResult.imageIds.join(', ')}`;
         }
         else {
             if (this.selectedFileIds.length === 0) {

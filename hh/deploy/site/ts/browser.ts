@@ -11,15 +11,26 @@ import { getViewToggleInstance, ViewToggleCallbacks } from './view-toggle.js';
 
 export type BrowserMode = 'page' | 'image' | 'file';
 
+export interface ImageSelectionResult {
+  imageIds: number[];
+  imageInstances: Array<{
+    image_id: number;
+    source_page_id: number;
+    source_rank: number;
+  }>;
+}
+
 export interface BrowserOptions {
   mode: BrowserMode;
   initialPageId?: number;
-  onSubmit: (result: number | number[]) => void | Promise<void>;
+  onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void>;
   onCancel?: () => void;
 }
 
 interface SelectedImage {
   imageId: number;
+  sourcePageId: number; // Page ID where image was selected from
+  sourceRank: number; // Rank in the source page's image group
   tileHtml: string; // Cloned tile HTML
   bufferIndex: number; // Index in buffer (for unique IDs)
 }
@@ -31,7 +42,7 @@ export class Browser {
   private selectedImages: SelectedImage[] = []; // Store image data with cloned HTML
   private selectedFileIds: number[] = [];
   private mode: BrowserMode;
-  private onSubmit: (result: number | number[]) => void | Promise<void>;
+  private onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void>;
   private onCancel?: () => void;
   private viewToggle: any = null; // ViewToggle instance for this browser
 
@@ -292,7 +303,10 @@ export class Browser {
           // Find the tile element (parent <a> contains the tile)
           const tileLink = link.closest('a.tileLink');
           if (tileLink) {
-            this.handleImageClick(imageId, tileLink as HTMLElement);
+            // Extract data attributes for source page and rank
+            const sourcePageId = parseInt(tileLink.getAttribute('data-page-id') || '0', 10);
+            const sourceRank = parseInt(tileLink.getAttribute('data-image-rank') || '0', 10);
+            this.handleImageClick(imageId, sourcePageId, sourceRank, tileLink as HTMLElement);
           }
         });
         (link as any).__browserIntercepted = true;
@@ -335,7 +349,7 @@ export class Browser {
   /**
    * Handle image click (always add to buffer - allows duplicates).
    */
-  private handleImageClick(imageId: number, tileElement: HTMLElement): void {
+  private handleImageClick(imageId: number, sourcePageId: number, sourceRank: number, tileElement: HTMLElement): void {
     if (this.mode !== 'image') return;
 
     // Clone the tile DOM structure
@@ -356,6 +370,8 @@ export class Browser {
     // Add to buffer (always add, never remove - allows duplicates)
     this.selectedImages.push({
       imageId,
+      sourcePageId,
+      sourceRank,
       tileHtml,
       bufferIndex
     });
@@ -389,7 +405,7 @@ export class Browser {
    * Handle submit - call callback with result.
    */
   private async handleSubmit(): Promise<any> {
-    let result: number | number[];
+    let result: number | number[] | ImageSelectionResult;
     let message: string;
     
     if (this.mode === 'page') {
@@ -399,8 +415,17 @@ export class Browser {
       if (this.selectedImages.length === 0) {
         throw new Error('Please select at least one image');
       }
-      result = this.selectedImages.map(img => img.imageId);
-      message = `${result.length} image${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
+      // For image mode, return full selection data including source page and rank
+      const imageResult: ImageSelectionResult = {
+        imageIds: this.selectedImages.map(img => img.imageId),
+        imageInstances: this.selectedImages.map(img => ({
+          image_id: img.imageId,
+          source_page_id: img.sourcePageId,
+          source_rank: img.sourceRank
+        }))
+      };
+      result = imageResult;
+      message = `${this.selectedImages.length} image${this.selectedImages.length !== 1 ? 's' : ''} selected: ${imageResult.imageIds.join(', ')}`;
     } else {
       if (this.selectedFileIds.length === 0) {
         throw new Error('Please select at least one file');

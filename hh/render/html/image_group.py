@@ -48,11 +48,15 @@ class ImageGroup(TileGroup):
         self.content_id = wrapper_id if wrapper_id else f"pageImageGroup_{self.page_id_str}"
         self.wrapper_extra_classes = wrapper_extra_classes
         
+        # Check if overlay class is present (for browser mode)
+        is_overlay = self.wrapper_extra_classes and 'overlay' in self.wrapper_extra_classes.split()
+        
         # Parse image data and create tiles
         for image_data in images_data:
             image_id = image_data.get('id')
             instances = image_data.get('instances', [])
             image_caption = image_data.get('caption', '')
+            image_rank = image_data.get('image_rank')
             
             # Create image dict with instances
             image_dict = {'instances': instances}
@@ -60,12 +64,19 @@ class ImageGroup(TileGroup):
             # Determine link
             link_href = create_image_link(image_id) if image_id else '#'
             
+            # Build metadata - add data attributes for overlay mode
+            metadata = {}
+            if is_overlay:
+                metadata['data_page_id'] = str(self.page_id)
+                if image_rank is not None:
+                    metadata['data_image_rank'] = str(image_rank)
+            
             # Create and add tile
             tile = Tile(
                 image=image_dict,
                 text=image_caption,
                 link=link_href,
-                metadata={},
+                metadata=metadata,
                 target_width=target_width
             )
             self.add_tile(tile)

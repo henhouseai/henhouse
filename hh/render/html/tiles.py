@@ -129,10 +129,22 @@ class Tile:
         
         # Wrap in link if requested
         if as_link:
+            # Build link attributes
+            attrs_parts = []
             if link_id:
-                a_attrs = f'id="{link_id}"'
+                attrs_parts.append(f'id="{link_id}"')
             else:
-                a_attrs = f'href="{self.link}"'
+                attrs_parts.append(f'href="{self.link}"')
+            
+            # Add data attributes from metadata (for overlay mode)
+            if self.metadata:
+                for key, value in self.metadata.items():
+                    if key.startswith('data_'):
+                        # Convert data_page_id to data-page-id format
+                        attr_name = key.replace('_', '-')
+                        attrs_parts.append(f'{attr_name}="{value}"')
+            
+            a_attrs = ' '.join(attrs_parts)
             result = f'    <a class="tileLink" {a_attrs}>\n{tile_html}\n    </a>'
         else:
             result = tile_html
