@@ -470,9 +470,8 @@ class PageContentMixin:
             affected = self.gateway.conn.update("""
                 UPDATE pages SET last_modified = %s, username = %s, comments = %s WHERE id = %s
             """, (now, db_user, comments, self.id))
-            if affected == 0:
-                warn(f"Failed to update page {self.id} modification flags - no rows affected")
-                report_error("action", f"Failed to update page {self.id} modification flags")
+            # Note: affected == 0 is not an error - it just means the values were already the same
+            # (e.g., same timestamp due to datetime precision, same username/comments)
         if not is_error():
             # Update object properties to match database
             self.last_modified = now
