@@ -1157,12 +1157,6 @@ export class PageData {
     }
 
     try {
-      // Capture debug options from current top overlay before opening browser
-      const { OverlayManager } = await import('./overlay/overlay-manager.js');
-      const overlayManager = OverlayManager.getInstance();
-      const currentOverlay = overlayManager.getTopOverlay();
-      const capturedDebugOptions = currentOverlay ? currentOverlay.getDebugOptions() : null;
-
       const { Browser } = await import('./browser.js');
       const browser = new Browser({
         mode: 'image',
@@ -1171,8 +1165,15 @@ export class PageData {
           if (typeof result === 'object' && 'imageIds' in result) {
             const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
             
-            // Get browser overlay to add messages incrementally
+            // Get browser overlay to add messages incrementally and capture debug options
             const browserOverlay = (browser as any).overlay;
+            
+            // Capture debug options from the browser overlay (where user sets them)
+            let capturedDebugOptions = browserOverlay ? browserOverlay.getDebugOptions() : null;
+            // If no debug options in browser overlay, use empty object
+            if (!capturedDebugOptions) {
+              capturedDebugOptions = { debug: false, log: false };
+            }
             
             // Track if any debug data was present
             let hasDebugData = false;
@@ -1274,12 +1275,6 @@ export class PageData {
     }
 
     try {
-      // Capture debug options from current top overlay before opening browser
-      const { OverlayManager } = await import('./overlay/overlay-manager.js');
-      const overlayManager = OverlayManager.getInstance();
-      const currentOverlay = overlayManager.getTopOverlay();
-      const capturedDebugOptions = currentOverlay ? currentOverlay.getDebugOptions() : null;
-
       const { Browser } = await import('./browser.js');
       const browser = new Browser({
         mode: 'image',
@@ -1288,8 +1283,15 @@ export class PageData {
           if (typeof result === 'object' && 'imageInstances' in result) {
             const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
             
-            // Get browser overlay to add messages incrementally
+            // Get browser overlay to add messages incrementally and capture debug options
             const browserOverlay = (browser as any).overlay;
+            
+            // Capture debug options from the browser overlay (where user sets them)
+            let capturedDebugOptions = browserOverlay ? browserOverlay.getDebugOptions() : null;
+            // If no debug options in browser overlay, use empty object
+            if (!capturedDebugOptions) {
+              capturedDebugOptions = { debug: false, log: false };
+            }
             
             // Group image instances by source page
             const instancesBySourcePage: { [key: number]: Array<{ image_id: number; source_rank: number }> } = {};
