@@ -1179,7 +1179,9 @@ export class PageData {
             }, capturedDebugOptions);
             
             // Handle debug data if present
+            let hasDebugData = false;
             if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+              hasDebugData = true;
               const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
               handleRPCResponseWithDebug(response, 'copy_images', {
                 target_page: pageId,
@@ -1188,8 +1190,12 @@ export class PageData {
             }
             
             if (response && response.data) {
-              // Reload the page to show updated images
-              await rpc.reloadPage();
+              // Return success with redirect flag (reload page after fade, unless debug data present)
+              return {
+                _showMessage: `Successfully copied ${imageResult.imageIds.length} image(s)`,
+                _autoFade: !hasDebugData,
+                _redirectAfterFade: hasDebugData ? null : 'self'
+              };
             }
           }
         }
@@ -1234,6 +1240,9 @@ export class PageData {
               instancesBySourcePage[instance.source_page_id].push(instance.source_rank);
             });
             
+            // Track if any debug data was present
+            let hasDebugData = false;
+            
             // For move_images, we need to call it once per source page
             // But move_images can handle multiple ranks from the same source page
             for (const [sourcePageId, ranks] of Object.entries(instancesBySourcePage)) {
@@ -1249,6 +1258,7 @@ export class PageData {
               
               // Handle debug data if present
               if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+                hasDebugData = true;
                 const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
                 handleRPCResponseWithDebug(response, 'move_images', params);
               }
@@ -1258,8 +1268,13 @@ export class PageData {
               }
             }
             
-            // Reload the page to show updated images
-            await rpc.reloadPage();
+            // Return success with redirect flag (reload page after fade, unless debug data present)
+            const totalImages = imageResult.imageIds.length;
+            return {
+              _showMessage: `Successfully moved ${totalImages} image(s)`,
+              _autoFade: !hasDebugData,
+              _redirectAfterFade: hasDebugData ? null : 'self'
+            };
           }
         }
       });

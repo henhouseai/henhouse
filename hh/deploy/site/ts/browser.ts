@@ -23,7 +23,7 @@ export interface ImageSelectionResult {
 export interface BrowserOptions {
   mode: BrowserMode;
   initialPageId?: number;
-  onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void>;
+  onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void> | Promise<any> | any;
   onCancel?: () => void;
 }
 
@@ -42,7 +42,7 @@ export class Browser {
   private selectedImages: SelectedImage[] = []; // Store image data with cloned HTML
   private selectedFileIds: number[] = [];
   private mode: BrowserMode;
-  private onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void>;
+  private onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void> | Promise<any> | any;
   private onCancel?: () => void;
   private viewToggle: any = null; // ViewToggle instance for this browser
 
