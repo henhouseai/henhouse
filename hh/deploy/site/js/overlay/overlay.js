@@ -319,10 +319,12 @@ export class Overlay {
             if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0 && !debugAlreadyShown) {
                 this.showDebugTable(debugData, requestInfo);
             }
+            // Check if there are any error messages in the messages array
+            const hasErrorMessages = this.state.messages && this.state.messages.some(msg => msg.type === 'error');
             // Auto-close after success: wait 1-2 seconds, then slow fade out
-            // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error AND no debug data
-            // Debug data disables auto-fade so user can see warnings/debug info
-            if (autoFade && (this.state.success && !this.state.error && !debugData)) {
+            // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error AND no error messages AND no debug data
+            // Debug data or error messages disables auto-fade so user can see warnings/debug info/errors
+            if (autoFade && (this.state.success && !this.state.error && !hasErrorMessages && !debugData)) {
                 setTimeout(() => {
                     this.closeWithFade(1500); // 1.5 second slow fade
                     // If redirect is requested, do it after fade completes
