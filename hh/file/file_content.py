@@ -46,7 +46,8 @@ class FileContentMixin:
                 UPDATE files
                 SET last_modified = %s,
                     username = %s,
-                        comments = %s
+                    comments = %s,
+                    cache_built_at = NULL
                 WHERE id = %s
                 """,
                 (now, db_user, note, self.id),

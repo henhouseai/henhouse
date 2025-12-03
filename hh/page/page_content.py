@@ -468,7 +468,7 @@ class PageContentMixin:
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
         if not is_error():
             affected = self.gateway.conn.update("""
-                UPDATE pages SET last_modified = %s, username = %s, comments = %s WHERE id = %s
+                UPDATE pages SET last_modified = %s, username = %s, comments = %s, cache_built_at = NULL WHERE id = %s
             """, (now, db_user, comments, self.id))
             # Note: affected == 0 is not an error - it just means the values were already the same
             # (e.g., same timestamp due to datetime precision, same username/comments)
