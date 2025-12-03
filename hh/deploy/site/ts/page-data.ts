@@ -1170,33 +1170,59 @@ export class PageData {
         onSubmit: async (result: any) => {
           if (typeof result === 'object' && 'imageIds' in result) {
             const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
-            const imageIds = imageResult.imageIds.join(',');
             
-            // Call copy_images action with captured debug options
-            const response = await rpc.call('copy_images', {
-              target_page: pageId,
-              image_id: imageIds
-            }, capturedDebugOptions);
+            // Get browser overlay to add messages incrementally
+            const browserOverlay = (browser as any).overlay;
             
-            // Handle debug data if present
+            // Track if any debug data was present
             let hasDebugData = false;
-            if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
-              hasDebugData = true;
-              const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
-              handleRPCResponseWithDebug(response, 'copy_images', {
-                target_page: pageId,
-                image_id: imageIds
-              });
+            
+            // Process each image individually to show incremental success messages
+            for (const imageId of imageResult.imageIds) {
+              try {
+                // Call copy_image action for each image
+                const response = await rpc.call('copy_image', {
+                  target_page: pageId,
+                  image_id: imageId
+                }, capturedDebugOptions);
+                
+                // Handle debug data if present
+                if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+                  hasDebugData = true;
+                  const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                  handleRPCResponseWithDebug(response, 'copy_image', {
+                    target_page: pageId,
+                    image_id: imageId
+                  });
+                }
+                
+                if (response && response.data) {
+                  // Add success message for this image
+                  if (browserOverlay) {
+                    const currentMessages = (browserOverlay as any)['state'].messages || [];
+                    browserOverlay.setState({
+                      messages: [...currentMessages, { type: 'success' as const, text: `Successfully copied image ${imageId}` }]
+                    });
+                  }
+                }
+              } catch (error) {
+                // Add error message for this image
+                if (browserOverlay) {
+                  const currentMessages = (browserOverlay as any)['state'].messages || [];
+                  const errorMsg = error instanceof Error ? error.message : String(error);
+                  browserOverlay.setState({
+                    messages: [...currentMessages, { type: 'error' as const, text: `Failed to copy image ${imageId}: ${errorMsg}` }]
+                  });
+                }
+              }
             }
             
-            if (response && response.data) {
-              // Return success with redirect flag (reload page after fade, unless debug data present)
-              return {
-                _showMessage: `Successfully copied ${imageResult.imageIds.length} image(s)`,
-                _autoFade: !hasDebugData,
-                _redirectAfterFade: hasDebugData ? null : 'self'
-              };
-            }
+            // Return success with redirect flag (reload page after fade, unless debug data present)
+            return {
+              _showMessage: `Completed copying ${imageResult.imageIds.length} image(s)`,
+              _autoFade: !hasDebugData,
+              _redirectAfterFade: hasDebugData ? null : 'self'
+            };
           }
         }
       });
@@ -1231,47 +1257,69 @@ export class PageData {
           if (typeof result === 'object' && 'imageInstances' in result) {
             const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
             
+            // Get browser overlay to add messages incrementally
+            const browserOverlay = (browser as any).overlay;
+            
             // Group image instances by source page
-            const instancesBySourcePage: { [key: number]: number[] } = {};
+            const instancesBySourcePage: { [key: number]: Array<{ image_id: number; source_rank: number }> } = {};
             imageResult.imageInstances.forEach((instance: { image_id: number; source_page_id: number; source_rank: number }) => {
               if (!instancesBySourcePage[instance.source_page_id]) {
                 instancesBySourcePage[instance.source_page_id] = [];
               }
-              instancesBySourcePage[instance.source_page_id].push(instance.source_rank);
+              instancesBySourcePage[instance.source_page_id].push({ image_id: instance.image_id, source_rank: instance.source_rank });
             });
             
             // Track if any debug data was present
             let hasDebugData = false;
             
-            // For move_images, we need to call it once per source page
-            // But move_images can handle multiple ranks from the same source page
-            for (const [sourcePageId, ranks] of Object.entries(instancesBySourcePage)) {
-              const sourceRanks = ranks.join(',');
+            // Process each source page group
+            for (const [sourcePageId, instances] of Object.entries(instancesBySourcePage)) {
+              const sourceRanks = instances.map(inst => inst.source_rank).join(',');
               const params = {
                 source_page: parseInt(sourcePageId, 10),
                 target_page: pageId,
                 source_rank: sourceRanks
               };
               
-              // Call move_images action with captured debug options
-              const response = await rpc.call('move_images', params, capturedDebugOptions);
-              
-              // Handle debug data if present
-              if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
-                hasDebugData = true;
-                const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
-                handleRPCResponseWithDebug(response, 'move_images', params);
-              }
-              
-              if (!response || !response.data) {
-                throw new Error(`Failed to move images from page ${sourcePageId}`);
+              try {
+                // Call move_images action with captured debug options
+                const response = await rpc.call('move_images', params, capturedDebugOptions);
+                
+                // Handle debug data if present
+                if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
+                  hasDebugData = true;
+                  const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                  handleRPCResponseWithDebug(response, 'move_images', params);
+                }
+                
+                if (response && response.data) {
+                  // Add success message for this group of images
+                  const imageIds = instances.map(inst => inst.image_id).join(', ');
+                  if (browserOverlay) {
+                    const currentMessages = (browserOverlay as any)['state'].messages || [];
+                    browserOverlay.setState({
+                      messages: [...currentMessages, { type: 'success' as const, text: `Successfully moved image(s) ${imageIds} from page ${sourcePageId}` }]
+                    });
+                  }
+                } else {
+                  throw new Error(`Failed to move images from page ${sourcePageId}`);
+                }
+              } catch (error) {
+                // Add error message for this group
+                if (browserOverlay) {
+                  const currentMessages = (browserOverlay as any)['state'].messages || [];
+                  const errorMsg = error instanceof Error ? error.message : String(error);
+                  browserOverlay.setState({
+                    messages: [...currentMessages, { type: 'error' as const, text: `Failed to move images from page ${sourcePageId}: ${errorMsg}` }]
+                  });
+                }
               }
             }
             
             // Return success with redirect flag (reload page after fade, unless debug data present)
             const totalImages = imageResult.imageIds.length;
             return {
-              _showMessage: `Successfully moved ${totalImages} image(s)`,
+              _showMessage: `Completed moving ${totalImages} image(s)`,
               _autoFade: !hasDebugData,
               _redirectAfterFade: hasDebugData ? null : 'self'
             };
