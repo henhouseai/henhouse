@@ -249,12 +249,22 @@ export class ImageGroupSorter {
             return;
         const tileListItems = Array.from(tileContainer.querySelectorAll('ul li'));
         const imageIds = [];
-        // Extract image IDs from tile view in current order
+        // Extract image IDs from tile view in current order using data-id attributes
         tileListItems.forEach(li => {
-            const element = li.querySelector('span, a') || li;
-            const imageId = this.extractImageIdFromElement(element);
-            if (imageId > 0) {
-                imageIds.push(imageId);
+            const dataId = li.getAttribute('data-id');
+            if (dataId) {
+                const imageId = parseInt(dataId, 10);
+                if (imageId > 0) {
+                    imageIds.push(imageId);
+                }
+            }
+            else {
+                // Fallback to extraction if data-id not found
+                const element = li.querySelector('span, a') || li;
+                const imageId = this.extractImageIdFromElement(element);
+                if (imageId > 0) {
+                    imageIds.push(imageId);
+                }
             }
         });
         // Reorder table rows to match
@@ -270,12 +280,22 @@ export class ImageGroupSorter {
             return;
         const tableRows = Array.from(tableContainer.querySelectorAll('table tbody tr'));
         const imageIds = [];
-        // Extract image IDs from table view in current order
+        // Extract image IDs from table view in current order using data-id attributes
         tableRows.forEach(tr => {
-            const element = tr.querySelector('span, a') || tr;
-            const imageId = this.extractImageIdFromElement(element);
-            if (imageId > 0) {
-                imageIds.push(imageId);
+            const dataId = tr.getAttribute('data-id');
+            if (dataId) {
+                const imageId = parseInt(dataId, 10);
+                if (imageId > 0) {
+                    imageIds.push(imageId);
+                }
+            }
+            else {
+                // Fallback to extraction if data-id not found
+                const element = tr.querySelector('span, a') || tr;
+                const imageId = this.extractImageIdFromElement(element);
+                if (imageId > 0) {
+                    imageIds.push(imageId);
+                }
             }
         });
         // Reorder tile list items to match
@@ -321,18 +341,20 @@ export class ImageGroupSorter {
     }
     /**
      * Recalculate zebra striping for table rows.
+     * Only counts data rows in tbody (header row in thead is separate).
+     * Header is even (index 0), so first tbody row should be odd (index 0), second even (index 1), etc.
      */
     recalculateZebraStripes(tbody) {
         const rows = Array.from(tbody.querySelectorAll('tr'));
         rows.forEach((row, index) => {
             // Remove existing even/odd classes
             row.classList.remove('even', 'odd');
-            // Add appropriate class (0-indexed, so even = 0, 2, 4...)
+            // Flip the logic: first tbody row (index 0) should be odd (since header is even)
             if (index % 2 === 0) {
-                row.classList.add('even');
+                row.classList.add('odd');
             }
             else {
-                row.classList.add('odd');
+                row.classList.add('even');
             }
         });
     }
