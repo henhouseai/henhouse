@@ -5,8 +5,9 @@
 import { OverlayManager } from './overlay/overlay-manager.js';
 import { RPCClient } from './rpc-client.js';
 import { handleRPCResponseWithDebug } from './debug-helper.js';
-// @ts-ignore - SortableJS doesn't have TypeScript definitions in this setup
-import Sortable from './sortable.min.js';
+// Import SortableJS as a side-effect (it will be available as window.Sortable)
+import './sortable.min.js';
+const Sortable = window.Sortable;
 export class ImageGroupSorter {
     constructor(pageId) {
         this.overlay = null;

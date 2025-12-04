@@ -7,7 +7,6 @@ export class PageActionsPages {
     /**
      * Handler for delete_page: Delete a page with confirmation
      */
-	
     async delete_page(rpc) {
         const pageId = this.id;
         if (!pageId) {
