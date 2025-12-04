@@ -34,13 +34,11 @@ export class ImageGroupSorter {
   private rpc: RPCClient;
   private overlay: Overlay | null = null;
   private pageId: number;
-  private tableHtml: string = '';
   private tileHtml: string = '';
   private originalRanks: Map<number, number> = new Map(); // imageId -> rank (original state)
   private currentRanks: Map<number, number> = new Map(); // imageId -> rank (current server state)
   private desiredRanks: Map<number, number> = new Map(); // imageId -> rank (what user wants)
   private sortableTile: any = null; // Sortable instance for tiles
-  private sortableTable: any = null; // Sortable instance for table
 
   constructor(pageId: number) {
     this.rpc = new RPCClient();
@@ -55,34 +53,24 @@ export class ImageGroupSorter {
   }
 
   /**
-   * Load both table and tile views, then render overlay.
+   * Load tile view, then render overlay.
    */
   private async loadAndRender(): Promise<void> {
     try {
-      // Fetch both table and tile views simultaneously
-      const [tableResult, tileResult] = await Promise.all([
-        this.rpc.call('get_page_section', {
-          id: this.pageId,
-          section: 'images',
-          view_type: 'table',
-          overlay: 1
-        }),
-        this.rpc.call('get_page_section', {
-          id: this.pageId,
-          section: 'images',
-          view_type: 'tile',
-          overlay: 1
-        })
-      ]);
+      // Fetch tile view
+      const tileResult = await this.rpc.call('get_page_section', {
+        id: this.pageId,
+        section: 'images',
+        view_type: 'tile',
+        overlay: 1
+      });
 
-      const tableData = tableResult.data?.dom_content;
       const tileData = tileResult.data?.dom_content;
 
-      if (!tableData || !tileData) {
-        throw new Error('Failed to load image group views');
+      if (!tileData) {
+        throw new Error('Failed to load image group view');
       }
 
-      this.tableHtml = tableData;
       this.tileHtml = tileData;
 
       // Extract initial image ranks from the HTML
@@ -91,7 +79,7 @@ export class ImageGroupSorter {
       // Initialize current ranks with original ranks
       this.currentRanks = new Map(this.originalRanks);
 
-      // Render overlay with both views
+      // Render overlay
       this.renderOverlay();
 
     } catch (error) {
@@ -141,21 +129,15 @@ export class ImageGroupSorter {
   }
 
   /**
-   * Render the overlay with both table and tile views.
+   * Render the overlay with tile view.
    */
   private renderOverlay(): void {
     const overlayManager = OverlayManager.getInstance();
     
-    // Combine both views in the content (as array)
     const content = [
       `
       <div class="content overlay" id="overlay_image_group_sorter_tiles">
-        <h3>Tile View</h3>
         ${this.tileHtml}
-      </div>
-      <div class="content overlay" id="overlay_image_group_sorter_table">
-        <h3>Table View</h3>
-        ${this.tableHtml}
       </div>
     `
     ];
@@ -163,7 +145,7 @@ export class ImageGroupSorter {
     this.overlay = overlayManager.show({
       header: `Sort Images - Page ${this.pageId}`,
       content: content,
-      contentHeaders: ['', ''],
+      contentHeaders: [''],
       closable: true,
       showSubmit: true,
       submitLabel: 'Sort',
@@ -184,19 +166,14 @@ export class ImageGroupSorter {
   }
 
   /**
-   * Remove all links from both table and tile views to prevent navigation.
+   * Remove all links from tile view to prevent navigation.
    * Extracts content from <a> tags and replaces them with non-link elements.
    */
   private removeAllLinks(): void {
     const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
-    const tableContainer = document.getElementById('overlay_image_group_sorter_table');
 
     if (tileContainer) {
       this.removeLinksFromContainer(tileContainer);
-    }
-
-    if (tableContainer) {
-      this.removeLinksFromContainer(tableContainer);
     }
   }
 
@@ -232,11 +209,10 @@ export class ImageGroupSorter {
   }
 
   /**
-   * Set up SortableJS for both tile and table views.
+   * Set up SortableJS for tile view.
    */
   private setupSortable(): void {
     const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
-    const tableContainer = document.getElementById('overlay_image_group_sorter_table');
 
     // Set up Sortable for tile view (<ul> with <li> elements)
     if (tileContainer) {
@@ -254,179 +230,12 @@ export class ImageGroupSorter {
 
         this.sortableTile = Sortable.create(ul as HTMLElement, {
           animation: 150,
-          dataIdAttr: 'data-id',
-          onEnd: (evt: any) => {
-            // Use setTimeout to let SortableJS finish its internal cleanup
-            setTimeout(() => {
-              this.syncTableToTile();
-            }, 100);
-          }
-        });
-      }
-    }
-
-    // Set up Sortable for table view (<tbody> with <tr> elements)
-    if (tableContainer) {
-      const tbody = tableContainer.querySelector('table tbody');
-      if (tbody) {
-        // Add data-id attributes to table rows for SortableJS sort() method
-        const rows = tbody.querySelectorAll('tr');
-        rows.forEach((tr) => {
-          const element = tr.querySelector('span, a') || tr;
-          const imageId = this.extractImageIdFromElement(element as HTMLElement);
-          if (imageId > 0) {
-            (tr as HTMLElement).setAttribute('data-id', imageId.toString());
-          }
-        });
-
-        this.sortableTable = Sortable.create(tbody as HTMLElement, {
-          animation: 150,
-          dataIdAttr: 'data-id',
-          onEnd: (evt: any) => {
-            // Use setTimeout to let SortableJS finish its internal cleanup
-            setTimeout(() => {
-              this.syncTileToTable();
-              this.recalculateZebraStripes(tbody as HTMLElement);
-            }, 100);
-          }
+          dataIdAttr: 'data-id'
         });
       }
     }
   }
 
-  /**
-   * Sync table view to match tile view order.
-   */
-  private syncTableToTile(): void {
-    const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
-    const tableContainer = document.getElementById('overlay_image_group_sorter_table');
-    
-    if (!tileContainer || !tableContainer) return;
-
-    const tileListItems = Array.from(tileContainer.querySelectorAll('ul li'));
-    const imageIds: number[] = [];
-
-    // Extract image IDs from tile view in current order using data-id attributes
-    tileListItems.forEach(li => {
-      const dataId = (li as HTMLElement).getAttribute('data-id');
-      if (dataId) {
-        const imageId = parseInt(dataId, 10);
-        if (imageId > 0) {
-          imageIds.push(imageId);
-        }
-      } else {
-        // Fallback to extraction if data-id not found
-        const element = li.querySelector('span, a') || li;
-        const imageId = this.extractImageIdFromElement(element as HTMLElement);
-        if (imageId > 0) {
-          imageIds.push(imageId);
-        }
-      }
-    });
-
-    // Reorder table rows to match
-    this.reorderTableRows(imageIds);
-  }
-
-  /**
-   * Sync tile view to match table view order.
-   */
-  private syncTileToTable(): void {
-    const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
-    const tableContainer = document.getElementById('overlay_image_group_sorter_table');
-    
-    if (!tileContainer || !tableContainer) return;
-
-    const tableRows = Array.from(tableContainer.querySelectorAll('table tbody tr'));
-    const imageIds: number[] = [];
-
-    // Extract image IDs from table view in current order using data-id attributes
-    tableRows.forEach(tr => {
-      const dataId = (tr as HTMLElement).getAttribute('data-id');
-      if (dataId) {
-        const imageId = parseInt(dataId, 10);
-        if (imageId > 0) {
-          imageIds.push(imageId);
-        }
-      } else {
-        // Fallback to extraction if data-id not found
-        const element = tr.querySelector('span, a') || tr;
-        const imageId = this.extractImageIdFromElement(element as HTMLElement);
-        if (imageId > 0) {
-          imageIds.push(imageId);
-        }
-      }
-    });
-
-    // Reorder tile list items to match
-    this.reorderTileItems(imageIds);
-  }
-
-  /**
-   * Reorder table rows based on image ID order using SortableJS sort() method.
-   */
-  private reorderTableRows(imageIds: number[]): void {
-    if (!this.sortableTable) return;
-
-    // Convert image IDs to strings (SortableJS sort() expects string array)
-    const idStrings = imageIds.map(id => id.toString());
-
-    // Temporarily disable to prevent triggering onEnd
-    this.sortableTable.option('disabled', true);
-
-    // Use SortableJS's sort() method to reorder programmatically
-    this.sortableTable.sort(idStrings);
-
-    // Recalculate zebra striping
-    const tableContainer = document.getElementById('overlay_image_group_sorter_table');
-    if (tableContainer) {
-      const tbody = tableContainer.querySelector('table tbody');
-      if (tbody) {
-        this.recalculateZebraStripes(tbody as HTMLElement);
-      }
-    }
-
-    // Re-enable Sortable
-    this.sortableTable.option('disabled', false);
-  }
-
-  /**
-   * Reorder tile list items based on image ID order using SortableJS sort() method.
-   */
-  private reorderTileItems(imageIds: number[]): void {
-    if (!this.sortableTile) return;
-
-    // Convert image IDs to strings (SortableJS sort() expects string array)
-    const idStrings = imageIds.map(id => id.toString());
-
-    // Temporarily disable to prevent triggering onEnd
-    this.sortableTile.option('disabled', true);
-
-    // Use SortableJS's sort() method to reorder programmatically
-    this.sortableTile.sort(idStrings);
-
-    // Re-enable Sortable
-    this.sortableTile.option('disabled', false);
-  }
-
-  /**
-   * Recalculate zebra striping for table rows.
-   * Only counts data rows in tbody (header row in thead is separate).
-   * Header is even (index 0), so first tbody row should be odd (index 0), second even (index 1), etc.
-   */
-  private recalculateZebraStripes(tbody: HTMLElement): void {
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    rows.forEach((row, index) => {
-      // Remove existing even/odd classes
-      row.classList.remove('even', 'odd');
-      // Flip the logic: first tbody row (index 0) should be odd (since header is even)
-      if (index % 2 === 0) {
-        row.classList.add('odd');
-      } else {
-        row.classList.add('even');
-      }
-    });
-  }
 
   /**
    * Handle submit - perform sequential set_image_rank calls.
