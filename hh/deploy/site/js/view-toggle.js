@@ -165,9 +165,21 @@ class ViewToggle {
             return;
         }
         // Find existing content element in the DOM
-        const existingContent = document.getElementById(contentId);
+        // If in overlay, search within the overlay window that contains the toggle link
+        let existingContent = null;
+        if (isInOverlay) {
+            // Find the overlay window containing the toggle link
+            const overlayWindow = linkElement.closest('#overlayWindow');
+            if (overlayWindow) {
+                existingContent = overlayWindow.querySelector(`#${contentId}`);
+            }
+        }
+        // Fallback to document.getElementById if not found in overlay
         if (!existingContent) {
-            console.warn(`Could not find existing content element for page ${pageId}, section ${section}`);
+            existingContent = document.getElementById(contentId);
+        }
+        if (!existingContent) {
+            console.warn(`Could not find existing content element for page ${pageId}, section ${section} with ID ${contentId}`);
             return;
         }
         // Replace the entire element with the new one (including wrapper div with correct class)

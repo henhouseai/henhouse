@@ -100,7 +100,7 @@ export class Browser {
                 this.injectAndIntercept();
                 // Set up buffer click handlers if in image mode
                 if (this.mode === 'image') {
-                    const windowEl = document.getElementById('overlayWindow');
+                    const windowEl = this.getBrowserWindowElement();
                     if (windowEl) {
                         this.setupBufferClickHandlers(windowEl);
                     }
@@ -118,7 +118,7 @@ export class Browser {
     updateOverlayContent(contentParts) {
         if (!this.overlay)
             return;
-        const windowEl = document.getElementById('overlayWindow');
+        const windowEl = this.getBrowserWindowElement();
         if (!windowEl) {
             // Overlay was closed, create a new one
             this.overlay = null;
@@ -171,7 +171,9 @@ export class Browser {
     injectAndIntercept() {
         if (!this.overlay)
             return;
-        const windowEl = document.getElementById('overlayWindow');
+        // Get the window element from this specific overlay instance
+        // Use querySelector on the overlay's container to find its window
+        const windowEl = this.getBrowserWindowElement();
         if (!windowEl) {
             // Retry after a short delay if overlay not ready yet
             setTimeout(() => this.injectAndIntercept(), 100);
@@ -181,12 +183,31 @@ export class Browser {
         this.interceptLinks(windowEl);
     }
     /**
+     * Get the browser's overlay window element.
+     * Uses the overlay's container to find the correct window (handles Z-stack).
+     */
+    getBrowserWindowElement() {
+        if (!this.overlay)
+            return null;
+        // Access the overlay's internal windowEl property
+        // The overlay stores its windowEl in a private property
+        const windowEl = this.overlay.windowEl;
+        if (windowEl)
+            return windowEl;
+        // Fallback: find via container if windowEl not available yet
+        const overlayContainer = this.overlay.container;
+        if (overlayContainer) {
+            return overlayContainer.querySelector('#overlayWindow');
+        }
+        return null;
+    }
+    /**
      * Set up view toggle with callbacks to re-intercept links after content swaps.
      */
     setupViewToggle() {
         if (!this.overlay)
             return;
-        const windowEl = document.getElementById('overlayWindow');
+        const windowEl = this.getBrowserWindowElement();
         if (!windowEl)
             return;
         // Get the global view toggle instance
