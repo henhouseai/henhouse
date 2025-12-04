@@ -160,9 +160,47 @@ export class ImageGroupSorter {
 
     // Set up drag-and-drop after DOM is ready
     setTimeout(() => {
+      this.prepareForSorting();
       this.removeAllLinks();
       this.setupSortable();
     }, 50);
+  }
+
+  /**
+   * Prepare for sorting by extracting image IDs and setting data-id on <li> elements.
+   * This must be done before removing links so we can extract IDs from href attributes.
+   */
+  private prepareForSorting(): void {
+    const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
+    if (!tileContainer) return;
+
+    const ul = tileContainer.querySelector('ul');
+    if (!ul) return;
+
+    const listItems = ul.querySelectorAll('li');
+    listItems.forEach((li) => {
+      // Try to find image ID from links before they're removed
+      const link = li.querySelector('a[href*="/img/"]');
+      if (link) {
+        const href = link.getAttribute('href') || '';
+        const match = href.match(/\/img\/(\d+)/);
+        if (match) {
+          const imageId = parseInt(match[1], 10);
+          if (imageId > 0) {
+            (li as HTMLElement).setAttribute('data-id', imageId.toString());
+          }
+        }
+      } else {
+        // Fallback: try data-image-id or data-image-rank attributes
+        const dataImageId = li.querySelector('[data-image-id]');
+        if (dataImageId) {
+          const imageId = parseInt((dataImageId as HTMLElement).getAttribute('data-image-id') || '0', 10);
+          if (imageId > 0) {
+            (li as HTMLElement).setAttribute('data-id', imageId.toString());
+          }
+        }
+      }
+    });
   }
 
   /**
@@ -210,6 +248,7 @@ export class ImageGroupSorter {
 
   /**
    * Set up SortableJS for tile view.
+   * Note: data-id attributes should already be set by prepareForSorting().
    */
   private setupSortable(): void {
     const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
@@ -218,13 +257,16 @@ export class ImageGroupSorter {
     if (tileContainer) {
       const ul = tileContainer.querySelector('ul');
       if (ul) {
-        // Add data-id attributes to list items for SortableJS sort() method
+        // Verify data-id attributes are set (they should be from prepareForSorting)
         const listItems = ul.querySelectorAll('li');
-        listItems.forEach((li, index) => {
-          const element = li.querySelector('span, a') || li;
-          const imageId = this.extractImageIdFromElement(element as HTMLElement);
-          if (imageId > 0) {
-            (li as HTMLElement).setAttribute('data-id', imageId.toString());
+        listItems.forEach((li) => {
+          if (!(li as HTMLElement).hasAttribute('data-id')) {
+            // Fallback: try to extract from current DOM state
+            const element = li.querySelector('span, a') || li;
+            const imageId = this.extractImageIdFromElement(element as HTMLElement);
+            if (imageId > 0) {
+              (li as HTMLElement).setAttribute('data-id', imageId.toString());
+            }
           }
         });
 
