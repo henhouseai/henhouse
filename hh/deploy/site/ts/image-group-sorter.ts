@@ -243,9 +243,12 @@ export class ImageGroupSorter {
   private async handleSubmit(): Promise<any> {
     if (!this.overlay) return;
 
-    // Capture debug options
-    const debugOptions = this.overlay.getDebugOptions();
-    const capturedDebugOptions = debugOptions || { debug: false, log: false };
+    // Capture debug options from the overlay (where user sets them)
+    let capturedDebugOptions = this.overlay.getDebugOptions();
+    // If no debug options in overlay, use empty object
+    if (!capturedDebugOptions) {
+      capturedDebugOptions = { debug: false, log: false };
+    }
 
     // Build desired ranks map from current DOM state
     this.buildDesiredRanks();
@@ -254,6 +257,15 @@ export class ImageGroupSorter {
     const desiredOrder = Array.from(this.desiredRanks.entries())
       .sort((a, b) => a[1] - b[1])
       .map(([imageId]) => imageId);
+
+    // Check if we found any images to process
+    if (desiredOrder.length === 0) {
+      const currentMessages = (this.overlay as any)['state'].messages || [];
+      this.overlay.setState({
+        messages: [...currentMessages, { type: 'error' as const, text: 'No images found to sort' }]
+      });
+      return { _autoFade: false }; // Don't auto-fade on error
+    }
 
     // Track if any debug data was present
     let hasDebugData = false;
@@ -270,14 +282,14 @@ export class ImageGroupSorter {
       }
 
       try {
-        // Call set_image_rank
+        // Call set_image_rank with captured debug options
         const response = await this.rpc.call('set_image_rank', {
           page_id: this.pageId,
           image_id: imageId,
           target_rank: desiredRank
         }, capturedDebugOptions);
 
-        // Handle debug data
+        // Handle debug data if present
         if (response && response.debug && Array.isArray(response.debug.entries) && response.debug.entries.length > 0) {
           hasDebugData = true;
           handleRPCResponseWithDebug(response, 'set_image_rank', {
@@ -298,52 +310,49 @@ export class ImageGroupSorter {
           this.currentRanks.set(img.id, img.image_rank);
         });
 
-        // Show incremental success message
-        if (this.overlay) {
-          const currentMessages = (this.overlay as any)['state'].messages || [];
-          this.overlay.setState({
-            messages: [...currentMessages, { type: 'success' as const, text: `Image ${imageId} moved to rank ${desiredRank}` }]
+        // Add success message for this image
+        const currentMessages = (this.overlay as any)['state'].messages || [];
+        this.overlay.setState({
+          messages: [...currentMessages, { type: 'success' as const, text: `Successfully moved image ${imageId} to rank ${desiredRank}` }]
+        });
+
+      } catch (error) {
+        // Add error message for this image
+        const currentMessages = (this.overlay as any)['state'].messages || [];
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        
+        // Check if it's an RPCError with multiple errors
+        const detailedErrors = (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors))
+          ? (error as any).errors
+          : [];
+        
+        // Add main error message
+        const newMessages = [{ type: 'error' as const, text: `Failed to move image ${imageId} to rank ${desiredRank}: ${errorMsg}` }];
+        
+        // Add detailed errors if available
+        if (detailedErrors.length > 0) {
+          detailedErrors.forEach((err: { type?: string; content: string }) => {
+            newMessages.push({
+              type: 'error' as const,
+              text: `${err.type || 'error'}: ${err.content}`
+            });
           });
         }
-
-      } catch (error: any) {
-        // Extract error messages (same pattern as copy_images_app)
-        if (this.overlay) {
-          const currentMessages = (this.overlay as any)['state'].messages || [];
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          
-          // Check if it's an RPCError with multiple errors
-          const detailedErrors = (error && typeof error === 'object' && 'errors' in error && Array.isArray((error as any).errors))
-            ? (error as any).errors
-            : [];
-          
-          // Add main error message
-          const newMessages = [{ type: 'error' as const, text: `Failed to move image ${imageId} to rank ${desiredRank}: ${errorMsg}` }];
-          
-          // Add detailed errors if available
-          if (detailedErrors.length > 0) {
-            detailedErrors.forEach((err: { type?: string; content: string }) => {
-              newMessages.push({
-                type: 'error' as const,
-                text: `${err.type || 'error'}: ${err.content}`
-              });
+        
+        this.overlay.setState({
+          messages: [...currentMessages, ...newMessages]
+        });
+        
+        // Handle debug data if present
+        if (error && typeof error === 'object' && 'debug' in error) {
+          const errorDebug = (error as any).debug;
+          if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
+            hasDebugData = true;
+            handleRPCResponseWithDebug(error, 'set_image_rank', {
+              page_id: this.pageId,
+              image_id: imageId,
+              target_rank: desiredRank
             });
-          }
-          
-          this.overlay.setState({
-            messages: [...currentMessages, ...newMessages]
-          });
-          
-          // Handle debug data if present
-          if (error && typeof error === 'object' && 'debug' in error) {
-            const errorDebug = (error as any).debug;
-            if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
-              handleRPCResponseWithDebug(error, 'set_image_rank', {
-                page_id: this.pageId,
-                image_id: imageId,
-                target_rank: desiredRank
-              });
-            }
           }
         }
 
@@ -355,10 +364,11 @@ export class ImageGroupSorter {
     // Final verification pass
     this.performFinalVerification();
 
-    // Return result
+    // Return success with redirect flag (reload page after fade, unless debug data present)
     return {
-      _redirectAfterFade: true,
-      _autoFade: !hasDebugData // Don't auto-fade if debug data was shown
+      _showMessage: `Completed sorting ${desiredOrder.length} image(s)`,
+      _autoFade: !hasDebugData,
+      _redirectAfterFade: hasDebugData ? null : 'self'
     };
   }
 
@@ -375,7 +385,17 @@ export class ImageGroupSorter {
     // Find all list items in tile view
     const listItems = tileContainer.querySelectorAll('ul li');
     listItems.forEach((item, index) => {
-      // Look for span or any element (links are removed)
+      // First try data-id on the <li> itself (set by setupSortable)
+      const liDataId = (item as HTMLElement).getAttribute('data-id');
+      if (liDataId) {
+        const imageId = parseInt(liDataId, 10);
+        if (imageId > 0) {
+          this.desiredRanks.set(imageId, index + 1);
+          return; // Found it, move to next item
+        }
+      }
+
+      // Fallback: Look for span or any element (links are removed)
       const element = item.querySelector('span, a') || item;
       const imageId = this.extractImageIdFromElement(element as HTMLElement);
       if (imageId > 0) {
@@ -387,12 +407,35 @@ export class ImageGroupSorter {
   /**
    * Extract image ID from a DOM element.
    * Works with both links and spans (after links are removed).
+   * Prioritizes data-id (set by SortableJS setup) and data-image-id attributes.
    */
   private extractImageIdFromElement(element: HTMLElement): number {
-    // Try data-image-id attribute first
-    const dataId = element.getAttribute('data-image-id');
+    // Try data-id attribute first (set by setupSortable on <li> elements)
+    const dataId = element.getAttribute('data-id');
     if (dataId) {
-      return parseInt(dataId, 10);
+      const id = parseInt(dataId, 10);
+      if (id > 0) return id;
+    }
+
+    // Try data-image-id attribute
+    const dataImageId = element.getAttribute('data-image-id');
+    if (dataImageId) {
+      const id = parseInt(dataImageId, 10);
+      if (id > 0) return id;
+    }
+
+    // Try data-image-rank attribute (contains image ID in some cases)
+    const dataImageRank = element.getAttribute('data-image-rank');
+    if (dataImageRank) {
+      // This might contain rank, not ID, but check parent for ID
+      const parent = element.parentElement;
+      if (parent) {
+        const parentDataId = parent.getAttribute('data-id');
+        if (parentDataId) {
+          const id = parseInt(parentDataId, 10);
+          if (id > 0) return id;
+        }
+      }
     }
 
     // Try href attribute - format is /img/{id} (for links that still exist)
@@ -412,9 +455,16 @@ export class ImageGroupSorter {
       }
     }
 
-    // Try finding in parent or ancestor elements
+    // Try finding in parent or ancestor elements (check for data-id on parent <li>)
     let current: HTMLElement | null = element;
     while (current && current !== document.body) {
+      // Check parent for data-id (set on <li> by setupSortable)
+      const currentDataId = current.getAttribute('data-id');
+      if (currentDataId) {
+        const id = parseInt(currentDataId, 10);
+        if (id > 0) return id;
+      }
+
       // Check if current element has href
       const currentHref = current.getAttribute('href') || '';
       const currentMatch = currentHref.match(/\/img\/(\d+)/);
