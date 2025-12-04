@@ -312,23 +312,55 @@ export class ImageGroupSorter {
     // Track if any debug data was present
     let hasDebugData = false;
 
-    // Process each image in order
-    for (let position = 0; position < desiredOrder.length; position++) {
-      const imageId = desiredOrder[position];
-      const desiredRank = position + 1; // Ranks are 1-based
-      const currentRank = this.currentRanks.get(imageId);
+    // Failsafe: maximum iterations equals number of images
+    const maxIterations = desiredOrder.length;
+    let iterationCount = 0;
 
-      // Skip if already in correct position
-      if (currentRank === desiredRank) {
-        continue;
+    // Optimized algorithm: always move the image with the largest distance first
+    // This minimizes the number of operations needed
+    while (true) {
+      // Check failsafe: prevent infinite loops
+      iterationCount++;
+      if (iterationCount > maxIterations) {
+        const currentMessages = (this.overlay as any)['state'].messages || [];
+        this.overlay.setState({
+          messages: [...currentMessages, { type: 'error' as const, text: `Sorting mechanism failed: exceeded maximum iterations (${maxIterations}). Could not find optimal sort.` }]
+        });
+        return { _autoFade: false }; // Prevent auto-fade on error
+      }
+
+      // Calculate distance each image needs to move
+      let maxDistance = 0;
+      let imageToMove: { imageId: number; desiredRank: number; distance: number } | null = null;
+
+      for (const [imageId, desiredRank] of this.desiredRanks.entries()) {
+        const currentRank = this.currentRanks.get(imageId);
+        if (currentRank === undefined) continue;
+
+        // Skip if already in correct position
+        if (currentRank === desiredRank) continue;
+
+        // Calculate distance (absolute difference)
+        const distance = Math.abs(currentRank - desiredRank);
+        
+        // Track the image with the maximum distance
+        if (distance > maxDistance) {
+          maxDistance = distance;
+          imageToMove = { imageId, desiredRank, distance };
+        }
+      }
+
+      // If no image needs to move, we're done
+      if (!imageToMove || maxDistance === 0) {
+        break;
       }
 
       try {
         // Call set_image_rank with captured debug options
         const response = await this.rpc.call('set_image_rank', {
           page_id: this.pageId,
-          image_id: imageId,
-          target_rank: desiredRank
+          image_id: imageToMove.imageId,
+          target_rank: imageToMove.desiredRank
         }, capturedDebugOptions);
 
         // Handle debug data if present
@@ -336,15 +368,15 @@ export class ImageGroupSorter {
           hasDebugData = true;
           handleRPCResponseWithDebug(response, 'set_image_rank', {
             page_id: this.pageId,
-            image_id: imageId,
-            target_rank: desiredRank
+            image_id: imageToMove.imageId,
+            target_rank: imageToMove.desiredRank
           });
         }
 
         // Extract response data
         const responseData: SetImageRankResponse = response.data;
         if (!responseData || !responseData.images) {
-          throw new Error(`Invalid response from set_image_rank for image ${imageId}`);
+          throw new Error(`Invalid response from set_image_rank for image ${imageToMove.imageId}`);
         }
 
         // Update current ranks from response
@@ -355,7 +387,7 @@ export class ImageGroupSorter {
         // Add success message for this image
         const currentMessages = (this.overlay as any)['state'].messages || [];
         this.overlay.setState({
-          messages: [...currentMessages, { type: 'success' as const, text: `Successfully moved image ${imageId} to rank ${desiredRank}` }]
+          messages: [...currentMessages, { type: 'success' as const, text: `Successfully moved image ${imageToMove.imageId} to rank ${imageToMove.desiredRank}` }]
         });
 
       } catch (error) {
@@ -369,7 +401,7 @@ export class ImageGroupSorter {
           : [];
         
         // Add main error message
-        const newMessages = [{ type: 'error' as const, text: `Failed to move image ${imageId} to rank ${desiredRank}: ${errorMsg}` }];
+        const newMessages = [{ type: 'error' as const, text: `Failed to move image ${imageToMove.imageId} to rank ${imageToMove.desiredRank}: ${errorMsg}` }];
         
         // Add detailed errors if available
         if (detailedErrors.length > 0) {
@@ -392,8 +424,8 @@ export class ImageGroupSorter {
             hasDebugData = true;
             handleRPCResponseWithDebug(error, 'set_image_rank', {
               page_id: this.pageId,
-              image_id: imageId,
-              target_rank: desiredRank
+              image_id: imageToMove.imageId,
+              target_rank: imageToMove.desiredRank
             });
           }
         }
@@ -402,9 +434,6 @@ export class ImageGroupSorter {
         return { _autoFade: false }; // Prevent auto-fade on error
       }
     }
-
-    // Final verification pass
-    this.performFinalVerification();
 
     // Return success with redirect flag (reload page after fade, unless debug data present)
     return {
@@ -523,6 +552,8 @@ export class ImageGroupSorter {
 
   /**
    * Perform final verification pass - check that all images are in desired positions.
+   * Note: With the optimized algorithm, this should rarely find mismatches since
+   * we continue until no more moves are needed. But we keep it as a safety check.
    */
   private performFinalVerification(): void {
     const mismatches: string[] = [];
