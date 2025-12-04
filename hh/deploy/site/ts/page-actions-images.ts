@@ -385,5 +385,24 @@ export class PageActionsImages {
       rpc.showError('delete_images_app', error);
     }
   }
+
+  /**
+   * Handler for sort_images_app: Sort/reorder images on current page
+   */
+  async sort_images_app(this: PageData, rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const { ImageGroupSorter } = await import('./image-group-sorter.js');
+      const sorter = new ImageGroupSorter(pageId);
+      await sorter.show();
+    } catch (error) {
+      rpc.showError('sort_images_app', error);
+    }
+  }
 }
 

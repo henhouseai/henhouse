@@ -82,5 +82,6 @@ from hh.render.config.config_registry import register_label
 @register_label('text_html',                          'Text HTML:',                '📄')
 @register_label('children_html',                      'Children HTML:',            '👶')
 @register_label('images_html',                        'Images HTML:',              '🎨')
+@register_label('set_image_rank_header',              'Image Rank Update',         '🔢')
 def _register_config():
     pass

@@ -443,7 +443,6 @@ def render_extra_data_section(extra_data: Dict[str, Any], page_id: Optional[int]
 @register_parser('move_page')
 @register_parser('copy_page')
 @register_parser('remove_image')
-@register_parser('set_image_rank')
 @register_parser('copy_image')
 @register_parser('copy_images')
 @register_parser('move_image')

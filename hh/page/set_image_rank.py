@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import Dict, Any
-from hh.gateway.registry.registry import register_action, register_command
+from typing import Dict, Any, List
+from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
-from hh.gateway.response.json_standard import success_payload
+from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page
+from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -121,25 +122,101 @@ def set_image_rank() -> bool:
     
     if not is_error():
         # Reload page to get updated state
-        log(f"Reloading page {page_id} to show updated state")
+        log(f"Reloading page {page_id} to get updated state")
         updated_page = get_page(page_id=page_id)
         if not updated_page:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
     
     if not is_error():
-        response_data = updated_page.show_page()
+        # Get updated images list with current ranks
+        updated_images = updated_page.get_images_data(rebuild=True)
         
-        # Add operation-specific metadata
-        response_data.update({
+        # Build abbreviated response structure
+        images_list = []
+        for img in updated_images:
+            images_list.append({
+                "id": img.get('id'),
+                "image_rank": img.get('image_rank'),
+                "caption": img.get('caption')
+            })
+        
+        response_data = {
+            "page_id": page_id,
             "image_id": image_id,
             "source_rank": source_rank_int,
             "target_rank": target_rank,
-            "operation": "set_image_rank"
-        })
+            "images": images_list
+        }
         
         log(f"Successfully set image {image_id} rank from {source_rank_int} to {target_rank} in page {page_id}")
         gateway.response.set_action_response(success_payload(response_data))
     
     trace_out()
     return not is_error()
+
+
+@register_parser('set_image_rank')
+def set_image_rank_parser() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        report_error("backend", "No gateway available")
+        trace_out()
+        return False
+    if not gateway.response.has_action_response():
+        warn("No action response available")
+        report_error("backend", "No action response available")
+        trace_out()
+        return False
+    
+    try:
+        source_data = get_data(gateway.response.get_action_response())
+        page_id = source_data.get("page_id")
+        image_id = source_data.get("image_id")
+        source_rank = source_data.get("source_rank")
+        target_rank = source_data.get("target_rank")
+        images = source_data.get("images", [])
+        
+        lines = [render_header_block("l_set_image_rank_header")]
+        
+        table = TableData()
+        table.add_row("set_image_rank_header", info="")
+        
+        # Operation summary
+        table.add_row("page_id", info=str(page_id))
+        table.add_row("extra_data_moved_image_id", info=str(image_id))
+        table.add_row("extra_data_old_rank", info=str(source_rank))
+        table.add_row("extra_data_new_rank", info=str(target_rank))
+        
+        # Images table header
+        if images:
+            table.add_row("images_header", info="")
+            for img in images:
+                caption = img.get("caption") or "untitled"
+                table.add_row(
+                    "image_item",
+                    info=f"Rank {img.get('image_rank')}: Image {img.get('id')} - {caption}"
+                )
+        
+        lines.append(
+            render_block(
+                table,
+                FieldConfig()
+                .add_header("set_image_rank_header")
+                .add_simple(["page_id", "extra_data_moved_image_id", "extra_data_old_rank", "extra_data_new_rank", "images_header", "image_item"]),
+                block_type="rows",
+                table_overrides={"margin_l": 4},
+            )
+        )
+        
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully with {len(lines)} lines")
+        trace_out()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Parser execution raised an exception: {exc}")
+        report_error("backend", f"Parser execution raised an exception: {exc}")
+        trace_out()
+        return False

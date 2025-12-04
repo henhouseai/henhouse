@@ -579,16 +579,19 @@ def render_children_by_class_section(
                 # Fall through to table rendering
             else:
                 # Generate toggle header (stays static, doesn't get swapped)
-                page_id_str = str(page_id)
-                class_name_safe = class_name.replace('_', '-')
-                header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
-                from hh.render.html.page_group import snake_case_to_title_case
-                human_readable_name = snake_case_to_title_case(class_name)
-                # Add overlay class if in overlay mode
-                header_classes = 'contentHeader'
-                if additional_classes:
-                    header_classes += ' ' + ' '.join(additional_classes)
-                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
+                # Only output HTML headers for HTTP backend or overlay mode, not parser backend
+                header_html = ''
+                if gateway.backend == "http" or overlay_mode:
+                    page_id_str = str(page_id)
+                    class_name_safe = class_name.replace('_', '-')
+                    header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
+                    from hh.render.html.page_group import snake_case_to_title_case
+                    human_readable_name = snake_case_to_title_case(class_name)
+                    # Add overlay class if in overlay mode
+                    header_classes = 'contentHeader'
+                    if additional_classes:
+                        header_classes += ' ' + ' '.join(additional_classes)
+                    header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
                 
                 from hh.render.html.page_group import PageGroup
                 wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
@@ -596,8 +599,11 @@ def render_children_by_class_section(
                 content_html = page_group.render()  # Get HTML string (includes wrapper divs)
                 # Strip trailing newlines from content_html before joining
                 content_html_clean = content_html.rstrip('\n') if content_html else ''
-                # Prepend header and add to parts
-                html_parts.append(header_html + '\n' + content_html_clean)
+                # Prepend header and add to parts (header_html will be empty string for parser backend)
+                if header_html:
+                    html_parts.append(header_html + '\n' + content_html_clean)
+                else:
+                    html_parts.append(content_html_clean)
                 continue  # Skip table rendering
         
         # Render as table (parser backend, HTTP with table override, or HTTP tiles without page_id)
@@ -652,15 +658,18 @@ def render_children_by_class_section(
         if children_rows.num_rows() > 0:
             page_id_str = str(page_id) if page_id is not None else ''
             class_name_safe = class_name.replace('_', '-')
-            header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
             content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
-            from hh.render.html.page_group import snake_case_to_title_case
-            human_readable_name = snake_case_to_title_case(class_name)
-            # Add overlay class if in overlay mode
-            header_classes = 'contentHeader'
-            if additional_classes:
-                header_classes += ' ' + ' '.join(additional_classes)
-            header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
+            # Only output HTML headers for HTTP backend or overlay mode, not parser backend
+            header_html = ''
+            if gateway.backend == "http" or overlay_mode:
+                header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
+                from hh.render.html.page_group import snake_case_to_title_case
+                human_readable_name = snake_case_to_title_case(class_name)
+                # Add overlay class if in overlay mode
+                header_classes = 'contentHeader'
+                if additional_classes:
+                    header_classes += ' ' + ' '.join(additional_classes)
+                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
             # Render block with wrapper configuration
             wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
             
@@ -677,7 +686,11 @@ def render_children_by_class_section(
             )
             # Strip trailing newlines from children_block before joining
             children_block_clean = children_block.rstrip('\n') if children_block else ''
-            html_parts.append(header_html + '\n' + children_block_clean)
+            # Prepend header if present (header_html will be empty string for parser backend)
+            if header_html:
+                html_parts.append(header_html + '\n' + children_block_clean)
+            else:
+                html_parts.append(children_block_clean)
     
     if overlay_mode:
         trace_out()
