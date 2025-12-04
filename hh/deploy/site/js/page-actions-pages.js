@@ -206,9 +206,9 @@ export class PageActionsPages {
         }
     }
     /**
-     * Handler for move_page_app: Move page to new parent
+     * Handler for move_page: Move page to new parent
      */
-    async move_page_app(rpc) {
+    async move_page(rpc) {
         const pageId = this.id;
         if (!pageId) {
             alert('No page ID found');
@@ -306,13 +306,13 @@ export class PageActionsPages {
             }, 100);
         }
         catch (error) {
-            rpc.showError('move_page_app', error);
+            rpc.showError('move_page', error);
         }
     }
     /**
-     * Handler for copy_page_app: Copy page to new parent
+     * Handler for copy_page: Copy page to new parent
      */
-    async copy_page_app(rpc) {
+    async copy_page(rpc) {
         const pageId = this.id;
         if (!pageId) {
             alert('No page ID found');
@@ -477,7 +477,7 @@ export class PageActionsPages {
             }, 100);
         }
         catch (error) {
-            rpc.showError('copy_page_app', error);
+            rpc.showError('copy_page', error);
         }
     }
 }
