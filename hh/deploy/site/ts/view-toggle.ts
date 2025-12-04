@@ -231,23 +231,10 @@ class ViewToggle {
     }
 
     // Find existing content element in the DOM
-    // If in overlay, search within the overlay window that contains the toggle link
-    let existingContent: HTMLElement | null = null;
-    if (isInOverlay) {
-      // Find the overlay window containing the toggle link
-      const overlayWindow = linkElement.closest('#overlayWindow') as HTMLElement;
-      if (overlayWindow) {
-        existingContent = overlayWindow.querySelector(`#${contentId}`) as HTMLElement;
-      }
-    }
-    
-    // Fallback to document.getElementById if not found in overlay
-    if (!existingContent) {
-      existingContent = document.getElementById(contentId);
-    }
+    const existingContent = document.getElementById(contentId);
 
     if (!existingContent) {
-      console.warn(`Could not find existing content element for page ${pageId}, section ${section} with ID ${contentId}`);
+      console.warn(`Could not find existing content element for page ${pageId}, section ${section}`);
       return;
     }
 

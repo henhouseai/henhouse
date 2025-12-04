@@ -806,8 +806,10 @@ def render_images_section(
             header_classes += ' ' + ' '.join(additional_classes)
         header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="images">IMAGES</a>\n</div>'
         
+        # Generate wrapper_id with prefix (same pattern as other sections)
+        wrapper_id = f"{wrapper_id_prefix}pageImageGroup_{page_id_str}"
         wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
-        image_group = ImageGroup(images_data, page_id, target_width=300, wrapper_extra_classes=wrapper_extra_classes)
+        image_group = ImageGroup(images_data, page_id, target_width=300, wrapper_id=wrapper_id, wrapper_extra_classes=wrapper_extra_classes)
         content_html = image_group.render()  # Get HTML string (includes wrapper divs)
         # Prepend header
         result = header_html + content_html
