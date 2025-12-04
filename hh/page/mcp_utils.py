@@ -411,6 +411,34 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Upload'
 )
 @register_mcp_tool(
+    tool_name='move_page_app',
+    description='Move a page to a different parent page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='pages',
+    app_action_label='Move'
+)
+@register_mcp_tool(
+    tool_name='copy_page_app',
+    description='Copy a page (and optionally its children recursively) to a target parent page. App action only - no MCP call.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[7, 8],  # App action only - no MCP tiers
+    requires_approval=False,
+    crud_type='read',  # Mark as read since it's not a real MCP tool
+    app_action_group='pages',
+    app_action_label='Copy'
+)
+@register_mcp_tool(
     tool_name='get_browser',
     description='Get browser HTML for page selection overlay. Returns structured HTML sections with metadata for browser overlay.',
     inputSchema={

@@ -206,31 +206,278 @@ export class PageActionsPages {
         }
     }
     /**
-     * Handler for move_page: Move page to new parent (smoke test with browser)
+     * Handler for move_page_app: Move page to new parent
      */
-    async move_page(rpc) {
+    async move_page_app(rpc) {
         const pageId = this.id;
         if (!pageId) {
             alert('No page ID found');
             return;
         }
         try {
-            const { Browser } = await import('./browser.js');
-            const browser = new Browser({
-                mode: 'page',
-                initialPageId: pageId,
-                onSubmit: async (result) => {
-                    // Smoke test: just show success message
-                    const selectedPageId = result;
-                    const targetId = Array.isArray(selectedPageId) ? selectedPageId[0] : selectedPageId;
-                    console.log(`Would move page ${pageId} to parent ${targetId}`);
-                    // In real implementation, would call rpc.call('move_page', { page_id: pageId, target_page: targetId })
+            const pageName = this.getField('name') || `Page ${pageId}`;
+            const formHtml = `
+        <div class="overlay-form-group">
+          <label>Target parent page ID:</label>
+          <input type="number" id="move-page-target" value="" class="overlay-form-input" placeholder="Enter page ID or use Browser button">
+        </div>
+      `;
+            OverlayManager.getInstance().show({
+                header: `Move Page: ${this.escapeHtml(pageName)}`,
+                content: [formHtml],
+                contentHeaders: [''],
+                closable: true,
+                showSubmit: true,
+                submitLabel: 'Move',
+                cancelLabel: 'Cancel',
+                middleButtonLabel: 'Browser',
+                onMiddleButton: async () => {
+                    const targetInput = document.getElementById('move-page-target');
+                    const currentValue = targetInput?.value.trim();
+                    const initialPageId = currentValue ? parseInt(currentValue, 10) : pageId;
+                    const { Browser } = await import('./browser.js');
+                    const browser = new Browser({
+                        mode: 'page',
+                        initialPageId: isNaN(initialPageId) ? pageId : initialPageId,
+                        onSubmit: async (result) => {
+                            const selectedPageId = result;
+                            const targetId = Array.isArray(selectedPageId) ? selectedPageId[0] : selectedPageId;
+                            // Set the value in the input field
+                            if (targetInput) {
+                                targetInput.value = String(targetId);
+                            }
+                            // Close the browser overlay
+                            return { _autoFade: true };
+                        }
+                    });
+                    await browser.show();
+                },
+                onSubmit: async () => {
+                    const targetInput = document.getElementById('move-page-target');
+                    if (!targetInput) {
+                        throw new Error('Form elements not found');
+                    }
+                    const targetPageId = targetInput.value.trim();
+                    if (!targetPageId) {
+                        throw new Error('Please enter a target page ID or use the Browser button to select one');
+                    }
+                    const targetId = parseInt(targetPageId, 10);
+                    if (isNaN(targetId)) {
+                        throw new Error('Target page ID must be a number');
+                    }
+                    // Capture debug options
+                    const overlay = OverlayManager.getInstance().getTopOverlay();
+                    let capturedDebugOptions = overlay ? overlay.getDebugOptions() : null;
+                    if (!capturedDebugOptions) {
+                        capturedDebugOptions = { debug: false, log: false };
+                    }
+                    try {
+                        const result = await rpc.call('move_page', {
+                            source_page: pageId,
+                            target_page: targetId
+                        }, capturedDebugOptions);
+                        // Handle debug data if present
+                        let hasDebugData = false;
+                        if (result && result.debug && Array.isArray(result.debug.entries) && result.debug.entries.length > 0) {
+                            hasDebugData = true;
+                            const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                            handleRPCResponseWithDebug(result, 'move_page', {
+                                source_page: pageId,
+                                target_page: targetId
+                            });
+                        }
+                        return {
+                            _showMessage: `Page "${this.escapeHtml(pageName)}" has been moved successfully.`,
+                            _autoFade: !hasDebugData,
+                            _redirectAfterFade: hasDebugData ? null : 'self' // Reload current page
+                        };
+                    }
+                    catch (error) {
+                        throw error;
+                    }
                 }
             });
-            await browser.show();
+            // Focus the input after overlay is shown
+            setTimeout(() => {
+                const input = document.getElementById('move-page-target');
+                if (input) {
+                    input.focus();
+                }
+            }, 100);
         }
         catch (error) {
-            rpc.showError('move_page', error);
+            rpc.showError('move_page_app', error);
+        }
+    }
+    /**
+     * Handler for copy_page_app: Copy page to new parent
+     */
+    async copy_page_app(rpc) {
+        const pageId = this.id;
+        if (!pageId) {
+            alert('No page ID found');
+            return;
+        }
+        try {
+            const pageName = this.getField('name') || `Page ${pageId}`;
+            const formHtml = `
+        <div class="overlay-form-group">
+          <label>Target parent page ID:</label>
+          <input type="number" id="copy-page-target" value="" class="overlay-form-input" placeholder="Enter page ID or use Browser button">
+        </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="copy-page-recursive" class="overlay-form-checkbox">
+            <span>Recursive copy</span>
+          </label>
+        </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="copy-page-full-recursive" class="overlay-form-checkbox" disabled>
+            <span>Full recursive copy</span>
+          </label>
+        </div>
+        <div class="overlay-form-group" id="copy-page-depth-group" style="display: none;">
+          <label>Max depth:</label>
+          <input type="number" id="copy-page-depth" value="1" min="1" class="overlay-form-input" placeholder="Recursion depth">
+        </div>
+      `;
+            OverlayManager.getInstance().show({
+                header: `Copy Page: ${this.escapeHtml(pageName)}`,
+                content: [formHtml],
+                contentHeaders: [''],
+                closable: true,
+                showSubmit: true,
+                submitLabel: 'Copy',
+                cancelLabel: 'Cancel',
+                middleButtonLabel: 'Browser',
+                onMiddleButton: async () => {
+                    const targetInput = document.getElementById('copy-page-target');
+                    const currentValue = targetInput?.value.trim();
+                    const initialPageId = currentValue ? parseInt(currentValue, 10) : pageId;
+                    const { Browser } = await import('./browser.js');
+                    const browser = new Browser({
+                        mode: 'page',
+                        initialPageId: isNaN(initialPageId) ? pageId : initialPageId,
+                        onSubmit: async (result) => {
+                            const selectedPageId = result;
+                            const targetId = Array.isArray(selectedPageId) ? selectedPageId[0] : selectedPageId;
+                            // Set the value in the input field
+                            if (targetInput) {
+                                targetInput.value = String(targetId);
+                            }
+                            // Close the browser overlay
+                            return { _autoFade: true };
+                        }
+                    });
+                    await browser.show();
+                },
+                onSubmit: async () => {
+                    const targetInput = document.getElementById('copy-page-target');
+                    const recursiveCheckbox = document.getElementById('copy-page-recursive');
+                    const fullRecursiveCheckbox = document.getElementById('copy-page-full-recursive');
+                    const depthInput = document.getElementById('copy-page-depth');
+                    if (!targetInput || !recursiveCheckbox || !fullRecursiveCheckbox || !depthInput) {
+                        throw new Error('Form elements not found');
+                    }
+                    const targetPageId = targetInput.value.trim();
+                    if (!targetPageId) {
+                        throw new Error('Please enter a target page ID or use the Browser button to select one');
+                    }
+                    const targetId = parseInt(targetPageId, 10);
+                    if (isNaN(targetId)) {
+                        throw new Error('Target page ID must be a number');
+                    }
+                    // Build params based on checkboxes
+                    const params = {
+                        source_page: pageId,
+                        target_page: targetId
+                    };
+                    const recursive = recursiveCheckbox.checked;
+                    if (recursive) {
+                        params.recursive = true;
+                        const fullRecursive = fullRecursiveCheckbox.checked;
+                        if (!fullRecursive) {
+                            const depthValue = depthInput.value.trim();
+                            if (depthValue) {
+                                const depth = parseInt(depthValue, 10);
+                                if (isNaN(depth) || depth < 1) {
+                                    throw new Error('Max depth must be a positive number');
+                                }
+                                params['recursive-depth'] = depth;
+                            }
+                        }
+                    }
+                    // Capture debug options
+                    const overlay = OverlayManager.getInstance().getTopOverlay();
+                    let capturedDebugOptions = overlay ? overlay.getDebugOptions() : null;
+                    if (!capturedDebugOptions) {
+                        capturedDebugOptions = { debug: false, log: false };
+                    }
+                    try {
+                        const result = await rpc.call('copy_page', params, capturedDebugOptions);
+                        // Handle debug data if present
+                        let hasDebugData = false;
+                        if (result && result.debug && Array.isArray(result.debug.entries) && result.debug.entries.length > 0) {
+                            hasDebugData = true;
+                            const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
+                            handleRPCResponseWithDebug(result, 'copy_page', params);
+                        }
+                        // Get new page ID from response
+                        const newPageId = result.data?.page?.id;
+                        if (!newPageId) {
+                            throw new Error('Copy succeeded but no new page ID returned');
+                        }
+                        // Determine redirect URL using standard format
+                        const redirectUrl = this.getPageUrl(newPageId);
+                        return {
+                            _showMessage: `Page "${this.escapeHtml(pageName)}" has been copied successfully.`,
+                            _autoFade: !hasDebugData,
+                            _redirectAfterFade: hasDebugData ? null : redirectUrl
+                        };
+                    }
+                    catch (error) {
+                        throw error;
+                    }
+                }
+            });
+            // Set up checkbox handlers after overlay is shown
+            setTimeout(() => {
+                const recursiveCheckbox = document.getElementById('copy-page-recursive');
+                const fullRecursiveCheckbox = document.getElementById('copy-page-full-recursive');
+                const depthGroup = document.getElementById('copy-page-depth-group');
+                const targetInput = document.getElementById('copy-page-target');
+                if (recursiveCheckbox && fullRecursiveCheckbox && depthGroup) {
+                    // Handle recursive checkbox change
+                    recursiveCheckbox.addEventListener('change', () => {
+                        if (recursiveCheckbox.checked) {
+                            fullRecursiveCheckbox.disabled = false;
+                            depthGroup.style.display = 'block';
+                        }
+                        else {
+                            fullRecursiveCheckbox.checked = false;
+                            fullRecursiveCheckbox.disabled = true;
+                            depthGroup.style.display = 'none';
+                        }
+                    });
+                    // Handle full recursive checkbox change
+                    fullRecursiveCheckbox.addEventListener('change', () => {
+                        if (fullRecursiveCheckbox.checked) {
+                            depthGroup.style.display = 'none';
+                        }
+                        else {
+                            depthGroup.style.display = 'block';
+                        }
+                    });
+                }
+                // Focus the input after overlay is shown
+                if (targetInput) {
+                    targetInput.focus();
+                }
+            }, 100);
+        }
+        catch (error) {
+            rpc.showError('copy_page_app', error);
         }
     }
 }
