@@ -191,11 +191,23 @@ export class ImageGroupSorter {
         if (tileContainer) {
             const ul = tileContainer.querySelector('ul');
             if (ul) {
+                // Add data-id attributes to list items for SortableJS sort() method
+                const listItems = ul.querySelectorAll('li');
+                listItems.forEach((li, index) => {
+                    const element = li.querySelector('span, a') || li;
+                    const imageId = this.extractImageIdFromElement(element);
+                    if (imageId > 0) {
+                        li.setAttribute('data-id', imageId.toString());
+                    }
+                });
                 this.sortableTile = Sortable.create(ul, {
                     animation: 150,
+                    dataIdAttr: 'data-id',
                     onEnd: (evt) => {
-                        // Sync table view when tile view changes
-                        this.syncTableToTile();
+                        // Use setTimeout to let SortableJS finish its internal cleanup
+                        setTimeout(() => {
+                            this.syncTableToTile();
+                        }, 100);
                     }
                 });
             }
@@ -204,11 +216,24 @@ export class ImageGroupSorter {
         if (tableContainer) {
             const tbody = tableContainer.querySelector('table tbody');
             if (tbody) {
+                // Add data-id attributes to table rows for SortableJS sort() method
+                const rows = tbody.querySelectorAll('tr');
+                rows.forEach((tr) => {
+                    const element = tr.querySelector('span, a') || tr;
+                    const imageId = this.extractImageIdFromElement(element);
+                    if (imageId > 0) {
+                        tr.setAttribute('data-id', imageId.toString());
+                    }
+                });
                 this.sortableTable = Sortable.create(tbody, {
                     animation: 150,
+                    dataIdAttr: 'data-id',
                     onEnd: (evt) => {
-                        // Sync tile view when table view changes
-                        this.syncTileToTable();
+                        // Use setTimeout to let SortableJS finish its internal cleanup
+                        setTimeout(() => {
+                            this.syncTileToTable();
+                            this.recalculateZebraStripes(tbody);
+                        }, 100);
                     }
                 });
             }
@@ -257,90 +282,42 @@ export class ImageGroupSorter {
         this.reorderTileItems(imageIds);
     }
     /**
-     * Reorder table rows based on image ID order.
+     * Reorder table rows based on image ID order using SortableJS sort() method.
      */
     reorderTableRows(imageIds) {
-        const tableContainer = document.getElementById('overlay_image_group_sorter_table');
-        if (!tableContainer)
+        if (!this.sortableTable)
             return;
-        const tbody = tableContainer.querySelector('table tbody');
-        if (!tbody)
-            return;
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-        const rowMap = new Map();
-        // Create map of image ID to row
-        rows.forEach(tr => {
-            const element = tr.querySelector('span, a') || tr;
-            const imageId = this.extractImageIdFromElement(element);
-            if (imageId > 0) {
-                rowMap.set(imageId, tr);
-            }
-        });
-        // Temporarily disable Sortable to prevent recursion
-        if (this.sortableTable) {
-            this.sortableTable.option('disabled', true);
-        }
-        // Remove all rows from DOM (but keep references)
-        rows.forEach(row => {
-            if (row.parentNode === tbody) {
-                tbody.removeChild(row);
-            }
-        });
-        // Re-append in new order
-        imageIds.forEach(imageId => {
-            const row = rowMap.get(imageId);
-            if (row) {
-                tbody.appendChild(row);
-            }
-        });
+        // Convert image IDs to strings (SortableJS sort() expects string array)
+        const idStrings = imageIds.map(id => id.toString());
+        // Temporarily disable to prevent triggering onEnd
+        this.sortableTable.option('disabled', true);
+        // Use SortableJS's sort() method to reorder programmatically
+        this.sortableTable.sort(idStrings);
         // Recalculate zebra striping
-        this.recalculateZebraStripes(tbody);
-        // Re-enable Sortable
-        if (this.sortableTable) {
-            this.sortableTable.option('disabled', false);
+        const tableContainer = document.getElementById('overlay_image_group_sorter_table');
+        if (tableContainer) {
+            const tbody = tableContainer.querySelector('table tbody');
+            if (tbody) {
+                this.recalculateZebraStripes(tbody);
+            }
         }
+        // Re-enable Sortable
+        this.sortableTable.option('disabled', false);
     }
     /**
-     * Reorder tile list items based on image ID order.
+     * Reorder tile list items based on image ID order using SortableJS sort() method.
      */
     reorderTileItems(imageIds) {
-        const tileContainer = document.getElementById('overlay_image_group_sorter_tiles');
-        if (!tileContainer)
+        if (!this.sortableTile)
             return;
-        const ul = tileContainer.querySelector('ul');
-        if (!ul)
-            return;
-        const listItems = Array.from(ul.querySelectorAll('li'));
-        const itemMap = new Map();
-        // Create map of image ID to list item
-        listItems.forEach(li => {
-            const element = li.querySelector('span, a') || li;
-            const imageId = this.extractImageIdFromElement(element);
-            if (imageId > 0) {
-                itemMap.set(imageId, li);
-            }
-        });
-        // Temporarily disable Sortable to prevent recursion
-        if (this.sortableTile) {
-            this.sortableTile.option('disabled', true);
-        }
-        // Remove all items from DOM (but keep references)
-        listItems.forEach(item => {
-            if (item.parentNode === ul) {
-                ul.removeChild(item);
-            }
-        });
-        // Re-append in new order
-        imageIds.forEach(imageId => {
-            const item = itemMap.get(imageId);
-            if (item) {
-                ul.appendChild(item);
-            }
-        });
+        // Convert image IDs to strings (SortableJS sort() expects string array)
+        const idStrings = imageIds.map(id => id.toString());
+        // Temporarily disable to prevent triggering onEnd
+        this.sortableTile.option('disabled', true);
+        // Use SortableJS's sort() method to reorder programmatically
+        this.sortableTile.sort(idStrings);
         // Re-enable Sortable
-        if (this.sortableTile) {
-            this.sortableTile.option('disabled', false);
-        }
+        this.sortableTile.option('disabled', false);
     }
     /**
      * Recalculate zebra striping for table rows.
