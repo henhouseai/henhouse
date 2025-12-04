@@ -280,14 +280,21 @@ export class ImageGroupSorter {
         if (this.sortableTable) {
             this.sortableTable.option('disabled', true);
         }
-        // Clear and re-append in new order
-        tbody.innerHTML = '';
+        // Remove all rows from DOM (but keep references)
+        rows.forEach(row => {
+            if (row.parentNode === tbody) {
+                tbody.removeChild(row);
+            }
+        });
+        // Re-append in new order
         imageIds.forEach(imageId => {
             const row = rowMap.get(imageId);
             if (row) {
                 tbody.appendChild(row);
             }
         });
+        // Recalculate zebra striping
+        this.recalculateZebraStripes(tbody);
         // Re-enable Sortable
         if (this.sortableTable) {
             this.sortableTable.option('disabled', false);
@@ -317,8 +324,13 @@ export class ImageGroupSorter {
         if (this.sortableTile) {
             this.sortableTile.option('disabled', true);
         }
-        // Clear and re-append in new order
-        ul.innerHTML = '';
+        // Remove all items from DOM (but keep references)
+        listItems.forEach(item => {
+            if (item.parentNode === ul) {
+                ul.removeChild(item);
+            }
+        });
+        // Re-append in new order
         imageIds.forEach(imageId => {
             const item = itemMap.get(imageId);
             if (item) {
@@ -329,6 +341,23 @@ export class ImageGroupSorter {
         if (this.sortableTile) {
             this.sortableTile.option('disabled', false);
         }
+    }
+    /**
+     * Recalculate zebra striping for table rows.
+     */
+    recalculateZebraStripes(tbody) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach((row, index) => {
+            // Remove existing even/odd classes
+            row.classList.remove('even', 'odd');
+            // Add appropriate class (0-indexed, so even = 0, 2, 4...)
+            if (index % 2 === 0) {
+                row.classList.add('even');
+            }
+            else {
+                row.classList.add('odd');
+            }
+        });
     }
     /**
      * Handle submit - perform sequential set_image_rank calls.
