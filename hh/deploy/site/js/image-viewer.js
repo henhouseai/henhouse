@@ -14,6 +14,7 @@ export class ImageViewer {
         this.currentImageIndex = 0;
         this.touchStartX = null;
         this.touchStartY = null;
+        this.touchStartTime = null;
         this.keyboardHandler = null;
         this.resizeHandler = null;
         this.interactInstance = null;
@@ -123,10 +124,9 @@ export class ImageViewer {
         const currentImage = this.images[this.currentImageIndex];
         const pageWidth = this.getPageWidth();
         const pageHeight = this.getPageHeight();
-        const maxOverlayWidth = pageWidth - 40;
-        const maxOverlayHeight = pageHeight - 40;
-        const maxImageWidth = maxOverlayWidth - 40;
-        const maxImageHeight = maxOverlayHeight - 80;
+        // Calculate max dimensions with border space (40px margin on all sides)
+        const maxImageWidth = pageWidth - 80;
+        const maxImageHeight = pageHeight - 80;
         // Get best instance for display
         const displayInstance = this.getBestInstance(maxImageWidth, currentImage.instances);
         if (!displayInstance) {
@@ -137,13 +137,12 @@ export class ImageViewer {
         const displayDims = this.calculateDisplayDimensions(displayInstance, maxImageWidth, maxImageHeight);
         const imageWidth = displayDims.width;
         const imageHeight = displayDims.height;
-        const overlayWidth = imageWidth + 40;
-        const overlayHeight = imageHeight + 80;
         // Store base dimensions for zoom calculations
+        // Window scales 1:1 with image (no extra padding)
         this.baseImageWidth = imageWidth;
         this.baseImageHeight = imageHeight;
-        this.baseOverlayWidth = overlayWidth;
-        this.baseOverlayHeight = overlayHeight;
+        this.baseOverlayWidth = imageWidth;
+        this.baseOverlayHeight = imageHeight;
         // Calculate special point scales
         const viewportWidth = this.getPageWidth();
         const viewportHeight = this.getPageHeight();
@@ -157,36 +156,12 @@ export class ImageViewer {
         const imageSrc = displayInstance.src.startsWith('/srv/images/')
             ? displayInstance.src
             : `/srv/images/${displayInstance.src}`;
-        // Build HTML
+        // Build HTML - simplified: only imageZoomContainer wrapping the image
         const imageHtml = `
-      <div id="imageViewerTargetImageWrapper">
-        <div id="imageZoomContainer">
-          <img id="imageViewerTargetImage" src="${imageSrc}" alt="${currentImage.caption}" width="${imageWidth}" height="${imageHeight}">
-        </div>
+      <div id="imageZoomContainer" style="overflow: hidden; position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+        <img id="imageViewerTargetImage" src="${imageSrc}" alt="${currentImage.caption}" width="${imageWidth}" height="${imageHeight}">
       </div>
     `;
-        let controlLinks = '<div id="imageViewerControlLinks">';
-        if (this.images.length > 1) {
-            controlLinks += `<a id="retargetImageViewerToPreviousLink">&lt;&lt;</a>`;
-            controlLinks += `${this.currentImageIndex + 1}/${this.images.length}`;
-            controlLinks += `<a id="retargetImageViewerToNextLink">&gt;&gt;</a>`;
-        }
-        controlLinks += '<a id="closeImageViewerLink">close</a>';
-        controlLinks += '</div>';
-        let visibilityString = '<div id="imageViewerVisibility">';
-        switch (currentImage.visibility.toString()) {
-            case '-1':
-                visibilityString += 'PRIVATE';
-                break;
-            case '0':
-                visibilityString += 'HIDDEN';
-                break;
-            default:
-                // Public - no label
-                break;
-        }
-        visibilityString += '</div>';
-        const captionHtml = `<div id="imageViewerCaption">${currentImage.caption}</div>`;
         // Preload full-size image (largest instance, which is last in sorted array)
         const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
         const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
@@ -197,7 +172,7 @@ export class ImageViewer {
         const overlayManager = OverlayManager.getInstance();
         this.overlay = overlayManager.show({
             header: '',
-            content: [imageHtml + visibilityString + captionHtml + controlLinks],
+            content: [imageHtml],
             contentHeaders: [''],
             closable: true,
             showSubmit: false,
@@ -214,29 +189,20 @@ export class ImageViewer {
         // Set overlay dimensions and center it
         // The overlay system uses position: fixed with top: 50% and left: 50%
         // We need to set transform to center it properly and override default overlay CSS
-        windowEl.style.width = `${overlayWidth}px`;
-        windowEl.style.height = `${overlayHeight}px`;
-        windowEl.style.maxWidth = `${overlayWidth}px`;
-        windowEl.style.maxHeight = `${overlayHeight}px`;
+        // Window scales 1:1 with image (minimal/invisible container)
+        windowEl.style.width = `${imageWidth}px`;
+        windowEl.style.height = `${imageHeight}px`;
+        windowEl.style.maxWidth = `${imageWidth}px`;
+        windowEl.style.maxHeight = `${imageHeight}px`;
         windowEl.style.position = 'fixed';
         windowEl.style.top = '50%';
         windowEl.style.left = '50%';
         windowEl.style.transform = 'translate(-50%, -50%)';
         windowEl.style.marginLeft = '0';
         windowEl.style.marginTop = '0';
-        // Set image wrapper dimensions
-        const imageWrapper = windowEl.querySelector('#imageViewerTargetImageWrapper');
-        if (imageWrapper) {
-            imageWrapper.style.width = `${imageWidth}px`;
-            imageWrapper.style.height = `${imageHeight}px`;
-        }
-        // Set caption and control links width
-        const caption = windowEl.querySelector('#imageViewerCaption');
-        const controlLinksEl = windowEl.querySelector('#imageViewerControlLinks');
-        if (caption)
-            caption.style.width = `${overlayWidth - 36}px`;
-        if (controlLinksEl)
-            controlLinksEl.style.width = `${overlayWidth - 36}px`;
+        windowEl.style.overflow = 'hidden'; // Prevent scrollbars
+        windowEl.style.padding = '0';
+        windowEl.style.border = 'none';
         // Set up interact.js after a short delay
         setTimeout(() => {
             this.setupInteract();
@@ -303,10 +269,9 @@ export class ImageViewer {
         const scaledImageHeight = this.baseImageHeight * scale;
         let constrainedX = panX;
         let constrainedY = panY;
-        // Get overlay position in viewport
-        const overlayWrapper = document.getElementById('imageViewerTargetImageWrapper');
-        const overlayWindow = overlayWrapper?.closest('#overlayWindow');
-        if (!overlayWrapper || !overlayWindow) {
+        // Get overlay window position in viewport
+        const overlayWindow = document.querySelector('#overlayWindow');
+        if (!overlayWindow) {
             return { x: panX, y: panY };
         }
         const overlayRect = overlayWindow.getBoundingClientRect();
@@ -318,6 +283,16 @@ export class ImageViewer {
         const imageRight = overlayCenterX + scaledImageWidth / 2 + panX;
         const imageTop = overlayCenterY - scaledImageHeight / 2 + panY;
         const imageBottom = overlayCenterY + scaledImageHeight / 2 + panY;
+        // TESTING: Stop at first inflection point (widthMatch or heightMatch, whichever comes first)
+        const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        if (scale >= firstInflectionScale && scale <= firstInflectionScale + 0.01) {
+            // At first inflection - stop here for testing
+            console.log('STOPPED AT FIRST INFLECTION POINT - Scale:', scale, 'First inflection:', firstInflectionScale);
+            constrainedX = 0;
+            constrainedY = 0;
+            // Prevent further zooming in for testing
+            return { x: constrainedX, y: constrainedY };
+        }
         if (state === 'zoomedOut' || state === 'widthMatch') {
             // Locked to center - no panning allowed
             constrainedX = 0;
@@ -395,35 +370,14 @@ export class ImageViewer {
      * Set up event handlers for navigation and controls.
      */
     setupEventHandlers(windowEl) {
-        // Previous/Next navigation
-        const prevLink = windowEl.querySelector('#retargetImageViewerToPreviousLink');
-        const nextLink = windowEl.querySelector('#retargetImageViewerToNextLink');
-        const closeLink = windowEl.querySelector('#closeImageViewerLink');
-        if (prevLink) {
-            prevLink.addEventListener('click', () => {
-                this.navigateImage(-1);
-            });
-        }
-        if (nextLink) {
-            nextLink.addEventListener('click', () => {
-                this.navigateImage(1);
-            });
-        }
-        if (closeLink) {
-            closeLink.addEventListener('click', () => {
-                this.cleanup();
-            });
-        }
-        // Touch handlers for swipe navigation
-        const imageWrapper = windowEl.querySelector('#imageViewerTargetImageWrapper');
-        if (imageWrapper) {
-            imageWrapper.addEventListener('touchstart', (e) => this.handleTouchStart(e));
-            imageWrapper.addEventListener('touchmove', (e) => this.handleTouchMove(e));
-            imageWrapper.addEventListener('touchend', (e) => this.handleTouchEnd(e));
-        }
-        // Wheel zoom
-        if (imageWrapper) {
-            imageWrapper.addEventListener('wheel', (e) => this.handleWheelZoom(e));
+        // Touch handlers for swipe navigation - attach to zoom container
+        const zoomContainer = windowEl.querySelector('#imageZoomContainer');
+        if (zoomContainer) {
+            zoomContainer.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+            zoomContainer.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+            zoomContainer.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+            // Wheel zoom
+            zoomContainer.addEventListener('wheel', (e) => this.handleWheelZoom(e));
         }
         // Window resize handler
         this.resizeHandler = () => {
@@ -453,10 +407,9 @@ export class ImageViewer {
         const currentImage = this.images[this.currentImageIndex];
         const pageWidth = this.getPageWidth();
         const pageHeight = this.getPageHeight();
-        const maxOverlayWidth = pageWidth - 40;
-        const maxOverlayHeight = pageHeight - 40;
-        const maxImageWidth = maxOverlayWidth - 40;
-        const maxImageHeight = maxOverlayHeight - 80;
+        // Calculate max dimensions with border space (40px margin on all sides)
+        const maxImageWidth = pageWidth - 80;
+        const maxImageHeight = pageHeight - 80;
         // Get best instance for display
         const displayInstance = this.getBestInstance(maxImageWidth, currentImage.instances);
         if (!displayInstance) {
@@ -467,8 +420,6 @@ export class ImageViewer {
         const displayDims = this.calculateDisplayDimensions(displayInstance, maxImageWidth, maxImageHeight);
         const imageWidth = displayDims.width;
         const imageHeight = displayDims.height;
-        const overlayWidth = imageWidth + 40;
-        const overlayHeight = imageHeight + 80;
         // Format image src with /srv/images/ prefix
         const imageSrc = displayInstance.src.startsWith('/srv/images/')
             ? displayInstance.src
@@ -503,64 +454,25 @@ export class ImageViewer {
             zoomContainer.style.transform = 'scale(1)';
             zoomContainer.style.transformOrigin = 'center center';
         }
-        // Update dimensions
-        windowEl.style.width = `${overlayWidth}px`;
-        windowEl.style.height = `${overlayHeight}px`;
-        windowEl.style.maxWidth = `${overlayWidth}px`;
-        windowEl.style.maxHeight = `${overlayHeight}px`;
-        // Update image wrapper dimensions
-        const imageWrapper = windowEl.querySelector('#imageViewerTargetImageWrapper');
-        if (imageWrapper) {
-            imageWrapper.style.width = `${imageWidth}px`;
-            imageWrapper.style.height = `${imageHeight}px`;
-        }
-        // Update caption
-        const caption = windowEl.querySelector('#imageViewerCaption');
-        if (caption) {
-            caption.textContent = currentImage.caption;
-            caption.style.width = `${overlayWidth - 36}px`;
-        }
-        // Update visibility
-        const visibility = windowEl.querySelector('#imageViewerVisibility');
-        if (visibility) {
-            let visibilityText = '';
-            switch (currentImage.visibility.toString()) {
-                case '-1':
-                    visibilityText = 'PRIVATE';
-                    break;
-                case '0':
-                    visibilityText = 'HIDDEN';
-                    break;
-                default:
-                    visibilityText = '';
-                    break;
-            }
-            visibility.textContent = visibilityText;
-        }
-        // Update control links
-        const controlLinks = windowEl.querySelector('#imageViewerControlLinks');
-        if (controlLinks) {
-            let linksHtml = '';
-            if (this.images.length > 1) {
-                linksHtml = `<a id="retargetImageViewerToPreviousLink">&lt;&lt;</a>${this.currentImageIndex + 1}/${this.images.length}<a id="retargetImageViewerToNextLink">&gt;&gt;</a>`;
-            }
-            linksHtml += '<a id="closeImageViewerLink">close</a>';
-            controlLinks.innerHTML = linksHtml;
-            controlLinks.style.width = `${overlayWidth - 36}px`;
-            // Re-attach event handlers
-            const prevLink = windowEl.querySelector('#retargetImageViewerToPreviousLink');
-            const nextLink = windowEl.querySelector('#retargetImageViewerToNextLink');
-            const closeLink = windowEl.querySelector('#closeImageViewerLink');
-            if (prevLink) {
-                prevLink.addEventListener('click', () => this.navigateImage(-1));
-            }
-            if (nextLink) {
-                nextLink.addEventListener('click', () => this.navigateImage(1));
-            }
-            if (closeLink) {
-                closeLink.addEventListener('click', () => this.cleanup());
-            }
-        }
+        // Update dimensions - window scales 1:1 with image
+        windowEl.style.width = `${imageWidth}px`;
+        windowEl.style.height = `${imageHeight}px`;
+        windowEl.style.maxWidth = `${imageWidth}px`;
+        windowEl.style.maxHeight = `${imageHeight}px`;
+        // Update base dimensions for zoom calculations
+        this.baseImageWidth = imageWidth;
+        this.baseImageHeight = imageHeight;
+        this.baseOverlayWidth = imageWidth;
+        this.baseOverlayHeight = imageHeight;
+        // Recalculate special point scales
+        const viewportWidth = this.getPageWidth();
+        const viewportHeight = this.getPageHeight();
+        this.scaleForWidthMatch = viewportWidth / imageWidth;
+        this.scaleForHeightMatch = viewportHeight / imageHeight;
+        // Reset pan and scale
+        this.currentScale = 1.0;
+        this.panX = 0;
+        this.panY = 0;
         // Preload full-size image
         const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
         const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
@@ -583,6 +495,7 @@ export class ImageViewer {
         const touch = event.touches[0];
         this.touchStartX = touch.clientX;
         this.touchStartY = touch.clientY;
+        this.touchStartTime = event.timeStamp;
     }
     /**
      * Handle touch move - prevent scrolling if not zoomed.
@@ -598,21 +511,32 @@ export class ImageViewer {
         }
     }
     /**
-     * Handle touch end - detect swipe gestures.
+     * Handle touch end - detect swipe gestures for navigation (at default state only).
+     * Uses momentum/threshold approach to distinguish navigation swipes from panning.
      */
     handleTouchEnd(event) {
         const zoomContainer = document.getElementById('imageZoomContainer');
         if (!zoomContainer)
             return;
         const scale = parseFloat(zoomContainer.dataset.scale) || 1;
-        if (scale === 1 && this.touchStartX !== null && this.touchStartY !== null) {
+        // Only handle swipe navigation at default state (scale === 1.0)
+        // When zoomed, swipes are handled by interact.js drag gestures
+        if (scale === 1.0 && this.touchStartX !== null && this.touchStartY !== null) {
             const touch = event.changedTouches[0];
             const touchEndX = touch.clientX;
             const touchEndY = touch.clientY;
             const deltaX = touchEndX - this.touchStartX;
             const deltaY = touchEndY - this.touchStartY;
-            // Check if the swipe is horizontal and long enough
-            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+            const deltaTime = this.touchStartTime ? event.timeStamp - this.touchStartTime : 0;
+            // Calculate swipe distance and velocity
+            const swipeDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+            const velocity = deltaTime > 0 ? swipeDistance / deltaTime : 0;
+            // Threshold for navigation swipe: must be horizontal, long enough, and fast enough
+            // Standard approach: 100px minimum distance or high velocity (0.3 pixels per ms)
+            const minSwipeDistance = 100;
+            const minSwipeVelocity = 0.3;
+            if (isHorizontal && (swipeDistance >= minSwipeDistance || velocity >= minSwipeVelocity)) {
                 if (deltaX > 0) {
                     // Swipe right - go to previous image
                     if (this.images.length > 1) {
@@ -630,6 +554,7 @@ export class ImageViewer {
         // Reset touch positions
         this.touchStartX = null;
         this.touchStartY = null;
+        this.touchStartTime = null;
     }
     /**
      * Handle wheel zoom.
@@ -664,6 +589,12 @@ export class ImageViewer {
         }
         const minScale = 1;
         const maxScale = 3; // 300% of full size
+        // TESTING: Stop at first inflection point
+        const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        if (scale > firstInflectionScale) {
+            scale = firstInflectionScale;
+            console.log('STOPPED AT FIRST INFLECTION POINT - Scale limited to:', scale);
+        }
         scale = Math.max(minScale, Math.min(maxScale, scale));
         this.currentScale = scale;
         // Update overlay size
@@ -726,6 +657,12 @@ export class ImageViewer {
         let scale = initialScale * event.scale;
         const minScale = 1;
         const maxScale = 3;
+        // TESTING: Stop at first inflection point
+        const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        if (scale > firstInflectionScale) {
+            scale = firstInflectionScale;
+            console.log('STOPPED AT FIRST INFLECTION POINT (gesture) - Scale limited to:', scale);
+        }
         scale = Math.max(minScale, Math.min(maxScale, scale));
         this.currentScale = scale;
         // Update overlay size
