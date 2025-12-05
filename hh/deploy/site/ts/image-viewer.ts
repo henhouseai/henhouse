@@ -462,12 +462,10 @@ export class ImageViewer {
     }, { passive: false });
 
     // Create container (static styles in CSS, only dimensions and zIndex are dynamic)
-    // Start with image size - we'll calculate actual container size after it's in DOM
     this.container = document.createElement('div');
     this.container.id = 'imageViewerContainer';
-    this.container.style.width = `${imageWidth}px`;
-    this.container.style.height = `${imageHeight}px`;
     this.container.style.zIndex = String(this.zIndex + 1);
+    // Don't set size yet - we'll calculate it after appending to DOM
 
     // Create zoom container (outer wrapper, has padding)
     const zoomContainer = document.createElement('div');
@@ -493,6 +491,9 @@ export class ImageViewer {
     // Append to body
     document.body.appendChild(this.backdrop);
     document.body.appendChild(this.container);
+
+    // Force a reflow to ensure styles are applied
+    void this.container.offsetHeight;
 
     // Now that container is in DOM, calculate actual container size including padding/border
     // Get computed styles to detect actual padding and border values
@@ -530,7 +531,7 @@ export class ImageViewer {
     const finalContainerWidth = imageWidth + totalLeft + totalRight;
     const finalContainerHeight = imageHeight + totalTop + totalBottom;
     
-    // Update container dimensions
+    // Set container dimensions (now with correct size from the start)
     this.container.style.width = `${finalContainerWidth}px`;
     this.container.style.height = `${finalContainerHeight}px`;
     this.container.style.maxWidth = `${finalContainerWidth}px`;
