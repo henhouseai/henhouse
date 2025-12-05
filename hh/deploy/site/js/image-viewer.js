@@ -139,12 +139,20 @@ export class ImageViewer {
         const imageWidth = displayDims.width;
         const imageHeight = displayDims.height;
         // Store base dimensions for zoom calculations
-        // Window scales 1:1 with image (no extra padding)
+        // Container includes padding (20px) and border (3px) on each side
+        // Total extra space per side: 20px (container padding) + 20px (zoomContainer padding) + 3px (border) = 43px
+        // So container is larger than image by 86px total (43px * 2)
+        const containerPadding = 20; // Container padding
+        const zoomContainerPadding = 20; // ZoomContainer padding  
+        const borderWidth = 3; // Border width
+        const totalPaddingPerSide = containerPadding + zoomContainerPadding + borderWidth; // 43px per side
         this.baseImageWidth = imageWidth;
         this.baseImageHeight = imageHeight;
-        this.baseOverlayWidth = imageWidth;
-        this.baseOverlayHeight = imageHeight;
-        // Calculate special point scales
+        // Container size = image size + padding/border on both sides
+        this.baseOverlayWidth = imageWidth + (totalPaddingPerSide * 2);
+        this.baseOverlayHeight = imageHeight + (totalPaddingPerSide * 2);
+        // Calculate special point scales based on IMAGE size touching viewport edge
+        // Not container size - we want image to touch edge, not container border
         const viewportWidth = this.getPageWidth();
         const viewportHeight = this.getPageHeight();
         this.scaleForWidthMatch = viewportWidth / imageWidth;
@@ -364,12 +372,19 @@ export class ImageViewer {
             this.handleTouchEnd(e);
         }, { passive: false });
         // Create container (static styles in CSS, only dimensions and zIndex are dynamic)
+        // Container size includes padding (20px) and border (3px) on each side
+        const containerPadding = 20;
+        const zoomContainerPadding = 20;
+        const borderWidth = 3;
+        const totalPaddingPerSide = containerPadding + zoomContainerPadding + borderWidth;
+        const containerWidth = imageWidth + (totalPaddingPerSide * 2);
+        const containerHeight = imageHeight + (totalPaddingPerSide * 2);
         this.container = document.createElement('div');
         this.container.id = 'imageViewerContainer';
-        this.container.style.width = `${imageWidth}px`;
-        this.container.style.height = `${imageHeight}px`;
-        this.container.style.maxWidth = `${imageWidth}px`;
-        this.container.style.maxHeight = `${imageHeight}px`;
+        this.container.style.width = `${containerWidth}px`;
+        this.container.style.height = `${containerHeight}px`;
+        this.container.style.maxWidth = `${containerWidth}px`;
+        this.container.style.maxHeight = `${containerHeight}px`;
         this.container.style.zIndex = String(this.zIndex + 1);
         // Create zoom container (outer wrapper, has padding)
         const zoomContainer = document.createElement('div');
