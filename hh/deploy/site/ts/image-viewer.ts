@@ -436,6 +436,30 @@ export class ImageViewer {
       }
     });
 
+    // Prevent default touch behaviors on backdrop (pinch-to-zoom, etc.)
+    this.backdrop.addEventListener('touchstart', (e) => {
+      // Prevent default browser zoom when pinching on backdrop
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+      // Also handle touch for gesture detection
+      this.handleTouchStart(e);
+    }, { passive: false });
+    
+    this.backdrop.addEventListener('touchmove', (e) => {
+      // Prevent default browser zoom/scroll when pinching
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+      // Also handle touch for gesture detection
+      this.handleTouchMove(e);
+    }, { passive: false });
+    
+    this.backdrop.addEventListener('touchend', (e) => {
+      // Handle touch end for gesture detection
+      this.handleTouchEnd(e);
+    }, { passive: false });
+
     // Create container (static styles in CSS, only dimensions and zIndex are dynamic)
     this.container = document.createElement('div');
     this.container.id = 'imageViewerContainer';
@@ -481,12 +505,31 @@ export class ImageViewer {
     // Touch handlers for swipe navigation - attach to zoom container
     const zoomContainer = document.getElementById('imageZoomContainer');
     if (zoomContainer) {
-      zoomContainer.addEventListener('touchstart', (e) => this.handleTouchStart(e));
-      zoomContainer.addEventListener('touchmove', (e) => this.handleTouchMove(e));
-      zoomContainer.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+      zoomContainer.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+      zoomContainer.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+      zoomContainer.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
       
       // Wheel zoom
       zoomContainer.addEventListener('wheel', (e) => this.handleWheelZoom(e));
+    }
+
+    // Also attach touch handlers to container to catch gestures there too
+    if (this.container) {
+      this.container.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) {
+          e.preventDefault(); // Prevent browser zoom
+        }
+        this.handleTouchStart(e);
+      }, { passive: false });
+      
+      this.container.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 1) {
+          e.preventDefault(); // Prevent browser zoom
+        }
+        this.handleTouchMove(e);
+      }, { passive: false });
+      
+      this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
     }
 
     // Window resize handler

@@ -9,6 +9,7 @@
     height: 100%;
     background-color: rgba(0, 0, 0, 0.7);
     cursor: pointer;
+    touch-action: none; /* Prevent default touch behaviors (pinch-to-zoom, etc.) */
 }
 
 /* Container - centered window that scales with image */
@@ -22,6 +23,7 @@
     border: 3px solid red;
     pointer-events: auto;
     cursor: default;
+    touch-action: none; /* Prevent default touch behaviors (pinch-to-zoom, etc.) */
     /* width, height, maxWidth, maxHeight, zIndex set dynamically */
 }
 
