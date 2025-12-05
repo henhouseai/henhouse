@@ -78,6 +78,21 @@ class FileContentMixin:
         trace_out()
         return not is_error()
 
+    def modify_visibility(self, visibility: int) -> bool:
+        trace_in()
+        log(f"Modifying visibility for file {self.id}: {self.visibility} -> {visibility}")
+        if not is_error():
+            affected = self.gateway.conn.update("UPDATE files SET visibility = %s WHERE id = %s", (visibility, self.id))
+            if affected == 0:
+                warn(f"Failed to update file {self.id} visibility - no rows affected")
+                report_error("action", f"Failed to update file {self.id} visibility")
+            else:
+                self.visibility = visibility
+                log(f"Successfully updated visibility for file {self.id}")
+                self.flag_file_modification("visibility updated")
+        trace_out()
+        return not is_error()
+
     def get_file_data(self) -> Dict[str, Any]:
         trace_in()
         data = {

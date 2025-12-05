@@ -488,3 +488,35 @@ class PageContentMixin:
                         parent_page.flag_page_modification("child page modified")
         trace_out()
         return not is_error()
+
+    def modify_visibility(self, visibility: int) -> bool:
+        """Modify the visibility of a page"""
+        trace_in()
+        log(f"Modifying visibility for page {self.id}: {self.visibility} -> {visibility}")
+        if not is_error():
+            affected = self.gateway.conn.update("UPDATE pages SET visibility = %s WHERE id = %s", (visibility, self.id))
+            if affected == 0:
+                warn(f"Failed to update page {self.id} visibility - no rows affected")
+                report_error("action", f"Failed to update page {self.id} visibility")
+            else:
+                self.visibility = visibility
+                log(f"Successfully updated visibility for page {self.id}")
+                self.flag_page_modification("visibility updated")
+        trace_out()
+        return not is_error()
+
+    def modify_display_style(self, display_style: int) -> bool:
+        """Modify the display style of a page"""
+        trace_in()
+        log(f"Modifying display style for page {self.id}: {getattr(self, 'displayStyle', None)} -> {display_style}")
+        if not is_error():
+            affected = self.gateway.conn.update("UPDATE pages SET displayStyle = %s WHERE id = %s", (display_style, self.id))
+            if affected == 0:
+                warn(f"Failed to update page {self.id} display style - no rows affected")
+                report_error("action", f"Failed to update page {self.id} display style")
+            else:
+                self.displayStyle = display_style
+                log(f"Successfully updated display style for page {self.id}")
+                self.flag_page_modification("display style updated")
+        trace_out()
+        return not is_error()

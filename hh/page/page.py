@@ -94,6 +94,7 @@ class Page(
             self.parent = page_data.get('parent')
             self.class_name = page_data.get('class')
             self.visibility = page_data.get('visibility')
+            self.displayStyle = page_data.get('displayStyle')
             self.text = page_data.get('text')
             self.last_modified = page_data.get('last_modified')
             self.cache_built_at = page_data.get('cache_built_at')

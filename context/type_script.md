@@ -90,8 +90,12 @@ Core files in `hh/deploy/site/ts/`:
 - `page-data.ts` - Base PageData class
 - `page-data-factory.ts` - Factory for derived classes
 - Derived classes: `source-code-file-page-data.ts`, `mcp-request-page-data.ts`, `mcp-action-page-data.ts`, `work-page-data.ts`, `work-docket-page-data.ts`
+- `browser.ts` - Browser component for hierarchical navigation and selection
+- `image-group-sorter.ts` - Specialized browser for image sorting
+- `view-toggle.ts` - View toggle system for table/tile switching
 - `upload-handler.ts` - Image upload handler
 - `seed.ts` - Seed data reader
+- Action handlers: `page-actions-fields.ts`, `page-actions-pages.ts`, `page-actions-images.ts`
 
 ---
 
@@ -587,7 +591,136 @@ Handles dynamic view switching for page sections. Listens for clicks on toggle l
 - `backend` parameter allows forcing HTML rendering when called via MCP
 - Ensures HTML tables are rendered even when gateway.backend is 'mcp'
 
-## 10. File Upload
+**Callback System**: See `view-toggle.ts` - `ViewToggleCallbacks` interface:
+- `onBeforeSwap`: Called before DOM replacement (can modify HTML)
+- `onAfterSwap`: Called after DOM replacement (for re-initialization)
+- Used by Browser system to re-intercept links after view toggles
+
+## 10. Browser System
+
+The browser system provides hierarchical navigation and selection within modal overlays, enabling users to select pages or images for operations like move, copy, or image selection.
+
+### Browser Class
+
+**File**: `browser.ts`
+
+Main browser component that manages hierarchical navigation and selection within overlay windows.
+
+**Initialization**: See `browser.ts` - `Browser` constructor:
+- `mode: 'page' | 'image'` - Selection mode (single page ID or multiple image IDs)
+- `initialPageId: number` - Starting page for navigation
+- `onSubmit: (result) => Promise<any>` - Callback when user submits selection
+
+**Navigation Flow**: See `browser.ts` - `loadAndRender()` method:
+1. Calls `get_browser` MCP tool with current page ID
+2. Receives HTML with overlay classes/IDs already applied
+3. Injects HTML into overlay content area
+4. Intercepts all links to retarget browser navigation
+5. User clicks links → browser updates to new page
+
+**Link Interception**: See `browser.ts` - `interceptLinks()` method:
+- Scans overlay window for all `<a>` tags
+- Replaces default navigation with browser retargeting
+- Page links → update browser to new page
+- Image links (in image mode) → add/remove from selection buffer
+- Preserves data attributes (`data-page-id`, `data-image-rank`, etc.)
+
+**Image Selection Mode**: See `browser.ts` - `handleImageClick()` method:
+- When `mode === 'image'`, clicking images adds them to selection buffer
+- Buffer displays selected images as tiles at top of browser
+- Clicking buffer items removes them from selection
+- Same image can be selected multiple times
+- Buffer shows both tile and table views of selected images
+
+**Image Buffer**: See `browser.ts` - `renderImageBuffer()` method:
+- Displays selected images at top of browser overlay
+- Shows tiles and table views simultaneously
+- Clicking any buffer item (tile or row) removes it
+- Buffer updates live as images are added/removed
+
+**View Toggle Integration**: See `browser.ts` - `setupViewToggle()` method:
+- Registers callbacks with ViewToggle system
+- `onAfterSwap`: Re-intercepts links after view toggle completes
+- Ensures link interception works after table/tile swaps
+
+**Z-Stack Support**: See `browser.ts` - `getBrowserWindowElement()` method:
+- Uses `this.overlay.windowEl` to target specific browser overlay
+- Prevents conflicts when multiple overlays are stacked
+- Link interception scoped to browser's specific overlay window
+
+**Submit Handling**: See `browser.ts` - `handleSubmit()` method:
+- Page mode: Returns current page ID as number
+- Image mode: Returns array of selected image IDs
+- Calls `onSubmit` callback with result
+- Callback can return `{ _autoFade: true }` to close browser
+- Callback can return `{ _autoFade: false }` to keep browser open
+
+### Browser Integration Patterns
+
+**Form Integration**: See `page-actions-pages.ts` - `move_page()` and `copy_page()` methods:
+- Forms can include "Browser" middle button
+- Button opens browser overlay as z-stack on top of form
+- Browser callback updates form input field with selected page ID
+- Browser closes automatically after selection
+- Form submit uses the selected page ID
+
+**Image Selection**: See `page-actions-images.ts` - `copy_images_app()` and `move_images_app()` methods:
+- Browser opened in `mode: 'image'`
+- User navigates pages and selects images
+- Selected images stored with `source_page_id` and `source_rank` metadata
+- Submit processes all selected images with their source information
+
+**Callback-Only Mode**: See `page-actions-pages.ts` - `move_page()` onMiddleButton:
+- Browser can be used purely for selection (no MCP calls)
+- Debug options in browser are ignored
+- Only the callback result matters
+- Used for populating form fields
+
+### get_browser Action
+
+**MCP Tool**: `get_browser`
+
+Always returns HTML content with overlay classes/IDs pre-applied. Reuses rendering infrastructure from `show_page` but with overlay-specific modifications.
+
+**Parameters**: See `hh/page/get_browser.py`:
+- `id`: Page ID to display
+- Returns HTML with `overlay_` prefix on all content IDs
+- Uses `render_helpers.py` for consistent rendering
+
+**Overlay Mode**: See `hh/page/render_helpers.py`:
+- `overlay_mode=True` adds `overlay` class to content divs
+- `wrapper_id_prefix='overlay_'` ensures unique IDs
+- Headers and content sections get overlay-specific styling
+
+### ImageGroupSorter
+
+**File**: `image-group-sorter.ts`
+
+Specialized browser extension for sorting images within a page's image group.
+
+**Features**: See `image-group-sorter.ts`:
+- Shows only image group for current page
+- Drag-and-drop reordering using SortableJS library
+- No navigation or image selection (sorting only)
+- Tracks old and new ranks for each image
+- Optimized sorting algorithm (moves largest distance first)
+- Incremental success messages per operation
+- Final verification pass to ensure correct order
+
+**Sorting Algorithm**: See `image-group-sorter.ts` - `handleSubmit()` method:
+- Iteratively moves image with largest rank distance
+- Recalculates distances after each server response
+- Uses `set_image_rank` MCP tool for each move
+- Updates internal rank map from server responses
+- Failsafe: Maximum iterations = number of images
+
+**Integration**: See `page-actions-images.ts` - `sort_images_app()` method:
+- Opens ImageGroupSorter overlay
+- User drags and drops images to reorder
+- Submit triggers optimized sorting algorithm
+- Page refreshes after successful sort
+
+## 11. File Upload
 
 The upload handler provides image file upload functionality with progress tracking and sequential processing.
 
@@ -624,7 +757,7 @@ Handles image file uploads with multi-file support.
 
 ---
 
-## 11. Best Practices
+## 12. Best Practices
 
 ### Handler Development
 
@@ -732,6 +865,8 @@ The TypeScript system provides client-side functionality for the Henhouse HTTP i
 - **Overlay System**: Component-based modal dialogs with array-based content structure
 - **PageData Architecture**: Field management and form processing with automatic MCP tool selection
 - **RPC Integration**: MCP JSON-RPC wrapper with automatic debug handling
+- **Browser System**: Hierarchical navigation and selection within overlays for pages and images
+- **View Toggle System**: Hot-swapping between table and tile views for page sections
 - **Standardized Patterns**: Consistent handler patterns, field registration, and error handling
 - **Debug Integration**: Debug system integrated with overlay UI
 

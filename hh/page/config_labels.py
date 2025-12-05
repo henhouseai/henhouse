@@ -83,5 +83,10 @@ from hh.render.config.config_registry import register_label
 @register_label('children_html',                      'Children HTML:',            '👶')
 @register_label('images_html',                        'Images HTML:',              '🎨')
 @register_label('set_image_rank_header',              'Image Rank Update',         '🔢')
+@register_label('set_page_visibility_header',         'Page Visibility Modification', '👁️')
+@register_label('set_page_display_style_header',      'Page Display Style Modification', '🎨')
+@register_label('set_file_visibility_header',         'File Visibility Modification', '👁️')
+@register_label('extra_data_old_display_style',       'Old Display Style:',          '🎨')
+@register_label('extra_data_new_display_style',       'New Display Style:',          '🎨')
 def _register_config():
     pass

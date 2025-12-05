@@ -60,6 +60,24 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
+@register_mcp_tool(
+    tool_name='set_image_visibility',
+    description='Set the visibility of an image. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'image_id': {'type': 'integer', 'description': 'The ID of the image to modify'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for image_id (use either image_id or id)'},
+            'visibility': {'type': 'integer', 'description': 'The new visibility value for the image'}
+        },
+        'required': ['image_id', 'visibility']
+    },
+    tiers=[3, 4, 7, 8],
+    requires_approval=False,
+    crud_type='update',
+    app_action_group='images',
+    app_action_label='Set Image Visibility'
+)
 def _image_tools_registration():
     """Registration placeholder for all image-related MCP tools."""
     pass

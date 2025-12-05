@@ -24,6 +24,9 @@ from hh.render.config.config_registry import register_label
 @register_label('extra_data_image_id',                'Image ID:',                    '🆔')
 @register_label('extra_data_old_caption',             'Old Caption:',                 '📝')
 @register_label('extra_data_new_caption',             'New Caption:',                 '📝')
+@register_label('set_image_visibility_header',        'Image Visibility Modification', '👁️')
+@register_label('extra_data_old_visibility',            'Old Visibility:',             '👁️')
+@register_label('extra_data_new_visibility',           'New Visibility:',             '👁️')
 def _register_config():
     pass
 
