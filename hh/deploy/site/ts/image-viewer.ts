@@ -69,8 +69,8 @@ export class ImageViewer {
    */
   private async loadAndRender(): Promise<void> {
     try {
-      // Call get_image_group MCP tool
-      const result = await this.rpc.call('get_image_group', { page_id: this.pageId });
+      // Call get_image_group MCP tool (accepts either 'id' or 'page_id')
+      const result = await this.rpc.call('get_image_group', { id: this.pageId });
       const groupData = result.data as ImageGroupResponse;
 
       if (!groupData || !groupData.images || groupData.images.length === 0) {

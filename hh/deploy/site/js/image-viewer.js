@@ -32,8 +32,8 @@ export class ImageViewer {
      */
     async loadAndRender() {
         try {
-            // Call get_image_group MCP tool
-            const result = await this.rpc.call('get_image_group', { page_id: this.pageId });
+            // Call get_image_group MCP tool (accepts either 'id' or 'page_id')
+            const result = await this.rpc.call('get_image_group', { id: this.pageId });
             const groupData = result.data;
             if (!groupData || !groupData.images || groupData.images.length === 0) {
                 throw new Error('No images found in image group');
