@@ -17,6 +17,16 @@ export class ImageViewer {
         this.keyboardHandler = null;
         this.resizeHandler = null;
         this.interactInstance = null;
+        // Zoom/pan state
+        this.baseImageWidth = 0;
+        this.baseImageHeight = 0;
+        this.baseOverlayWidth = 0;
+        this.baseOverlayHeight = 0;
+        this.currentScale = 1.0;
+        this.panX = 0;
+        this.panY = 0;
+        this.scaleForWidthMatch = 1.0;
+        this.scaleForHeightMatch = 1.0;
         this.rpc = new RPCClient();
         this.pageId = pageId;
         this.initialImageId = initialImageId;
@@ -129,6 +139,20 @@ export class ImageViewer {
         const imageHeight = displayDims.height;
         const overlayWidth = imageWidth + 40;
         const overlayHeight = imageHeight + 80;
+        // Store base dimensions for zoom calculations
+        this.baseImageWidth = imageWidth;
+        this.baseImageHeight = imageHeight;
+        this.baseOverlayWidth = overlayWidth;
+        this.baseOverlayHeight = overlayHeight;
+        // Calculate special point scales
+        const viewportWidth = this.getPageWidth();
+        const viewportHeight = this.getPageHeight();
+        this.scaleForWidthMatch = viewportWidth / imageWidth;
+        this.scaleForHeightMatch = viewportHeight / imageHeight;
+        // Reset pan and scale for new image
+        this.currentScale = 1.0;
+        this.panX = 0;
+        this.panY = 0;
         // Format image src with /srv/images/ prefix
         const imageSrc = displayInstance.src.startsWith('/srv/images/')
             ? displayInstance.src
@@ -246,17 +270,126 @@ export class ImageViewer {
             }
         })
             .draggable({
-            inertia: true,
-            modifiers: [
-                interact.modifiers.restrict({
-                    restriction: 'parent',
-                    endOnly: true
-                })
-            ],
+            inertia: false, // Disable inertia for precise control
             listeners: {
-                move: (event) => this.dragMoveListener(event)
+                start: (event) => this.onDragStart(event),
+                move: (event) => this.onDragMove(event),
+                end: (event) => this.onDragEnd(event)
             }
         });
+    }
+    /**
+     * Get current zoom state based on scale.
+     */
+    getZoomState(scale) {
+        if (scale <= 1.0)
+            return 'zoomedOut';
+        if (Math.abs(scale - this.scaleForWidthMatch) < 0.01)
+            return 'widthMatch';
+        if (scale > this.scaleForWidthMatch && scale < this.scaleForHeightMatch)
+            return 'between';
+        if (Math.abs(scale - this.scaleForHeightMatch) < 0.01)
+            return 'heightMatch';
+        return 'zoomedIn';
+    }
+    /**
+     * Apply panning constraints based on zoom state.
+     */
+    applyPanConstraints(scale, panX, panY) {
+        const state = this.getZoomState(scale);
+        const viewportWidth = this.getPageWidth();
+        const viewportHeight = this.getPageHeight();
+        const scaledImageWidth = this.baseImageWidth * scale;
+        const scaledImageHeight = this.baseImageHeight * scale;
+        let constrainedX = panX;
+        let constrainedY = panY;
+        // Get overlay position in viewport
+        const overlayWrapper = document.getElementById('imageViewerTargetImageWrapper');
+        const overlayWindow = overlayWrapper?.closest('#overlayWindow');
+        if (!overlayWrapper || !overlayWindow) {
+            return { x: panX, y: panY };
+        }
+        const overlayRect = overlayWindow.getBoundingClientRect();
+        const overlayCenterX = overlayRect.left + overlayRect.width / 2;
+        const overlayCenterY = overlayRect.top + overlayRect.height / 2;
+        // Calculate image bounds in viewport coordinates
+        // Image is centered in overlay, so offset from overlay center
+        const imageLeft = overlayCenterX - scaledImageWidth / 2 + panX;
+        const imageRight = overlayCenterX + scaledImageWidth / 2 + panX;
+        const imageTop = overlayCenterY - scaledImageHeight / 2 + panY;
+        const imageBottom = overlayCenterY + scaledImageHeight / 2 + panY;
+        if (state === 'zoomedOut' || state === 'widthMatch') {
+            // Locked to center - no panning allowed
+            constrainedX = 0;
+            constrainedY = 0;
+        }
+        else if (state === 'between') {
+            // X panning enabled, Y locked to center
+            constrainedY = 0;
+            // Constrain X so image edges don't go past viewport
+            const minX = viewportWidth / 2 - imageRight; // When right edge hits right viewport
+            const maxX = viewportWidth / 2 - imageLeft; // When left edge hits left viewport
+            constrainedX = Math.max(minX, Math.min(maxX, panX));
+        }
+        else {
+            // Both X and Y panning enabled
+            // Constrain so image edges don't go past viewport
+            const minX = viewportWidth / 2 - imageRight;
+            const maxX = viewportWidth / 2 - imageLeft;
+            const minY = viewportHeight / 2 - imageBottom;
+            const maxY = viewportHeight / 2 - imageTop;
+            constrainedX = Math.max(minX, Math.min(maxX, panX));
+            constrainedY = Math.max(minY, Math.min(maxY, panY));
+        }
+        return { x: constrainedX, y: constrainedY };
+    }
+    /**
+     * Update overlay size based on current scale.
+     */
+    updateOverlaySize(scale) {
+        const overlayWindow = document.querySelector('#overlayWindow');
+        if (!overlayWindow)
+            return;
+        const scaledWidth = this.baseOverlayWidth * scale;
+        const scaledHeight = this.baseOverlayHeight * scale;
+        overlayWindow.style.width = `${scaledWidth}px`;
+        overlayWindow.style.height = `${scaledHeight}px`;
+        overlayWindow.style.maxWidth = `${scaledWidth}px`;
+        overlayWindow.style.maxHeight = `${scaledHeight}px`;
+    }
+    /**
+     * Handle drag start.
+     */
+    onDragStart(event) {
+        // Store initial pan position
+        const zoomContainer = event.target;
+        const dataset = zoomContainer.dataset;
+        dataset.initialPanX = this.panX.toString();
+        dataset.initialPanY = this.panY.toString();
+    }
+    /**
+     * Handle drag move with state-based constraints.
+     */
+    onDragMove(event) {
+        const zoomContainer = event.target;
+        const dataset = zoomContainer.dataset;
+        const initialPanX = parseFloat(dataset.initialPanX) || 0;
+        const initialPanY = parseFloat(dataset.initialPanY) || 0;
+        // Calculate new pan position from gesture
+        const newPanX = initialPanX + event.dx;
+        const newPanY = initialPanY + event.dy;
+        // Apply constraints based on zoom state
+        const constrained = this.applyPanConstraints(this.currentScale, newPanX, newPanY);
+        this.panX = constrained.x;
+        this.panY = constrained.y;
+        // Update transform
+        zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.currentScale})`;
+    }
+    /**
+     * Handle drag end.
+     */
+    onDragEnd(event) {
+        // Pan constraints are already applied in onDragMove
     }
     /**
      * Set up event handlers for navigation and controls.
@@ -506,7 +639,7 @@ export class ImageViewer {
         const zoomContainer = document.getElementById('imageZoomContainer');
         if (!zoomContainer)
             return;
-        let scale = parseFloat(zoomContainer.dataset.scale) || 1;
+        let scale = this.currentScale;
         // Load full-size image if not already loaded
         if (!zoomContainer.dataset.fullsize || zoomContainer.dataset.fullsize === 'false') {
             const currentImage = this.images[this.currentImageIndex];
@@ -522,6 +655,7 @@ export class ImageViewer {
         }
         const zoomSensitivity = 0.1;
         const delta = event.deltaY;
+        const oldScale = scale;
         if (delta < 0) {
             scale += zoomSensitivity;
         }
@@ -531,9 +665,30 @@ export class ImageViewer {
         const minScale = 1;
         const maxScale = 3; // 300% of full size
         scale = Math.max(minScale, Math.min(maxScale, scale));
+        this.currentScale = scale;
+        // Update overlay size
+        this.updateOverlaySize(scale);
+        // Check if crossing special points when zooming out - snap to center
+        const oldState = this.getZoomState(oldScale);
+        const newState = this.getZoomState(scale);
+        if (delta > 0 && (oldState === 'between' || oldState === 'zoomedIn' || oldState === 'heightMatch') &&
+            (newState === 'widthMatch' || newState === 'zoomedOut')) {
+            // Zooming out past special point - snap to center
+            this.panX = 0;
+            this.panY = 0;
+        }
+        else if (delta > 0 && oldState === 'zoomedIn' && newState === 'heightMatch') {
+            // Zooming out to height match - keep X pan, center Y
+            this.panY = 0;
+        }
+        // Apply pan constraints
+        const constrained = this.applyPanConstraints(scale, this.panX, this.panY);
+        this.panX = constrained.x;
+        this.panY = constrained.y;
+        // Update transforms
         zoomContainer.dataset.scale = scale.toString();
         zoomContainer.style.transformOrigin = 'center center';
-        zoomContainer.style.transform = `scale(${scale})`;
+        zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
     }
     /**
      * Interact.js gesture start handler.
@@ -572,23 +727,22 @@ export class ImageViewer {
         const minScale = 1;
         const maxScale = 3;
         scale = Math.max(minScale, Math.min(maxScale, scale));
-        dataset.scale = scale.toString();
+        this.currentScale = scale;
+        // Update overlay size
+        this.updateOverlaySize(scale);
         const initialX = parseFloat(dataset.initialX) || 0;
         const initialY = parseFloat(dataset.initialY) || 0;
-        const x = initialX + event.deltaX;
-        const y = initialY + event.deltaY;
-        // Calculate boundaries
-        const imageWidth = target.offsetWidth * scale;
-        const imageHeight = target.offsetHeight * scale;
-        const containerWidth = target.parentElement.offsetWidth;
-        const containerHeight = target.parentElement.offsetHeight;
-        const maxX = Math.max(0, (imageWidth - containerWidth) / 2);
-        const maxY = Math.max(0, (imageHeight - containerHeight) / 2);
-        const constrainedX = Math.max(-maxX, Math.min(x, maxX));
-        const constrainedY = Math.max(-maxY, Math.min(y, maxY));
-        dataset.x = constrainedX.toString();
-        dataset.y = constrainedY.toString();
-        target.style.transform = `translate(${constrainedX}px, ${constrainedY}px) scale(${scale})`;
+        // Calculate pan from gesture (deltaX/deltaY are relative to initial position)
+        const newPanX = initialX + event.deltaX;
+        const newPanY = initialY + event.deltaY;
+        // Apply constraints based on zoom state
+        const constrained = this.applyPanConstraints(scale, newPanX, newPanY);
+        this.panX = constrained.x;
+        this.panY = constrained.y;
+        dataset.scale = scale.toString();
+        dataset.x = this.panX.toString();
+        dataset.y = this.panY.toString();
+        target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
         target.style.transformOrigin = 'center center';
     }
     /**
