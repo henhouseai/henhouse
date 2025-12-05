@@ -11,6 +11,7 @@ CSS_ALWAYS_INCLUDE: List[str] = [
     'hh/deploy/site/css/tiles.css',
     'hh/deploy/site/css/pygments.css',
     'hh/deploy/site/css/overlay.css',
+    'hh/deploy/site/css/image-viewer.css',
 ]
 
 # Full whitelist of all CSS files that can be included via gateway.add_css_link()
