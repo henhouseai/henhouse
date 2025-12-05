@@ -480,6 +480,21 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='pages',
     app_action_label='Display Style'
 )
+@register_mcp_tool(
+    tool_name='get_image_group',
+    description='Get JSON data for all images in a page\'s image group. Returns image metadata including instances for use in image viewer.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'integer', 'description': 'The ID of the page to get images from'},
+            'page_id': {'type': 'integer', 'description': 'Alternative parameter name for id'}
+        },
+        'required': ['id']
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""
     pass

@@ -8,6 +8,7 @@ import { Overlay } from './overlay/overlay.js';
 import { RPCClient } from './rpc-client.js';
 import { getSeedData } from './seed.js';
 import { getViewToggleInstance, ViewToggleCallbacks } from './view-toggle.js';
+import { interceptLinks as interceptLinksHelper } from './overlay/overlay-link-helpers.js';
 
 export type BrowserMode = 'page' | 'image' | 'file';
 
@@ -140,13 +141,6 @@ export class Browser {
     // Set up link interception after a short delay to ensure DOM is ready
     setTimeout(() => {
       this.injectAndIntercept();
-      // Set up buffer click handlers if in image mode
-      if (this.mode === 'image') {
-        const windowEl = this.getBrowserWindowElement();
-        if (windowEl) {
-          this.setupBufferClickHandlers(windowEl);
-        }
-      }
     }, 50);
 
     } catch (error) {
@@ -206,13 +200,8 @@ export class Browser {
       submitBtn.textContent = this.getSubmitLabel();
     }
 
-    // Re-intercept links after content update
+    // Re-intercept links after content update (includes buffer tiles via custom matcher)
     this.interceptLinks(windowEl);
-    
-    // Set up buffer tile click handlers
-    if (this.mode === 'image') {
-      this.setupBufferClickHandlers(windowEl);
-    }
   }
 
   /**
@@ -288,41 +277,15 @@ export class Browser {
    * Intercept all links in the browser content.
    */
   private interceptLinks(container: HTMLElement): void {
-    // Find all links
-    const links = container.querySelectorAll<HTMLAnchorElement>('a[href]');
-    
-    links.forEach(link => {
-      // Skip toggle links - let view-toggle.ts handle them
-      if (link.classList.toString().includes('updatePageView_')) {
-        return;
-      }
+    interceptLinksHelper(container, {
+      // Page links: retarget browser to new page
+      onPageLink: (pageId: number, link: HTMLAnchorElement) => {
+        this.retargetBrowser(pageId);
+      },
 
-      // Skip links that already have our click handler (avoid duplicate listeners)
-      if ((link as any).__browserIntercepted) {
-        return;
-      }
-
-      const href = link.getAttribute('href');
-      if (!href) return;
-
-      // Check if it's a page link (starts with / and is numeric)
-      const pageMatch = href.match(/^\/(\d+)$/);
-      if (pageMatch) {
-        const pageId = parseInt(pageMatch[1], 10);
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.retargetBrowser(pageId);
-        });
-        (link as any).__browserIntercepted = true;
-        return;
-      }
-
-      // Check if it's an image link (starts with /img/)
-      const imageMatch = href.match(/^\/img\/(\d+)$/);
-      if (imageMatch && (this.mode === 'image' || this.mode === 'file')) {
-        const imageId = parseInt(imageMatch[1], 10);
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
+      // Image links: handle image selection (only in image/file mode)
+      onImageLink: (imageId: number, link: HTMLAnchorElement) => {
+        if (this.mode === 'image' || this.mode === 'file') {
           // Find the tile element (parent <a> contains the tile)
           const tileLink = link.closest('a.tileLink');
           if (tileLink) {
@@ -331,33 +294,36 @@ export class Browser {
             const sourceRank = parseInt(tileLink.getAttribute('data-image-rank') || '0', 10);
             this.handleImageClick(imageId, sourcePageId, sourceRank, tileLink as HTMLElement);
           }
-        });
-        (link as any).__browserIntercepted = true;
-        return;
-      }
-      
-      // Check if it's a buffer tile click (starts with selected_image_)
-      if (link.id && link.id.startsWith('selected_image_') && this.mode === 'image') {
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
+        }
+      },
+
+      // File links: prevent default navigation (for now)
+      onFileLink: (fileId: number, link: HTMLAnchorElement) => {
+        if (this.mode === 'file') {
+          // For now, we'll handle file selection later
+          // Just prevent default navigation (already handled by helper)
+        }
+      },
+
+      // Custom matcher for buffer tile clicks (ID-based, not href-based)
+      customMatcher: (href: string, link: HTMLAnchorElement) => {
+        // Buffer tiles have IDs starting with "selected_image_" and no href
+        if (link.id && link.id.startsWith('selected_image_') && this.mode === 'image') {
+          return true;
+        }
+        return false;
+      },
+
+      // Custom handler for buffer tile clicks
+      customHandler: (href: string, link: HTMLAnchorElement) => {
+        if (link.id && link.id.startsWith('selected_image_')) {
           const bufferIndex = parseInt(link.id.replace('selected_image_', ''), 10);
           this.handleBufferImageClick(bufferIndex);
-        });
-        (link as any).__browserIntercepted = true;
-        return;
-      }
+        }
+      },
 
-      // Check if it's a file link (starts with /file/)
-      const fileMatch = href.match(/^\/file\/(.+)$/);
-      if (fileMatch && this.mode === 'file') {
-        // For now, we'll handle file selection later
-        // Just prevent default navigation
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-        });
-        (link as any).__browserIntercepted = true;
-        return;
-      }
+      // Use browser-specific marker to avoid conflicts
+      markerProperty: '__browserIntercepted'
     });
   }
 
@@ -571,34 +537,6 @@ ${tableRowsHtml}
     }
   }
 
-  /**
-   * Set up click handlers for buffer tiles and table rows.
-   */
-  private setupBufferClickHandlers(container: HTMLElement): void {
-    // Handle buffer tile clicks
-    const bufferTiles = container.querySelectorAll('#browserImageBuffer a.tileLink[id^="selected_image_"]');
-    bufferTiles.forEach(tile => {
-      if ((tile as any).__bufferIntercepted) return;
-      const bufferIndex = parseInt(tile.id.replace('selected_image_', ''), 10);
-      tile.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.handleBufferImageClick(bufferIndex);
-      });
-      (tile as any).__bufferIntercepted = true;
-    });
-
-    // Handle buffer table row clicks
-    const bufferTableLinks = container.querySelectorAll('#browserImageBufferTable a.bufferTableLink[id^="selected_image_"]');
-    bufferTableLinks.forEach(link => {
-      if ((link as any).__bufferIntercepted) return;
-      const bufferIndex = parseInt(link.id.replace('selected_image_', ''), 10);
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.handleBufferImageClick(bufferIndex);
-      });
-      (link as any).__bufferIntercepted = true;
-    });
-  }
 
   /**
    * Get submit button label based on mode and selection.
