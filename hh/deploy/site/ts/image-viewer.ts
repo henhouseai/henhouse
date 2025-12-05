@@ -3,8 +3,6 @@
  * Ported from legacy/core/js/image.js
  */
 
-import { OverlayManager } from './overlay/overlay-manager.js';
-import { Overlay } from './overlay/overlay.js';
 import { RPCClient } from './rpc-client.js';
 // Import interact.js as a side-effect (it will be available as window.interact)
 import './interact.min.js';
@@ -39,7 +37,8 @@ interface ImageGroupResponse {
 
 export class ImageViewer {
   private rpc: RPCClient;
-  private overlay: Overlay | null = null;
+  private backdrop: HTMLElement | null = null;
+  private container: HTMLElement | null = null;
   private pageId: number;
   private images: ImageData[] = [];
   private currentImageIndex: number = 0;
@@ -49,6 +48,7 @@ export class ImageViewer {
   private keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
   private resizeHandler: (() => void) | null = null;
   private interactInstance: any = null;
+  private zIndex: number = 1000;
 
   private initialImageId?: number;
   
@@ -226,12 +226,8 @@ export class ImageViewer {
       ? displayInstance.src 
       : `/srv/images/${displayInstance.src}`;
 
-    // Build HTML - simplified: only imageZoomContainer wrapping the image
-    const imageHtml = `
-      <div id="imageZoomContainer" style="overflow: hidden; position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
-        <img id="imageViewerTargetImage" src="${imageSrc}" alt="${currentImage.caption}" width="${imageWidth}" height="${imageHeight}">
-      </div>
-    `;
+    // Create custom overlay: backdrop + container
+    this.createCustomOverlay(imageWidth, imageHeight, imageSrc, currentImage.caption);
 
     // Preload full-size image (largest instance, which is last in sorted array)
     const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
@@ -241,47 +237,10 @@ export class ImageViewer {
     const preloadImg = new Image();
     preloadImg.src = fullSizeSrc;
 
-    const overlayManager = OverlayManager.getInstance();
-    this.overlay = overlayManager.show({
-      header: '',
-      content: [imageHtml],
-      contentHeaders: [''],
-      closable: true,
-      showSubmit: false,
-      onCancel: () => {
-        this.cleanup();
-      }
-    });
-
-    // Get the overlay window element
-    const windowEl = (this.overlay as any).windowEl;
-    if (!windowEl) {
-      console.error('Could not find overlay window element');
-      return;
-    }
-
-    // Set overlay dimensions and center it
-    // The overlay system uses position: fixed with top: 50% and left: 50%
-    // We need to set transform to center it properly and override default overlay CSS
-    // Window scales 1:1 with image (minimal/invisible container)
-    windowEl.style.width = `${imageWidth}px`;
-    windowEl.style.height = `${imageHeight}px`;
-    windowEl.style.maxWidth = `${imageWidth}px`;
-    windowEl.style.maxHeight = `${imageHeight}px`;
-    windowEl.style.position = 'fixed';
-    windowEl.style.top = '50%';
-    windowEl.style.left = '50%';
-    windowEl.style.transform = 'translate(-50%, -50%)';
-    windowEl.style.marginLeft = '0';
-    windowEl.style.marginTop = '0';
-    windowEl.style.overflow = 'hidden'; // Prevent scrollbars
-    windowEl.style.padding = '0';
-    windowEl.style.border = 'none';
-
     // Set up interact.js after a short delay
     setTimeout(() => {
       this.setupInteract();
-      this.setupEventHandlers(windowEl);
+      this.setupEventHandlers();
       this.bindKeys();
     }, 50);
   }
@@ -349,13 +308,12 @@ export class ImageViewer {
     let constrainedX = panX;
     let constrainedY = panY;
 
-    // Get overlay window position in viewport
-    const overlayWindow = document.querySelector('#overlayWindow') as HTMLElement;
-    if (!overlayWindow) {
+    // Get container position in viewport
+    if (!this.container) {
       return { x: panX, y: panY };
     }
 
-    const overlayRect = overlayWindow.getBoundingClientRect();
+    const overlayRect = this.container.getBoundingClientRect();
     const overlayCenterX = overlayRect.left + overlayRect.width / 2;
     const overlayCenterY = overlayRect.top + overlayRect.height / 2;
 
@@ -408,16 +366,15 @@ export class ImageViewer {
    * Update overlay size based on current scale.
    */
   private updateOverlaySize(scale: number): void {
-    const overlayWindow = document.querySelector('#overlayWindow') as HTMLElement;
-    if (!overlayWindow) return;
+    if (!this.container) return;
 
     const scaledWidth = this.baseOverlayWidth * scale;
     const scaledHeight = this.baseOverlayHeight * scale;
 
-    overlayWindow.style.width = `${scaledWidth}px`;
-    overlayWindow.style.height = `${scaledHeight}px`;
-    overlayWindow.style.maxWidth = `${scaledWidth}px`;
-    overlayWindow.style.maxHeight = `${scaledHeight}px`;
+    this.container.style.width = `${scaledWidth}px`;
+    this.container.style.height = `${scaledHeight}px`;
+    this.container.style.maxWidth = `${scaledWidth}px`;
+    this.container.style.maxHeight = `${scaledHeight}px`;
   }
 
   /**
@@ -463,11 +420,85 @@ export class ImageViewer {
   }
 
   /**
+   * Create custom overlay (backdrop + container) without using OverlayManager.
+   */
+  private createCustomOverlay(imageWidth: number, imageHeight: number, imageSrc: string, caption: string): void {
+    // Create backdrop
+    this.backdrop = document.createElement('div');
+    this.backdrop.id = 'imageViewerBackdrop';
+    this.backdrop.className = 'overlay-backdrop';
+    this.backdrop.style.position = 'fixed';
+    this.backdrop.style.top = '0';
+    this.backdrop.style.left = '0';
+    this.backdrop.style.width = '100%';
+    this.backdrop.style.height = '100%';
+    this.backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    this.backdrop.style.zIndex = String(this.zIndex);
+    this.backdrop.style.cursor = 'pointer';
+    
+    // Backdrop click handler
+    this.backdrop.addEventListener('click', (e) => {
+      // Only close if clicking directly on backdrop (not on container)
+      if (e.target === this.backdrop) {
+        this.cleanup();
+      }
+    });
+
+    // Create container (window) for image
+    this.container = document.createElement('div');
+    this.container.id = 'imageViewerContainer';
+    this.container.style.position = 'fixed';
+    this.container.style.top = '50%';
+    this.container.style.left = '50%';
+    this.container.style.transform = 'translate(-50%, -50%)';
+    this.container.style.width = `${imageWidth}px`;
+    this.container.style.height = `${imageHeight}px`;
+    this.container.style.maxWidth = `${imageWidth}px`;
+    this.container.style.maxHeight = `${imageHeight}px`;
+    this.container.style.overflow = 'hidden';
+    this.container.style.padding = '0';
+    this.container.style.border = 'none';
+    this.container.style.zIndex = String(this.zIndex + 1);
+    this.container.style.pointerEvents = 'auto';
+    this.container.style.cursor = 'default';
+
+    // Create zoom container and image
+    const zoomContainer = document.createElement('div');
+    zoomContainer.id = 'imageZoomContainer';
+    zoomContainer.style.overflow = 'hidden';
+    zoomContainer.style.position = 'absolute';
+    zoomContainer.style.top = '0';
+    zoomContainer.style.left = '0';
+    zoomContainer.style.width = '100%';
+    zoomContainer.style.height = '100%';
+
+    const img = document.createElement('img');
+    img.id = 'imageViewerTargetImage';
+    img.src = imageSrc;
+    img.alt = caption;
+    img.width = imageWidth;
+    img.height = imageHeight;
+    img.style.display = 'block';
+    img.style.margin = '0';
+    img.style.padding = '0';
+
+    zoomContainer.appendChild(img);
+    this.container.appendChild(zoomContainer);
+
+    // Append to body
+    document.body.appendChild(this.backdrop);
+    document.body.appendChild(this.container);
+
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+  }
+
+  /**
    * Set up event handlers for navigation and controls.
    */
-  private setupEventHandlers(windowEl: HTMLElement): void {
+  private setupEventHandlers(): void {
     // Touch handlers for swipe navigation - attach to zoom container
-    const zoomContainer = windowEl.querySelector('#imageZoomContainer') as HTMLElement;
+    const zoomContainer = document.getElementById('imageZoomContainer');
     if (zoomContainer) {
       zoomContainer.addEventListener('touchstart', (e) => this.handleTouchStart(e));
       zoomContainer.addEventListener('touchmove', (e) => this.handleTouchMove(e));
@@ -488,7 +519,7 @@ export class ImageViewer {
    * Navigate to a different image.
    */
   private navigateImage(increment: number): void {
-    if (this.images.length === 0 || !this.overlay) {
+    if (this.images.length === 0 || !this.container) {
       return;
     }
 
@@ -503,7 +534,7 @@ export class ImageViewer {
    * Update the existing overlay with new image content.
    */
   private updateOverlay(): void {
-    if (!this.overlay || this.images.length === 0) {
+    if (!this.container || this.images.length === 0) {
       return;
     }
 
@@ -537,15 +568,8 @@ export class ImageViewer {
       ? displayInstance.src 
       : `/srv/images/${displayInstance.src}`;
 
-    // Get the overlay window element
-    const windowEl = (this.overlay as any).windowEl;
-    if (!windowEl) {
-      console.error('Could not find overlay window element');
-      return;
-    }
-
     // Update image
-    const img = windowEl.querySelector('#imageViewerTargetImage') as HTMLImageElement;
+    const img = this.container.querySelector('#imageViewerTargetImage') as HTMLImageElement;
     if (img) {
       // Add fade transition
       img.style.transition = 'opacity 0.2s';
@@ -561,7 +585,7 @@ export class ImageViewer {
     }
 
     // Reset zoom container
-    const zoomContainer = windowEl.querySelector('#imageZoomContainer') as HTMLElement;
+    const zoomContainer = this.container.querySelector('#imageZoomContainer') as HTMLElement;
     if (zoomContainer) {
       (zoomContainer as any).dataset.scale = '1';
       (zoomContainer as any).dataset.x = '0';
@@ -572,10 +596,10 @@ export class ImageViewer {
     }
 
     // Update dimensions - window scales 1:1 with image
-    windowEl.style.width = `${imageWidth}px`;
-    windowEl.style.height = `${imageHeight}px`;
-    windowEl.style.maxWidth = `${imageWidth}px`;
-    windowEl.style.maxHeight = `${imageHeight}px`;
+    this.container.style.width = `${imageWidth}px`;
+    this.container.style.height = `${imageHeight}px`;
+    this.container.style.maxWidth = `${imageWidth}px`;
+    this.container.style.maxHeight = `${imageHeight}px`;
     
     // Update base dimensions for zoom calculations
     this.baseImageWidth = imageWidth;
@@ -880,25 +904,33 @@ export class ImageViewer {
   }
 
   /**
-   * Bind keyboard shortcuts.
+   * Bind keyboard shortcuts (escape and arrow keys).
    */
   private bindKeys(): void {
     this.keyboardHandler = (event: KeyboardEvent) => {
+      // Only handle if viewer is active
+      if (!this.container || !this.backdrop) {
+        return;
+      }
+
       switch (event.keyCode || event.which) {
         case 27: // Esc
           this.cleanup();
           event.preventDefault();
+          event.stopPropagation();
           break;
         case 37: // Left Arrow
           if (this.images.length > 1) {
             this.navigateImage(-1);
             event.preventDefault();
+            event.stopPropagation();
           }
           break;
         case 39: // Right Arrow
           if (this.images.length > 1) {
             this.navigateImage(1);
             event.preventDefault();
+            event.stopPropagation();
           }
           break;
       }
@@ -946,10 +978,19 @@ export class ImageViewer {
       this.interactInstance = null;
     }
 
-    if (this.overlay) {
-      // Overlay cleanup is handled by OverlayManager
-      this.overlay = null;
+    // Remove backdrop and container from DOM
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+      this.backdrop = null;
     }
+
+    if (this.container && this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container);
+      this.container = null;
+    }
+
+    // Restore body scroll
+    document.body.style.overflow = '';
   }
 
   /**
