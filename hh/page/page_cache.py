@@ -198,7 +198,8 @@ class PageCacheMixin:
                 else:
                     warn(f"_refresh_cached_page: Verification failed - cache entry not found after UPDATE")
             else:
-                warn(f"_refresh_cached_page: UPDATE affected 0 rows for page {self.id} - cache entry may not exist")
+                # 0 rows affected doesn't necessarily mean an error - could just mean no change was needed
+                debug(f"_refresh_cached_page: UPDATE affected 0 rows for page {self.id} - no change needed")
             
             debug(f"Refreshed cache for page {self.id}: rows={affected}")
         except Exception as exc:
