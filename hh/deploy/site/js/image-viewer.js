@@ -129,11 +129,15 @@ export class ImageViewer {
         const imageHeight = displayDims.height;
         const overlayWidth = imageWidth + 40;
         const overlayHeight = imageHeight + 80;
+        // Format image src with /srv/images/ prefix
+        const imageSrc = displayInstance.src.startsWith('/srv/images/')
+            ? displayInstance.src
+            : `/srv/images/${displayInstance.src}`;
         // Build HTML
         const imageHtml = `
       <div id="imageViewerTargetImageWrapper">
         <div id="imageZoomContainer">
-          <img id="imageViewerTargetImage" src="${displayInstance.src}" alt="${currentImage.caption}" width="${imageWidth}" height="${imageHeight}">
+          <img id="imageViewerTargetImage" src="${imageSrc}" alt="${currentImage.caption}" width="${imageWidth}" height="${imageHeight}">
         </div>
       </div>
     `;
@@ -161,8 +165,11 @@ export class ImageViewer {
         const captionHtml = `<div id="imageViewerCaption">${currentImage.caption}</div>`;
         // Preload full-size image (largest instance, which is last in sorted array)
         const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
+        const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
+            ? fullSizeInstance.src
+            : `/srv/images/${fullSizeInstance.src}`;
         const preloadImg = new Image();
-        preloadImg.src = fullSizeInstance.src;
+        preloadImg.src = fullSizeSrc;
         const overlayManager = OverlayManager.getInstance();
         this.overlay = overlayManager.show({
             header: '',
@@ -180,11 +187,17 @@ export class ImageViewer {
             console.error('Could not find overlay window element');
             return;
         }
-        // Set overlay dimensions
+        // Set overlay dimensions and center it
+        // The overlay system uses position: fixed with top: 50% and left: 50%
+        // We need to set transform to center it properly
         windowEl.style.width = `${overlayWidth}px`;
         windowEl.style.height = `${overlayHeight}px`;
-        windowEl.style.marginLeft = `${-overlayWidth / 2}px`;
-        windowEl.style.marginTop = `${-overlayHeight / 2}px`;
+        windowEl.style.position = 'fixed';
+        windowEl.style.top = '50%';
+        windowEl.style.left = '50%';
+        windowEl.style.transform = 'translate(-50%, -50%)';
+        windowEl.style.marginLeft = '0';
+        windowEl.style.marginTop = '0';
         // Set image wrapper dimensions
         const imageWrapper = windowEl.querySelector('#imageViewerTargetImageWrapper');
         if (imageWrapper) {
@@ -363,9 +376,12 @@ export class ImageViewer {
         if (!zoomContainer.dataset.fullsize || zoomContainer.dataset.fullsize === 'false') {
             const currentImage = this.images[this.currentImageIndex];
             const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
+            const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
+                ? fullSizeInstance.src
+                : `/srv/images/${fullSizeInstance.src}`;
             const img = zoomContainer.querySelector('img');
             if (img) {
-                img.src = fullSizeInstance.src;
+                img.src = fullSizeSrc;
             }
             zoomContainer.dataset.fullsize = 'true';
         }
@@ -395,9 +411,12 @@ export class ImageViewer {
             const currentImage = this.images[this.currentImageIndex];
             // Full-size is the largest instance (last in sorted ascending array)
             const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
+            const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
+                ? fullSizeInstance.src
+                : `/srv/images/${fullSizeInstance.src}`;
             const img = target.querySelector('img');
             if (img) {
-                img.src = fullSizeInstance.src;
+                img.src = fullSizeSrc;
             }
             dataset.fullsize = 'true';
         }
