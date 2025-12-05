@@ -258,6 +258,24 @@ export class PageData {
           page_id: pageId,
           text: values['text']
         })
+      },
+      {
+        fields: ['visibility'],
+        mcpTool: 'set_page_visibility',
+        priority: 0,
+        buildParams: (fields, values, pageId) => ({
+          page_id: pageId,
+          visibility: values['visibility']
+        })
+      },
+      {
+        fields: ['displayStyle'],
+        mcpTool: 'set_page_display_style',
+        priority: 0,
+        buildParams: (fields, values, pageId) => ({
+          page_id: pageId,
+          display_style: values['displayStyle']
+        })
       }
       // Derived classes can add more mappings here
     ];

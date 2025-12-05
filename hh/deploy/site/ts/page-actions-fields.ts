@@ -363,5 +363,161 @@ export class PageActionsFields {
       rpc.showError('combo', error);
     }
   }
+
+  /**
+   * Handler for set_page_visibility: Edit page visibility
+   */
+  async set_page_visibility(this: PageData, rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const pageManager = PageManager.getInstance();
+      
+      // Request 'visibility' field with 'form' context to register it for editing
+      const currentVisibility = this.getField('visibility', 'form') || 1;
+
+      // Create form HTML with standardized field ID using array-based content structure
+      const formHtml = `
+          <div class="overlay-form-group">
+            <label>Visibility:</label>
+            <input type="number" id="page-field-visibility" value="${currentVisibility}" min="0" class="overlay-form-input">
+          </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Set Page Visibility',
+        content: [formHtml],
+        contentHeaders: [''],
+        closable: true,
+        submitLabel: 'Submit',
+        cancelLabel: 'Cancel',
+        onCancel: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onUnmount: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onSubmit: async () => {
+          // Process operations incrementally
+          const changedFields = pageManager['detectChangedFields']();
+          const editableFields = changedFields.filter((field: string) => field !== 'class');
+          
+          if (editableFields.length === 0) {
+            return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
+          }
+          
+          const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+          const currentValues = pageManager['extractFormValues']();
+          
+          if (!pageId) {
+            throw new Error('No page ID available');
+          }
+          
+          const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          if (allSucceeded) {
+            return { ...result, _autoFade: true, debug: result.debug };
+          } else {
+            // Don't throw - errors are already shown in overlay
+            return { ...result, debug: result.debug };
+          }
+        }
+      });
+
+      // Focus the input after overlay is shown
+      setTimeout(() => {
+        const input = document.getElementById('page-field-visibility') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('set_page_visibility', error);
+    }
+  }
+
+  /**
+   * Handler for set_page_display_style: Edit page display style
+   */
+  async set_page_display_style(this: PageData, rpc: any): Promise<void> {
+    const pageId = this.id;
+    if (!pageId) {
+      alert('No page ID found');
+      return;
+    }
+
+    try {
+      const pageManager = PageManager.getInstance();
+      
+      // Request 'displayStyle' field with 'form' context to register it for editing
+      const currentDisplayStyle = this.getField('displayStyle', 'form') || 1;
+
+      // Create form HTML with standardized field ID using array-based content structure
+      const formHtml = `
+          <div class="overlay-form-group">
+            <label>Display Style:</label>
+            <input type="number" id="page-field-displayStyle" value="${currentDisplayStyle}" min="0" class="overlay-form-input">
+          </div>
+      `;
+
+      OverlayManager.getInstance().show({
+        header: 'Set Page Display Style',
+        content: [formHtml],
+        contentHeaders: [''],
+        closable: true,
+        submitLabel: 'Submit',
+        cancelLabel: 'Cancel',
+        onCancel: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onUnmount: () => {
+          pageManager.clearFieldRegistry();
+        },
+        onSubmit: async () => {
+          // Process operations incrementally
+          const changedFields = pageManager['detectChangedFields']();
+          const editableFields = changedFields.filter((field: string) => field !== 'class');
+          
+          if (editableFields.length === 0) {
+            return { success: true, noChanges: true, _showMessage: 'No changes made', _autoFade: true };
+          }
+          
+          const optimalMappings = pageManager['selectOptimalMappings'](editableFields);
+          const currentValues = pageManager['extractFormValues']();
+          
+          if (!pageId) {
+            throw new Error('No page ID available');
+          }
+          
+          const result = await this.processOperationsIncrementally(rpc, optimalMappings, currentValues, pageId);
+          const allSucceeded = result.success && result.errors.length === 0;
+          
+          if (allSucceeded) {
+            return { ...result, _autoFade: true, debug: result.debug };
+          } else {
+            // Don't throw - errors are already shown in overlay
+            return { ...result, debug: result.debug };
+          }
+        }
+      });
+
+      // Focus the input after overlay is shown
+      setTimeout(() => {
+        const input = document.getElementById('page-field-displayStyle') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+    } catch (error) {
+      rpc.showError('set_page_display_style', error);
+    }
+  }
 }
 

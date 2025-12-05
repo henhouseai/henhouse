@@ -459,7 +459,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update',
     app_action_group='pages',
-    app_action_label='Set Page Visibility'
+    app_action_label='Visibility'
 )
 @register_mcp_tool(
     tool_name='set_page_display_style',
@@ -478,25 +478,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update',
     app_action_group='pages',
-    app_action_label='Set Page Display Style'
-)
-@register_mcp_tool(
-    tool_name='set_file_visibility',
-    description='Set the visibility of a file. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'file_id': {'type': 'integer', 'description': 'The ID of the file to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for file_id (use either file_id or id)'},
-            'visibility': {'type': 'integer', 'description': 'The new visibility value for the file'}
-        },
-        'required': ['file_id', 'visibility']
-    },
-    tiers=[3, 4, 7, 8],
-    requires_approval=False,
-    crud_type='update',
-    app_action_group='files',
-    app_action_label='Set File Visibility'
+    app_action_label='Display Style'
 )
 def _page_tools_registration():
     """Registration placeholder for all page-related MCP tools."""

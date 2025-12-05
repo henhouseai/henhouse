@@ -76,7 +76,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update',
     app_action_group='images',
-    app_action_label='Set Image Visibility'
+    app_action_label='Visibility'
 )
 def _image_tools_registration():
     """Registration placeholder for all image-related MCP tools."""
