@@ -46,6 +46,8 @@ def copy_page() -> bool:
         target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
         recursive = gateway.get_arg('r') or gateway.get_arg('recursive')
         max_depth = gateway.get_arg('rd') or gateway.get_arg('recursive-depth')
+        copy_images = gateway.is_set('images')
+        copy_files = gateway.is_set('files')
         try:
             source_page_id = int(source_page_arg)
             target_page_id = int(target_page_arg)
@@ -75,7 +77,7 @@ def copy_page() -> bool:
             report_error("action", f"Source page {source_page_id} not found")
     new_page_id = 0
     if not is_error():
-        new_page_id = source_page.copy_page(target_page_id, recursive=recursive_bool, max_depth=max_depth_int)
+        new_page_id = source_page.copy_page(target_page_id, recursive=recursive_bool, max_depth=max_depth_int, copy_images=copy_images, copy_files=copy_files)
         if new_page_id == 0:
             warn(f"Failed to copy page {source_page_id} to {target_page_id}")
             report_error("action", f"Failed to copy page {source_page_id} to {target_page_id}")
@@ -89,7 +91,9 @@ def copy_page() -> bool:
             response_data = new_page.show_page()
             response_data.update({
                 "recursive": recursive_bool,
-                "max_depth": max_depth_int
+                "max_depth": max_depth_int,
+                "copy_images": copy_images,
+                "copy_files": copy_files
             })
             gateway.response.set_action_response(success_payload(response_data))
             log(f"Successfully copied page {source_page_id} to page {new_page_id}")

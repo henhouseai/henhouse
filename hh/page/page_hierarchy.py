@@ -169,7 +169,7 @@ class PageHierarchyMixin:
         return not is_error()
 
 
-    def copy_page(self, target_page_id: int, recursive: bool = False, max_depth: Optional[int] = None) -> int:
+    def copy_page(self, target_page_id: int, recursive: bool = False, max_depth: Optional[int] = None, copy_images: bool = False, copy_files: bool = False) -> int:
         trace_in()
         # Validate the copy is allowed (same as move validation)
         if not self.can_move_to_page(target_page_id):
@@ -221,17 +221,39 @@ class PageHierarchyMixin:
                 new_page = get_page(page_id=new_page_id)
                 if new_page:
                     new_page.modify_text(self.text)
+            # Copy images if requested
+            if copy_images:
+                source_images = self.get_images_data()
+                if source_images:
+                    new_page = get_page(page_id=new_page_id)
+                    if new_page:
+                        # Extract image IDs in order (preserving rank order)
+                        image_ids = [img['id'] for img in source_images]
+                        if image_ids:
+                            if not new_page.copy_images(image_ids):
+                                warn(f"Failed to copy images from page {self.id} to page {new_page_id}")
+            # Copy files if requested
+            if copy_files:
+                source_files = self.get_files_data()
+                if source_files:
+                    new_page = get_page(page_id=new_page_id)
+                    if new_page:
+                        # Extract file IDs in order (preserving rank order)
+                        file_ids = [f['id'] for f in source_files]
+                        if file_ids:
+                            if not new_page.copy_files(file_ids):
+                                warn(f"Failed to copy files from page {self.id} to page {new_page_id}")
             # Call class-specific copy logic hook
             self._copy_page_class_information(new_page_id)
             # Recursively copy children if requested
             if recursive:
-                self._copy_children_recursive(new_page_id, max_depth)
+                self._copy_children_recursive(new_page_id, max_depth, copy_images=copy_images, copy_files=copy_files)
             log(f"Successfully copied page {self.id} to page {new_page_id}")
         trace_out()
         return new_page_id
 
 
-    def _copy_children_recursive(self, parent_id: int, max_depth: Optional[int] = None, current_depth: int = 0) -> None:
+    def _copy_children_recursive(self, parent_id: int, max_depth: Optional[int] = None, current_depth: int = 0, copy_images: bool = False, copy_files: bool = False) -> None:
         trace_in()
         if max_depth is not None and current_depth >= max_depth:
             log(f"Reached max depth {max_depth}, stopping recursion")
@@ -243,8 +265,8 @@ class PageHierarchyMixin:
                 if not is_error():
                     child_page = get_page(page_id=child_id)
                     if child_page:
-                        # Copy child to new parent
-                        copied_child_id = child_page.copy_page(parent_id, recursive=True, max_depth=max_depth)
+                        # Copy child to new parent, passing through copy_images and copy_files flags
+                        copied_child_id = child_page.copy_page(parent_id, recursive=True, max_depth=max_depth, copy_images=copy_images, copy_files=copy_files)
                         if copied_child_id > 0:
                             log(f"Copied child page {child_id} to {copied_child_id}")
         trace_out()

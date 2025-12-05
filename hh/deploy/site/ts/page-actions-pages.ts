@@ -387,6 +387,18 @@ export class PageActionsPages {
           <label>Max depth:</label>
           <input type="number" id="copy-page-depth" value="1" min="1" class="overlay-form-input" placeholder="Recursion depth">
         </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="copy-page-images" class="overlay-form-checkbox">
+            <span>Copy images</span>
+          </label>
+        </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="copy-page-files" class="overlay-form-checkbox">
+            <span>Copy files</span>
+          </label>
+        </div>
       `;
 
       OverlayManager.getInstance().show({
@@ -427,8 +439,10 @@ export class PageActionsPages {
           const recursiveCheckbox = document.getElementById('copy-page-recursive') as HTMLInputElement;
           const fullRecursiveCheckbox = document.getElementById('copy-page-full-recursive') as HTMLInputElement;
           const depthInput = document.getElementById('copy-page-depth') as HTMLInputElement;
+          const imagesCheckbox = document.getElementById('copy-page-images') as HTMLInputElement;
+          const filesCheckbox = document.getElementById('copy-page-files') as HTMLInputElement;
 
-          if (!targetInput || !recursiveCheckbox || !fullRecursiveCheckbox || !depthInput) {
+          if (!targetInput || !recursiveCheckbox || !fullRecursiveCheckbox || !depthInput || !imagesCheckbox || !filesCheckbox) {
             throw new Error('Form elements not found');
           }
 
@@ -463,6 +477,14 @@ export class PageActionsPages {
                 params['recursive-depth'] = depth;
               }
             }
+          }
+
+          // Add images and files flags if checked
+          if (imagesCheckbox.checked) {
+            params.images = true;
+          }
+          if (filesCheckbox.checked) {
+            params.files = true;
           }
 
           // Capture debug options

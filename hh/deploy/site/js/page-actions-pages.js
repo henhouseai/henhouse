@@ -341,6 +341,18 @@ export class PageActionsPages {
           <label>Max depth:</label>
           <input type="number" id="copy-page-depth" value="1" min="1" class="overlay-form-input" placeholder="Recursion depth">
         </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="copy-page-images" class="overlay-form-checkbox">
+            <span>Copy images</span>
+          </label>
+        </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="copy-page-files" class="overlay-form-checkbox">
+            <span>Copy files</span>
+          </label>
+        </div>
       `;
             OverlayManager.getInstance().show({
                 header: `Copy Page: ${this.escapeHtml(pageName)}`,
@@ -377,7 +389,9 @@ export class PageActionsPages {
                     const recursiveCheckbox = document.getElementById('copy-page-recursive');
                     const fullRecursiveCheckbox = document.getElementById('copy-page-full-recursive');
                     const depthInput = document.getElementById('copy-page-depth');
-                    if (!targetInput || !recursiveCheckbox || !fullRecursiveCheckbox || !depthInput) {
+                    const imagesCheckbox = document.getElementById('copy-page-images');
+                    const filesCheckbox = document.getElementById('copy-page-files');
+                    if (!targetInput || !recursiveCheckbox || !fullRecursiveCheckbox || !depthInput || !imagesCheckbox || !filesCheckbox) {
                         throw new Error('Form elements not found');
                     }
                     const targetPageId = targetInput.value.trim();
@@ -407,6 +421,13 @@ export class PageActionsPages {
                                 params['recursive-depth'] = depth;
                             }
                         }
+                    }
+                    // Add images and files flags if checked
+                    if (imagesCheckbox.checked) {
+                        params.images = true;
+                    }
+                    if (filesCheckbox.checked) {
+                        params.files = true;
                     }
                     // Capture debug options
                     const overlay = OverlayManager.getInstance().getTopOverlay();
