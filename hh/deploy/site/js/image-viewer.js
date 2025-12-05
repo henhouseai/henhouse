@@ -186,9 +186,8 @@ export class ImageViewer {
         zoomContainer.dataset.x = '0';
         zoomContainer.dataset.y = '0';
         zoomContainer.dataset.fullsize = 'false';
-        // Set initial transform
+        // Set initial transform (transform-origin is in CSS)
         zoomContainer.style.transform = 'scale(1)';
-        zoomContainer.style.transformOrigin = 'center center';
         // Set up interact.js
         this.interactInstance = interact(zoomContainer)
             .gesturable({
@@ -288,6 +287,7 @@ export class ImageViewer {
             return;
         const scaledWidth = this.baseOverlayWidth * scale;
         const scaledHeight = this.baseOverlayHeight * scale;
+        // Update size (centering transform is in CSS)
         this.container.style.width = `${scaledWidth}px`;
         this.container.style.height = `${scaledHeight}px`;
         this.container.style.maxWidth = `${scaledWidth}px`;
@@ -331,18 +331,10 @@ export class ImageViewer {
      * Create custom overlay (backdrop + container) without using OverlayManager.
      */
     createCustomOverlay(imageWidth, imageHeight, imageSrc, caption) {
-        // Create backdrop
+        // Create backdrop (static styles in CSS, only zIndex is dynamic)
         this.backdrop = document.createElement('div');
         this.backdrop.id = 'imageViewerBackdrop';
-        this.backdrop.className = 'overlay-backdrop';
-        this.backdrop.style.position = 'fixed';
-        this.backdrop.style.top = '0';
-        this.backdrop.style.left = '0';
-        this.backdrop.style.width = '100%';
-        this.backdrop.style.height = '100%';
-        this.backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
         this.backdrop.style.zIndex = String(this.zIndex);
-        this.backdrop.style.cursor = 'pointer';
         // Backdrop click handler
         this.backdrop.addEventListener('click', (e) => {
             // Only close if clicking directly on backdrop (not on container)
@@ -350,41 +342,24 @@ export class ImageViewer {
                 this.cleanup();
             }
         });
-        // Create container (window) for image
+        // Create container (static styles in CSS, only dimensions and zIndex are dynamic)
         this.container = document.createElement('div');
         this.container.id = 'imageViewerContainer';
-        this.container.style.position = 'fixed';
-        this.container.style.top = '50%';
-        this.container.style.left = '50%';
-        this.container.style.transform = 'translate(-50%, -50%)';
         this.container.style.width = `${imageWidth}px`;
         this.container.style.height = `${imageHeight}px`;
         this.container.style.maxWidth = `${imageWidth}px`;
         this.container.style.maxHeight = `${imageHeight}px`;
-        this.container.style.overflow = 'hidden';
-        this.container.style.padding = '0';
-        this.container.style.border = 'none';
         this.container.style.zIndex = String(this.zIndex + 1);
-        this.container.style.pointerEvents = 'auto';
-        this.container.style.cursor = 'default';
-        // Create zoom container and image
+        // Create zoom container (static styles in CSS, only transform is dynamic)
         const zoomContainer = document.createElement('div');
         zoomContainer.id = 'imageZoomContainer';
-        zoomContainer.style.overflow = 'hidden';
-        zoomContainer.style.position = 'absolute';
-        zoomContainer.style.top = '0';
-        zoomContainer.style.left = '0';
-        zoomContainer.style.width = '100%';
-        zoomContainer.style.height = '100%';
+        // Create image (static styles in CSS, only dimensions and src are dynamic)
         const img = document.createElement('img');
         img.id = 'imageViewerTargetImage';
         img.src = imageSrc;
         img.alt = caption;
         img.width = imageWidth;
         img.height = imageHeight;
-        img.style.display = 'block';
-        img.style.margin = '0';
-        img.style.padding = '0';
         zoomContainer.appendChild(img);
         this.container.appendChild(zoomContainer);
         // Append to body
@@ -465,7 +440,7 @@ export class ImageViewer {
                 img.style.opacity = '1';
             }, 100);
         }
-        // Reset zoom container
+        // Reset zoom container (transform-origin is in CSS)
         const zoomContainer = this.container.querySelector('#imageZoomContainer');
         if (zoomContainer) {
             zoomContainer.dataset.scale = '1';
@@ -473,7 +448,6 @@ export class ImageViewer {
             zoomContainer.dataset.y = '0';
             zoomContainer.dataset.fullsize = 'false';
             zoomContainer.style.transform = 'scale(1)';
-            zoomContainer.style.transformOrigin = 'center center';
         }
         // Update dimensions - window scales 1:1 with image
         this.container.style.width = `${imageWidth}px`;
@@ -637,9 +611,8 @@ export class ImageViewer {
         const constrained = this.applyPanConstraints(scale, this.panX, this.panY);
         this.panX = constrained.x;
         this.panY = constrained.y;
-        // Update transforms
+        // Update transforms (transform-origin is in CSS)
         zoomContainer.dataset.scale = scale.toString();
-        zoomContainer.style.transformOrigin = 'center center';
         zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
     }
     /**
@@ -700,8 +673,8 @@ export class ImageViewer {
         dataset.scale = scale.toString();
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
+        // Transform-origin is in CSS
         target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
-        target.style.transformOrigin = 'center center';
     }
     /**
      * Interact.js gesture end handler.

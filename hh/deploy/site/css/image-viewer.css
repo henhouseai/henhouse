@@ -1,106 +1,56 @@
 /* image-viewer.css - Layout styles for image viewer overlay */
 
-#imageViewerTargetImageWrapper,
-#imageViewerTargetImageWrapper:hover,
-#imageViewerTargetImageWrapper:active {
-    margin: 20px 20px 60px;
-    padding: 0;
-    border: 1px solid var(--image-viewer-text);
-    display: block;
+/* Backdrop - covers entire viewport */
+#imageViewerBackdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    overflow: hidden;
-    position: relative;
+    background-color: rgba(0, 0, 0, 0.7);
+    cursor: pointer;
 }
 
+/* Container - centered window that scales with image */
+#imageViewerContainer {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    overflow: hidden;
+    padding: 5px;
+    border: 3px solid red;
+    pointer-events: auto;
+    cursor: default;
+    /* width, height, maxWidth, maxHeight, zIndex set dynamically */
+}
+
+/* Zoom container - handles pan/zoom transforms */
 #imageZoomContainer {
     width: 100%;
     height: 100%;
     position: absolute;
     top: 0;
     left: 0;
+    overflow: hidden;
     touch-action: none;
     user-select: none;
     will-change: transform;
+    transform-origin: 50% 50%;
     cursor: grab;
+    /* transform (scale/translate) set dynamically */
 }
 
 #imageZoomContainer:active {
     cursor: grabbing;
 }
 
+/* Image element */
 #imageViewerTargetImage {
     margin: 0;
     padding: 0;
     border: 0;
     display: block;
-    width: 100%;
-    height: auto;
-}
-
-#imageViewerTargetImageWrapper.scrollable #imageViewerTargetImage {
-    visibility: hidden;
-}
-
-#imageViewerCaption {
-    display: block;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    margin: 0;
-    padding: 6px 18px 24px;
-    border: 0;
-    height: 28px;
-    font-size: 14pt;
-    font-weight: bold;
-}
-
-#imageViewerVisibility {
-    display: block;
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    margin: 0;
-    padding: 6px 18px 24px;
-    border: 0;
-    height: 28px;
-    font-size: 14pt;
-    font-weight: bold;
-}
-
-#imageViewerControlLinks {
-    display: block;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    margin: 0;
-    padding: 34px 18px 8px;
-    border: 0;
-    height: 16px;
-    font-size: 8pt;
-    color: var(--image-viewer-link-text);
-}
-
-#retargetImageViewerToPreviousLink {
-    padding-right: 20px;
-}
-
-#retargetImageViewerToNextLink {
-    padding-left: 20px;
-}
-
-#imageViewerActionLinks {
-    display: block;
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    margin: 0;
-    padding: 34px 18px 8px;
-    border: 0;
-    height: 16px;
-}
-
-#imageViewerActionLinks a {
-    padding-left: 10px;
+    /* width, height, src, alt set dynamically */
 }
 
