@@ -262,9 +262,11 @@ export class ImageViewer {
 
     // Set overlay dimensions and center it
     // The overlay system uses position: fixed with top: 50% and left: 50%
-    // We need to set transform to center it properly
+    // We need to set transform to center it properly and override default overlay CSS
     windowEl.style.width = `${overlayWidth}px`;
     windowEl.style.height = `${overlayHeight}px`;
+    windowEl.style.maxWidth = `${overlayWidth}px`;
+    windowEl.style.maxHeight = `${overlayHeight}px`;
     windowEl.style.position = 'fixed';
     windowEl.style.top = '50%';
     windowEl.style.left = '50%';
@@ -386,15 +388,172 @@ export class ImageViewer {
    * Navigate to a different image.
    */
   private navigateImage(increment: number): void {
-    if (this.images.length === 0) {
+    if (this.images.length === 0 || !this.overlay) {
       return;
     }
 
     // Update index
     this.currentImageIndex = (this.currentImageIndex + increment + this.images.length) % this.images.length;
 
-    // Re-render overlay
-    this.renderOverlay();
+    // Update existing overlay instead of creating a new one
+    this.updateOverlay();
+  }
+
+  /**
+   * Update the existing overlay with new image content.
+   */
+  private updateOverlay(): void {
+    if (!this.overlay || this.images.length === 0) {
+      return;
+    }
+
+    const currentImage = this.images[this.currentImageIndex];
+    const pageWidth = this.getPageWidth();
+    const pageHeight = this.getPageHeight();
+
+    const maxOverlayWidth = pageWidth - 40;
+    const maxOverlayHeight = pageHeight - 40;
+    const maxImageWidth = maxOverlayWidth - 40;
+    const maxImageHeight = maxOverlayHeight - 80;
+
+    // Get best instance for display
+    const displayInstance = this.getBestInstance(maxImageWidth, currentImage.instances);
+    if (!displayInstance) {
+      console.error('No display instance found');
+      return;
+    }
+
+    // Calculate display dimensions
+    const displayDims = this.calculateDisplayDimensions(
+      displayInstance,
+      maxImageWidth,
+      maxImageHeight
+    );
+
+    const imageWidth = displayDims.width;
+    const imageHeight = displayDims.height;
+    const overlayWidth = imageWidth + 40;
+    const overlayHeight = imageHeight + 80;
+
+    // Format image src with /srv/images/ prefix
+    const imageSrc = displayInstance.src.startsWith('/srv/images/') 
+      ? displayInstance.src 
+      : `/srv/images/${displayInstance.src}`;
+
+    // Get the overlay window element
+    const windowEl = (this.overlay as any).windowEl;
+    if (!windowEl) {
+      console.error('Could not find overlay window element');
+      return;
+    }
+
+    // Update image
+    const img = windowEl.querySelector('#imageViewerTargetImage') as HTMLImageElement;
+    if (img) {
+      // Add fade transition
+      img.style.transition = 'opacity 0.2s';
+      img.style.opacity = '0';
+      
+      setTimeout(() => {
+        img.src = imageSrc;
+        img.width = imageWidth;
+        img.height = imageHeight;
+        img.alt = currentImage.caption;
+        img.style.opacity = '1';
+      }, 100);
+    }
+
+    // Reset zoom container
+    const zoomContainer = windowEl.querySelector('#imageZoomContainer') as HTMLElement;
+    if (zoomContainer) {
+      (zoomContainer as any).dataset.scale = '1';
+      (zoomContainer as any).dataset.x = '0';
+      (zoomContainer as any).dataset.y = '0';
+      (zoomContainer as any).dataset.fullsize = 'false';
+      zoomContainer.style.transform = 'scale(1)';
+      zoomContainer.style.transformOrigin = 'center center';
+    }
+
+    // Update dimensions
+    windowEl.style.width = `${overlayWidth}px`;
+    windowEl.style.height = `${overlayHeight}px`;
+    windowEl.style.maxWidth = `${overlayWidth}px`;
+    windowEl.style.maxHeight = `${overlayHeight}px`;
+
+    // Update image wrapper dimensions
+    const imageWrapper = windowEl.querySelector('#imageViewerTargetImageWrapper') as HTMLElement;
+    if (imageWrapper) {
+      imageWrapper.style.width = `${imageWidth}px`;
+      imageWrapper.style.height = `${imageHeight}px`;
+    }
+
+    // Update caption
+    const caption = windowEl.querySelector('#imageViewerCaption') as HTMLElement;
+    if (caption) {
+      caption.textContent = currentImage.caption;
+      caption.style.width = `${overlayWidth - 36}px`;
+    }
+
+    // Update visibility
+    const visibility = windowEl.querySelector('#imageViewerVisibility') as HTMLElement;
+    if (visibility) {
+      let visibilityText = '';
+      switch (currentImage.visibility.toString()) {
+        case '-1':
+          visibilityText = 'PRIVATE';
+          break;
+        case '0':
+          visibilityText = 'HIDDEN';
+          break;
+        default:
+          visibilityText = '';
+          break;
+      }
+      visibility.textContent = visibilityText;
+    }
+
+    // Update control links
+    const controlLinks = windowEl.querySelector('#imageViewerControlLinks') as HTMLElement;
+    if (controlLinks) {
+      let linksHtml = '';
+      if (this.images.length > 1) {
+        linksHtml = `<a id="retargetImageViewerToPreviousLink">&lt;&lt;</a>${this.currentImageIndex + 1}/${this.images.length}<a id="retargetImageViewerToNextLink">&gt;&gt;</a>`;
+      }
+      linksHtml += '<a id="closeImageViewerLink">close</a>';
+      controlLinks.innerHTML = linksHtml;
+      controlLinks.style.width = `${overlayWidth - 36}px`;
+      
+      // Re-attach event handlers
+      const prevLink = windowEl.querySelector('#retargetImageViewerToPreviousLink') as HTMLElement;
+      const nextLink = windowEl.querySelector('#retargetImageViewerToNextLink') as HTMLElement;
+      const closeLink = windowEl.querySelector('#closeImageViewerLink') as HTMLElement;
+      
+      if (prevLink) {
+        prevLink.addEventListener('click', () => this.navigateImage(-1));
+      }
+      if (nextLink) {
+        nextLink.addEventListener('click', () => this.navigateImage(1));
+      }
+      if (closeLink) {
+        closeLink.addEventListener('click', () => this.cleanup());
+      }
+    }
+
+    // Preload full-size image
+    const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
+    const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/') 
+      ? fullSizeInstance.src 
+      : `/srv/images/${fullSizeInstance.src}`;
+    const preloadImg = new Image();
+    preloadImg.src = fullSizeSrc;
+
+    // Re-setup interact.js
+    setTimeout(() => {
+      if (this.interactInstance) {
+        this.interactInstance.unset();
+      }
+      this.setupInteract();
+    }, 150);
   }
 
   /**
