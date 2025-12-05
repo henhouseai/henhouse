@@ -186,8 +186,8 @@ export class ImageViewer {
         zoomContainer.dataset.x = '0';
         zoomContainer.dataset.y = '0';
         zoomContainer.dataset.fullsize = 'false';
-        // Set initial transform (transform-origin is in CSS)
-        zoomContainer.style.transform = 'scale(1)';
+        // Set initial transform - only translate, no scale (scaling handled by container size)
+        zoomContainer.style.transform = 'translate(0, 0)';
         // Set up interact.js
         this.interactInstance = interact(zoomContainer)
             .gesturable({
@@ -350,17 +350,22 @@ export class ImageViewer {
         this.container.style.maxWidth = `${imageWidth}px`;
         this.container.style.maxHeight = `${imageHeight}px`;
         this.container.style.zIndex = String(this.zIndex + 1);
-        // Create zoom container (static styles in CSS, only transform is dynamic)
+        // Create zoom container (outer wrapper, has padding)
         const zoomContainer = document.createElement('div');
         zoomContainer.id = 'imageZoomContainer';
-        // Create image (static styles in CSS, only dimensions and src are dynamic)
+        // Create image wrapper (inner wrapper, fills zoomContainer minus padding)
+        const imageWrapper = document.createElement('div');
+        imageWrapper.id = 'imageViewerImageWrapper';
+        // Create image (static styles in CSS, only src and alt are dynamic)
         const img = document.createElement('img');
         img.id = 'imageViewerTargetImage';
         img.src = imageSrc;
         img.alt = caption;
-        img.width = imageWidth;
-        img.height = imageHeight;
-        zoomContainer.appendChild(img);
+        // Note: width/height set via CSS object-fit: contain, but we set attributes for aspect ratio
+        img.setAttribute('width', String(imageWidth));
+        img.setAttribute('height', String(imageHeight));
+        imageWrapper.appendChild(img);
+        zoomContainer.appendChild(imageWrapper);
         this.container.appendChild(zoomContainer);
         // Append to body
         document.body.appendChild(this.backdrop);
@@ -440,14 +445,14 @@ export class ImageViewer {
                 img.style.opacity = '1';
             }, 100);
         }
-        // Reset zoom container (transform-origin is in CSS)
+        // Reset zoom container
         const zoomContainer = this.container.querySelector('#imageZoomContainer');
         if (zoomContainer) {
             zoomContainer.dataset.scale = '1';
             zoomContainer.dataset.x = '0';
             zoomContainer.dataset.y = '0';
             zoomContainer.dataset.fullsize = 'false';
-            zoomContainer.style.transform = 'scale(1)';
+            zoomContainer.style.transform = 'translate(0, 0)';
         }
         // Update dimensions - window scales 1:1 with image
         this.container.style.width = `${imageWidth}px`;
@@ -611,9 +616,10 @@ export class ImageViewer {
         const constrained = this.applyPanConstraints(scale, this.panX, this.panY);
         this.panX = constrained.x;
         this.panY = constrained.y;
-        // Update transforms (transform-origin is in CSS)
+        // Update transforms - only translate for panning
+        // Scaling is handled by container size, so image scales naturally (no transform scale needed)
         zoomContainer.dataset.scale = scale.toString();
-        zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+        zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
     }
     /**
      * Interact.js gesture start handler.
@@ -666,6 +672,8 @@ export class ImageViewer {
         // Calculate pan from gesture (deltaX/deltaY are relative to initial position)
         const newPanX = initialX + event.deltaX;
         const newPanY = initialY + event.deltaY;
+        // Update overlay size
+        this.updateOverlaySize(scale);
         // Apply constraints based on zoom state
         const constrained = this.applyPanConstraints(scale, newPanX, newPanY);
         this.panX = constrained.x;
@@ -673,8 +681,8 @@ export class ImageViewer {
         dataset.scale = scale.toString();
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Transform-origin is in CSS
-        target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+        // Only translate for panning - scaling is handled by container size
+        target.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
     }
     /**
      * Interact.js gesture end handler.
@@ -705,8 +713,8 @@ export class ImageViewer {
         // Update position data
         dataset.x = x.toString();
         dataset.y = y.toString();
-        // Apply transform
-        target.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+        // Apply transform - only translate, scaling handled by container size
+        target.style.transform = `translate(${x}px, ${y}px)`;
     }
     /**
      * Bind keyboard shortcuts (escape and arrow keys).

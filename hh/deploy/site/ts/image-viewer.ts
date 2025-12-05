@@ -260,8 +260,8 @@ export class ImageViewer {
     (zoomContainer as any).dataset.y = '0';
     (zoomContainer as any).dataset.fullsize = 'false';
 
-    // Set initial transform (transform-origin is in CSS)
-    zoomContainer.style.transform = 'scale(1)';
+    // Set initial transform - only translate, no scale (scaling handled by container size)
+    zoomContainer.style.transform = 'translate(0, 0)';
 
     // Set up interact.js
     this.interactInstance = interact(zoomContainer)
@@ -445,19 +445,25 @@ export class ImageViewer {
     this.container.style.maxHeight = `${imageHeight}px`;
     this.container.style.zIndex = String(this.zIndex + 1);
 
-    // Create zoom container (static styles in CSS, only transform is dynamic)
+    // Create zoom container (outer wrapper, has padding)
     const zoomContainer = document.createElement('div');
     zoomContainer.id = 'imageZoomContainer';
 
-    // Create image (static styles in CSS, only dimensions and src are dynamic)
+    // Create image wrapper (inner wrapper, fills zoomContainer minus padding)
+    const imageWrapper = document.createElement('div');
+    imageWrapper.id = 'imageViewerImageWrapper';
+
+    // Create image (static styles in CSS, only src and alt are dynamic)
     const img = document.createElement('img');
     img.id = 'imageViewerTargetImage';
     img.src = imageSrc;
     img.alt = caption;
-    img.width = imageWidth;
-    img.height = imageHeight;
+    // Note: width/height set via CSS object-fit: contain, but we set attributes for aspect ratio
+    img.setAttribute('width', String(imageWidth));
+    img.setAttribute('height', String(imageHeight));
 
-    zoomContainer.appendChild(img);
+    imageWrapper.appendChild(img);
+    zoomContainer.appendChild(imageWrapper);
     this.container.appendChild(zoomContainer);
 
     // Append to body
@@ -559,14 +565,14 @@ export class ImageViewer {
       }, 100);
     }
 
-    // Reset zoom container (transform-origin is in CSS)
+    // Reset zoom container
     const zoomContainer = this.container.querySelector('#imageZoomContainer') as HTMLElement;
     if (zoomContainer) {
       (zoomContainer as any).dataset.scale = '1';
       (zoomContainer as any).dataset.x = '0';
       (zoomContainer as any).dataset.y = '0';
       (zoomContainer as any).dataset.fullsize = 'false';
-      zoomContainer.style.transform = 'scale(1)';
+      zoomContainer.style.transform = 'translate(0, 0)';
     }
 
     // Update dimensions - window scales 1:1 with image
@@ -755,9 +761,10 @@ export class ImageViewer {
     this.panX = constrained.x;
     this.panY = constrained.y;
 
-    // Update transforms (transform-origin is in CSS)
+    // Update transforms - only translate for panning
+    // Scaling is handled by container size, so image scales naturally (no transform scale needed)
     (zoomContainer as any).dataset.scale = scale.toString();
-    zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+    zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
   }
 
   /**
@@ -823,6 +830,9 @@ export class ImageViewer {
     const newPanX = initialX + event.deltaX;
     const newPanY = initialY + event.deltaY;
 
+    // Update overlay size
+    this.updateOverlaySize(scale);
+
     // Apply constraints based on zoom state
     const constrained = this.applyPanConstraints(scale, newPanX, newPanY);
     this.panX = constrained.x;
@@ -832,8 +842,8 @@ export class ImageViewer {
     dataset.x = this.panX.toString();
     dataset.y = this.panY.toString();
 
-    // Transform-origin is in CSS
-    target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+    // Only translate for panning - scaling is handled by container size
+    target.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
   }
 
   /**
@@ -872,8 +882,8 @@ export class ImageViewer {
     dataset.x = x.toString();
     dataset.y = y.toString();
 
-    // Apply transform
-    target.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    // Apply transform - only translate, scaling handled by container size
+    target.style.transform = `translate(${x}px, ${y}px)`;
   }
 
   /**
