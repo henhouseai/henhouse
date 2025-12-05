@@ -5,6 +5,7 @@
  */
 import { RPCClient } from './rpc-client.js';
 import { interceptLinks } from './overlay/overlay-link-helpers.js';
+import { getSeedData } from './seed.js';
 class ViewToggle {
     constructor(callbacks) {
         this.rpc = new RPCClient();
@@ -227,13 +228,19 @@ export function initializeViewToggle(callbacks) {
  */
 function setupInitialImageViewerLinks() {
     setTimeout(() => {
-        const seedData = window.seedData;
+        const seedData = getSeedData();
         if (seedData && seedData.page && seedData.page.id && viewToggleInstance) {
             const pageId = seedData.page.id.toString();
             const imageGroup = document.getElementById(`pageImageGroup_${pageId}`);
             if (imageGroup) {
                 viewToggleInstance.setupImageViewerLinks(imageGroup, pageId);
             }
+            else {
+                console.warn(`Image group element not found: pageImageGroup_${pageId}`);
+            }
+        }
+        else {
+            console.warn('Could not set up image viewer links - missing seed data or view toggle instance');
         }
     }, 100);
 }
