@@ -168,7 +168,7 @@ class ImageCacheMixin:
                 else:
                     warn(f"_refresh_cached_image: Verification failed - cache entry not found after UPDATE")
             else:
-                warn(f"_refresh_cached_image: UPDATE affected 0 rows for image {self.id} - cache entry may not exist")
+                debug(f"_refresh_cached_image: UPDATE affected 0 rows for image {self.id} - no change needed")
             
             debug(f"Refreshed cache for image {self.id}: rows={affected}, instances={len(self.instances) if self.instances else 0}, usage={len(self.cached_usage) if self.cached_usage else 0}")
         except Exception as exc:

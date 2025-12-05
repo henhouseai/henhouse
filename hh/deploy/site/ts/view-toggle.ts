@@ -5,6 +5,7 @@
  */
 
 import { RPCClient } from './rpc-client.js';
+import { interceptLinks } from './overlay/overlay-link-helpers.js';
 
 export interface ViewToggleCallbacks {
   /**
@@ -243,12 +244,36 @@ class ViewToggle {
     const newElement = contentElement.cloneNode(true) as HTMLElement;
     existingContent.parentNode?.replaceChild(newElement, existingContent);
 
+    // Set up image viewer link interception for image sections (only on main page, not in overlays)
+    if (section === 'images' && !isInOverlay) {
+      this.setupImageViewerLinks(newElement, pageId);
+    }
+
+    // Set up image viewer link interception for image sections (only on main page, not in overlays)
+    if (section === 'images' && !isInOverlay) {
+      this.setupImageViewerLinks(newElement, pageId);
+    }
+
     // Call onAfterSwap callback if provided (allows DOM manipulation after swap)
     if (this.callbacks.onAfterSwap) {
       // Find the container - use the parent of the replaced element or the element itself
       const container = newElement.parentElement || newElement;
       this.callbacks.onAfterSwap(container, context);
     }
+  }
+
+  /**
+   * Set up image viewer link interception for image group links.
+   */
+  setupImageViewerLinks(container: HTMLElement, pageId: string): void {
+    interceptLinks(container, {
+      onImageLink: async (imageId: number, link: HTMLAnchorElement) => {
+        // Open image viewer with this image
+        const { ImageViewer } = await import('./image-viewer.js');
+        await ImageViewer.openFromImageLink(parseInt(pageId, 10), imageId);
+      },
+      markerProperty: '__imageViewerIntercepted'
+    });
   }
 }
 
@@ -263,10 +288,28 @@ export function initializeViewToggle(callbacks?: ViewToggleCallbacks): void {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       viewToggleInstance = new ViewToggle(callbacks);
+      setupInitialImageViewerLinks();
     });
   } else {
     viewToggleInstance = new ViewToggle(callbacks);
+    setupInitialImageViewerLinks();
   }
+}
+
+/**
+ * Set up image viewer links on initial page load.
+ */
+function setupInitialImageViewerLinks(): void {
+  setTimeout(() => {
+    const seedData = (window as any).seedData;
+    if (seedData && seedData.page && seedData.page.id && viewToggleInstance) {
+      const pageId = seedData.page.id.toString();
+      const imageGroup = document.getElementById(`pageImageGroup_${pageId}`);
+      if (imageGroup) {
+        viewToggleInstance.setupImageViewerLinks(imageGroup, pageId);
+      }
+    }
+  }, 100);
 }
 
 /**

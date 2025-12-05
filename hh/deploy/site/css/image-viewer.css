@@ -1,0 +1,106 @@
+/* image-viewer.css - Layout styles for image viewer overlay */
+
+#imageViewerTargetImageWrapper,
+#imageViewerTargetImageWrapper:hover,
+#imageViewerTargetImageWrapper:active {
+    margin: 20px 20px 60px;
+    padding: 0;
+    border: 1px solid var(--image-viewer-text);
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+#imageZoomContainer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    touch-action: none;
+    user-select: none;
+    will-change: transform;
+    cursor: grab;
+}
+
+#imageZoomContainer:active {
+    cursor: grabbing;
+}
+
+#imageViewerTargetImage {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+#imageViewerTargetImageWrapper.scrollable #imageViewerTargetImage {
+    visibility: hidden;
+}
+
+#imageViewerCaption {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    margin: 0;
+    padding: 6px 18px 24px;
+    border: 0;
+    height: 28px;
+    font-size: 14pt;
+    font-weight: bold;
+}
+
+#imageViewerVisibility {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    margin: 0;
+    padding: 6px 18px 24px;
+    border: 0;
+    height: 28px;
+    font-size: 14pt;
+    font-weight: bold;
+}
+
+#imageViewerControlLinks {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    margin: 0;
+    padding: 34px 18px 8px;
+    border: 0;
+    height: 16px;
+    font-size: 8pt;
+    color: var(--image-viewer-link-text);
+}
+
+#retargetImageViewerToPreviousLink {
+    padding-right: 20px;
+}
+
+#retargetImageViewerToNextLink {
+    padding-left: 20px;
+}
+
+#imageViewerActionLinks {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    margin: 0;
+    padding: 34px 18px 8px;
+    border: 0;
+    height: 16px;
+}
+
+#imageViewerActionLinks a {
+    padding-left: 10px;
+}
+

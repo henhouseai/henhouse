@@ -318,6 +318,12 @@ ul.menuGroup li.header a {
     --active-private-tile-wrapper: #1a0f28;
     --active-private-tile-wrapper-text: #c49fff;
     --active-private-tile-wrapper-border: #c49fff;
+    
+    /* Image Viewer Colors */
+    --image-viewer: #161b22;
+    --image-viewer-border: #30363d;
+    --image-viewer-text: #d4d4d4;
+    --image-viewer-link-text: #3fb950;
 }
 
 /* Global link styling - green theme (at end so specific rules can override) */
