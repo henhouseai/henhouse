@@ -801,10 +801,9 @@ export class ImageViewer {
         else {
             // Zooming out
             scale -= zoomSensitivity;
-            // Detent: If we're at or above first inflection, don't go below it in one action
-            if (oldScale >= firstInflectionScale && scale < firstInflectionScale) {
-                scale = firstInflectionScale;
-            }
+            // Detent: Only prevent going below first inflection if we're currently below it
+            // If we're at or above first inflection, allow zooming out freely (removes blue class)
+            // No detent when zooming out from above first inflection - allow it to go past
         }
         const minScale = 1;
         const maxScale = 3; // 300% of full size
@@ -893,10 +892,9 @@ export class ImageViewer {
         if (initialScale <= firstInflectionScale && scale > firstInflectionScale) {
             scale = firstInflectionScale;
         }
-        // Detent: If we're at or above first inflection, don't go below it in one gesture
-        if (initialScale >= firstInflectionScale && scale < firstInflectionScale) {
-            scale = firstInflectionScale;
-        }
+        // Detent: Only prevent going below first inflection if we're currently below it
+        // If we're at or above first inflection, allow zooming out freely (removes blue class)
+        // No detent when zooming out from above first inflection - allow it to go past
         const minScale = 1;
         const maxScale = 3;
         // Stop at second inflection point (when second edge hits viewport)
