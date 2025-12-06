@@ -602,6 +602,17 @@ export class ImageViewer {
             const viewportHeight = this.getPageHeight();
             this.scaleForWidthMatch = viewportWidth / newWindowWidth;
             this.scaleForHeightMatch = viewportHeight / newWindowHeight;
+            // Reset zoom and pan to default state (scale = 1.0, pan = 0,0)
+            this.currentScale = 1.0;
+            this.panX = 0;
+            this.panY = 0;
+            // Reset transform on image wrapper
+            if (imageWrapper) {
+                imageWrapper.dataset.scale = '1';
+                imageWrapper.dataset.x = '0';
+                imageWrapper.dataset.y = '0';
+                imageWrapper.style.transform = 'translate(0, 0)';
+            }
         };
         window.addEventListener('resize', this.resizeHandler);
     }
