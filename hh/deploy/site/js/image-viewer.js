@@ -529,15 +529,52 @@ export class ImageViewer {
             }, { passive: false });
             this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
         }
-        // Window resize handler - just recalculate optimal size and apply it
+        // Window resize handler - dynamically adjust size without changing image
         this.resizeHandler = () => {
-            if (!this.container || this.fullSizeWidth === 0 || this.fullSizeHeight === 0) {
+            if (!this.container) {
                 return;
             }
-            // Recalculate optimal sizes from stored full-size dimensions
-            const optimalSizes = this.measureAndCalculateOptimalSize(this.fullSizeWidth, this.fullSizeHeight);
-            // Apply optimal sizes (no fade, just resize)
-            this.applyOptimalSizes(optimalSizes.optimalWrapperWidth, optimalSizes.optimalWrapperHeight, optimalSizes.optimalWindowWidth, optimalSizes.optimalWindowHeight);
+            // Get current wrapper size (don't change it to full-size)
+            const imageWrapper = this.container.querySelector('#imageWrapper');
+            if (!imageWrapper) {
+                return;
+            }
+            const currentWrapperWidth = imageWrapper.offsetWidth;
+            const currentWrapperHeight = imageWrapper.offsetHeight;
+            // Measure current window size
+            const currentWindowWidth = this.container.offsetWidth;
+            const currentWindowHeight = this.container.offsetHeight;
+            // Calculate optimal size to fit on screen with 40px margin on all sides
+            const pageWidth = this.getPageWidth();
+            const pageHeight = this.getPageHeight();
+            const maxWindowWidth = pageWidth - 80; // 40px margin each side
+            const maxWindowHeight = pageHeight - 80;
+            // Calculate scaling factor based on limiting dimension
+            const scaleX = maxWindowWidth / currentWindowWidth;
+            const scaleY = maxWindowHeight / currentWindowHeight;
+            const optimalScale = Math.min(scaleX, scaleY, 1.0); // Don't scale up, only down
+            // Calculate new sizes
+            const newWrapperWidth = currentWrapperWidth * optimalScale;
+            const newWrapperHeight = currentWrapperHeight * optimalScale;
+            const newWindowWidth = currentWindowWidth * optimalScale;
+            const newWindowHeight = currentWindowHeight * optimalScale;
+            // Apply new sizes (image stays the same, just container/wrapper resize)
+            imageWrapper.style.width = `${newWrapperWidth}px`;
+            imageWrapper.style.height = `${newWrapperHeight}px`;
+            this.container.style.width = `${newWindowWidth}px`;
+            this.container.style.height = `${newWindowHeight}px`;
+            this.container.style.maxWidth = `${newWindowWidth}px`;
+            this.container.style.maxHeight = `${newWindowHeight}px`;
+            // Update base dimensions for zoom calculations
+            this.baseImageWidth = newWrapperWidth;
+            this.baseImageHeight = newWrapperHeight;
+            this.baseOverlayWidth = newWindowWidth;
+            this.baseOverlayHeight = newWindowHeight;
+            // Recalculate special point scales
+            const viewportWidth = this.getPageWidth();
+            const viewportHeight = this.getPageHeight();
+            this.scaleForWidthMatch = viewportWidth / newWindowWidth;
+            this.scaleForHeightMatch = viewportHeight / newWindowHeight;
         };
         window.addEventListener('resize', this.resizeHandler);
     }
