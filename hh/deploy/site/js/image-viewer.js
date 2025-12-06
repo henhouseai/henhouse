@@ -221,35 +221,26 @@ export class ImageViewer {
             return;
         }
         const currentImage = this.images[this.currentImageIndex];
-        // Select optimal image instance based on scaled-down wrapper size
-        const displayInstance = this.getBestInstance(optimalWrapperWidth, currentImage.instances);
-        if (!displayInstance) {
-            console.error('No display instance found');
-            return;
-        }
-        // Calculate display dimensions
-        const displayDims = this.calculateDisplayDimensions(displayInstance, optimalWrapperWidth, optimalWrapperHeight);
-        // Format image src with /srv/images/ prefix
-        const imageSrc = displayInstance.src.startsWith('/srv/images/')
-            ? displayInstance.src
-            : `/srv/images/${displayInstance.src}`;
-        // Get or create image element
-        let img = this.container.querySelector('#imageViewerTargetImage');
-        if (!img) {
+        // For layout testing, replace image with a colored box respecting padding
+        const displayDims = {
+            width: Math.round(optimalWrapperWidth),
+            height: Math.round(optimalWrapperHeight)
+        };
+        let box = this.container.querySelector('#imageViewerTargetImage');
+        if (!box) {
             const imageWrapper = this.container.querySelector('#imageWrapper');
             if (!imageWrapper)
                 return;
-            img = document.createElement('img');
-            img.id = 'imageViewerTargetImage';
-            imageWrapper.appendChild(img);
+            box = document.createElement('div');
+            box.id = 'imageViewerTargetImage';
+            imageWrapper.appendChild(box);
         }
-        // Update image
-        img.src = imageSrc;
-        img.alt = caption;
-        img.setAttribute('width', String(displayDims.width));
-        img.setAttribute('height', String(displayDims.height));
-        // Store full-size src for later zoom swap
-        img.dataset.fullSizeSrc = fullSizeSrc;
+        box.setAttribute('aria-label', caption);
+        box.style.background = 'rgba(0, 200, 0, 0.3)';
+        box.style.border = '2px solid black';
+        box.style.width = `${displayDims.width}px`;
+        box.style.height = `${displayDims.height}px`;
+        box.style.boxSizing = 'border-box';
     }
     /**
      * Render the overlay with current image.
@@ -287,21 +278,20 @@ export class ImageViewer {
      * Set up interact.js for pan/zoom.
      */
     setupInteract() {
+        if (!this.container || !this.panLayer)
+            return;
         const imageWrapper = document.getElementById('imageWrapper');
-        if (!imageWrapper || !this.panLayer) {
+        if (!imageWrapper) {
             return;
         }
         // Initialize transform data
         imageWrapper.dataset.scale = '1';
-        imageWrapper.dataset.fullsize = 'false';
         // Reset transforms
         imageWrapper.style.transformOrigin = '50% 50%';
         imageWrapper.style.transform = 'scale(1)';
         this.panLayer.style.transform = 'translate(0px, 0px)';
         // Container stays centered
-        if (this.container) {
-            this.container.style.transform = 'translate(-50%, -50%)';
-        }
+        this.container.style.transform = 'translate(-50%, -50%)';
         // Set up interact.js
         this.interactInstance = interact(imageWrapper)
             .gesturable({
@@ -374,22 +364,8 @@ export class ImageViewer {
             return;
         const viewportWidth = this.getPageWidth();
         const viewportHeight = this.getPageHeight();
-        const widthCap = viewportWidth;
-        const heightCap = viewportHeight;
-        let width = this.baseOverlayWidth * scale;
-        let height = this.baseOverlayHeight * scale;
-        const widthHit = width >= widthCap;
-        const heightHit = height >= heightCap;
-        if (widthHit && !heightHit) {
-            width = widthCap;
-        }
-        else if (!widthHit && heightHit) {
-            height = heightCap;
-        }
-        else if (widthHit && heightHit) {
-            width = widthCap;
-            height = heightCap;
-        }
+        const width = this.baseOverlayWidth * scale;
+        const height = this.baseOverlayHeight * scale;
         this.container.style.width = `${width}px`;
         this.container.style.height = `${height}px`;
         this.container.style.maxWidth = `${width}px`;
@@ -793,19 +769,6 @@ export class ImageViewer {
         if (!imageWrapper)
             return;
         let scale = this.currentScale;
-        // Load full-size image if not already loaded
-        if (!imageWrapper.dataset.fullsize || imageWrapper.dataset.fullsize === 'false') {
-            const currentImage = this.images[this.currentImageIndex];
-            const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
-            const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
-                ? fullSizeInstance.src
-                : `/srv/images/${fullSizeInstance.src}`;
-            const img = imageWrapper.querySelector('img');
-            if (img) {
-                img.src = fullSizeSrc;
-            }
-            imageWrapper.dataset.fullsize = 'true';
-        }
         const zoomSensitivity = 0.1;
         const delta = event.deltaY;
         const oldScale = scale;
@@ -897,20 +860,6 @@ export class ImageViewer {
     onGestureStart(event) {
         const target = event.target;
         const dataset = target.dataset;
-        // Load full-size image if not already loaded (when pinch-to-zoom starts)
-        if (!dataset.fullsize || dataset.fullsize === 'false') {
-            const currentImage = this.images[this.currentImageIndex];
-            // Full-size is the largest instance (last in sorted ascending array)
-            const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
-            const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
-                ? fullSizeInstance.src
-                : `/srv/images/${fullSizeInstance.src}`;
-            const img = target.querySelector('img');
-            if (img) {
-                img.src = fullSizeSrc;
-            }
-            dataset.fullsize = 'true';
-        }
         // Store initial scale and position
         dataset.initialScale = dataset.scale || '1';
         dataset.initialX = dataset.x || '0';
