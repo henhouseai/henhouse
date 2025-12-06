@@ -116,6 +116,45 @@ export class ImageViewer {
         };
     }
     /**
+     * Get container padding/border values by creating a temporary element.
+     * This allows us to know the padding/border before creating the actual container.
+     */
+    getContainerPaddingAndBorder() {
+        // Create temporary elements to measure padding/border from CSS
+        const tempContainer = document.createElement('div');
+        tempContainer.id = 'imageViewerContainer';
+        tempContainer.style.visibility = 'hidden';
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.top = '-9999px';
+        const tempZoomContainer = document.createElement('div');
+        tempZoomContainer.id = 'imageZoomContainer';
+        tempContainer.appendChild(tempZoomContainer);
+        document.body.appendChild(tempContainer);
+        // Read computed styles
+        const computedStyle = window.getComputedStyle(tempContainer);
+        const containerPaddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+        const containerPaddingRight = parseFloat(computedStyle.paddingRight) || 0;
+        const containerPaddingTop = parseFloat(computedStyle.paddingTop) || 0;
+        const containerPaddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+        const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+        const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
+        const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+        const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+        const zoomComputedStyle = window.getComputedStyle(tempZoomContainer);
+        const zoomContainerPaddingLeft = parseFloat(zoomComputedStyle.paddingLeft) || 0;
+        const zoomContainerPaddingRight = parseFloat(zoomComputedStyle.paddingRight) || 0;
+        const zoomContainerPaddingTop = parseFloat(zoomComputedStyle.paddingTop) || 0;
+        const zoomContainerPaddingBottom = parseFloat(zoomComputedStyle.paddingBottom) || 0;
+        // Clean up
+        document.body.removeChild(tempContainer);
+        return {
+            totalLeft: containerPaddingLeft + zoomContainerPaddingLeft + borderLeft,
+            totalRight: containerPaddingRight + zoomContainerPaddingRight + borderRight,
+            totalTop: containerPaddingTop + zoomContainerPaddingTop + borderTop,
+            totalBottom: containerPaddingBottom + zoomContainerPaddingBottom + borderBottom
+        };
+    }
+    /**
      * Render the overlay with current image.
      */
     renderOverlay() {
@@ -125,9 +164,14 @@ export class ImageViewer {
         const currentImage = this.images[this.currentImageIndex];
         const pageWidth = this.getPageWidth();
         const pageHeight = this.getPageHeight();
+        // Get container padding/border to account for it in image size calculation
+        const containerSpacingCalc = this.getContainerPaddingAndBorder();
+        const containerExtraWidth = containerSpacingCalc.totalLeft + containerSpacingCalc.totalRight;
+        const containerExtraHeight = containerSpacingCalc.totalTop + containerSpacingCalc.totalBottom;
         // Calculate max dimensions with border space (40px margin on all sides)
-        const maxImageWidth = pageWidth - 80;
-        const maxImageHeight = pageHeight - 80;
+        // AND account for container padding/border so total container fits
+        const maxImageWidth = pageWidth - 80 - containerExtraWidth;
+        const maxImageHeight = pageHeight - 80 - containerExtraHeight;
         // Get best instance for display
         const displayInstance = this.getBestInstance(maxImageWidth, currentImage.instances);
         if (!displayInstance) {
@@ -147,8 +191,13 @@ export class ImageViewer {
         const viewportHeight = this.getPageHeight();
         this.scaleForWidthMatch = viewportWidth / imageWidth;
         this.scaleForHeightMatch = viewportHeight / imageHeight;
-        // Calculate container size dynamically after it's created
-        // We'll set this after the container is in the DOM so we can get computed styles
+        // Calculate container size BEFORE creating it (using dynamically detected padding/border)
+        const containerSpacingRender = this.getContainerPaddingAndBorder();
+        const containerWidth = imageWidth + containerSpacingRender.totalLeft + containerSpacingRender.totalRight;
+        const containerHeight = imageHeight + containerSpacingRender.totalTop + containerSpacingRender.totalBottom;
+        // Store base overlay dimensions for zoom calculations
+        this.baseOverlayWidth = containerWidth;
+        this.baseOverlayHeight = containerHeight;
         // Reset pan and scale for new image
         this.currentScale = 1.0;
         this.panX = 0;
@@ -157,8 +206,8 @@ export class ImageViewer {
         const imageSrc = displayInstance.src.startsWith('/srv/images/')
             ? displayInstance.src
             : `/srv/images/${displayInstance.src}`;
-        // Create custom overlay: backdrop + container
-        this.createCustomOverlay(imageWidth, imageHeight, imageSrc, currentImage.caption);
+        // Create custom overlay: backdrop + container (pass container size too)
+        this.createCustomOverlay(imageWidth, imageHeight, containerWidth, containerHeight, imageSrc, currentImage.caption);
         // Preload full-size image (largest instance, which is last in sorted array)
         const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
         const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
@@ -330,7 +379,7 @@ export class ImageViewer {
     /**
      * Create custom overlay (backdrop + container) without using OverlayManager.
      */
-    createCustomOverlay(imageWidth, imageHeight, imageSrc, caption) {
+    createCustomOverlay(imageWidth, imageHeight, containerWidth, containerHeight, imageSrc, caption) {
         // Create backdrop (static styles in CSS, only zIndex is dynamic)
         this.backdrop = document.createElement('div');
         this.backdrop.id = 'imageViewerBackdrop';
@@ -363,11 +412,6 @@ export class ImageViewer {
             // Handle touch end for gesture detection
             this.handleTouchEnd(e);
         }, { passive: false });
-        // Create container (static styles in CSS, only dimensions and zIndex are dynamic)
-        this.container = document.createElement('div');
-        this.container.id = 'imageViewerContainer';
-        this.container.style.zIndex = String(this.zIndex + 1);
-        // Don't set size yet - we'll calculate it after appending to DOM
         // Create zoom container (outer wrapper, has padding)
         const zoomContainer = document.createElement('div');
         zoomContainer.id = 'imageZoomContainer';
@@ -384,52 +428,14 @@ export class ImageViewer {
         img.setAttribute('height', String(imageHeight));
         imageWrapper.appendChild(img);
         zoomContainer.appendChild(imageWrapper);
-        this.container.appendChild(zoomContainer);
-        // Append to body
-        document.body.appendChild(this.backdrop);
-        document.body.appendChild(this.container);
-        // Force a reflow to ensure styles are applied
-        void this.container.offsetHeight;
-        // Now that container is in DOM, calculate actual container size including padding/border
-        // Get computed styles to detect actual padding and border values
-        const computedStyle = window.getComputedStyle(this.container);
-        const containerPaddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-        const containerPaddingRight = parseFloat(computedStyle.paddingRight) || 0;
-        const containerPaddingTop = parseFloat(computedStyle.paddingTop) || 0;
-        const containerPaddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-        const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
-        const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-        const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
-        const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
-        // Get zoomContainer padding
-        const zoomContainerEl = this.container.querySelector('#imageZoomContainer');
-        let zoomContainerPaddingLeft = 0;
-        let zoomContainerPaddingRight = 0;
-        let zoomContainerPaddingTop = 0;
-        let zoomContainerPaddingBottom = 0;
-        if (zoomContainerEl) {
-            const zoomComputedStyle = window.getComputedStyle(zoomContainerEl);
-            zoomContainerPaddingLeft = parseFloat(zoomComputedStyle.paddingLeft) || 0;
-            zoomContainerPaddingRight = parseFloat(zoomComputedStyle.paddingRight) || 0;
-            zoomContainerPaddingTop = parseFloat(zoomComputedStyle.paddingTop) || 0;
-            zoomContainerPaddingBottom = parseFloat(zoomComputedStyle.paddingBottom) || 0;
+        if (this.container) {
+            this.container.appendChild(zoomContainer);
         }
-        // Calculate total extra space (padding + border) on each side
-        const totalLeft = containerPaddingLeft + zoomContainerPaddingLeft + borderLeft;
-        const totalRight = containerPaddingRight + zoomContainerPaddingRight + borderRight;
-        const totalTop = containerPaddingTop + zoomContainerPaddingTop + borderTop;
-        const totalBottom = containerPaddingBottom + zoomContainerPaddingBottom + borderBottom;
-        // Container size = image size + padding/border on all sides
-        const finalContainerWidth = imageWidth + totalLeft + totalRight;
-        const finalContainerHeight = imageHeight + totalTop + totalBottom;
-        // Set container dimensions (now with correct size from the start)
-        this.container.style.width = `${finalContainerWidth}px`;
-        this.container.style.height = `${finalContainerHeight}px`;
-        this.container.style.maxWidth = `${finalContainerWidth}px`;
-        this.container.style.maxHeight = `${finalContainerHeight}px`;
-        // Store base overlay dimensions for zoom calculations
-        this.baseOverlayWidth = finalContainerWidth;
-        this.baseOverlayHeight = finalContainerHeight;
+        // Append to body (container already has correct size set)
+        document.body.appendChild(this.backdrop);
+        if (this.container) {
+            document.body.appendChild(this.container);
+        }
         // Prevent body scroll
         document.body.style.overflow = 'hidden';
     }
