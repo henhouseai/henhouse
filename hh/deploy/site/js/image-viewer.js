@@ -789,9 +789,17 @@ export class ImageViewer {
         this.panX = constrained.x;
         this.panY = constrained.y;
         // Update transforms - translate for panning, scale for zooming
+        // When scaling from center, need to adjust translation to compensate
         if (imageWrapper) {
             imageWrapper.dataset.scale = scale.toString();
-            imageWrapper.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+            // Get wrapper dimensions
+            const wrapperWidth = imageWrapper.offsetWidth;
+            const wrapperHeight = imageWrapper.offsetHeight;
+            // Calculate translation offset to compensate for center scaling
+            const translateX = wrapperWidth * (scale - 1) / 2;
+            const translateY = wrapperHeight * (scale - 1) / 2;
+            // Combine pan translation with scale compensation
+            imageWrapper.style.transform = `translate(${this.panX + translateX}px, ${this.panY + translateY}px) scale(${scale})`;
         }
     }
     /**
@@ -854,8 +862,14 @@ export class ImageViewer {
         dataset.scale = scale.toString();
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Update transform with both translate and scale
-        target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+        // Get wrapper dimensions for scale compensation
+        const wrapperWidth = target.offsetWidth;
+        const wrapperHeight = target.offsetHeight;
+        // Calculate translation offset to compensate for center scaling
+        const translateX = wrapperWidth * (scale - 1) / 2;
+        const translateY = wrapperHeight * (scale - 1) / 2;
+        // Update transform with both translate and scale, compensating for center scaling
+        target.style.transform = `translate(${this.panX + translateX}px, ${this.panY + translateY}px) scale(${scale})`;
     }
     /**
      * Interact.js gesture end handler.
@@ -886,8 +900,14 @@ export class ImageViewer {
         // Update position data
         dataset.x = x.toString();
         dataset.y = y.toString();
-        // Apply transform with both translate and scale
-        target.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+        // Get wrapper dimensions for scale compensation
+        const wrapperWidth = target.offsetWidth;
+        const wrapperHeight = target.offsetHeight;
+        // Calculate translation offset to compensate for center scaling
+        const translateX = wrapperWidth * (scale - 1) / 2;
+        const translateY = wrapperHeight * (scale - 1) / 2;
+        // Apply transform with both translate and scale, compensating for center scaling
+        target.style.transform = `translate(${x + translateX}px, ${y + translateY}px) scale(${scale})`;
     }
     /**
      * Bind keyboard shortcuts (escape and arrow keys).
