@@ -32,6 +32,9 @@ export class ImageViewer {
         // Store full-size dimensions for resize calculations
         this.fullSizeWidth = 0;
         this.fullSizeHeight = 0;
+        // Store padding/border values (never change, calculated once)
+        this.totalHorizontalExtra = 0; // padding + border on left + right
+        this.totalVerticalExtra = 0; // padding + border on top + bottom
         this.rpc = new RPCClient();
         this.pageId = pageId;
         this.initialImageId = initialImageId;
@@ -153,16 +156,17 @@ export class ImageViewer {
         const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
         const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
         const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
-        const totalHorizontalExtra = paddingLeft + paddingRight + borderLeft + borderRight;
-        const totalVerticalExtra = paddingTop + paddingBottom + borderTop + borderBottom;
+        // Store padding/border values once (they never change - CSS constants)
+        this.totalHorizontalExtra = paddingLeft + paddingRight + borderLeft + borderRight;
+        this.totalVerticalExtra = paddingTop + paddingBottom + borderTop + borderBottom;
         // Calculate what the optimal wrapper size should be to fit in viewport
         // maxWindowWidth = optimalWrapperWidth + totalHorizontalExtra
         // maxWindowHeight = optimalWrapperHeight + totalVerticalExtra
         // So: optimalWrapperWidth = maxWindowWidth - totalHorizontalExtra
         //     optimalWrapperHeight = maxWindowHeight - totalVerticalExtra
         // But we need to maintain aspect ratio, so calculate scale for both dimensions
-        const maxWrapperWidth = maxWindowWidth - totalHorizontalExtra;
-        const maxWrapperHeight = maxWindowHeight - totalVerticalExtra;
+        const maxWrapperWidth = maxWindowWidth - this.totalHorizontalExtra;
+        const maxWrapperHeight = maxWindowHeight - this.totalVerticalExtra;
         // Calculate scale based on wrapper dimensions (not window dimensions)
         const scaleX = maxWrapperWidth / fullSizeWidth;
         const scaleY = maxWrapperHeight / fullSizeHeight;
@@ -171,8 +175,8 @@ export class ImageViewer {
         const optimalWrapperWidth = fullSizeWidth * optimalScale;
         const optimalWrapperHeight = fullSizeHeight * optimalScale;
         // Calculate optimal window size from wrapper + padding/border
-        const optimalWindowWidth = optimalWrapperWidth + totalHorizontalExtra;
-        const optimalWindowHeight = optimalWrapperHeight + totalVerticalExtra;
+        const optimalWindowWidth = optimalWrapperWidth + this.totalHorizontalExtra;
+        const optimalWindowHeight = optimalWrapperHeight + this.totalVerticalExtra;
         return {
             optimalWrapperWidth,
             optimalWrapperHeight,
@@ -562,23 +566,25 @@ export class ImageViewer {
             }
             const currentWrapperWidth = imageWrapper.offsetWidth;
             const currentWrapperHeight = imageWrapper.offsetHeight;
-            // Measure current window size
-            const currentWindowWidth = this.container.offsetWidth;
-            const currentWindowHeight = this.container.offsetHeight;
             // Calculate optimal size to fit on screen with 40px margin on all sides
             const pageWidth = this.getPageWidth();
             const pageHeight = this.getPageHeight();
             const maxWindowWidth = pageWidth - 80; // 40px margin each side
             const maxWindowHeight = pageHeight - 80;
-            // Calculate scaling factor based on limiting dimension
-            const scaleX = maxWindowWidth / currentWindowWidth;
-            const scaleY = maxWindowHeight / currentWindowHeight;
+            // Calculate max wrapper size (viewport - margins - padding/border)
+            // Use stored padding/border values (calculated once during initial load)
+            const maxWrapperWidth = maxWindowWidth - this.totalHorizontalExtra;
+            const maxWrapperHeight = maxWindowHeight - this.totalVerticalExtra;
+            // Calculate scaling factor based on wrapper dimensions (not window dimensions)
+            const scaleX = maxWrapperWidth / currentWrapperWidth;
+            const scaleY = maxWrapperHeight / currentWrapperHeight;
             const optimalScale = Math.min(scaleX, scaleY); // Allow scaling up or down
-            // Calculate new sizes
+            // Calculate new wrapper sizes
             const newWrapperWidth = currentWrapperWidth * optimalScale;
             const newWrapperHeight = currentWrapperHeight * optimalScale;
-            const newWindowWidth = currentWindowWidth * optimalScale;
-            const newWindowHeight = currentWindowHeight * optimalScale;
+            // Calculate new window sizes from wrapper + stored padding/border
+            const newWindowWidth = newWrapperWidth + this.totalHorizontalExtra;
+            const newWindowHeight = newWrapperHeight + this.totalVerticalExtra;
             // Apply new sizes (image stays the same, just container/wrapper resize)
             imageWrapper.style.width = `${newWrapperWidth}px`;
             imageWrapper.style.height = `${newWrapperHeight}px`;
