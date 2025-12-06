@@ -557,9 +557,30 @@ export class ImageViewer {
     const currentPanX = parseFloat(dataset.x) || this.panX;
     const currentPanY = parseFloat(dataset.y) || this.panY;
     
+    // Determine which axis is allowed to pan in "between" state
+    const state = this.getZoomState(this.currentScale);
+    const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
+    
     // Calculate new pan position from drag delta
-    const newPanX = currentPanX + event.dx;
-    const newPanY = currentPanY + event.dy;
+    // In "between" state, only apply delta to the allowed axis
+    let newPanX = currentPanX;
+    let newPanY = currentPanY;
+    
+    if (state === 'between') {
+      if (widthHitsFirst) {
+        // Only Y panning allowed
+        newPanY = currentPanY + event.dy;
+        // X stays at current (will be constrained to 0)
+      } else {
+        // Only X panning allowed
+        newPanX = currentPanX + event.dx;
+        // Y stays at current (will be constrained to 0)
+      }
+    } else {
+      // Both axes allowed (zoomedIn state)
+      newPanX = currentPanX + event.dx;
+      newPanY = currentPanY + event.dy;
+    }
     
     // Apply constraints based on zoom state
     const constrained = this.applyPanConstraints(this.currentScale, newPanX, newPanY);
@@ -1264,9 +1285,30 @@ export class ImageViewer {
     const currentPanY = parseFloat(dataset.y) || this.panY;
     const scale = parseFloat(dataset.scale) || this.currentScale;
 
+    // Determine which axis is allowed to pan in "between" state
+    const state = this.getZoomState(scale);
+    const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
+    
     // Calculate new pan position from drag delta
-    const newPanX = currentPanX + event.dx;
-    const newPanY = currentPanY + event.dy;
+    // In "between" state, only apply delta to the allowed axis
+    let newPanX = currentPanX;
+    let newPanY = currentPanY;
+    
+    if (state === 'between') {
+      if (widthHitsFirst) {
+        // Only Y panning allowed
+        newPanY = currentPanY + event.dy;
+        // X stays at current (will be constrained to 0)
+      } else {
+        // Only X panning allowed
+        newPanX = currentPanX + event.dx;
+        // Y stays at current (will be constrained to 0)
+      }
+    } else {
+      // Both axes allowed (zoomedIn state)
+      newPanX = currentPanX + event.dx;
+      newPanY = currentPanY + event.dy;
+    }
 
     // Apply constraints based on zoom state
     const constrained = this.applyPanConstraints(scale, newPanX, newPanY);
