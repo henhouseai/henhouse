@@ -473,6 +473,34 @@ export class ImageViewer {
         document.body.style.overflow = 'hidden';
     }
     /**
+     * Create window only (for navigation - backdrop already exists).
+     */
+    createWindowOnly(fullSizeWidth, fullSizeHeight, fullSizeSrc, caption) {
+        // Create window with opacity: 0 (invisible for measurement)
+        this.container = document.createElement('div');
+        this.container.id = 'imageViewerWindow';
+        this.container.style.opacity = '0';
+        this.container.style.zIndex = String(this.zIndex + 1);
+        // Don't set size yet - will be determined by wrapper + padding/border
+        // Create image wrapper set to full-size dimensions (no image yet)
+        const imageWrapper = document.createElement('div');
+        imageWrapper.id = 'imageWrapper';
+        imageWrapper.style.width = `${fullSizeWidth}px`;
+        imageWrapper.style.height = `${fullSizeHeight}px`;
+        this.container.appendChild(imageWrapper);
+        // Append to body (invisible, backdrop already exists)
+        document.body.appendChild(this.container);
+        // Measure and calculate optimal sizes
+        const optimalSizes = this.measureAndCalculateOptimalSize(fullSizeWidth, fullSizeHeight);
+        // Apply optimal sizes
+        this.applyOptimalSizes(optimalSizes.optimalWrapperWidth, optimalSizes.optimalWrapperHeight, optimalSizes.optimalWindowWidth, optimalSizes.optimalWindowHeight);
+        // Load optimal image
+        this.loadOptimalImage(optimalSizes.optimalWrapperWidth, optimalSizes.optimalWrapperHeight, fullSizeSrc, caption);
+        // Fade in
+        this.container.style.transition = 'opacity 0.2s';
+        this.container.style.opacity = '1';
+    }
+    /**
      * Set up event handlers for navigation and controls.
      */
     setupEventHandlers() {
@@ -543,7 +571,7 @@ export class ImageViewer {
         // Fade out old window
         this.container.style.transition = 'opacity 0.2s';
         this.container.style.opacity = '0';
-        // After fade out, remove old window and create new one
+        // After fade out, remove old window and create new one (reuse backdrop)
         setTimeout(() => {
             // Remove old window
             if (this.container && this.container.parentNode) {
@@ -554,8 +582,8 @@ export class ImageViewer {
             this.currentScale = 1.0;
             this.panX = 0;
             this.panY = 0;
-            // Create new window (same as initial load)
-            this.createCustomOverlay(this.fullSizeWidth, this.fullSizeHeight, fullSizeSrc, currentImage.caption);
+            // Create new window only (backdrop already exists)
+            this.createWindowOnly(this.fullSizeWidth, this.fullSizeHeight, fullSizeSrc, currentImage.caption);
             // Preload full-size image
             const preloadImg = new Image();
             preloadImg.src = fullSizeSrc;
