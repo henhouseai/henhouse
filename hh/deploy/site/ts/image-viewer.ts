@@ -406,8 +406,13 @@ export class ImageViewer {
     (imageWrapper as any).dataset.y = '0';
     (imageWrapper as any).dataset.fullsize = 'false';
 
-    // Set initial transform - only translate, no scale (scaling handled by container size)
-    imageWrapper.style.transform = 'translate(0, 0)';
+    // Set initial transform - only scale (no translate, panning moves container)
+    imageWrapper.style.transform = 'scale(1)';
+    
+    // Container starts centered (no pan offset)
+    if (this.container) {
+      this.container.style.transform = 'translate(-50%, -50%)';
+    }
 
     // Set up interact.js
     this.interactInstance = interact(imageWrapper)
@@ -559,8 +564,13 @@ export class ImageViewer {
     this.panX = constrained.x;
     this.panY = constrained.y;
     
-    // Update transform
-    imageWrapper.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.currentScale})`;
+    // Container: combine centering transform with pan offset
+    if (this.container) {
+      this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
+    }
+    
+    // Wrapper: only scale (no translate, panning is handled by container)
+    imageWrapper.style.transform = `scale(${this.currentScale})`;
   }
 
   /**
@@ -802,12 +812,15 @@ export class ImageViewer {
       this.panX = 0;
       this.panY = 0;
       
-      // Reset transform on image wrapper
+      // Reset transform on image wrapper and container
       if (imageWrapper) {
         (imageWrapper as any).dataset.scale = '1';
         (imageWrapper as any).dataset.x = '0';
         (imageWrapper as any).dataset.y = '0';
-        imageWrapper.style.transform = 'translate(0, 0)';
+        imageWrapper.style.transform = 'scale(1)';
+      }
+      if (this.container) {
+        this.container.style.transform = 'translate(-50%, -50%)';
       }
     };
     window.addEventListener('resize', this.resizeHandler);
@@ -1027,21 +1040,15 @@ export class ImageViewer {
     this.panX = constrained.x;
     this.panY = constrained.y;
 
-    // Update transforms - translate for panning, scale for zooming
-    // When scaling from center, need to adjust translation to compensate
-    if (imageWrapper) {
+    // Update transforms - panning moves the container, scaling applies to wrapper
+    if (this.container && imageWrapper) {
       (imageWrapper as any).dataset.scale = scale.toString();
       
-      // Get wrapper dimensions
-      const wrapperWidth = imageWrapper.offsetWidth;
-      const wrapperHeight = imageWrapper.offsetHeight;
+      // Container: combine centering transform with pan offset
+      this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
       
-      // Calculate translation offset to compensate for center scaling
-      const translateX = wrapperWidth * (scale - 1) / 2;
-      const translateY = wrapperHeight * (scale - 1) / 2;
-      
-      // Combine pan translation with scale compensation
-      imageWrapper.style.transform = `translate(${this.panX + translateX}px, ${this.panY + translateY}px) scale(${scale})`;
+      // Wrapper: only scale (no translate, panning is handled by container)
+      imageWrapper.style.transform = `scale(${scale})`;
     }
   }
 
@@ -1119,16 +1126,13 @@ export class ImageViewer {
     dataset.x = this.panX.toString();
     dataset.y = this.panY.toString();
 
-    // Get wrapper dimensions for scale compensation
-    const wrapperWidth = (target as HTMLElement).offsetWidth;
-    const wrapperHeight = (target as HTMLElement).offsetHeight;
+    // Container: combine centering transform with pan offset
+    if (this.container) {
+      this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
+    }
     
-    // Calculate translation offset to compensate for center scaling
-    const translateX = wrapperWidth * (scale - 1) / 2;
-    const translateY = wrapperHeight * (scale - 1) / 2;
-    
-    // Update transform with both translate and scale, compensating for center scaling
-    target.style.transform = `translate(${this.panX + translateX}px, ${this.panY + translateY}px) scale(${scale})`;
+    // Wrapper: only scale (no translate, panning is handled by container)
+    target.style.transform = `scale(${scale})`;
   }
 
   /**
@@ -1166,17 +1170,18 @@ export class ImageViewer {
     // Update position data
     dataset.x = x.toString();
     dataset.y = y.toString();
+    
+    // Update pan values (dragMoveListener uses its own x/y, but we need to sync with this.panX/panY)
+    this.panX = x;
+    this.panY = y;
 
-    // Get wrapper dimensions for scale compensation
-    const wrapperWidth = (target as HTMLElement).offsetWidth;
-    const wrapperHeight = (target as HTMLElement).offsetHeight;
+    // Container: combine centering transform with pan offset
+    if (this.container) {
+      this.container.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    }
     
-    // Calculate translation offset to compensate for center scaling
-    const translateX = wrapperWidth * (scale - 1) / 2;
-    const translateY = wrapperHeight * (scale - 1) / 2;
-    
-    // Apply transform with both translate and scale, compensating for center scaling
-    target.style.transform = `translate(${x + translateX}px, ${y + translateY}px) scale(${scale})`;
+    // Wrapper: only scale (no translate, panning is handled by container)
+    target.style.transform = `scale(${scale})`;
   }
 
   /**
