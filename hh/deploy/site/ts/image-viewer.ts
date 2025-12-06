@@ -62,6 +62,10 @@ export class ImageViewer {
   private panY: number = 0;
   private scaleForWidthMatch: number = 1.0;
   private scaleForHeightMatch: number = 1.0;
+  
+  // Store full-size dimensions for resize calculations
+  private fullSizeWidth: number = 0;
+  private fullSizeHeight: number = 0;
 
   constructor(pageId: number, initialImageId?: number) {
     this.rpc = new RPCClient();
@@ -170,54 +174,152 @@ export class ImageViewer {
     };
   }
 
+
   /**
-   * Get container padding/border values by creating a temporary element.
-   * This allows us to know the padding/border before creating the actual container.
+   * Measure window with full-size wrapper and calculate optimal sizes.
+   * Returns optimal wrapper and window dimensions.
    */
-  private getContainerPaddingAndBorder(): {
-    totalLeft: number;
-    totalRight: number;
-    totalTop: number;
-    totalBottom: number;
+  private measureAndCalculateOptimalSize(fullSizeWidth: number, fullSizeHeight: number): {
+    optimalWrapperWidth: number;
+    optimalWrapperHeight: number;
+    optimalWindowWidth: number;
+    optimalWindowHeight: number;
   } {
-    // Create temporary elements to measure padding/border from CSS
-    const tempContainer = document.createElement('div');
-    tempContainer.id = 'imageViewerContainer';
-    tempContainer.style.visibility = 'hidden';
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '-9999px';
+    if (!this.container) {
+      throw new Error('Container not found');
+    }
     
-    const tempZoomContainer = document.createElement('div');
-    tempZoomContainer.id = 'imageZoomContainer';
-    tempContainer.appendChild(tempZoomContainer);
-    document.body.appendChild(tempContainer);
-    
-    // Read computed styles
-    const computedStyle = window.getComputedStyle(tempContainer);
-    const containerPaddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-    const containerPaddingRight = parseFloat(computedStyle.paddingRight) || 0;
-    const containerPaddingTop = parseFloat(computedStyle.paddingTop) || 0;
-    const containerPaddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-    const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
-    const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-    const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
-    const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
-    
-    const zoomComputedStyle = window.getComputedStyle(tempZoomContainer);
-    const zoomContainerPaddingLeft = parseFloat(zoomComputedStyle.paddingLeft) || 0;
-    const zoomContainerPaddingRight = parseFloat(zoomComputedStyle.paddingRight) || 0;
-    const zoomContainerPaddingTop = parseFloat(zoomComputedStyle.paddingTop) || 0;
-    const zoomContainerPaddingBottom = parseFloat(zoomComputedStyle.paddingBottom) || 0;
-    
-    // Clean up
-    document.body.removeChild(tempContainer);
-    
+    const imageWrapper = this.container.querySelector('#imageWrapper') as HTMLElement;
+    if (!imageWrapper) {
+      throw new Error('Image wrapper not found');
+    }
+
+    // Set wrapper to full-size dimensions
+    imageWrapper.style.width = `${fullSizeWidth}px`;
+    imageWrapper.style.height = `${fullSizeHeight}px`;
+
+    // Force reflow to ensure styles are applied
+    void this.container.offsetHeight;
+
+    // Measure the window size (wrapper + padding + border)
+    const windowWidth = this.container.offsetWidth;
+    const windowHeight = this.container.offsetHeight;
+
+    // Calculate optimal size to fit on screen with 40px margin on all sides
+    const pageWidth = this.getPageWidth();
+    const pageHeight = this.getPageHeight();
+    const maxWindowWidth = pageWidth - 80; // 40px margin each side
+    const maxWindowHeight = pageHeight - 80;
+
+    // Calculate scaling factor based on limiting dimension
+    const scaleX = maxWindowWidth / windowWidth;
+    const scaleY = maxWindowHeight / windowHeight;
+    const optimalScale = Math.min(scaleX, scaleY, 1.0); // Don't scale up, only down
+
+    // Calculate optimal sizes
+    const optimalWrapperWidth = fullSizeWidth * optimalScale;
+    const optimalWrapperHeight = fullSizeHeight * optimalScale;
+    const optimalWindowWidth = windowWidth * optimalScale;
+    const optimalWindowHeight = windowHeight * optimalScale;
+
     return {
-      totalLeft: containerPaddingLeft + zoomContainerPaddingLeft + borderLeft,
-      totalRight: containerPaddingRight + zoomContainerPaddingRight + borderRight,
-      totalTop: containerPaddingTop + zoomContainerPaddingTop + borderTop,
-      totalBottom: containerPaddingBottom + zoomContainerPaddingBottom + borderBottom
+      optimalWrapperWidth,
+      optimalWrapperHeight,
+      optimalWindowWidth,
+      optimalWindowHeight
     };
+  }
+
+  /**
+   * Apply optimal sizes to wrapper and window.
+   */
+  private applyOptimalSizes(
+    optimalWrapperWidth: number,
+    optimalWrapperHeight: number,
+    optimalWindowWidth: number,
+    optimalWindowHeight: number
+  ): void {
+    if (!this.container) {
+      return;
+    }
+    
+    const imageWrapper = this.container.querySelector('#imageWrapper') as HTMLElement;
+    if (imageWrapper) {
+      imageWrapper.style.width = `${optimalWrapperWidth}px`;
+      imageWrapper.style.height = `${optimalWrapperHeight}px`;
+    }
+
+    this.container.style.width = `${optimalWindowWidth}px`;
+    this.container.style.height = `${optimalWindowHeight}px`;
+    this.container.style.maxWidth = `${optimalWindowWidth}px`;
+    this.container.style.maxHeight = `${optimalWindowHeight}px`;
+
+    // Store base dimensions for zoom calculations
+    this.baseImageWidth = optimalWrapperWidth;
+    this.baseImageHeight = optimalWrapperHeight;
+    this.baseOverlayWidth = optimalWindowWidth;
+    this.baseOverlayHeight = optimalWindowHeight;
+
+    // Calculate special point scales based on CONTAINER size touching viewport edge
+    const viewportWidth = this.getPageWidth();
+    const viewportHeight = this.getPageHeight();
+    this.scaleForWidthMatch = viewportWidth / optimalWindowWidth;
+    this.scaleForHeightMatch = viewportHeight / optimalWindowHeight;
+  }
+
+  /**
+   * Load optimal image instance based on wrapper size.
+   */
+  private loadOptimalImage(
+    optimalWrapperWidth: number,
+    optimalWrapperHeight: number,
+    fullSizeSrc: string,
+    caption: string
+  ): void {
+    if (!this.container) {
+      return;
+    }
+    
+    const currentImage = this.images[this.currentImageIndex];
+    
+    // Select optimal image instance based on scaled-down wrapper size
+    const displayInstance = this.getBestInstance(optimalWrapperWidth, currentImage.instances);
+    if (!displayInstance) {
+      console.error('No display instance found');
+      return;
+    }
+
+    // Calculate display dimensions
+    const displayDims = this.calculateDisplayDimensions(
+      displayInstance,
+      optimalWrapperWidth,
+      optimalWrapperHeight
+    );
+
+    // Format image src with /srv/images/ prefix
+    const imageSrc = displayInstance.src.startsWith('/srv/images/') 
+      ? displayInstance.src 
+      : `/srv/images/${displayInstance.src}`;
+
+    // Get or create image element
+    let img = this.container.querySelector('#imageViewerTargetImage') as HTMLImageElement;
+    if (!img) {
+      const imageWrapper = this.container.querySelector('#imageWrapper') as HTMLElement;
+      if (!imageWrapper) return;
+      
+      img = document.createElement('img');
+      img.id = 'imageViewerTargetImage';
+      imageWrapper.appendChild(img);
+    }
+
+    // Update image
+    img.src = imageSrc;
+    img.alt = caption;
+    img.setAttribute('width', String(displayDims.width));
+    img.setAttribute('height', String(displayDims.height));
+    
+    // Store full-size src for later zoom swap
+    (img as any).dataset.fullSizeSrc = fullSizeSrc;
   }
 
   /**
@@ -229,74 +331,24 @@ export class ImageViewer {
     }
 
     const currentImage = this.images[this.currentImageIndex];
-    const pageWidth = this.getPageWidth();
-    const pageHeight = this.getPageHeight();
-
-    // Get container padding/border to account for it in image size calculation
-    const containerSpacingCalc = this.getContainerPaddingAndBorder();
-    const containerExtraWidth = containerSpacingCalc.totalLeft + containerSpacingCalc.totalRight;
-    const containerExtraHeight = containerSpacingCalc.totalTop + containerSpacingCalc.totalBottom;
-
-    // Calculate max dimensions with border space (40px margin on all sides)
-    // AND account for container padding/border so total container fits
-    const maxImageWidth = pageWidth - 80 - containerExtraWidth;
-    const maxImageHeight = pageHeight - 80 - containerExtraHeight;
-
-    // Get best instance for display
-    const displayInstance = this.getBestInstance(maxImageWidth, currentImage.instances);
-    if (!displayInstance) {
-      console.error('No display instance found');
-      return;
-    }
-
-    // Calculate display dimensions
-    const displayDims = this.calculateDisplayDimensions(
-      displayInstance,
-      maxImageWidth,
-      maxImageHeight
-    );
-
-    const imageWidth = displayDims.width;
-    const imageHeight = displayDims.height;
-
-    // Store base image dimensions
-    this.baseImageWidth = imageWidth;
-    this.baseImageHeight = imageHeight;
-
-    // Calculate container size BEFORE creating it (using dynamically detected padding/border)
-    const containerSpacingRender = this.getContainerPaddingAndBorder();
-    const containerWidth = imageWidth + containerSpacingRender.totalLeft + containerSpacingRender.totalRight;
-    const containerHeight = imageHeight + containerSpacingRender.totalTop + containerSpacingRender.totalBottom;
     
-    // Store base overlay dimensions for zoom calculations
-    this.baseOverlayWidth = containerWidth;
-    this.baseOverlayHeight = containerHeight;
-
-    // Calculate special point scales based on CONTAINER size touching viewport edge
-    // Stop when red border (container) hits edge, not image edge
-    const viewportWidth = this.getPageWidth();
-    const viewportHeight = this.getPageHeight();
-    this.scaleForWidthMatch = viewportWidth / containerWidth;
-    this.scaleForHeightMatch = viewportHeight / containerHeight;
+    // Get full-size image dimensions (largest instance, which is last in sorted array)
+    const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
+    this.fullSizeWidth = fullSizeInstance.width;
+    this.fullSizeHeight = fullSizeInstance.height;
+    const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/') 
+      ? fullSizeInstance.src 
+      : `/srv/images/${fullSizeInstance.src}`;
 
     // Reset pan and scale for new image
     this.currentScale = 1.0;
     this.panX = 0;
     this.panY = 0;
 
-    // Format image src with /srv/images/ prefix
-    const imageSrc = displayInstance.src.startsWith('/srv/images/') 
-      ? displayInstance.src 
-      : `/srv/images/${displayInstance.src}`;
+    // Create custom overlay with full-size dimensions, it will measure and adjust
+    this.createCustomOverlay(this.fullSizeWidth, this.fullSizeHeight, fullSizeSrc, currentImage.caption);
 
-    // Create custom overlay: backdrop + container (pass container size too)
-    this.createCustomOverlay(imageWidth, imageHeight, containerWidth, containerHeight, imageSrc, currentImage.caption);
-
-    // Preload full-size image (largest instance, which is last in sorted array)
-    const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
-    const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/') 
-      ? fullSizeInstance.src 
-      : `/srv/images/${fullSizeInstance.src}`;
+    // Preload full-size image
     const preloadImg = new Image();
     preloadImg.src = fullSizeSrc;
 
@@ -312,22 +364,22 @@ export class ImageViewer {
    * Set up interact.js for pan/zoom.
    */
   private setupInteract(): void {
-    const zoomContainer = document.getElementById('imageZoomContainer');
-    if (!zoomContainer) {
+    const imageWrapper = document.getElementById('imageWrapper');
+    if (!imageWrapper) {
       return;
     }
 
     // Initialize transform data
-    (zoomContainer as any).dataset.scale = '1';
-    (zoomContainer as any).dataset.x = '0';
-    (zoomContainer as any).dataset.y = '0';
-    (zoomContainer as any).dataset.fullsize = 'false';
+    (imageWrapper as any).dataset.scale = '1';
+    (imageWrapper as any).dataset.x = '0';
+    (imageWrapper as any).dataset.y = '0';
+    (imageWrapper as any).dataset.fullsize = 'false';
 
     // Set initial transform - only translate, no scale (scaling handled by container size)
-    zoomContainer.style.transform = 'translate(0, 0)';
+    imageWrapper.style.transform = 'translate(0, 0)';
 
     // Set up interact.js
-    this.interactInstance = interact(zoomContainer)
+    this.interactInstance = interact(imageWrapper)
       .gesturable({
         listeners: {
           start: (event: any) => this.onGestureStart(event),
@@ -445,8 +497,8 @@ export class ImageViewer {
    */
   private onDragStart(event: any): void {
     // Store initial pan position
-    const zoomContainer = event.target;
-    const dataset = (zoomContainer as any).dataset;
+    const imageWrapper = event.target;
+    const dataset = (imageWrapper as any).dataset;
     dataset.initialPanX = this.panX.toString();
     dataset.initialPanY = this.panY.toString();
   }
@@ -455,8 +507,8 @@ export class ImageViewer {
    * Handle drag move with state-based constraints.
    */
   private onDragMove(event: any): void {
-    const zoomContainer = event.target;
-    const dataset = (zoomContainer as any).dataset;
+    const imageWrapper = event.target;
+    const dataset = (imageWrapper as any).dataset;
     
     const initialPanX = parseFloat(dataset.initialPanX) || 0;
     const initialPanY = parseFloat(dataset.initialPanY) || 0;
@@ -472,7 +524,7 @@ export class ImageViewer {
     this.panY = constrained.y;
     
     // Update transform
-    zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.currentScale})`;
+    imageWrapper.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.currentScale})`;
   }
 
   /**
@@ -485,7 +537,7 @@ export class ImageViewer {
   /**
    * Create custom overlay (backdrop + container) without using OverlayManager.
    */
-  private createCustomOverlay(imageWidth: number, imageHeight: number, containerWidth: number, containerHeight: number, imageSrc: string, caption: string): void {
+  private createCustomOverlay(fullSizeWidth: number, fullSizeHeight: number, fullSizeSrc: string, caption: string): void {
     // Create backdrop (static styles in CSS, only zIndex is dynamic)
     this.backdrop = document.createElement('div');
     this.backdrop.id = 'imageViewerBackdrop';
@@ -523,39 +575,47 @@ export class ImageViewer {
       this.handleTouchEnd(e);
     }, { passive: false });
 
-    // Create container with correct size from the start
+    // Create window with opacity: 0 (invisible for measurement)
     this.container = document.createElement('div');
-    this.container.id = 'imageViewerContainer';
-    this.container.style.width = `${containerWidth}px`;
-    this.container.style.height = `${containerHeight}px`;
-    this.container.style.maxWidth = `${containerWidth}px`;
-    this.container.style.maxHeight = `${containerHeight}px`;
+    this.container.id = 'imageViewerWindow';
+    this.container.style.opacity = '0';
     this.container.style.zIndex = String(this.zIndex + 1);
+    // Don't set size yet - will be determined by wrapper + padding/border
 
-    // Create zoom container (outer wrapper, has padding)
-    const zoomContainer = document.createElement('div');
-    zoomContainer.id = 'imageZoomContainer';
-
-    // Create image wrapper (inner wrapper, fills zoomContainer minus padding)
+    // Create image wrapper set to full-size dimensions (no image yet)
     const imageWrapper = document.createElement('div');
-    imageWrapper.id = 'imageViewerImageWrapper';
+    imageWrapper.id = 'imageWrapper';
+    imageWrapper.style.width = `${fullSizeWidth}px`;
+    imageWrapper.style.height = `${fullSizeHeight}px`;
 
-    // Create image (static styles in CSS, only src and alt are dynamic)
-    const img = document.createElement('img');
-    img.id = 'imageViewerTargetImage';
-    img.src = imageSrc;
-    img.alt = caption;
-    // Note: width/height set via CSS object-fit: contain, but we set attributes for aspect ratio
-    img.setAttribute('width', String(imageWidth));
-    img.setAttribute('height', String(imageHeight));
+    this.container.appendChild(imageWrapper);
 
-    imageWrapper.appendChild(img);
-    zoomContainer.appendChild(imageWrapper);
-    this.container.appendChild(zoomContainer);
-
-    // Append to body (container already has correct size set)
+    // Append to body (invisible)
     document.body.appendChild(this.backdrop);
     document.body.appendChild(this.container);
+
+    // Measure and calculate optimal sizes
+    const optimalSizes = this.measureAndCalculateOptimalSize(fullSizeWidth, fullSizeHeight);
+    
+    // Apply optimal sizes
+    this.applyOptimalSizes(
+      optimalSizes.optimalWrapperWidth,
+      optimalSizes.optimalWrapperHeight,
+      optimalSizes.optimalWindowWidth,
+      optimalSizes.optimalWindowHeight
+    );
+
+    // Load optimal image
+    this.loadOptimalImage(
+      optimalSizes.optimalWrapperWidth,
+      optimalSizes.optimalWrapperHeight,
+      fullSizeSrc,
+      caption
+    );
+
+    // Fade in
+    this.container.style.transition = 'opacity 0.2s';
+    this.container.style.opacity = '1';
 
     // Prevent body scroll
     document.body.style.overflow = 'hidden';
@@ -566,14 +626,14 @@ export class ImageViewer {
    */
   private setupEventHandlers(): void {
     // Touch handlers for swipe navigation - attach to zoom container
-    const zoomContainer = document.getElementById('imageZoomContainer');
-    if (zoomContainer) {
-      zoomContainer.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-      zoomContainer.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-      zoomContainer.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+    const imageWrapper = document.getElementById('imageWrapper');
+    if (imageWrapper) {
+      imageWrapper.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+      imageWrapper.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+      imageWrapper.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
       
       // Wheel zoom
-      zoomContainer.addEventListener('wheel', (e) => this.handleWheelZoom(e));
+      imageWrapper.addEventListener('wheel', (e) => this.handleWheelZoom(e));
     }
 
     // Also attach touch handlers to container to catch gestures there too
@@ -595,9 +655,22 @@ export class ImageViewer {
       this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
     }
 
-    // Window resize handler
+    // Window resize handler - just recalculate optimal size and apply it
     this.resizeHandler = () => {
-      this.navigateImage(0); // Re-render with new dimensions
+      if (!this.container || this.fullSizeWidth === 0 || this.fullSizeHeight === 0) {
+        return;
+      }
+      
+      // Recalculate optimal sizes from stored full-size dimensions
+      const optimalSizes = this.measureAndCalculateOptimalSize(this.fullSizeWidth, this.fullSizeHeight);
+      
+      // Apply optimal sizes (no fade, just resize)
+      this.applyOptimalSizes(
+        optimalSizes.optimalWrapperWidth,
+        optimalSizes.optimalWrapperHeight,
+        optimalSizes.optimalWindowWidth,
+        optimalSizes.optimalWindowHeight
+      );
     };
     window.addEventListener('resize', this.resizeHandler);
   }
@@ -671,24 +744,34 @@ export class ImageViewer {
       }, 100);
     }
 
-    // Reset zoom container
-    const zoomContainer = this.container.querySelector('#imageZoomContainer') as HTMLElement;
-    if (zoomContainer) {
-      (zoomContainer as any).dataset.scale = '1';
-      (zoomContainer as any).dataset.x = '0';
-      (zoomContainer as any).dataset.y = '0';
-      (zoomContainer as any).dataset.fullsize = 'false';
-      zoomContainer.style.transform = 'translate(0, 0)';
+    // Reset image wrapper
+    const imageWrapper = this.container.querySelector('#imageWrapper') as HTMLElement;
+    if (imageWrapper) {
+      (imageWrapper as any).dataset.scale = '1';
+      (imageWrapper as any).dataset.x = '0';
+      (imageWrapper as any).dataset.y = '0';
+      (imageWrapper as any).dataset.fullsize = 'false';
+      imageWrapper.style.transform = 'translate(0, 0)';
     }
 
     // Update base image dimensions
     this.baseImageWidth = imageWidth;
     this.baseImageHeight = imageHeight;
     
-    // Calculate container size dynamically from computed styles
-    const containerSpacingUpdate = this.getContainerPaddingAndBorder();
-    const finalContainerWidth = imageWidth + containerSpacingUpdate.totalLeft + containerSpacingUpdate.totalRight;
-    const finalContainerHeight = imageHeight + containerSpacingUpdate.totalTop + containerSpacingUpdate.totalBottom;
+    // Get current window padding/border from computed styles
+    const computedStyle = window.getComputedStyle(this.container);
+    const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+    const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+    const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+    const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
+    const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+    const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+    
+    // Calculate container size
+    const finalContainerWidth = imageWidth + paddingLeft + paddingRight + borderLeft + borderRight;
+    const finalContainerHeight = imageHeight + paddingTop + paddingBottom + borderTop + borderBottom;
     
     // Update container dimensions
     this.container.style.width = `${finalContainerWidth}px`;
@@ -743,10 +826,10 @@ export class ImageViewer {
    * Handle touch move - prevent scrolling if not zoomed.
    */
   private handleTouchMove(event: TouchEvent): void {
-    const zoomContainer = document.getElementById('imageZoomContainer');
-    if (!zoomContainer) return;
-
-    const scale = parseFloat((zoomContainer as any).dataset.scale) || 1;
+    const imageWrapper = document.getElementById('imageWrapper');
+    if (!imageWrapper) return;
+    
+    const scale = parseFloat((imageWrapper as any).dataset.scale) || 1;
     if (scale === 1) {
       // Only prevent default scrolling if not zoomed in
       event.preventDefault();
@@ -758,10 +841,10 @@ export class ImageViewer {
    * Uses momentum/threshold approach to distinguish navigation swipes from panning.
    */
   private handleTouchEnd(event: TouchEvent): void {
-    const zoomContainer = document.getElementById('imageZoomContainer');
-    if (!zoomContainer) return;
-
-    const scale = parseFloat((zoomContainer as any).dataset.scale) || 1;
+    const imageWrapper = document.getElementById('imageWrapper');
+    if (!imageWrapper) return;
+    
+    const scale = parseFloat((imageWrapper as any).dataset.scale) || 1;
     
     // Only handle swipe navigation at default state (scale === 1.0)
     // When zoomed, swipes are handled by interact.js drag gestures
@@ -811,23 +894,24 @@ export class ImageViewer {
   private handleWheelZoom(event: WheelEvent): void {
     event.preventDefault();
 
-    const zoomContainer = document.getElementById('imageZoomContainer');
-    if (!zoomContainer) return;
+    const imageWrapper = document.getElementById('imageWrapper');
+    if (!imageWrapper) return;
 
     let scale = this.currentScale;
 
     // Load full-size image if not already loaded
-    if (!(zoomContainer as any).dataset.fullsize || (zoomContainer as any).dataset.fullsize === 'false') {
+    
+    if (!(imageWrapper as any).dataset.fullsize || (imageWrapper as any).dataset.fullsize === 'false') {
       const currentImage = this.images[this.currentImageIndex];
       const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
       const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/') 
         ? fullSizeInstance.src 
         : `/srv/images/${fullSizeInstance.src}`;
-      const img = zoomContainer.querySelector('img') as HTMLImageElement;
+      const img = imageWrapper.querySelector('img') as HTMLImageElement;
       if (img) {
         img.src = fullSizeSrc;
       }
-      (zoomContainer as any).dataset.fullsize = 'true';
+      (imageWrapper as any).dataset.fullsize = 'true';
     }
 
     const zoomSensitivity = 0.1;
@@ -877,8 +961,10 @@ export class ImageViewer {
 
     // Update transforms - only translate for panning
     // Scaling is handled by container size, so image scales naturally (no transform scale needed)
-    (zoomContainer as any).dataset.scale = scale.toString();
-    zoomContainer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+    if (imageWrapper) {
+      (imageWrapper as any).dataset.scale = scale.toString();
+      imageWrapper.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+    }
   }
 
   /**

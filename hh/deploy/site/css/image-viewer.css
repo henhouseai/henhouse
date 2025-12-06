@@ -12,29 +12,29 @@
     touch-action: none; /* Prevent default touch behaviors (pinch-to-zoom, etc.) */
 }
 
-/* Container - centered window that scales with image */
-#imageViewerContainer {
+/* Window - centered window that scales with image */
+#imageViewerWindow {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     overflow: hidden;
-    padding: 20px;
+    padding-top: 50px;
+    padding-bottom: 100px;
+    padding-left: 20px;
+    padding-right: 20px;
     border: 3px solid red;
     pointer-events: auto;
     cursor: default;
     touch-action: none; /* Prevent default touch behaviors (pinch-to-zoom, etc.) */
-    /* width, height, maxWidth, maxHeight, zIndex set dynamically */
+    /* width, height, maxWidth, maxHeight, zIndex, opacity set dynamically */
 }
 
-/* Zoom container - outer wrapper, handles pan/zoom transforms, has padding */
-#imageZoomContainer {
+/* Image wrapper - handles pan/zoom transforms */
+#imageWrapper {
     width: 100%;
     height: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    padding: 20px; /* Creates space from container border */
+    position: relative;
     overflow: hidden;
     touch-action: none;
     user-select: none;
@@ -44,16 +44,8 @@
     /* transform (scale/translate) set dynamically */
 }
 
-#imageZoomContainer:active {
+#imageWrapper:active {
     cursor: grabbing;
-}
-
-/* Image wrapper - inner wrapper, fills zoomContainer minus padding */
-#imageViewerImageWrapper {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    overflow: hidden;
 }
 
 /* Image element */
