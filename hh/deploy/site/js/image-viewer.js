@@ -788,11 +788,10 @@ export class ImageViewer {
         const constrained = this.applyPanConstraints(scale, this.panX, this.panY);
         this.panX = constrained.x;
         this.panY = constrained.y;
-        // Update transforms - only translate for panning
-        // Scaling is handled by container size, so image scales naturally (no transform scale needed)
+        // Update transforms - translate for panning, scale for zooming
         if (imageWrapper) {
             imageWrapper.dataset.scale = scale.toString();
-            imageWrapper.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+            imageWrapper.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
         }
     }
     /**
@@ -855,8 +854,8 @@ export class ImageViewer {
         dataset.scale = scale.toString();
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Only translate for panning - scaling is handled by container size
-        target.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+        // Update transform with both translate and scale
+        target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
     }
     /**
      * Interact.js gesture end handler.
@@ -887,8 +886,8 @@ export class ImageViewer {
         // Update position data
         dataset.x = x.toString();
         dataset.y = y.toString();
-        // Apply transform - only translate, scaling handled by container size
-        target.style.transform = `translate(${x}px, ${y}px)`;
+        // Apply transform with both translate and scale
+        target.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     }
     /**
      * Bind keyboard shortcuts (escape and arrow keys).
