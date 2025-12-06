@@ -469,31 +469,36 @@ export class ImageViewer {
     const imageTop = overlayCenterY - scaledImageHeight / 2 + panY;
     const imageBottom = overlayCenterY + scaledImageHeight / 2 + panY;
 
-    // TESTING: Stop at first inflection point (widthMatch or heightMatch, whichever comes first)
+    // Determine which inflection point comes first
     const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-    if (scale >= firstInflectionScale && scale <= firstInflectionScale + 0.01) {
-      // At first inflection - stop here for testing
-      console.log('STOPPED AT FIRST INFLECTION POINT - Scale:', scale, 'First inflection:', firstInflectionScale);
-      constrainedX = 0;
-      constrainedY = 0;
-      // Prevent further zooming in for testing
-      return { x: constrainedX, y: constrainedY };
-    }
+    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
 
-    if (state === 'zoomedOut' || state === 'widthMatch') {
+    if (state === 'zoomedOut' || state === 'widthMatch' || state === 'heightMatch') {
       // Locked to center - no panning allowed
       constrainedX = 0;
       constrainedY = 0;
     } else if (state === 'between') {
-      // X panning enabled, Y locked to center
-      constrainedY = 0;
-      
-      // Constrain X so image edges don't go past viewport
-      const minX = viewportWidth / 2 - imageRight; // When right edge hits right viewport
-      const maxX = viewportWidth / 2 - imageLeft; // When left edge hits left viewport
-      constrainedX = Math.max(minX, Math.min(maxX, panX));
+      // Between the two inflection points - enable panning on the non-limiting axis
+      if (widthHitsFirst) {
+        // Width hit first, so Y panning enabled, X locked to center
+        constrainedX = 0;
+        
+        // Constrain Y so image edges don't go past viewport
+        const minY = viewportHeight / 2 - imageBottom;
+        const maxY = viewportHeight / 2 - imageTop;
+        constrainedY = Math.max(minY, Math.min(maxY, panY));
+      } else {
+        // Height hit first, so X panning enabled, Y locked to center
+        constrainedY = 0;
+        
+        // Constrain X so image edges don't go past viewport
+        const minX = viewportWidth / 2 - imageRight;
+        const maxX = viewportWidth / 2 - imageLeft;
+        constrainedX = Math.max(minX, Math.min(maxX, panX));
+      }
     } else {
-      // Both X and Y panning enabled
+      // Both X and Y panning enabled (zoomedIn state)
       // Constrain so image edges don't go past viewport
       const minX = viewportWidth / 2 - imageRight;
       const maxX = viewportWidth / 2 - imageLeft;
@@ -994,11 +999,10 @@ export class ImageViewer {
     const minScale = 1;
     const maxScale = 3; // 300% of full size
 
-    // TESTING: Stop at first inflection point
-    const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-    if (scale > firstInflectionScale) {
-      scale = firstInflectionScale;
-      console.log('STOPPED AT FIRST INFLECTION POINT - Scale limited to:', scale);
+    // Stop at second inflection point (when second edge hits viewport)
+    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    if (scale > secondInflectionScale) {
+      scale = secondInflectionScale;
     }
 
     scale = Math.max(minScale, Math.min(maxScale, scale));
@@ -1011,13 +1015,10 @@ export class ImageViewer {
     const oldState = this.getZoomState(oldScale);
     const newState = this.getZoomState(scale);
     
-    if (delta > 0 && (oldState === 'between' || oldState === 'zoomedIn' || oldState === 'heightMatch') && 
-        (newState === 'widthMatch' || newState === 'zoomedOut')) {
-      // Zooming out past special point - snap to center
+    if (delta > 0 && (oldState === 'between' || oldState === 'zoomedIn' || oldState === 'heightMatch' || oldState === 'widthMatch') && 
+        (newState === 'widthMatch' || newState === 'zoomedOut' || newState === 'heightMatch')) {
+      // Zooming out past inflection point - snap to center
       this.panX = 0;
-      this.panY = 0;
-    } else if (delta > 0 && oldState === 'zoomedIn' && newState === 'heightMatch') {
-      // Zooming out to height match - keep X pan, center Y
       this.panY = 0;
     }
 
@@ -1087,11 +1088,10 @@ export class ImageViewer {
     const minScale = 1;
     const maxScale = 3;
 
-    // TESTING: Stop at first inflection point
-    const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-    if (scale > firstInflectionScale) {
-      scale = firstInflectionScale;
-      console.log('STOPPED AT FIRST INFLECTION POINT (gesture) - Scale limited to:', scale);
+    // Stop at second inflection point (when second edge hits viewport)
+    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    if (scale > secondInflectionScale) {
+      scale = secondInflectionScale;
     }
 
     scale = Math.max(minScale, Math.min(maxScale, scale));
