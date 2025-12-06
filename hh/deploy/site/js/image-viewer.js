@@ -434,19 +434,19 @@ export class ImageViewer {
         const state = this.getZoomState(this.currentScale);
         const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
         // Calculate new pan position from drag delta
-        // In "between" state, only apply delta to the allowed axis
+        // In "between" state, only apply delta to the allowed axis and explicitly lock the other
         let newPanX = currentPanX;
         let newPanY = currentPanY;
         if (state === 'between') {
             if (widthHitsFirst) {
-                // Only Y panning allowed
+                // Only Y panning allowed - explicitly lock X to 0
+                newPanX = 0;
                 newPanY = currentPanY + event.dy;
-                // X stays at current (will be constrained to 0)
             }
             else {
-                // Only X panning allowed
+                // Only X panning allowed - explicitly lock Y to 0
                 newPanX = currentPanX + event.dx;
-                // Y stays at current (will be constrained to 0)
+                newPanY = 0;
             }
         }
         else {
@@ -1040,19 +1040,19 @@ export class ImageViewer {
         const state = this.getZoomState(scale);
         const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
         // Calculate new pan position from drag delta
-        // In "between" state, only apply delta to the allowed axis
+        // In "between" state, only apply delta to the allowed axis and explicitly lock the other
         let newPanX = currentPanX;
         let newPanY = currentPanY;
         if (state === 'between') {
             if (widthHitsFirst) {
-                // Only Y panning allowed
+                // Only Y panning allowed - explicitly lock X to 0
+                newPanX = 0;
                 newPanY = currentPanY + event.dy;
-                // X stays at current (will be constrained to 0)
             }
             else {
-                // Only X panning allowed
+                // Only X panning allowed - explicitly lock Y to 0
                 newPanX = currentPanX + event.dx;
-                // Y stays at current (will be constrained to 0)
+                newPanY = 0;
             }
         }
         else {
