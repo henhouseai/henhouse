@@ -523,6 +523,15 @@ export class ImageViewer {
       this.handleTouchEnd(e);
     }, { passive: false });
 
+    // Create container with correct size from the start
+    this.container = document.createElement('div');
+    this.container.id = 'imageViewerContainer';
+    this.container.style.width = `${containerWidth}px`;
+    this.container.style.height = `${containerHeight}px`;
+    this.container.style.maxWidth = `${containerWidth}px`;
+    this.container.style.maxHeight = `${containerHeight}px`;
+    this.container.style.zIndex = String(this.zIndex + 1);
+
     // Create zoom container (outer wrapper, has padding)
     const zoomContainer = document.createElement('div');
     zoomContainer.id = 'imageZoomContainer';
@@ -542,15 +551,11 @@ export class ImageViewer {
 
     imageWrapper.appendChild(img);
     zoomContainer.appendChild(imageWrapper);
-    if (this.container) {
-      this.container.appendChild(zoomContainer);
-    }
+    this.container.appendChild(zoomContainer);
 
     // Append to body (container already has correct size set)
     document.body.appendChild(this.backdrop);
-    if (this.container) {
-      document.body.appendChild(this.container);
-    }
+    document.body.appendChild(this.container);
 
     // Prevent body scroll
     document.body.style.overflow = 'hidden';
