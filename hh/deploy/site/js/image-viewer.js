@@ -185,12 +185,6 @@ export class ImageViewer {
         // Store base image dimensions
         this.baseImageWidth = imageWidth;
         this.baseImageHeight = imageHeight;
-        // Calculate special point scales based on IMAGE size touching viewport edge
-        // Not container size - we want image to touch edge, not container border
-        const viewportWidth = this.getPageWidth();
-        const viewportHeight = this.getPageHeight();
-        this.scaleForWidthMatch = viewportWidth / imageWidth;
-        this.scaleForHeightMatch = viewportHeight / imageHeight;
         // Calculate container size BEFORE creating it (using dynamically detected padding/border)
         const containerSpacingRender = this.getContainerPaddingAndBorder();
         const containerWidth = imageWidth + containerSpacingRender.totalLeft + containerSpacingRender.totalRight;
@@ -198,6 +192,12 @@ export class ImageViewer {
         // Store base overlay dimensions for zoom calculations
         this.baseOverlayWidth = containerWidth;
         this.baseOverlayHeight = containerHeight;
+        // Calculate special point scales based on CONTAINER size touching viewport edge
+        // Stop when red border (container) hits edge, not image edge
+        const viewportWidth = this.getPageWidth();
+        const viewportHeight = this.getPageHeight();
+        this.scaleForWidthMatch = viewportWidth / containerWidth;
+        this.scaleForHeightMatch = viewportHeight / containerHeight;
         // Reset pan and scale for new image
         this.currentScale = 1.0;
         this.panX = 0;
@@ -540,21 +540,27 @@ export class ImageViewer {
             zoomContainer.dataset.fullsize = 'false';
             zoomContainer.style.transform = 'translate(0, 0)';
         }
-        // Update dimensions - window scales 1:1 with image
-        this.container.style.width = `${imageWidth}px`;
-        this.container.style.height = `${imageHeight}px`;
-        this.container.style.maxWidth = `${imageWidth}px`;
-        this.container.style.maxHeight = `${imageHeight}px`;
-        // Update base dimensions for zoom calculations
+        // Update base image dimensions
         this.baseImageWidth = imageWidth;
         this.baseImageHeight = imageHeight;
-        this.baseOverlayWidth = imageWidth;
-        this.baseOverlayHeight = imageHeight;
-        // Recalculate special point scales
+        // Calculate container size dynamically from computed styles
+        const containerSpacingUpdate = this.getContainerPaddingAndBorder();
+        const finalContainerWidth = imageWidth + containerSpacingUpdate.totalLeft + containerSpacingUpdate.totalRight;
+        const finalContainerHeight = imageHeight + containerSpacingUpdate.totalTop + containerSpacingUpdate.totalBottom;
+        // Update container dimensions
+        this.container.style.width = `${finalContainerWidth}px`;
+        this.container.style.height = `${finalContainerHeight}px`;
+        this.container.style.maxWidth = `${finalContainerWidth}px`;
+        this.container.style.maxHeight = `${finalContainerHeight}px`;
+        // Update base overlay dimensions for zoom calculations
+        this.baseOverlayWidth = finalContainerWidth;
+        this.baseOverlayHeight = finalContainerHeight;
+        // Recalculate special point scales based on CONTAINER size touching viewport edge
+        // Stop when red border (container) hits edge, not image edge
         const viewportWidth = this.getPageWidth();
         const viewportHeight = this.getPageHeight();
-        this.scaleForWidthMatch = viewportWidth / imageWidth;
-        this.scaleForHeightMatch = viewportHeight / imageHeight;
+        this.scaleForWidthMatch = viewportWidth / finalContainerWidth;
+        this.scaleForHeightMatch = viewportHeight / finalContainerHeight;
         // Reset pan and scale
         this.currentScale = 1.0;
         this.panX = 0;
