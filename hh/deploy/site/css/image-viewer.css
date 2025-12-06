@@ -30,6 +30,11 @@
     /* width, height, maxWidth, maxHeight, zIndex, opacity set dynamically */
 }
 
+/* Blue border when in panning mode (between inflection points) */
+#imageViewerWindow.panning-mode {
+    border: 3px solid blue;
+}
+
 /* Image wrapper - handles pan/zoom transforms */
 #imageWrapper {
     width: 100%;

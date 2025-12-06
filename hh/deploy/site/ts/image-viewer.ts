@@ -569,8 +569,12 @@ export class ImageViewer {
       this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
     }
     
-    // Wrapper: only scale (no translate, panning is handled by container)
-    imageWrapper.style.transform = `scale(${this.currentScale})`;
+    // Wrapper: scale + center scaling compensation translate (not panning)
+    const wrapperWidth = imageWrapper.offsetWidth;
+    const wrapperHeight = imageWrapper.offsetHeight;
+    const translateX = wrapperWidth * (this.currentScale - 1) / 2;
+    const translateY = wrapperHeight * (this.currentScale - 1) / 2;
+    imageWrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${this.currentScale})`;
   }
 
   /**
@@ -1003,17 +1007,32 @@ export class ImageViewer {
     const delta = event.deltaY;
     const oldScale = scale;
 
+    // Calculate first and second inflection points
+    const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+
     if (delta < 0) {
+      // Zooming in
       scale += zoomSensitivity;
+      
+      // Detent: If we're at or below first inflection, don't go past it in one action
+      if (oldScale <= firstInflectionScale && scale > firstInflectionScale) {
+        scale = firstInflectionScale;
+      }
     } else {
+      // Zooming out
       scale -= zoomSensitivity;
+      
+      // Detent: If we're at or above first inflection, don't go below it in one action
+      if (oldScale >= firstInflectionScale && scale < firstInflectionScale) {
+        scale = firstInflectionScale;
+      }
     }
 
     const minScale = 1;
     const maxScale = 3; // 300% of full size
 
     // Stop at second inflection point (when second edge hits viewport)
-    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
     if (scale > secondInflectionScale) {
       scale = secondInflectionScale;
     }
@@ -1040,6 +1059,16 @@ export class ImageViewer {
     this.panX = constrained.x;
     this.panY = constrained.y;
 
+    // Update container class based on zoom state
+    const currentState = this.getZoomState(scale);
+    if (this.container) {
+      if (currentState === 'between' || currentState === 'zoomedIn') {
+        this.container.classList.add('panning-mode');
+      } else {
+        this.container.classList.remove('panning-mode');
+      }
+    }
+
     // Update transforms - panning moves the container, scaling applies to wrapper
     if (this.container && imageWrapper) {
       (imageWrapper as any).dataset.scale = scale.toString();
@@ -1047,8 +1076,12 @@ export class ImageViewer {
       // Container: combine centering transform with pan offset
       this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
       
-      // Wrapper: only scale (no translate, panning is handled by container)
-      imageWrapper.style.transform = `scale(${scale})`;
+      // Wrapper: scale + center scaling compensation translate (not panning)
+      const wrapperWidth = imageWrapper.offsetWidth;
+      const wrapperHeight = imageWrapper.offsetHeight;
+      const translateX = wrapperWidth * (scale - 1) / 2;
+      const translateY = wrapperHeight * (scale - 1) / 2;
+      imageWrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     }
   }
 
@@ -1092,11 +1125,23 @@ export class ImageViewer {
     const initialScale = parseFloat(dataset.initialScale) || 1;
     let scale = initialScale * event.scale;
 
+    // Calculate first and second inflection points
+    const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+
+    // Detent: If we're at or below first inflection, don't go past it in one gesture
+    if (initialScale <= firstInflectionScale && scale > firstInflectionScale) {
+      scale = firstInflectionScale;
+    }
+    // Detent: If we're at or above first inflection, don't go below it in one gesture
+    if (initialScale >= firstInflectionScale && scale < firstInflectionScale) {
+      scale = firstInflectionScale;
+    }
+
     const minScale = 1;
     const maxScale = 3;
 
     // Stop at second inflection point (when second edge hits viewport)
-    const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
     if (scale > secondInflectionScale) {
       scale = secondInflectionScale;
     }
@@ -1126,13 +1171,27 @@ export class ImageViewer {
     dataset.x = this.panX.toString();
     dataset.y = this.panY.toString();
 
+    // Update container class based on zoom state
+    const currentState = this.getZoomState(scale);
+    if (this.container) {
+      if (currentState === 'between' || currentState === 'zoomedIn') {
+        this.container.classList.add('panning-mode');
+      } else {
+        this.container.classList.remove('panning-mode');
+      }
+    }
+
     // Container: combine centering transform with pan offset
     if (this.container) {
       this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
     }
     
-    // Wrapper: only scale (no translate, panning is handled by container)
-    target.style.transform = `scale(${scale})`;
+    // Wrapper: scale + center scaling compensation translate (not panning)
+    const wrapperWidth = (target as HTMLElement).offsetWidth;
+    const wrapperHeight = (target as HTMLElement).offsetHeight;
+    const translateX = wrapperWidth * (scale - 1) / 2;
+    const translateY = wrapperHeight * (scale - 1) / 2;
+    target.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
 
   /**
@@ -1180,8 +1239,12 @@ export class ImageViewer {
       this.container.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
     }
     
-    // Wrapper: only scale (no translate, panning is handled by container)
-    target.style.transform = `scale(${scale})`;
+    // Wrapper: scale + center scaling compensation translate (not panning)
+    const wrapperWidth = (target as HTMLElement).offsetWidth;
+    const wrapperHeight = (target as HTMLElement).offsetHeight;
+    const translateX = wrapperWidth * (scale - 1) / 2;
+    const translateY = wrapperHeight * (scale - 1) / 2;
+    target.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
 
   /**
