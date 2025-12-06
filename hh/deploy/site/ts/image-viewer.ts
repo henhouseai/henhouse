@@ -211,16 +211,42 @@ export class ImageViewer {
     const maxWindowWidth = pageWidth - 80; // 40px margin each side
     const maxWindowHeight = pageHeight - 80;
 
-    // Calculate scaling factor based on limiting dimension
-    const scaleX = maxWindowWidth / windowWidth;
-    const scaleY = maxWindowHeight / windowHeight;
+    // Get padding/border values to calculate the relationship between wrapper and window
+    const computedStyle = window.getComputedStyle(this.container);
+    const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+    const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+    const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+    const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
+    const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+    const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+    
+    const totalHorizontalExtra = paddingLeft + paddingRight + borderLeft + borderRight;
+    const totalVerticalExtra = paddingTop + paddingBottom + borderTop + borderBottom;
+
+    // Calculate what the optimal wrapper size should be to fit in viewport
+    // maxWindowWidth = optimalWrapperWidth + totalHorizontalExtra
+    // maxWindowHeight = optimalWrapperHeight + totalVerticalExtra
+    // So: optimalWrapperWidth = maxWindowWidth - totalHorizontalExtra
+    //     optimalWrapperHeight = maxWindowHeight - totalVerticalExtra
+    // But we need to maintain aspect ratio, so calculate scale for both dimensions
+    
+    const maxWrapperWidth = maxWindowWidth - totalHorizontalExtra;
+    const maxWrapperHeight = maxWindowHeight - totalVerticalExtra;
+    
+    // Calculate scale based on wrapper dimensions (not window dimensions)
+    const scaleX = maxWrapperWidth / fullSizeWidth;
+    const scaleY = maxWrapperHeight / fullSizeHeight;
     const optimalScale = Math.min(scaleX, scaleY, 1.0); // Don't scale up, only down
 
-    // Calculate optimal sizes
+    // Calculate optimal wrapper size
     const optimalWrapperWidth = fullSizeWidth * optimalScale;
     const optimalWrapperHeight = fullSizeHeight * optimalScale;
-    const optimalWindowWidth = windowWidth * optimalScale;
-    const optimalWindowHeight = windowHeight * optimalScale;
+    
+    // Calculate optimal window size from wrapper + padding/border
+    const optimalWindowWidth = optimalWrapperWidth + totalHorizontalExtra;
+    const optimalWindowHeight = optimalWrapperHeight + totalVerticalExtra;
 
     return {
       optimalWrapperWidth,
