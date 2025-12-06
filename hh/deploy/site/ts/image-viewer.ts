@@ -729,7 +729,7 @@ export class ImageViewer {
       // Calculate scaling factor based on limiting dimension
       const scaleX = maxWindowWidth / currentWindowWidth;
       const scaleY = maxWindowHeight / currentWindowHeight;
-      const optimalScale = Math.min(scaleX, scaleY, 1.0); // Don't scale up, only down
+      const optimalScale = Math.min(scaleX, scaleY); // Allow scaling up or down
       
       // Calculate new sizes
       const newWrapperWidth = currentWrapperWidth * optimalScale;
