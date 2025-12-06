@@ -553,18 +553,23 @@ export class ImageViewer {
     const imageWrapper = event.target;
     const dataset = (imageWrapper as any).dataset;
     
-    const initialPanX = parseFloat(dataset.initialPanX) || 0;
-    const initialPanY = parseFloat(dataset.initialPanY) || 0;
+    // Get current pan from dataset (synced from last update)
+    const currentPanX = parseFloat(dataset.x) || this.panX;
+    const currentPanY = parseFloat(dataset.y) || this.panY;
     
-    // Calculate new pan position from gesture
-    const newPanX = initialPanX + event.dx;
-    const newPanY = initialPanY + event.dy;
+    // Calculate new pan position from drag delta
+    const newPanX = currentPanX + event.dx;
+    const newPanY = currentPanY + event.dy;
     
     // Apply constraints based on zoom state
     const constrained = this.applyPanConstraints(this.currentScale, newPanX, newPanY);
     
     this.panX = constrained.x;
     this.panY = constrained.y;
+    
+    // Update dataset for next drag move
+    dataset.x = this.panX.toString();
+    dataset.y = this.panY.toString();
     
     // Container: combine centering transform with pan offset
     if (this.container) {
@@ -1218,8 +1223,9 @@ export class ImageViewer {
 
     // Update container class based on zoom state
     // Blue class when past first inflection point (not just at it)
+    const firstInflectionScaleForClass = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
     if (this.container) {
-      if (scale > firstInflectionScale + 0.001) {
+      if (scale > firstInflectionScaleForClass + 0.001) {
         this.container.classList.add('panning-mode');
       } else {
         this.container.classList.remove('panning-mode');
@@ -1253,35 +1259,27 @@ export class ImageViewer {
     const target = event.target;
     const dataset = (target as any).dataset;
 
-    let x = (parseFloat(dataset.x) || 0) + event.dx;
-    let y = (parseFloat(dataset.y) || 0) + event.dy;
-    const scale = parseFloat(dataset.scale) || 1;
+    // Get current pan from dataset (synced from last update)
+    const currentPanX = parseFloat(dataset.x) || this.panX;
+    const currentPanY = parseFloat(dataset.y) || this.panY;
+    const scale = parseFloat(dataset.scale) || this.currentScale;
 
-    // Get dimensions
-    const imageWidth = (target as HTMLElement).offsetWidth * scale;
-    const imageHeight = (target as HTMLElement).offsetHeight * scale;
-    const containerWidth = (target.parentElement as HTMLElement).offsetWidth;
-    const containerHeight = (target.parentElement as HTMLElement).offsetHeight;
+    // Calculate new pan position from drag delta
+    const newPanX = currentPanX + event.dx;
+    const newPanY = currentPanY + event.dy;
 
-    // Calculate boundaries
-    const maxX = Math.max(0, (imageWidth - containerWidth) / 2);
-    const maxY = Math.max(0, (imageHeight - containerHeight) / 2);
-
-    // Constrain x and y
-    x = Math.max(-maxX, Math.min(x, maxX));
-    y = Math.max(-maxY, Math.min(y, maxY));
+    // Apply constraints based on zoom state
+    const constrained = this.applyPanConstraints(scale, newPanX, newPanY);
+    this.panX = constrained.x;
+    this.panY = constrained.y;
 
     // Update position data
-    dataset.x = x.toString();
-    dataset.y = y.toString();
-    
-    // Update pan values (dragMoveListener uses its own x/y, but we need to sync with this.panX/panY)
-    this.panX = x;
-    this.panY = y;
+    dataset.x = this.panX.toString();
+    dataset.y = this.panY.toString();
 
     // Container: combine centering transform with pan offset
     if (this.container) {
-      this.container.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
     }
     
     // Wrapper: scale + center scaling compensation translate (not panning)
