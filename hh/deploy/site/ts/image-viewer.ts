@@ -834,6 +834,11 @@ export class ImageViewer {
 
     // After fade out, remove old window and create new one (reuse backdrop)
     setTimeout(() => {
+      // Clean up old interact.js instance
+      if (this.interactInstance) {
+        this.interactInstance.unset();
+      }
+
       // Remove old window
       if (this.container && this.container.parentNode) {
         this.container.parentNode.removeChild(this.container);
@@ -851,15 +856,14 @@ export class ImageViewer {
       // Preload full-size image
       const preloadImg = new Image();
       preloadImg.src = fullSizeSrc;
-    }, 200);
 
-    // Re-setup interact.js
-    setTimeout(() => {
-      if (this.interactInstance) {
-        this.interactInstance.unset();
-      }
-      this.setupInteract();
-    }, 150);
+      // Setup interact.js and event handlers after window is created and visible
+      // Wait for fade-in to complete (0.2s) plus a small buffer
+      setTimeout(() => {
+        this.setupInteract();
+        this.setupEventHandlers();
+      }, 250);
+    }, 200);
   }
 
   /**
