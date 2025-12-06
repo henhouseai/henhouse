@@ -27,6 +27,7 @@ export class ImageViewer {
         this.currentScale = 1.0;
         this.panX = 0;
         this.panY = 0;
+        this.detentActive = false; // Flag to track if we're stopped at first inflection point
         this.scaleForWidthMatch = 1.0;
         this.scaleForHeightMatch = 1.0;
         // Store full-size dimensions for resize calculations
@@ -266,6 +267,7 @@ export class ImageViewer {
             : `/srv/images/${fullSizeInstance.src}`;
         // Reset pan and scale for new image
         this.currentScale = 1.0;
+        this.detentActive = false;
         this.panX = 0;
         this.panY = 0;
         // Create custom overlay with full-size dimensions, it will measure and adjust
@@ -623,6 +625,7 @@ export class ImageViewer {
             this.currentScale = 1.0;
             this.panX = 0;
             this.panY = 0;
+            this.detentActive = false; // Reset detent flag on resize
             // Reset transform on image wrapper and container
             if (imageWrapper) {
                 imageWrapper.dataset.scale = '1';
@@ -681,6 +684,7 @@ export class ImageViewer {
             this.currentScale = 1.0;
             this.panX = 0;
             this.panY = 0;
+            this.detentActive = false; // Reset detent flag on image navigation
             // Create new window only (backdrop already exists)
             this.createWindowOnly(this.fullSizeWidth, this.fullSizeHeight, fullSizeSrc, currentImage.caption);
             // Preload full-size image
@@ -790,20 +794,44 @@ export class ImageViewer {
         // Calculate first and second inflection points
         const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
         const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        // Check if we're crossing the first inflection point
+        const wasBelowInflection = oldScale <= firstInflectionScale;
+        const wasAboveInflection = oldScale > firstInflectionScale;
+        const willBeBelowInflection = scale <= firstInflectionScale;
+        const willBeAboveInflection = scale > firstInflectionScale;
         if (delta < 0) {
             // Zooming in
             scale += zoomSensitivity;
-            // Detent: If we're at or below first inflection, don't go past it in one action
-            if (oldScale <= firstInflectionScale && scale > firstInflectionScale) {
+            // Detent logic: If crossing from below to above first inflection, stop at detent
+            if (wasBelowInflection && willBeAboveInflection) {
                 scale = firstInflectionScale;
+                this.detentActive = true; // Set detent flag
+            }
+            else if (this.detentActive && oldScale <= firstInflectionScale && scale > firstInflectionScale) {
+                // Detent is active and trying to cross - prevent it
+                scale = firstInflectionScale;
+            }
+            else if (willBeAboveInflection) {
+                // Successfully crossed past detent - clear flag
+                this.detentActive = false;
             }
         }
         else {
             // Zooming out
             scale -= zoomSensitivity;
-            // Detent: Only prevent going below first inflection if we're currently below it
-            // If we're at or above first inflection, allow zooming out freely (removes blue class)
-            // No detent when zooming out from above first inflection - allow it to go past
+            // Detent logic: If crossing from above to below first inflection, stop at detent
+            if (wasAboveInflection && willBeBelowInflection) {
+                scale = firstInflectionScale;
+                this.detentActive = true; // Set detent flag
+            }
+            else if (this.detentActive && oldScale >= firstInflectionScale && scale < firstInflectionScale) {
+                // Detent is active and trying to cross - prevent it
+                scale = firstInflectionScale;
+            }
+            else if (willBeBelowInflection) {
+                // Successfully crossed past detent - clear flag
+                this.detentActive = false;
+            }
         }
         const minScale = 1;
         const maxScale = 3; // 300% of full size
@@ -829,9 +857,9 @@ export class ImageViewer {
         this.panX = constrained.x;
         this.panY = constrained.y;
         // Update container class based on zoom state
-        const currentState = this.getZoomState(scale);
+        // Blue class when past first inflection point (not just at it)
         if (this.container) {
-            if (currentState === 'between' || currentState === 'zoomedIn') {
+            if (scale > firstInflectionScale + 0.001) {
                 this.container.classList.add('panning-mode');
             }
             else {
@@ -888,13 +916,39 @@ export class ImageViewer {
         // Calculate first and second inflection points
         const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
         const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
-        // Detent: If we're at or below first inflection, don't go past it in one gesture
-        if (initialScale <= firstInflectionScale && scale > firstInflectionScale) {
+        // Check if we're crossing the first inflection point
+        const wasBelowInflection = initialScale <= firstInflectionScale;
+        const wasAboveInflection = initialScale > firstInflectionScale;
+        const willBeBelowInflection = scale <= firstInflectionScale;
+        const willBeAboveInflection = scale > firstInflectionScale;
+        // Detent logic for gesture zoom
+        if (wasBelowInflection && willBeAboveInflection) {
+            // Crossing from below to above - stop at detent
             scale = firstInflectionScale;
+            this.detentActive = true;
         }
-        // Detent: Only prevent going below first inflection if we're currently below it
-        // If we're at or above first inflection, allow zooming out freely (removes blue class)
-        // No detent when zooming out from above first inflection - allow it to go past
+        else if (wasAboveInflection && willBeBelowInflection) {
+            // Crossing from above to below - stop at detent
+            scale = firstInflectionScale;
+            this.detentActive = true;
+        }
+        else if (this.detentActive) {
+            // Detent is active - prevent crossing
+            if (initialScale <= firstInflectionScale && scale > firstInflectionScale) {
+                scale = firstInflectionScale;
+            }
+            else if (initialScale >= firstInflectionScale && scale < firstInflectionScale) {
+                scale = firstInflectionScale;
+            }
+            else {
+                // Successfully crossed past detent - clear flag
+                this.detentActive = false;
+            }
+        }
+        else if (willBeAboveInflection || willBeBelowInflection) {
+            // Successfully crossed past detent - clear flag
+            this.detentActive = false;
+        }
         const minScale = 1;
         const maxScale = 3;
         // Stop at second inflection point (when second edge hits viewport)
@@ -920,9 +974,9 @@ export class ImageViewer {
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
         // Update container class based on zoom state
-        const currentState = this.getZoomState(scale);
+        // Blue class when past first inflection point (not just at it)
         if (this.container) {
-            if (currentState === 'between' || currentState === 'zoomedIn') {
+            if (scale > firstInflectionScale + 0.001) {
                 this.container.classList.add('panning-mode');
             }
             else {
