@@ -533,89 +533,33 @@ export class ImageViewer {
             return;
         }
         const currentImage = this.images[this.currentImageIndex];
-        const pageWidth = this.getPageWidth();
-        const pageHeight = this.getPageHeight();
-        // Calculate max dimensions with border space (40px margin on all sides)
-        const maxImageWidth = pageWidth - 80;
-        const maxImageHeight = pageHeight - 80;
-        // Get best instance for display
-        const displayInstance = this.getBestInstance(maxImageWidth, currentImage.instances);
-        if (!displayInstance) {
-            console.error('No display instance found');
-            return;
-        }
-        // Calculate display dimensions
-        const displayDims = this.calculateDisplayDimensions(displayInstance, maxImageWidth, maxImageHeight);
-        const imageWidth = displayDims.width;
-        const imageHeight = displayDims.height;
-        // Format image src with /srv/images/ prefix
-        const imageSrc = displayInstance.src.startsWith('/srv/images/')
-            ? displayInstance.src
-            : `/srv/images/${displayInstance.src}`;
-        // Update image
-        const img = this.container.querySelector('#imageViewerTargetImage');
-        if (img) {
-            // Add fade transition
-            img.style.transition = 'opacity 0.2s';
-            img.style.opacity = '0';
-            setTimeout(() => {
-                img.src = imageSrc;
-                img.width = imageWidth;
-                img.height = imageHeight;
-                img.alt = currentImage.caption;
-                img.style.opacity = '1';
-            }, 100);
-        }
-        // Reset image wrapper
-        const imageWrapper = this.container.querySelector('#imageWrapper');
-        if (imageWrapper) {
-            imageWrapper.dataset.scale = '1';
-            imageWrapper.dataset.x = '0';
-            imageWrapper.dataset.y = '0';
-            imageWrapper.dataset.fullsize = 'false';
-            imageWrapper.style.transform = 'translate(0, 0)';
-        }
-        // Update base image dimensions
-        this.baseImageWidth = imageWidth;
-        this.baseImageHeight = imageHeight;
-        // Get current window padding/border from computed styles
-        const computedStyle = window.getComputedStyle(this.container);
-        const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-        const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
-        const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-        const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-        const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
-        const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-        const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
-        const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
-        // Calculate container size
-        const finalContainerWidth = imageWidth + paddingLeft + paddingRight + borderLeft + borderRight;
-        const finalContainerHeight = imageHeight + paddingTop + paddingBottom + borderTop + borderBottom;
-        // Update container dimensions
-        this.container.style.width = `${finalContainerWidth}px`;
-        this.container.style.height = `${finalContainerHeight}px`;
-        this.container.style.maxWidth = `${finalContainerWidth}px`;
-        this.container.style.maxHeight = `${finalContainerHeight}px`;
-        // Update base overlay dimensions for zoom calculations
-        this.baseOverlayWidth = finalContainerWidth;
-        this.baseOverlayHeight = finalContainerHeight;
-        // Recalculate special point scales based on CONTAINER size touching viewport edge
-        // Stop when red border (container) hits edge, not image edge
-        const viewportWidth = this.getPageWidth();
-        const viewportHeight = this.getPageHeight();
-        this.scaleForWidthMatch = viewportWidth / finalContainerWidth;
-        this.scaleForHeightMatch = viewportHeight / finalContainerHeight;
-        // Reset pan and scale
-        this.currentScale = 1.0;
-        this.panX = 0;
-        this.panY = 0;
-        // Preload full-size image
+        // Get full-size image dimensions
         const fullSizeInstance = currentImage.instances[currentImage.instances.length - 1];
+        this.fullSizeWidth = fullSizeInstance.width;
+        this.fullSizeHeight = fullSizeInstance.height;
         const fullSizeSrc = fullSizeInstance.src.startsWith('/srv/images/')
             ? fullSizeInstance.src
             : `/srv/images/${fullSizeInstance.src}`;
-        const preloadImg = new Image();
-        preloadImg.src = fullSizeSrc;
+        // Fade out old window
+        this.container.style.transition = 'opacity 0.2s';
+        this.container.style.opacity = '0';
+        // After fade out, remove old window and create new one
+        setTimeout(() => {
+            // Remove old window
+            if (this.container && this.container.parentNode) {
+                this.container.parentNode.removeChild(this.container);
+            }
+            this.container = null;
+            // Reset pan and scale
+            this.currentScale = 1.0;
+            this.panX = 0;
+            this.panY = 0;
+            // Create new window (same as initial load)
+            this.createCustomOverlay(this.fullSizeWidth, this.fullSizeHeight, fullSizeSrc, currentImage.caption);
+            // Preload full-size image
+            const preloadImg = new Image();
+            preloadImg.src = fullSizeSrc;
+        }, 200);
         // Re-setup interact.js
         setTimeout(() => {
             if (this.interactInstance) {
