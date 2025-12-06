@@ -466,91 +466,212 @@ Potential future improvements (not yet implemented):
 
 ---
 
-## Simplification Plan
+## Implementation Details
 
-### Goals
+### Custom Overlay Implementation
 
-Simplify the image viewer implementation to focus on core zoom/pan functionality by removing UI elements and streamlining the DOM structure. The goal is to get the state-based panning system working correctly without distractions from scrollbars, containers, or unnecessary UI elements.
+The image viewer uses a **custom overlay implementation** rather than extending the `OverlayManager`/`Overlay` base classes. This provides full control over the overlay behavior and avoids conflicts with the base overlay system's sizing and rendering logic.
 
-### Current Issues
+**Components:**
+- **Backdrop** (`imageViewerBackdrop`): Fixed-position dark overlay covering entire viewport
+  - Handles click-to-close (only when clicking directly on backdrop, not container)
+  - Prevents default touch behaviors (pinch-to-zoom, scroll)
+  - Manually managed z-index
+  
+- **Container** (`imageViewerWindow`): Fixed-position window containing the image
+  - Centered using `transform: translate(-50%, -50%)`
+  - Panning moves the entire container: `transform: translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px))`
+  - Asymmetrical padding: 50px top, 100px bottom, 20px left/right
+  - Red border (3px) for visibility, turns blue when in panning mode
+  - Dynamically sized based on image dimensions + padding + border
 
-- Scrollbars appearing in the image container (unwanted)
-- Complex DOM structure with multiple wrapper divs
-- UI elements (caption, visibility, control links) adding complexity
-- Need to verify state-based panning system works correctly through all zoom states
+- **Wrapper** (`imageWrapper`): Direct child of container, wraps the image
+  - Handles scaling: `transform: translate(${translateX}px, ${translateY}px) scale(${scale})`
+  - Center scaling compensation: `translateX = wrapperWidth * (scale - 1) / 2` (keeps image aligned during zoom)
+  - Panning is NOT applied to wrapper - only the container moves for panning
 
-### Simplification Approach
+**Manual Event Handling:**
+- Escape key: Manually attached keyboard handler
+- Arrow keys: Manually attached keyboard handler for navigation
+- Body scroll: Manually prevented when viewer is open
+- Z-index: Manually managed (backdrop and container have separate z-index values)
 
-**Phase 1: Strip Out UI Elements**
-- Remove caption, visibility label, and control links from HTML generation
-- Remove event handlers for removed elements
-- Keep only essential overlay → wrapper div → image structure
+### DOM Structure
 
-**Phase 2: Simplify DOM Structure**
-- **Single wrapper only**: Use `imageZoomContainer` as the only wrapper around the image
-- Remove `imageViewerTargetImageWrapper` (eliminate double-wrapping)
-- Structure: Overlay → `imageZoomContainer` → `<img>` (3-tier structure)
-- Apply transforms to `imageZoomContainer` (not directly to image)
-- Ensure `overflow: hidden` on container to prevent scrollbars
-- Position container absolutely
+**Final Structure (2 layers):**
+```
+body
+  └── imageViewerBackdrop (fixed, full viewport, dark overlay)
+  └── imageViewerWindow (fixed, centered, red/blue border)
+      └── imageWrapper (scales with transform)
+          └── img (object-fit: contain)
+```
 
-**Phase 3: Minimal Window Setup**
-- Keep `updateOverlaySize()` method but make window scale 1:1 with image
-- Window should be invisible/minimal (no padding/borders initially)
-- Window and image locked together, no scrollbars ever visible
-- Window can be expanded later with padding/borders if needed
+**Key Points:**
+- Only two layers: container → wrapper → image
+- No caption, visibility, or control links
+- Container scales with zoom (via `updateOverlaySize()`)
+- Wrapper only handles scale transform (with center compensation)
+- Container handles pan transform (moves entire window)
 
-**Phase 4: Focus on Default → First Inflection**
-- Keep state detection logic but add a "stop" at first inflection point for testing
-- Ensure image stays perfectly centered (no panning) from default state to first edge touch
-- Test mouse wheel zoom and pinch-to-zoom
-- Verify no scrollbars appear
-- Test that image grows while staying centered until first edge touches window edge
+### Sizing Methodology
 
-**Phase 5: Touch Gesture Setup (Basic)**
-- Set up interact.js for swipe-to-navigate at default state only
-- Use standard momentum/threshold approach for swipe detection
-- Swipe must be large/fast enough to overcome detent/momentum threshold
-- At default state: swipe navigates between images
-- When zoomed: swipe pans the image (implement after zoom states work)
-- Leave panning gestures for later (after zoom states are verified)
+**Initial Load:**
+1. Create window with `opacity: 0` (invisible for measurement)
+2. Create wrapper and set to full-size image dimensions (from instance data)
+3. Append to DOM
+4. Measure computed window size (wrapper + padding + border)
+5. Calculate optimal scale to fit on screen with 40px viewport margins
+6. Calculate optimal wrapper size by scaling down full-size dimensions
+7. Apply optimal sizes to wrapper and window
+8. Load appropriate image instance based on optimal wrapper size
+9. Set `opacity: 1` to fade in
+
+**Image Navigation:**
+1. Fade out old window (`opacity: 0`)
+2. Remove old window from DOM (reuse backdrop)
+3. Create new window using same full-size measurement approach
+4. Fade in new window
+
+**Window Resize:**
+1. Use current wrapper size as baseline (don't reset to full-size)
+2. Calculate new optimal sizes proportionally
+3. Apply new sizes (window can grow larger if viewport expands)
+4. Reset zoom/pan to default (scale = 1.0, pan = 0,0)
+5. Reset detent flag
+
+**Padding/Border Storage:**
+- `totalHorizontalExtra`: Padding + border on left + right (calculated once, stored)
+- `totalVerticalExtra`: Padding + border on top + bottom (calculated once, stored)
+- Used in resize calculations without recalculation
+
+### Zoom State System (Implemented)
+
+The viewer implements a state-based panning system with three distinct zoom modes and two transition points (inflection points). Panning behavior changes at each transition.
+
+#### Default/Normal Mode (State 1: scale ≤ 1.0 to first inflection)
+
+- **Visual State**: Entire image visible with red border around it, overlay mask visible
+- **Panning**: Locked to center on both X and Y axes - no panning allowed
+- **Behavior**: Image stays perfectly centered as it grows during zoom in
+- **Transition**: Continues until the first edge of the image touches the edge of the viewport
+- **Detent**: When reaching first inflection point, zoom stops and requires another zoom action to continue past it
+
+#### Between Inflections (State 2: first inflection to second inflection)
+
+- **Visual State**: First axis (width or height, whichever touched first) now fills viewport edge-to-edge, other axis still has border. Border turns **blue** (panning-mode class).
+- **Panning**: 
+  - **Single axis only**: Only the non-limiting axis can pan
+  - If width hit first: Y panning enabled, X locked to 0
+  - If height hit first: X panning enabled, Y locked to 0
+  - Panning moves the **entire container** (imageViewerWindow), not just the wrapper
+- **Behavior**: Can pan on one axis to expose the full image - never past the image edges
+- **Transition**: Continues until the second set of edges touches the viewport edges
+- **Constraint**: Panning only allowed insofar as to expose the entirety of the image, but nothing past that
+
+#### Deep Zoom Mode (State 3: after second inflection)
+
+- **Visual State**: Image completely fills entire viewport, clipped on both axes. Border remains blue.
+- **Panning**: Both X and Y panning enabled
+- **Behavior**: Can pan in both directions, but constrained so image edges never go past viewport edges
+- **Constraint**: Always have image in screen - no background or container window exposed
+- **Max Zoom**: Hard limit at 3x pixel size
+
+#### Detent System
+
+- **First Inflection Detent**: When zooming reaches the first inflection point, zoom stops and `detentActive` flag is set
+- **Crossing Detent**: Requires another zoom action (in same direction) to cross past the detent
+- **Flag Clearing**: Once successfully crossed (in either direction), `detentActive` flag is cleared
+- **Blue Border**: Border turns blue when scale > firstInflectionScale (not based on detent flag)
+- **Reset**: Detent flag resets when navigating images or resizing window
+
+#### Transition Behavior
+
+- **Zooming In**: Smoothly transitions through states, enabling panning on appropriate axes at each inflection point
+- **Zooming Out**: Honors all panning limits and smoothly transitions back to default state
+- **Snapping**: When zooming out past inflection points, viewer snaps to center on the axis that becomes locked
+- **Hard Limits**: 
+  - Default state is always the starting point (fully zoomed out)
+  - Max zoom is hard limit (3x pixel size)
+
+### Panning Implementation
+
+**Container-Based Panning:**
+- Panning moves the entire `imageViewerWindow` container, not the wrapper inside
+- Container transform: `translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px))`
+- Wrapper only handles scale: `translate(${translateX}px, ${translateY}px) scale(${scale})`
+- Center scaling compensation on wrapper keeps image aligned during zoom
+
+**Single-Axis Panning (Between State):**
+- Drag handlers check zoom state and only apply delta to allowed axis
+- Locked axis explicitly set to 0 before applying constraints
+- `applyPanConstraints()` enforces single-axis constraint
+
+**Constraint Application:**
+- `applyPanConstraints()` determines which axis can pan based on zoom state
+- In "between" state: only non-limiting axis can pan
+- Constraints prevent image edges from going past viewport edges
 
 ### Interaction Model
 
 **Desktop Users:**
-- Mouse wheel: Zoom in/out
+- Mouse wheel: Zoom in/out (with detent at first inflection)
 - Arrow keys: Navigate between images
+- Mouse drag: Pan image (when zoomed, constrained by state)
 - Escape: Close viewer
 - Click backdrop: Close viewer
 
 **Touch Screen Users:**
-- Pinch-to-zoom: Zoom in/out
-- Swipe (at default state): Navigate between images (with momentum threshold)
-- Swipe (when zoomed): Pan image (after zoom states work)
+- Pinch-to-zoom: Zoom in/out (with detent at first inflection)
+- Swipe (at default state): Navigate between images (with momentum threshold: 100px minimum or 0.3 px/ms velocity)
+- Drag (when zoomed): Pan image (constrained by state, single-axis in "between" state)
 - Tap backdrop: Close viewer (when at default state)
 
-### Testing Strategy
+### CSS Styling
 
-1. **Default State**: Verify image displays with border, overlay mask visible, page behind visible
-2. **Default → First Inflection**: Test zooming in while image stays centered, no panning allowed
-3. **First Inflection Detection**: Verify system correctly detects when first edge touches window edge
-4. **Stop at First Inflection**: Add temporary stop/indicator to verify state detection works
-5. **No Scrollbars**: Verify no scrollbars appear at any zoom level
-6. **Touch Gestures**: Test swipe-to-navigate at default state with momentum threshold
+**File**: `hh/deploy/site/css/image-viewer.css`
+
+**Key Styles:**
+- `#imageViewerBackdrop`: Fixed, full viewport, dark background, `touch-action: none`
+- `#imageViewerWindow`: Fixed, centered, asymmetrical padding (50px top, 100px bottom, 20px left/right), red border (3px), `touch-action: none`
+- `#imageViewerWindow.panning-mode`: Blue border (3px) - applied when scale > firstInflectionScale
+- `#imageWrapper`: Relative positioning, `transform-origin: 50% 50%`, `touch-action: none`, `cursor: grab`
+- `#imageViewerTargetImage`: `object-fit: contain`, fills wrapper
+
+**CSS Whitelist:**
+- Added to `CSS_ALWAYS_INCLUDE` in `hh/deploy/conf/css_whitelist.py` to ensure it loads on every page
+
+### Current Implementation Status
+
+**Completed:**
+- ✅ Custom overlay implementation (no OverlayManager/Overlay base classes)
+- ✅ Simplified DOM structure (2 layers: container → wrapper → image)
+- ✅ Container-based panning (entire window moves, not just wrapper)
+- ✅ State-based panning system (centered → single-axis → both axes)
+- ✅ Detent system at first inflection point
+- ✅ Blue border class for panning mode
+- ✅ Asymmetrical padding (50px top, 100px bottom, 20px left/right)
+- ✅ Full-size measurement sizing methodology
+- ✅ Center scaling compensation on wrapper
+- ✅ Window resize handling (grows/shrinks, resets zoom/pan)
+- ✅ Image navigation (fade out/in, backdrop reuse)
+- ✅ Touch gesture improvements (momentum threshold for swipe navigation)
+- ✅ Keyboard handlers (Esc, arrow keys)
+- ✅ Mouse wheel zoom with detent
+- ✅ Pinch-to-zoom with detent
+
+**Known Issues:**
+- ⚠️ Single-axis panning in "between" state may not be fully restricting (needs verification)
+- ⚠️ Phone gesture zoom detent may need cache refresh to work correctly
 
 ### Architecture Decisions
 
-- **Keep OverlayManager**: Use minimal/empty overlay to leverage escape key and backdrop click handling
-- **Keep State-Based Panning**: This is the core feature we're trying to dial in
-- **Keep updateOverlaySize()**: Method will scale window 1:1 with image, can be expanded later
-- **CSS-Based Sizing**: Use CSS for image sizing at default state (maintain aspect ratio automatically)
-- **Single Wrapper**: Only `imageZoomContainer` wraps the image (no double-wrapping)
-
-### Future Expansion
-
-Once core zoom/pan functionality is working correctly:
-- Can add back caption, visibility, control links if needed
-- Can add padding/borders to window container
-- Can refine touch gesture thresholds
-- Can add animation/transitions between images
+- **Custom Overlay**: Abandoned OverlayManager/Overlay base classes for full control
+- **Container Panning**: Panning moves entire container, not wrapper (better UX)
+- **State-Based Panning**: Core feature - panning constraints change based on zoom level
+- **Detent System**: Provides clear transition point between zoom states
+- **Blue Border Indicator**: Visual feedback when panning mode is active
+- **Full-Size Measurement**: Ensures accurate sizing without hardcoding values
+- **Asymmetrical Padding**: Allows for different spacing needs (caption area, etc.)
+- **Center Scaling Compensation**: Keeps image aligned during zoom transformations
 

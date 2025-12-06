@@ -10,6 +10,7 @@ export class ImageViewer {
     constructor(pageId, initialImageId) {
         this.backdrop = null;
         this.container = null;
+        this.panLayer = null;
         this.images = [];
         this.currentImageIndex = 0;
         this.touchStartX = null;
@@ -287,17 +288,17 @@ export class ImageViewer {
      */
     setupInteract() {
         const imageWrapper = document.getElementById('imageWrapper');
-        if (!imageWrapper) {
+        if (!imageWrapper || !this.panLayer) {
             return;
         }
         // Initialize transform data
         imageWrapper.dataset.scale = '1';
-        imageWrapper.dataset.x = '0';
-        imageWrapper.dataset.y = '0';
         imageWrapper.dataset.fullsize = 'false';
-        // Set initial transform - only scale (no translate, panning moves container)
+        // Reset transforms
+        imageWrapper.style.transformOrigin = '50% 50%';
         imageWrapper.style.transform = 'scale(1)';
-        // Container starts centered (no pan offset)
+        this.panLayer.style.transform = 'translate(0px, 0px)';
+        // Container stays centered
         if (this.container) {
             this.container.style.transform = 'translate(-50%, -50%)';
         }
@@ -342,60 +343,28 @@ export class ImageViewer {
         const viewportHeight = this.getPageHeight();
         const scaledImageWidth = this.baseImageWidth * scale;
         const scaledImageHeight = this.baseImageHeight * scale;
-        let constrainedX = panX;
-        let constrainedY = panY;
-        // Get container position in viewport
-        if (!this.container) {
-            return { x: panX, y: panY };
-        }
-        const overlayRect = this.container.getBoundingClientRect();
-        const overlayCenterX = overlayRect.left + overlayRect.width / 2;
-        const overlayCenterY = overlayRect.top + overlayRect.height / 2;
-        // Calculate image bounds in viewport coordinates
-        // Image is centered in overlay, so offset from overlay center
-        const imageLeft = overlayCenterX - scaledImageWidth / 2 + panX;
-        const imageRight = overlayCenterX + scaledImageWidth / 2 + panX;
-        const imageTop = overlayCenterY - scaledImageHeight / 2 + panY;
-        const imageBottom = overlayCenterY + scaledImageHeight / 2 + panY;
-        // Determine which inflection point comes first
-        const firstInflectionScale = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-        const secondInflectionScale = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const halfVisibleWidth = Math.max(0, (scaledImageWidth - viewportWidth) / 2);
+        const halfVisibleHeight = Math.max(0, (scaledImageHeight - viewportHeight) / 2);
         const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
         if (state === 'zoomedOut' || state === 'widthMatch' || state === 'heightMatch') {
-            // Locked to center - no panning allowed
-            constrainedX = 0;
-            constrainedY = 0;
+            return { x: 0, y: 0 };
         }
-        else if (state === 'between') {
-            // Between the two inflection points - enable panning on the non-limiting axis
+        if (state === 'between') {
             if (widthHitsFirst) {
-                // Width hit first, so Y panning enabled, X locked to center
-                constrainedX = 0;
-                // Constrain Y so image edges don't go past viewport
-                const minY = viewportHeight / 2 - imageBottom;
-                const maxY = viewportHeight / 2 - imageTop;
-                constrainedY = Math.max(minY, Math.min(maxY, panY));
+                // Only Y can move
+                const clampedY = Math.max(-halfVisibleHeight, Math.min(halfVisibleHeight, panY));
+                return { x: 0, y: clampedY };
             }
             else {
-                // Height hit first, so X panning enabled, Y locked to center
-                constrainedY = 0;
-                // Constrain X so image edges don't go past viewport
-                const minX = viewportWidth / 2 - imageRight;
-                const maxX = viewportWidth / 2 - imageLeft;
-                constrainedX = Math.max(minX, Math.min(maxX, panX));
+                // Only X can move
+                const clampedX = Math.max(-halfVisibleWidth, Math.min(halfVisibleWidth, panX));
+                return { x: clampedX, y: 0 };
             }
         }
-        else {
-            // Both X and Y panning enabled (zoomedIn state)
-            // Constrain so image edges don't go past viewport
-            const minX = viewportWidth / 2 - imageRight;
-            const maxX = viewportWidth / 2 - imageLeft;
-            const minY = viewportHeight / 2 - imageBottom;
-            const maxY = viewportHeight / 2 - imageTop;
-            constrainedX = Math.max(minX, Math.min(maxX, panX));
-            constrainedY = Math.max(minY, Math.min(maxY, panY));
-        }
-        return { x: constrainedX, y: constrainedY };
+        // zoomedIn: both axes
+        const clampedX = Math.max(-halfVisibleWidth, Math.min(halfVisibleWidth, panX));
+        const clampedY = Math.max(-halfVisibleHeight, Math.min(halfVisibleHeight, panY));
+        return { x: clampedX, y: clampedY };
     }
     /**
      * Update overlay size based on current scale.
@@ -403,13 +372,31 @@ export class ImageViewer {
     updateOverlaySize(scale) {
         if (!this.container)
             return;
-        const scaledWidth = this.baseOverlayWidth * scale;
-        const scaledHeight = this.baseOverlayHeight * scale;
-        // Update size (centering transform is in CSS)
-        this.container.style.width = `${scaledWidth}px`;
-        this.container.style.height = `${scaledHeight}px`;
-        this.container.style.maxWidth = `${scaledWidth}px`;
-        this.container.style.maxHeight = `${scaledHeight}px`;
+        const viewportWidth = this.getPageWidth();
+        const viewportHeight = this.getPageHeight();
+        const widthCap = viewportWidth;
+        const heightCap = viewportHeight;
+        let width = this.baseOverlayWidth * scale;
+        let height = this.baseOverlayHeight * scale;
+        const widthHit = width >= widthCap;
+        const heightHit = height >= heightCap;
+        if (widthHit && !heightHit) {
+            width = widthCap;
+        }
+        else if (!widthHit && heightHit) {
+            height = heightCap;
+        }
+        else if (widthHit && heightHit) {
+            width = widthCap;
+            height = heightCap;
+        }
+        this.container.style.width = `${width}px`;
+        this.container.style.height = `${height}px`;
+        this.container.style.maxWidth = `${width}px`;
+        this.container.style.maxHeight = `${height}px`;
+        // Recompute inflection scales dynamically (handles changing viewport/content)
+        this.scaleForWidthMatch = viewportWidth / this.baseOverlayWidth;
+        this.scaleForHeightMatch = viewportHeight / this.baseOverlayHeight;
     }
     /**
      * Handle drag start.
@@ -461,16 +448,11 @@ export class ImageViewer {
         // Update dataset for next drag move
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Container: combine centering transform with pan offset
-        if (this.container) {
-            this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
+        // Apply pan to panLayer, scale to wrapper
+        if (this.panLayer) {
+            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
         }
-        // Wrapper: scale + center scaling compensation translate (not panning)
-        const wrapperWidth = imageWrapper.offsetWidth;
-        const wrapperHeight = imageWrapper.offsetHeight;
-        const translateX = wrapperWidth * (this.currentScale - 1) / 2;
-        const translateY = wrapperHeight * (this.currentScale - 1) / 2;
-        imageWrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${this.currentScale})`;
+        imageWrapper.style.transform = `scale(${this.currentScale})`;
     }
     /**
      * Handle drag end.
@@ -521,11 +503,16 @@ export class ImageViewer {
         this.container.style.zIndex = String(this.zIndex + 1);
         // Don't set size yet - will be determined by wrapper + padding/border
         // Create image wrapper set to full-size dimensions (no image yet)
+        this.panLayer = document.createElement('div');
+        this.panLayer.id = 'imagePanLayer';
+        this.panLayer.style.position = 'relative';
+        this.panLayer.style.transform = 'translate(0px, 0px)';
         const imageWrapper = document.createElement('div');
         imageWrapper.id = 'imageWrapper';
         imageWrapper.style.width = `${fullSizeWidth}px`;
         imageWrapper.style.height = `${fullSizeHeight}px`;
-        this.container.appendChild(imageWrapper);
+        this.panLayer.appendChild(imageWrapper);
+        this.container.appendChild(this.panLayer);
         // Append to body (invisible)
         document.body.appendChild(this.backdrop);
         document.body.appendChild(this.container);
@@ -552,11 +539,16 @@ export class ImageViewer {
         this.container.style.zIndex = String(this.zIndex + 1);
         // Don't set size yet - will be determined by wrapper + padding/border
         // Create image wrapper set to full-size dimensions (no image yet)
+        this.panLayer = document.createElement('div');
+        this.panLayer.id = 'imagePanLayer';
+        this.panLayer.style.position = 'relative';
+        this.panLayer.style.transform = 'translate(0px, 0px)';
         const imageWrapper = document.createElement('div');
         imageWrapper.id = 'imageWrapper';
         imageWrapper.style.width = `${fullSizeWidth}px`;
         imageWrapper.style.height = `${fullSizeHeight}px`;
-        this.container.appendChild(imageWrapper);
+        this.panLayer.appendChild(imageWrapper);
+        this.container.appendChild(this.panLayer);
         // Append to body (invisible, backdrop already exists)
         document.body.appendChild(this.container);
         // Measure and calculate optimal sizes
@@ -705,6 +697,7 @@ export class ImageViewer {
                 this.container.parentNode.removeChild(this.container);
             }
             this.container = null;
+            this.panLayer = null;
             // Reset pan and scale
             this.currentScale = 1.0;
             this.panX = 0;
@@ -891,18 +884,12 @@ export class ImageViewer {
                 this.container.classList.remove('panning-mode');
             }
         }
-        // Update transforms - panning moves the container, scaling applies to wrapper
-        if (this.container && imageWrapper) {
-            imageWrapper.dataset.scale = scale.toString();
-            // Container: combine centering transform with pan offset
-            this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
-            // Wrapper: scale + center scaling compensation translate (not panning)
-            const wrapperWidth = imageWrapper.offsetWidth;
-            const wrapperHeight = imageWrapper.offsetHeight;
-            const translateX = wrapperWidth * (scale - 1) / 2;
-            const translateY = wrapperHeight * (scale - 1) / 2;
-            imageWrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        // Update transforms - pan on panLayer, scale on wrapper
+        if (this.panLayer) {
+            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
         }
+        imageWrapper.dataset.scale = scale.toString();
+        imageWrapper.style.transform = `scale(${scale})`;
     }
     /**
      * Interact.js gesture start handler.
@@ -1009,16 +996,10 @@ export class ImageViewer {
                 this.container.classList.remove('panning-mode');
             }
         }
-        // Container: combine centering transform with pan offset
-        if (this.container) {
-            this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
+        if (this.panLayer) {
+            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
         }
-        // Wrapper: scale + center scaling compensation translate (not panning)
-        const wrapperWidth = target.offsetWidth;
-        const wrapperHeight = target.offsetHeight;
-        const translateX = wrapperWidth * (scale - 1) / 2;
-        const translateY = wrapperHeight * (scale - 1) / 2;
-        target.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        target.style.transform = `scale(${scale})`;
     }
     /**
      * Interact.js gesture end handler.
@@ -1067,16 +1048,10 @@ export class ImageViewer {
         // Update position data
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Container: combine centering transform with pan offset
-        if (this.container) {
-            this.container.style.transform = `translate(calc(-50% + ${this.panX}px), calc(-50% + ${this.panY}px))`;
+        if (this.panLayer) {
+            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
         }
-        // Wrapper: scale + center scaling compensation translate (not panning)
-        const wrapperWidth = target.offsetWidth;
-        const wrapperHeight = target.offsetHeight;
-        const translateX = wrapperWidth * (scale - 1) / 2;
-        const translateY = wrapperHeight * (scale - 1) / 2;
-        target.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        target.style.transform = `scale(${scale})`;
     }
     /**
      * Bind keyboard shortcuts (escape and arrow keys).
@@ -1154,6 +1129,7 @@ export class ImageViewer {
             this.container.parentNode.removeChild(this.container);
             this.container = null;
         }
+        this.panLayer = null;
         // Restore body scroll
         document.body.style.overflow = '';
     }
