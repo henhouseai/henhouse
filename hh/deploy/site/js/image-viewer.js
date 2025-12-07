@@ -10,7 +10,6 @@ export class ImageViewer {
     constructor(pageId, initialImageId) {
         this.backdrop = null;
         this.container = null;
-        this.panLayer = null;
         this.images = [];
         this.currentImageIndex = 0;
         this.touchStartX = null;
@@ -128,13 +127,9 @@ export class ImageViewer {
      * Apply pan/scale transforms with center compensation.
      */
     applyTransforms(wrapper, scale) {
-        // Center compensation so scaling from center aligns with top-left positioning
-        const translateX = this.baseImageWidth * (scale - 1) / 2;
-        const translateY = this.baseImageHeight * (scale - 1) / 2;
-        if (this.panLayer) {
-            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+        if (this.container) {
+            this.container.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
         }
-        wrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
         wrapper.dataset.scale = scale.toString();
     }
     /**
@@ -311,7 +306,7 @@ export class ImageViewer {
      * Set up interact.js for pan/zoom.
      */
     setupInteract() {
-        if (!this.container || !this.panLayer)
+        if (!this.container)
             return;
         const imageWrapper = document.getElementById('imageWrapper');
         if (!imageWrapper) {
@@ -397,12 +392,6 @@ export class ImageViewer {
             return;
         const viewportWidth = this.getPageWidth();
         const viewportHeight = this.getPageHeight();
-        const width = this.baseOverlayWidth * scale;
-        const height = this.baseOverlayHeight * scale;
-        this.container.style.width = `${width}px`;
-        this.container.style.height = `${height}px`;
-        this.container.style.maxWidth = `${width}px`;
-        this.container.style.maxHeight = `${height}px`;
         // Recompute inflection scales dynamically (handles changing viewport/content)
         this.scaleForWidthMatch = viewportWidth / this.baseOverlayWidth;
         this.scaleForHeightMatch = viewportHeight / this.baseOverlayHeight;
@@ -510,16 +499,12 @@ export class ImageViewer {
         this.container.style.border = '3px solid red';
         // Don't set size yet - will be determined by wrapper + padding/border
         // Create image wrapper set to full-size dimensions (no image yet)
-        this.panLayer = document.createElement('div');
-        this.panLayer.id = 'imagePanLayer';
-        this.panLayer.style.position = 'relative';
-        this.panLayer.style.transform = 'translate(0px, 0px)';
         const imageWrapper = document.createElement('div');
         imageWrapper.id = 'imageWrapper';
-        imageWrapper.style.width = `${fullSizeWidth}px`;
-        imageWrapper.style.height = `${fullSizeHeight}px`;
-        this.panLayer.appendChild(imageWrapper);
-        this.container.appendChild(this.panLayer);
+        imageWrapper.style.boxSizing = 'border-box';
+        imageWrapper.style.width = '100%';
+        imageWrapper.style.height = '100%';
+        this.container.appendChild(imageWrapper);
         // Append to body (invisible)
         document.body.appendChild(this.backdrop);
         document.body.appendChild(this.container);
@@ -547,16 +532,12 @@ export class ImageViewer {
         this.container.style.border = '3px solid red';
         // Don't set size yet - will be determined by wrapper + padding/border
         // Create image wrapper set to full-size dimensions (no image yet)
-        this.panLayer = document.createElement('div');
-        this.panLayer.id = 'imagePanLayer';
-        this.panLayer.style.position = 'relative';
-        this.panLayer.style.transform = 'translate(0px, 0px)';
         const imageWrapper = document.createElement('div');
         imageWrapper.id = 'imageWrapper';
-        imageWrapper.style.width = `${fullSizeWidth}px`;
-        imageWrapper.style.height = `${fullSizeHeight}px`;
-        this.panLayer.appendChild(imageWrapper);
-        this.container.appendChild(this.panLayer);
+        imageWrapper.style.boxSizing = 'border-box';
+        imageWrapper.style.width = '100%';
+        imageWrapper.style.height = '100%';
+        this.container.appendChild(imageWrapper);
         // Append to body (invisible, backdrop already exists)
         document.body.appendChild(this.container);
         // Measure and calculate optimal sizes
@@ -705,7 +686,6 @@ export class ImageViewer {
                 this.container.parentNode.removeChild(this.container);
             }
             this.container = null;
-            this.panLayer = null;
             // Reset pan and scale
             this.currentScale = 1.0;
             this.panX = 0;
@@ -870,7 +850,7 @@ export class ImageViewer {
         this.panX = constrained.x;
         this.panY = constrained.y;
         this.setBorderForScale(scale);
-        // Update transforms - pan on panLayer, scale on wrapper
+        // Update transforms
         this.applyTransforms(imageWrapper, scale);
     }
     /**
@@ -1081,7 +1061,6 @@ export class ImageViewer {
             this.container.parentNode.removeChild(this.container);
             this.container = null;
         }
-        this.panLayer = null;
         // Restore body scroll
         document.body.style.overflow = '';
     }
