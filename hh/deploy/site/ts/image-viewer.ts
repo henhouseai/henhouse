@@ -58,6 +58,7 @@ export class ImageViewer {
   private baseImageHeight: number = 0;
   private baseOverlayWidth: number = 0;
   private baseOverlayHeight: number = 0;
+  private displayScaleFactor: number = 0.6; // start smaller to observe zoom phases
   private currentScale: number = 1.0;
   private panX: number = 0;
   private panY: number = 0;
@@ -182,6 +183,38 @@ export class ImageViewer {
 
 
   /**
+   * Apply pan/scale transforms with center compensation.
+   */
+  private applyTransforms(wrapper: HTMLElement, scale: number): void {
+    // Center compensation so scaling from center aligns with top-left positioning
+    const translateX = this.baseImageWidth * (scale - 1) / 2;
+    const translateY = this.baseImageHeight * (scale - 1) / 2;
+
+    if (this.panLayer) {
+      this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+    }
+    wrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    (wrapper as any).dataset.scale = scale.toString();
+  }
+
+  /**
+   * Set border color based on scale state.
+   */
+  private setBorderForScale(scale: number): void {
+    if (!this.container) return;
+    const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const eps = 0.001;
+    if (scale > second + eps) {
+      this.container.style.border = '3px solid yellow';
+    } else if (scale > first + eps) {
+      this.container.style.border = '3px solid blue';
+    } else {
+      this.container.style.border = '3px solid red';
+    }
+  }
+
+  /**
    * Measure window with full-size wrapper and calculate optimal sizes.
    * Returns optimal wrapper and window dimensions.
    */
@@ -256,10 +289,10 @@ export class ImageViewer {
     const optimalWindowHeight = optimalWrapperHeight + this.totalVerticalExtra;
 
     return {
-      optimalWrapperWidth,
-      optimalWrapperHeight,
-      optimalWindowWidth,
-      optimalWindowHeight
+      optimalWrapperWidth: optimalWrapperWidth * this.displayScaleFactor,
+      optimalWrapperHeight: optimalWrapperHeight * this.displayScaleFactor,
+      optimalWindowWidth: optimalWindowWidth * this.displayScaleFactor,
+      optimalWindowHeight: optimalWindowHeight * this.displayScaleFactor
     };
   }
 
@@ -394,11 +427,11 @@ export class ImageViewer {
 
     // Reset transforms
     imageWrapper.style.transformOrigin = '50% 50%';
-    imageWrapper.style.transform = 'scale(1)';
-    this.panLayer.style.transform = 'translate(0px, 0px)';
+    this.applyTransforms(imageWrapper, 1);
     
     // Container stays centered
     this.container.style.transform = 'translate(-50%, -50%)';
+    this.setBorderForScale(1);
 
     // Set up interact.js
     this.interactInstance = interact(imageWrapper)
@@ -547,11 +580,8 @@ export class ImageViewer {
     dataset.x = this.panX.toString();
     dataset.y = this.panY.toString();
     
-    // Apply pan to panLayer, scale to wrapper
-    if (this.panLayer) {
-      this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-    }
-    imageWrapper.style.transform = `scale(${this.currentScale})`;
+    // Apply pan/scale with compensation
+    this.applyTransforms(imageWrapper, this.currentScale);
   }
 
   /**
@@ -607,6 +637,7 @@ export class ImageViewer {
     this.container.id = 'imageViewerWindow';
     this.container.style.opacity = '0';
     this.container.style.zIndex = String(this.zIndex + 1);
+    this.container.style.border = '3px solid red';
     // Don't set size yet - will be determined by wrapper + padding/border
 
     // Create image wrapper set to full-size dimensions (no image yet)
@@ -663,6 +694,7 @@ export class ImageViewer {
     this.container.id = 'imageViewerWindow';
     this.container.style.opacity = '0';
     this.container.style.zIndex = String(this.zIndex + 1);
+    this.container.style.border = '3px solid red';
     // Don't set size yet - will be determined by wrapper + padding/border
 
     // Create image wrapper set to full-size dimensions (no image yet)
@@ -1056,22 +1088,10 @@ export class ImageViewer {
     this.panX = constrained.x;
     this.panY = constrained.y;
 
-    // Update container class based on zoom state
-    // Blue class when past first inflection point (not just at it)
-    if (this.container) {
-      if (scale > firstInflectionScale + 0.001) {
-        this.container.classList.add('panning-mode');
-      } else {
-        this.container.classList.remove('panning-mode');
-      }
-    }
+    this.setBorderForScale(scale);
 
     // Update transforms - pan on panLayer, scale on wrapper
-    if (this.panLayer) {
-      this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-    }
-    (imageWrapper as any).dataset.scale = scale.toString();
-    imageWrapper.style.transform = `scale(${scale})`;
+    this.applyTransforms(imageWrapper, scale);
   }
 
   /**
@@ -1166,21 +1186,9 @@ export class ImageViewer {
     dataset.x = this.panX.toString();
     dataset.y = this.panY.toString();
 
-    // Update container class based on zoom state
-    // Blue class when past first inflection point (not just at it)
-    const firstInflectionScaleForClass = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-    if (this.container) {
-      if (scale > firstInflectionScaleForClass + 0.001) {
-        this.container.classList.add('panning-mode');
-      } else {
-        this.container.classList.remove('panning-mode');
-      }
-    }
+    this.setBorderForScale(scale);
 
-    if (this.panLayer) {
-      this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-    }
-    (target as HTMLElement).style.transform = `scale(${scale})`;
+    this.applyTransforms(target as HTMLElement, scale);
   }
 
   /**
@@ -1236,10 +1244,7 @@ export class ImageViewer {
     dataset.x = this.panX.toString();
     dataset.y = this.panY.toString();
 
-    if (this.panLayer) {
-      this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-    }
-    (target as HTMLElement).style.transform = `scale(${scale})`;
+    this.applyTransforms(target as HTMLElement, scale);
   }
 
   /**

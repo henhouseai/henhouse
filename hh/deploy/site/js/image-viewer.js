@@ -25,6 +25,7 @@ export class ImageViewer {
         this.baseImageHeight = 0;
         this.baseOverlayWidth = 0;
         this.baseOverlayHeight = 0;
+        this.displayScaleFactor = 0.6; // start smaller to observe zoom phases
         this.currentScale = 1.0;
         this.panX = 0;
         this.panY = 0;
@@ -124,6 +125,38 @@ export class ImageViewer {
         };
     }
     /**
+     * Apply pan/scale transforms with center compensation.
+     */
+    applyTransforms(wrapper, scale) {
+        // Center compensation so scaling from center aligns with top-left positioning
+        const translateX = this.baseImageWidth * (scale - 1) / 2;
+        const translateY = this.baseImageHeight * (scale - 1) / 2;
+        if (this.panLayer) {
+            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+        }
+        wrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        wrapper.dataset.scale = scale.toString();
+    }
+    /**
+     * Set border color based on scale state.
+     */
+    setBorderForScale(scale) {
+        if (!this.container)
+            return;
+        const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const eps = 0.001;
+        if (scale > second + eps) {
+            this.container.style.border = '3px solid yellow';
+        }
+        else if (scale > first + eps) {
+            this.container.style.border = '3px solid blue';
+        }
+        else {
+            this.container.style.border = '3px solid red';
+        }
+    }
+    /**
      * Measure window with full-size wrapper and calculate optimal sizes.
      * Returns optimal wrapper and window dimensions.
      */
@@ -180,10 +213,10 @@ export class ImageViewer {
         const optimalWindowWidth = optimalWrapperWidth + this.totalHorizontalExtra;
         const optimalWindowHeight = optimalWrapperHeight + this.totalVerticalExtra;
         return {
-            optimalWrapperWidth,
-            optimalWrapperHeight,
-            optimalWindowWidth,
-            optimalWindowHeight
+            optimalWrapperWidth: optimalWrapperWidth * this.displayScaleFactor,
+            optimalWrapperHeight: optimalWrapperHeight * this.displayScaleFactor,
+            optimalWindowWidth: optimalWindowWidth * this.displayScaleFactor,
+            optimalWindowHeight: optimalWindowHeight * this.displayScaleFactor
         };
     }
     /**
@@ -288,10 +321,10 @@ export class ImageViewer {
         imageWrapper.dataset.scale = '1';
         // Reset transforms
         imageWrapper.style.transformOrigin = '50% 50%';
-        imageWrapper.style.transform = 'scale(1)';
-        this.panLayer.style.transform = 'translate(0px, 0px)';
+        this.applyTransforms(imageWrapper, 1);
         // Container stays centered
         this.container.style.transform = 'translate(-50%, -50%)';
+        this.setBorderForScale(1);
         // Set up interact.js
         this.interactInstance = interact(imageWrapper)
             .gesturable({
@@ -424,11 +457,8 @@ export class ImageViewer {
         // Update dataset for next drag move
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Apply pan to panLayer, scale to wrapper
-        if (this.panLayer) {
-            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-        }
-        imageWrapper.style.transform = `scale(${this.currentScale})`;
+        // Apply pan/scale with compensation
+        this.applyTransforms(imageWrapper, this.currentScale);
     }
     /**
      * Handle drag end.
@@ -477,6 +507,7 @@ export class ImageViewer {
         this.container.id = 'imageViewerWindow';
         this.container.style.opacity = '0';
         this.container.style.zIndex = String(this.zIndex + 1);
+        this.container.style.border = '3px solid red';
         // Don't set size yet - will be determined by wrapper + padding/border
         // Create image wrapper set to full-size dimensions (no image yet)
         this.panLayer = document.createElement('div');
@@ -513,6 +544,7 @@ export class ImageViewer {
         this.container.id = 'imageViewerWindow';
         this.container.style.opacity = '0';
         this.container.style.zIndex = String(this.zIndex + 1);
+        this.container.style.border = '3px solid red';
         // Don't set size yet - will be determined by wrapper + padding/border
         // Create image wrapper set to full-size dimensions (no image yet)
         this.panLayer = document.createElement('div');
@@ -837,22 +869,9 @@ export class ImageViewer {
         const constrained = this.applyPanConstraints(scale, this.panX, this.panY);
         this.panX = constrained.x;
         this.panY = constrained.y;
-        // Update container class based on zoom state
-        // Blue class when past first inflection point (not just at it)
-        if (this.container) {
-            if (scale > firstInflectionScale + 0.001) {
-                this.container.classList.add('panning-mode');
-            }
-            else {
-                this.container.classList.remove('panning-mode');
-            }
-        }
+        this.setBorderForScale(scale);
         // Update transforms - pan on panLayer, scale on wrapper
-        if (this.panLayer) {
-            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-        }
-        imageWrapper.dataset.scale = scale.toString();
-        imageWrapper.style.transform = `scale(${scale})`;
+        this.applyTransforms(imageWrapper, scale);
     }
     /**
      * Interact.js gesture start handler.
@@ -934,21 +953,8 @@ export class ImageViewer {
         dataset.scale = scale.toString();
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        // Update container class based on zoom state
-        // Blue class when past first inflection point (not just at it)
-        const firstInflectionScaleForClass = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-        if (this.container) {
-            if (scale > firstInflectionScaleForClass + 0.001) {
-                this.container.classList.add('panning-mode');
-            }
-            else {
-                this.container.classList.remove('panning-mode');
-            }
-        }
-        if (this.panLayer) {
-            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-        }
-        target.style.transform = `scale(${scale})`;
+        this.setBorderForScale(scale);
+        this.applyTransforms(target, scale);
     }
     /**
      * Interact.js gesture end handler.
@@ -997,10 +1003,7 @@ export class ImageViewer {
         // Update position data
         dataset.x = this.panX.toString();
         dataset.y = this.panY.toString();
-        if (this.panLayer) {
-            this.panLayer.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-        }
-        target.style.transform = `scale(${scale})`;
+        this.applyTransforms(target, scale);
     }
     /**
      * Bind keyboard shortcuts (escape and arrow keys).
