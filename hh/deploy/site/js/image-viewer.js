@@ -24,43 +24,21 @@ export class ImageViewer {
         this.baseInnerHeight = 0;
         this.intrinsicWidth = 0;
         this.intrinsicHeight = 0;
+        this.pinchStartDist = null;
+        this.pinchStartScale = 1;
+        this.swipeStartX = null;
+        this.swipeStartY = null;
+        this.swipeStartTime = null;
         this.images = [];
         this.currentImageIndex = 0;
         // ---- Input handlers ----------------------------------------------------
         this.handleWheel = (e) => {
             e.preventDefault();
-            let scale = this.currentScale;
-            const delta = e.deltaY;
-            const oldScale = scale;
-            const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+            const oldScale = this.currentScale;
             const sens = 0.1;
-            if (delta < 0)
-                scale += sens;
-            else
-                scale -= sens;
-            // Detent at first inflection
-            if (!this.detentActive && oldScale < first && scale >= first) {
-                scale = first;
-                this.detentActive = true;
-            }
-            else if (this.detentActive && scale > first) {
-                this.detentActive = false;
-            }
-            if (scale < first) {
-                this.detentActive = false;
-            }
-            const maxScale = 3;
-            scale = Math.max(1, Math.min(maxScale, scale));
-            this.currentScale = scale;
-            const oldState = this.getZoomState(oldScale);
-            const newState = this.getZoomState(scale);
-            if (delta > 0 &&
-                (oldState === 'between' || oldState === 'zoomedIn') &&
-                newState === 'zoomedOut') {
-                this.panX = 0;
-                this.panY = 0;
-            }
-            this.applyTransforms(scale);
+            const delta = e.deltaY < 0 ? sens : -sens;
+            const newScale = oldScale + delta;
+            this.applyScale(newScale, oldScale);
         };
         this.handleDragMove = (dx, dy) => {
             const state = this.getZoomState(this.currentScale);
@@ -259,6 +237,29 @@ export class ImageViewer {
             this.container.style.border = `3px solid red`;
         }
     }
+    applyScale(newScale, oldScale) {
+        const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const maxScale = 3;
+        if (!this.detentActive && oldScale < first && newScale >= first) {
+            newScale = first;
+            this.detentActive = true;
+        }
+        else if (this.detentActive && newScale > first) {
+            this.detentActive = false;
+        }
+        if (newScale < first) {
+            this.detentActive = false;
+        }
+        newScale = Math.max(1, Math.min(maxScale, newScale));
+        this.currentScale = newScale;
+        const oldState = this.getZoomState(oldScale);
+        const newState = this.getZoomState(newScale);
+        if (oldState !== 'zoomedOut' && newState === 'zoomedOut') {
+            this.panX = 0;
+            this.panY = 0;
+        }
+        this.applyTransforms(newScale);
+    }
     getZoomState(scale) {
         const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
         const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
@@ -308,21 +309,38 @@ export class ImageViewer {
             lastY = e.clientY;
             this.handleDragMove(dx, dy);
         });
-        // Touch handling (basic)
+        // Touch handling: pinch zoom + drag pan
         this.container.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 1)
+            if (e.touches.length === 2) {
                 e.preventDefault();
-            if (e.touches.length === 1) {
-                // store last touch
+                this.pinchStartDist = this.getTouchDistance(e.touches);
+                this.pinchStartScale = this.currentScale;
+                dragging = false;
+                this.swipeStartX = null;
+                this.swipeStartY = null;
+                this.swipeStartTime = null;
+            }
+            else if (e.touches.length === 1) {
                 const t = e.touches[0];
                 lastX = t.clientX;
                 lastY = t.clientY;
                 dragging = true;
+                this.swipeStartX = t.clientX;
+                this.swipeStartY = t.clientY;
+                this.swipeStartTime = e.timeStamp;
             }
         }, { passive: false });
         this.container.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 1) {
+            if (e.touches.length === 2) {
                 e.preventDefault();
+                dragging = false;
+                if (this.pinchStartDist) {
+                    const dist = this.getTouchDistance(e.touches);
+                    if (dist > 0) {
+                        const newScale = this.pinchStartScale * (dist / this.pinchStartDist);
+                        this.applyScale(newScale, this.currentScale);
+                    }
+                }
                 return;
             }
             if (!dragging)
@@ -334,7 +352,13 @@ export class ImageViewer {
             lastY = t.clientY;
             this.handleDragMove(dx, dy);
         }, { passive: false });
-        this.container.addEventListener('touchend', () => { dragging = false; }, { passive: false });
+        this.container.addEventListener('touchend', () => {
+            dragging = false;
+            this.pinchStartDist = null;
+            this.swipeStartX = null;
+            this.swipeStartY = null;
+            this.swipeStartTime = null;
+        }, { passive: false });
         this.resizeHandler = () => {
             if (this.intrinsicWidth && this.intrinsicHeight) {
                 this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
@@ -365,6 +389,13 @@ export class ImageViewer {
     }
     getPageHeight() {
         return window.innerHeight || document.documentElement.clientHeight;
+    }
+    getTouchDistance(touches) {
+        if (touches.length < 2)
+            return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.hypot(dx, dy);
     }
     cleanup() {
         if (this.resizeHandler) {

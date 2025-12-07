@@ -51,6 +51,11 @@ export class ImageViewer {
   private baseInnerHeight = 0;
   private intrinsicWidth = 0;
   private intrinsicHeight = 0;
+  private pinchStartDist: number | null = null;
+  private pinchStartScale = 1;
+  private swipeStartX: number | null = null;
+  private swipeStartY: number | null = null;
+  private swipeStartTime: number | null = null;
 
   private images: ImageData[] = [];
   private currentImageIndex = 0;
@@ -255,6 +260,33 @@ export class ImageViewer {
     }
   }
 
+  private applyScale(newScale: number, oldScale: number): void {
+    const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const maxScale = 3;
+
+    if (!this.detentActive && oldScale < first && newScale >= first) {
+      newScale = first;
+      this.detentActive = true;
+    } else if (this.detentActive && newScale > first) {
+      this.detentActive = false;
+    }
+    if (newScale < first) {
+      this.detentActive = false;
+    }
+
+    newScale = Math.max(1, Math.min(maxScale, newScale));
+    this.currentScale = newScale;
+
+    const oldState = this.getZoomState(oldScale);
+    const newState = this.getZoomState(newScale);
+    if (oldState !== 'zoomedOut' && newState === 'zoomedOut') {
+      this.panX = 0;
+      this.panY = 0;
+    }
+
+    this.applyTransforms(newScale);
+  }
+
   private getZoomState(scale: number): 'zoomedOut' | 'between' | 'zoomedIn' {
     const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
     const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
@@ -288,37 +320,11 @@ export class ImageViewer {
 
   private handleWheel = (e: WheelEvent) => {
     e.preventDefault();
-    let scale = this.currentScale;
-    const delta = e.deltaY;
-    const oldScale = scale;
-    const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+    const oldScale = this.currentScale;
     const sens = 0.1;
-    if (delta < 0) scale += sens; else scale -= sens;
-
-    // Detent at first inflection
-    if (!this.detentActive && oldScale < first && scale >= first) {
-      scale = first;
-      this.detentActive = true;
-    } else if (this.detentActive && scale > first) {
-      this.detentActive = false;
-    }
-    if (scale < first) {
-      this.detentActive = false;
-    }
-
-    const maxScale = 3;
-    scale = Math.max(1, Math.min(maxScale, scale));
-    this.currentScale = scale;
-
-    const oldState = this.getZoomState(oldScale);
-    const newState = this.getZoomState(scale);
-    if (delta > 0 &&
-        (oldState === 'between' || oldState === 'zoomedIn') &&
-        newState === 'zoomedOut') {
-      this.panX = 0; this.panY = 0;
-    }
-
-    this.applyTransforms(scale);
+    const delta = e.deltaY < 0 ? sens : -sens;
+    const newScale = oldScale + delta;
+    this.applyScale(newScale, oldScale);
   };
 
   private handleDragMove = (dx: number, dy: number) => {
@@ -354,17 +360,38 @@ export class ImageViewer {
       this.handleDragMove(dx, dy);
     });
 
-    // Touch handling (basic)
+    // Touch handling: pinch zoom + drag pan
     this.container.addEventListener('touchstart', (e) => {
-      if (e.touches.length > 1) e.preventDefault();
-      if (e.touches.length === 1) {
-        // store last touch
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        this.pinchStartDist = this.getTouchDistance(e.touches);
+        this.pinchStartScale = this.currentScale;
+        dragging = false;
+        this.swipeStartX = null;
+        this.swipeStartY = null;
+        this.swipeStartTime = null;
+      } else if (e.touches.length === 1) {
         const t = e.touches[0];
         lastX = t.clientX; lastY = t.clientY; dragging = true;
+        this.swipeStartX = t.clientX;
+        this.swipeStartY = t.clientY;
+        this.swipeStartTime = e.timeStamp;
       }
     }, { passive: false });
+
     this.container.addEventListener('touchmove', (e) => {
-      if (e.touches.length > 1) { e.preventDefault(); return; }
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        dragging = false;
+        if (this.pinchStartDist) {
+          const dist = this.getTouchDistance(e.touches);
+          if (dist > 0) {
+            const newScale = this.pinchStartScale * (dist / this.pinchStartDist);
+            this.applyScale(newScale, this.currentScale);
+          }
+        }
+        return;
+      }
       if (!dragging) return;
       const t = e.touches[0];
       const dx = t.clientX - lastX;
@@ -372,7 +399,14 @@ export class ImageViewer {
       lastX = t.clientX; lastY = t.clientY;
       this.handleDragMove(dx, dy);
     }, { passive: false });
-    this.container.addEventListener('touchend', () => { dragging = false; }, { passive: false });
+
+    this.container.addEventListener('touchend', () => {
+      dragging = false;
+      this.pinchStartDist = null;
+      this.swipeStartX = null;
+      this.swipeStartY = null;
+      this.swipeStartTime = null;
+    }, { passive: false });
 
     this.resizeHandler = () => {
       if (this.intrinsicWidth && this.intrinsicHeight) {
@@ -403,6 +437,13 @@ export class ImageViewer {
 
   private getPageHeight(): number {
     return window.innerHeight || document.documentElement.clientHeight;
+  }
+
+  private getTouchDistance(touches: TouchList): number {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
   }
 
   private cleanup(): void {
