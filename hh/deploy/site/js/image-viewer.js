@@ -391,7 +391,7 @@ export class ImageViewer {
             this.swipeStartTime = null;
         }, { passive: false });
         this.container.addEventListener('touchend', (e) => {
-            // Swipe navigation (allow at any scale)
+            // Swipe navigation (match stage logic: only at default scale)
             if (this.images.length > 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
                 const touch = e.changedTouches[0];
                 const dx = touch.clientX - this.swipeStartX;
@@ -400,11 +400,13 @@ export class ImageViewer {
                 const dist = Math.hypot(dx, dy);
                 const isHorizontal = Math.abs(dx) > Math.abs(dy);
                 const velocity = dt > 0 ? dist / dt : 0;
-                if (isHorizontal && (dist >= 40 || velocity >= 0.15)) {
+                const minSwipeDistance = 100;
+                const minSwipeVelocity = 0.3;
+                if (this.currentScale === 1 && isHorizontal && (dist >= minSwipeDistance || velocity >= minSwipeVelocity)) {
                     if (dx > 0)
-                        this.navigate(1);
-                    else
                         this.navigate(-1);
+                    else
+                        this.navigate(1);
                 }
             }
             this.swipeStartX = null;
