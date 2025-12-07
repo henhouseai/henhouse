@@ -101,7 +101,8 @@ export class ImageViewer {
         const imageContainer = this.createImageElement(image, instance);
         // Create footer element for caption (same styling as header)
         const footerEl = document.createElement('div');
-        footerEl.className = 'contentWrapperHeader overlay overlay-footer';
+        // Keep footer styling aligned with header; no extra class needed for sizing
+        footerEl.className = 'contentWrapperHeader overlay';
         footerEl.textContent = image.caption || '';
         this.footerEl = footerEl;
         // Show overlay using OverlayManager
@@ -124,14 +125,19 @@ export class ImageViewer {
         this.contentEl = this.windowEl?.querySelector('.contentWrapper') || null;
         this.footerEl = this.footerEl || this.windowEl?.querySelector('.overlay-footer') || null;
         // Measure header and footer heights
-        this.headerHeight = this.headerEl?.offsetHeight || 0;
-        this.footerHeight = this.footerEl?.offsetHeight || 0;
+        this.measureChromeHeights();
         // Prevent body scroll while overlay is open
         document.body.style.overflow = 'hidden';
         // Initial sizing and inflection thresholds
         this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
         this.currentScale = 1;
         this.applyTransforms(1);
+        // Re-measure after layout settle to capture footer/header height accurately
+        requestAnimationFrame(() => {
+            this.measureChromeHeights();
+            this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
+            this.applyTransforms(this.currentScale);
+        });
         this.bindEvents();
     }
     createImageElement(image, instance) {
@@ -172,6 +178,7 @@ export class ImageViewer {
         this.panX = 0;
         this.panY = 0;
         this.detentActive = false;
+        this.measureChromeHeights();
         this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
         this.applyTransforms(1);
     }
@@ -508,6 +515,10 @@ export class ImageViewer {
     }
     getPageHeight() {
         return window.innerHeight || document.documentElement.clientHeight;
+    }
+    measureChromeHeights() {
+        this.headerHeight = this.headerEl?.offsetHeight || 0;
+        this.footerHeight = this.footerEl?.offsetHeight || 0;
     }
     getTouchDistance(touches) {
         if (touches.length < 2)

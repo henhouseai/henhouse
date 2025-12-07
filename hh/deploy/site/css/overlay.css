@@ -603,3 +603,22 @@
 .image-viewer-overlay {
   overflow: hidden;
 }
+
+/* Image viewer chrome tweaks: remove padding/margins/backgrounds behind the image */
+.image-viewer-overlay .contentWrapper {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.image-viewer-overlay .content.overlay {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.image-viewer-overlay .image-viewer-box {
+  background: transparent;
+}
