@@ -215,13 +215,6 @@ export class ImageViewer {
     this.baseInnerWidth = intrinsicW * fitScale;
     this.baseInnerHeight = intrinsicH * fitScale;
 
-    // Set explicit dimensions on the image box
-    const imageBox = this.contentEl?.querySelector('#imageViewerTargetImage') as HTMLElement | null;
-    if (imageBox) {
-      imageBox.style.width = `${this.baseInnerWidth}px`;
-      imageBox.style.height = `${this.baseInnerHeight}px`;
-    }
-
     // Only set width on window, let height auto-calculate
     this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
     this.windowEl.style.width = `${this.baseOverlayWidth}px`;
@@ -257,15 +250,7 @@ export class ImageViewer {
   private applyTransforms(scale: number): void {
     if (!this.windowEl) return;
     const innerW = this.baseInnerWidth * scale;
-    const innerH = this.baseInnerHeight * scale;
     const overlayW = innerW + this.totalExtraX;
-
-    // Set explicit dimensions on the image box
-    const imageBox = this.contentEl?.querySelector('#imageViewerTargetImage') as HTMLElement | null;
-    if (imageBox) {
-      imageBox.style.width = `${innerW}px`;
-      imageBox.style.height = `${innerH}px`;
-    }
 
     // Only set width on window, let height auto-calculate
     this.windowEl.style.width = `${overlayW}px`;
