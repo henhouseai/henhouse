@@ -243,17 +243,25 @@ export class ImageViewer {
         this.windowEl.style.maxHeight = '';
         let effectiveW = overlayW;
         let effectiveH = this.windowEl.offsetHeight || overlayH;
-        const zoomState = this.getZoomState(scale);
+        // Compute fresh inflection points based on current geometry
+        const vw = this.getPageWidth();
+        const vh = this.getPageHeight();
+        const margin = 200;
+        const maxW = vw - margin;
+        const targetHeight = vh - margin;
+        // Only adjust-to-fit when zoomed out; otherwise preserve overflow for panning
+        let first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        let second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const zoomState = this.getZoomStateFor(scale, first, second);
         if (zoomState === 'zoomedOut') {
-            const vh = this.getPageHeight();
-            const margin = 200;
-            const maxW = this.getPageWidth() - margin;
-            const targetHeight = vh - margin;
             const adjusted = this.adjustWidthToFit(targetHeight, maxW, 50, 1);
             effectiveW = adjusted.width;
             effectiveH = adjusted.height;
+            // recompute inflections based on adjusted size
+            first = Math.min(vw / effectiveW, vh / effectiveH);
+            second = Math.max(vw / effectiveW, vh / effectiveH);
         }
-        const clamped = this.clampPan(scale, this.panX, this.panY, effectiveW, effectiveH);
+        const clamped = this.clampPan(scale, this.panX, this.panY, effectiveW, effectiveH, first, second);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
@@ -292,13 +300,22 @@ export class ImageViewer {
             return 'between';
         return 'zoomedIn';
     }
-    clampPan(scale, panX, panY, actualWidth, actualHeight) {
-        const state = this.getZoomState(scale);
+    getZoomStateFor(scale, first, second) {
+        if (scale <= first + 1e-3)
+            return 'zoomedOut';
+        if (scale < second - 1e-3)
+            return 'between';
+        return 'zoomedIn';
+    }
+    clampPan(scale, panX, panY, actualWidth, actualHeight, first, second) {
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
         const halfOverflowX = Math.max(0, (actualWidth - vw) / 2);
         const halfOverflowY = Math.max(0, (actualHeight - vh) / 2);
-        const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
+        const f = first !== undefined ? first : Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const s = second !== undefined ? second : Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const widthHitsFirst = f === this.scaleForWidthMatch ? this.scaleForWidthMatch < this.scaleForHeightMatch : f < s ? (actualWidth / vw) > (actualHeight / vh) : this.scaleForWidthMatch < this.scaleForHeightMatch;
+        const state = this.getZoomStateFor(scale, f, s);
         if (state === 'zoomedOut')
             return { x: 0, y: 0 };
         if (state === 'between') {
