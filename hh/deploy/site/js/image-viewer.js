@@ -235,19 +235,25 @@ export class ImageViewer {
         const innerW = this.baseInnerWidth * scale;
         const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
-        // Width-only apply; let height auto and iteratively adjust to fit viewport
+        const overlayH = innerH + this.totalExtraY + this.headerHeight + this.footerHeight;
+        // Width-only apply; let height auto. Only adjust-to-fit when zoomedOut; allow overflow when zoomed in.
         this.windowEl.style.width = `${overlayW}px`;
         this.windowEl.style.height = '';
         this.windowEl.style.maxWidth = `${overlayW}px`;
         this.windowEl.style.maxHeight = '';
-        const vh = this.getPageHeight();
-        const margin = 200;
-        const maxW = this.getPageWidth() - margin;
-        const targetHeight = vh - margin;
-        const adjusted = this.adjustWidthToFit(targetHeight, maxW, 50, 1);
-        const overlayH = adjusted.height;
-        const effectiveOverlayW = adjusted.width;
-        const clamped = this.clampPan(scale, this.panX, this.panY, effectiveOverlayW, overlayH);
+        let effectiveW = overlayW;
+        let effectiveH = this.windowEl.offsetHeight || overlayH;
+        const zoomState = this.getZoomState(scale);
+        if (zoomState === 'zoomedOut') {
+            const vh = this.getPageHeight();
+            const margin = 200;
+            const maxW = this.getPageWidth() - margin;
+            const targetHeight = vh - margin;
+            const adjusted = this.adjustWidthToFit(targetHeight, maxW, 50, 1);
+            effectiveW = adjusted.width;
+            effectiveH = adjusted.height;
+        }
+        const clamped = this.clampPan(scale, this.panX, this.panY, effectiveW, effectiveH);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
