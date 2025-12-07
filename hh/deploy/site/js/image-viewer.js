@@ -135,6 +135,7 @@ export class ImageViewer {
         });
         // Image element filling the box
         const img = document.createElement('img');
+        img.id = 'imageViewerImg';
         img.style.width = '100%';
         img.style.height = '100%';
         img.style.objectFit = 'contain';
@@ -153,6 +154,26 @@ export class ImageViewer {
         this.applyTransforms(1);
         this.container.style.opacity = '1';
         this.bindEvents();
+    }
+    updateImageContent() {
+        if (!this.container)
+            return;
+        const image = this.images[this.currentImageIndex];
+        const instance = image.instances[image.instances.length - 1]; // largest
+        this.intrinsicWidth = instance.width;
+        this.intrinsicHeight = instance.height;
+        const img = this.container.querySelector('#imageViewerImg');
+        if (img) {
+            const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
+            img.src = src;
+            img.alt = image.caption || '';
+        }
+        this.currentScale = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.detentActive = false;
+        this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
+        this.applyTransforms(1);
     }
     initializeBaseSizes(intrinsicW, intrinsicH) {
         if (!this.container)
@@ -298,9 +319,11 @@ export class ImageViewer {
         // Simple mouse drag for pan
         let dragging = false;
         let lastX = 0, lastY = 0;
-        this.container.addEventListener('mousedown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
-        window.addEventListener('mouseup', () => { dragging = false; });
-        window.addEventListener('mousemove', (e) => {
+        this.container.addEventListener('mousedown', (e) => { e.preventDefault(); dragging = true; lastX = e.clientX; lastY = e.clientY; });
+        this.container.addEventListener('mouseup', () => { dragging = false; });
+        this.container.addEventListener('mouseleave', () => { dragging = false; });
+        document.addEventListener('mouseup', () => { dragging = false; });
+        document.addEventListener('mousemove', (e) => {
             if (!dragging)
                 return;
             const dx = e.clientX - lastX;
@@ -359,6 +382,27 @@ export class ImageViewer {
             this.swipeStartY = null;
             this.swipeStartTime = null;
         }, { passive: false });
+        this.container.addEventListener('touchend', (e) => {
+            // Swipe navigation when at default scale
+            if (this.currentScale === 1 && this.images.length > 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
+                const touch = e.changedTouches[0];
+                const dx = touch.clientX - this.swipeStartX;
+                const dy = touch.clientY - this.swipeStartY;
+                const dt = e.timeStamp - this.swipeStartTime;
+                const dist = Math.hypot(dx, dy);
+                const isHorizontal = Math.abs(dx) > Math.abs(dy);
+                const velocity = dt > 0 ? dist / dt : 0;
+                if (isHorizontal && (dist >= 100 || velocity >= 0.3)) {
+                    if (dx > 0)
+                        this.navigate(1);
+                    else
+                        this.navigate(-1);
+                }
+            }
+            this.swipeStartX = null;
+            this.swipeStartY = null;
+            this.swipeStartTime = null;
+        }, { passive: false });
         this.resizeHandler = () => {
             if (this.intrinsicWidth && this.intrinsicHeight) {
                 this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
@@ -380,6 +424,18 @@ export class ImageViewer {
                 this.cleanup();
                 e.preventDefault();
             }
+            else if (e.key === 'ArrowLeft') {
+                if (this.images.length > 1) {
+                    this.navigate(-1);
+                    e.preventDefault();
+                }
+            }
+            else if (e.key === 'ArrowRight') {
+                if (this.images.length > 1) {
+                    this.navigate(1);
+                    e.preventDefault();
+                }
+            }
         };
         document.addEventListener('keydown', this.keyboardHandler);
     }
@@ -396,6 +452,12 @@ export class ImageViewer {
         const dx = touches[0].clientX - touches[1].clientX;
         const dy = touches[0].clientY - touches[1].clientY;
         return Math.hypot(dx, dy);
+    }
+    navigate(delta) {
+        if (!this.images.length)
+            return;
+        this.currentImageIndex = (this.currentImageIndex + delta + this.images.length) % this.images.length;
+        this.updateImageContent();
     }
     cleanup() {
         if (this.resizeHandler) {
