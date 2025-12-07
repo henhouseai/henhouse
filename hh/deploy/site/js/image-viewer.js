@@ -387,15 +387,10 @@ export class ImageViewer {
             lastY = t.clientY;
             this.handleDragMove(dx, dy);
         }, { passive: false });
-        this.container.addEventListener('touchend', () => {
-            dragging = false;
-            this.pinchStartDist = null;
-            this.swipeStartX = null;
-            this.swipeStartY = null;
-            this.swipeStartTime = null;
-        }, { passive: false });
+        // Single touchend handler (stage-style): detect swipe first, then reset
         this.container.addEventListener('touchend', (e) => {
-            // Swipe navigation (match stage logic: only at default scale)
+            dragging = false;
+            // Swipe navigation: only when at default scale
             if (this.images.length > 1 && this.currentScale === 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
                 const touch = e.changedTouches[0];
                 const dx = touch.clientX - this.swipeStartX;
@@ -413,9 +408,11 @@ export class ImageViewer {
                         this.navigate(1);
                 }
             }
+            // Reset swipe/pinch state
             this.swipeStartX = null;
             this.swipeStartY = null;
             this.swipeStartTime = null;
+            this.pinchStartDist = null;
         }, { passive: false });
         // Backdrop pinch/wheel to zoom anywhere
         if (this.backdrop) {
