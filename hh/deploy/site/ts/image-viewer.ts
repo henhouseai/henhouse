@@ -144,10 +144,18 @@ export class ImageViewer {
     const box = document.createElement('div');
     box.id = 'imageViewerTargetImage';
     box.className = 'image-viewer-box';
+    Object.assign(box.style, {
+      boxSizing: 'border-box',
+      width: '100%',
+      height: '100%'
+    });
 
     const img = document.createElement('img');
     img.id = 'imageViewerImg';
     img.className = 'image-viewer-img';
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'contain';
     const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
     img.src = src;
     img.alt = image.caption || '';
