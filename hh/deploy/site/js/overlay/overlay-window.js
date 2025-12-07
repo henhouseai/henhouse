@@ -17,7 +17,7 @@ export class OverlayWindow {
         const window = document.createElement('div');
         window.className = 'overlay-window';
         if (this.props.mode) {
-            window.className += ` overlay-window-${this.props.mode}`;
+            window.className += ` overlay-window-${this.props.mode} ${this.props.mode}`;
         }
         if (this.props.className) {
             window.className += ` ${this.props.className}`;

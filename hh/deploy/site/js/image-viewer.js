@@ -193,17 +193,22 @@ export class ImageViewer {
         const maxW = vw - margin;
         // Estimate available height for image (viewport - margin - header - footer - padding)
         const maxH = vh - margin - this.headerHeight - this.footerHeight - this.totalExtraY;
-        // Scale to fit, preserving aspect ratio
+        // Scale to fit, preserving aspect ratio, but only apply width to the window; let height flow
         const scaleX = (maxW - this.totalExtraX) / intrinsicW;
         const scaleY = maxH / intrinsicH;
         const fitScale = Math.min(scaleX, scaleY, 1);
         this.baseInnerWidth = intrinsicW * fitScale;
         this.baseInnerHeight = intrinsicH * fitScale;
-        // Set both width and height on window (but NOT on the image box inside)
-        this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
-        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY + this.headerHeight + this.footerHeight;
-        this.windowEl.style.width = `${this.baseOverlayWidth}px`;
-        this.windowEl.style.height = `${this.baseOverlayHeight}px`;
+        // Width-only apply; height flows
+        const initialOverlayWidth = this.baseInnerWidth + this.totalExtraX;
+        this.windowEl.style.width = `${initialOverlayWidth}px`;
+        this.windowEl.style.height = '';
+        this.windowEl.style.maxHeight = '';
+        // Adjust width iteratively to fit available height (within 1px tolerance)
+        const targetHeight = vh - margin;
+        const adjusted = this.adjustWidthToFit(targetHeight, maxW, 50, 1);
+        this.baseOverlayWidth = adjusted.width;
+        this.baseOverlayHeight = adjusted.height;
         this.recomputeInflections();
     }
     recomputeInflections() {
@@ -230,13 +235,19 @@ export class ImageViewer {
         const innerW = this.baseInnerWidth * scale;
         const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
-        const overlayH = innerH + this.totalExtraY + this.headerHeight + this.footerHeight;
-        // Set both width and height on window (but NOT on the image box inside)
+        // Width-only apply; let height auto and iteratively adjust to fit viewport
         this.windowEl.style.width = `${overlayW}px`;
-        this.windowEl.style.height = `${overlayH}px`;
+        this.windowEl.style.height = '';
         this.windowEl.style.maxWidth = `${overlayW}px`;
-        this.windowEl.style.maxHeight = `${overlayH}px`;
-        const clamped = this.clampPan(scale, this.panX, this.panY, overlayW, overlayH);
+        this.windowEl.style.maxHeight = '';
+        const vh = this.getPageHeight();
+        const margin = 200;
+        const maxW = this.getPageWidth() - margin;
+        const targetHeight = vh - margin;
+        const adjusted = this.adjustWidthToFit(targetHeight, maxW, 50, 1);
+        const overlayH = adjusted.height;
+        const effectiveOverlayW = adjusted.width;
+        const clamped = this.clampPan(scale, this.panX, this.panY, effectiveOverlayW, overlayH);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
@@ -519,6 +530,39 @@ export class ImageViewer {
     measureChromeHeights() {
         this.headerHeight = this.headerEl?.offsetHeight || 0;
         this.footerHeight = this.footerEl?.offsetHeight || 0;
+    }
+    /**
+     * Iteratively adjust overlay width so the rendered height is within tolerance of target.
+     * Leaves height auto-flowing; only width is set.
+     */
+    adjustWidthToFit(targetHeight, maxWidth, minWidth = 50, tolerance = 1) {
+        if (!this.windowEl)
+            return { width: 0, height: 0 };
+        let width = parseFloat(this.windowEl.style.width || '0') || this.windowEl.offsetWidth || maxWidth;
+        width = Math.max(minWidth, Math.min(maxWidth, width));
+        this.windowEl.style.width = `${width}px`;
+        let height = this.windowEl.offsetHeight || 0;
+        for (let i = 0; i < 8; i++) {
+            height = this.windowEl.offsetHeight || 0;
+            if (height === 0)
+                break;
+            const diff = height - targetHeight;
+            if (Math.abs(diff) <= tolerance)
+                break;
+            // Adjust proportionally toward target height
+            const factor = targetHeight > 0 ? targetHeight / height : 1;
+            const newWidth = Math.max(minWidth, Math.min(maxWidth, width * factor));
+            // If change is negligible, stop
+            if (Math.abs(newWidth - width) < 0.5) {
+                width = newWidth;
+                this.windowEl.style.width = `${width}px`;
+                break;
+            }
+            width = newWidth;
+            this.windowEl.style.width = `${width}px`;
+        }
+        height = this.windowEl.offsetHeight || 0;
+        return { width, height };
     }
     getTouchDistance(touches) {
         if (touches.length < 2)

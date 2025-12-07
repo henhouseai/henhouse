@@ -337,6 +337,13 @@ export class Overlay {
     if (this.container) {
       this.container.style.display = '';
     }
+    // Nudge layout for fixed/pannable so initial position is correct before user scroll
+    if (this.props.mode === 'fixed' || this.props.mode === 'pannable') {
+      requestAnimationFrame(() => {
+        window.scrollBy(0, 1);
+        window.scrollBy(0, -1);
+      });
+    }
   }
 
   /**

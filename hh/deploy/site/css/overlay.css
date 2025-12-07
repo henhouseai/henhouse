@@ -78,25 +78,25 @@
   overflow: auto;
 }
 
-.overlay-window.overlay-window-fixed {
+.overlay-window.fixed {
   /* inherits base 90% sizing and scrolling */
 }
 
-.overlay-window.overlay-window-zoomable,
-.overlay-window.overlay-window-pannable {
+.overlay-window.zoomable,
+.overlay-window.pannable {
   max-height: none;
   height: auto;
   overflow: hidden;
 }
 
-.overlay-window.overlay-window-zoomable {
+.overlay-window.zoomable {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   max-width: none;
 }
 
-.overlay-window.overlay-window-pannable {
+.overlay-window.pannable {
   left: 50%;
   top: 0;
   transform: translateX(-50%);
@@ -625,25 +625,25 @@
 }
 
 /* Image viewer overlay - no scrollbars, we handle pan/zoom */
-.overlay-window.overlay-window-zoomable {
+.overlay-window.zoomable {
   overflow: hidden;
 }
 
 /* Zoomable chrome tweaks: remove padding/margins/backgrounds behind the image */
-.overlay-window.overlay-window-zoomable .contentWrapper {
+.overlay-window.zoomable .contentWrapper {
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
 }
 
-.overlay-window.overlay-window-zoomable .content.overlay {
+.overlay-window.zoomable .content.overlay {
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
 }
 
-.overlay-window.overlay-window-zoomable .image-viewer-box {
+.overlay-window.zoomable .image-viewer-box {
   background: transparent;
 }
