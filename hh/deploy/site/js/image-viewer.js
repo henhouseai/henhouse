@@ -241,9 +241,10 @@ export class ImageViewer {
         this.windowEl.style.height = '';
         this.windowEl.style.maxWidth = `${overlayW}px`;
         this.windowEl.style.maxHeight = '';
-        const effectiveW = overlayW;
+        // Use current rendered dimensions for clamping
+        const effectiveW = this.windowEl.offsetWidth || overlayW;
         const effectiveH = this.windowEl.offsetHeight || overlayH;
-        const clamped = this.clampPan(scale, this.panX, this.panY, effectiveW, effectiveH);
+        const clamped = this.clampPan(this.panX, this.panY, effectiveW, effectiveH);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
@@ -282,19 +283,23 @@ export class ImageViewer {
             return 'between';
         return 'zoomedIn';
     }
-    clampPan(scale, panX, panY, actualWidth, actualHeight) {
-        const state = this.getZoomState(scale);
+    clampPan(panX, panY, actualWidth, actualHeight) {
+        // Determine overflow per axis based on current rendered size vs viewport
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
-        const halfOverflowX = Math.max(0, (actualWidth - vw) / 2);
-        const halfOverflowY = Math.max(0, (actualHeight - vh) / 2);
-        const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
-        if (state === 'zoomedOut')
+        const overflowX = Math.max(0, actualWidth - vw);
+        const overflowY = Math.max(0, actualHeight - vh);
+        const halfOverflowX = overflowX / 2;
+        const halfOverflowY = overflowY / 2;
+        const xOver = overflowX > 0;
+        const yOver = overflowY > 0;
+        if (!xOver && !yOver) {
             return { x: 0, y: 0 };
-        if (state === 'between') {
-            if (widthHitsFirst) {
-                return { x: Math.max(-halfOverflowX, Math.min(halfOverflowX, panX)), y: 0 };
-            }
+        }
+        if (xOver && !yOver) {
+            return { x: Math.max(-halfOverflowX, Math.min(halfOverflowX, panX)), y: 0 };
+        }
+        if (!xOver && yOver) {
             return { x: 0, y: Math.max(-halfOverflowY, Math.min(halfOverflowY, panY)) };
         }
         return {
