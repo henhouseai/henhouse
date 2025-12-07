@@ -31,8 +31,11 @@ export class ImageViewer {
   private rpc: RPCClient;
   private overlay: Overlay | null = null;
   private windowEl: HTMLElement | null = null;
+  private headerEl: HTMLElement | null = null;
   private contentEl: HTMLElement | null = null;
   private footerEl: HTMLElement | null = null;
+  private headerHeight = 0;
+  private footerHeight = 0;
   private readonly pageId: number;
   private readonly initialImageId?: number;
 
@@ -126,8 +129,13 @@ export class ImageViewer {
 
     // Get references to overlay elements for pan/zoom
     this.windowEl = document.querySelector('.image-viewer-overlay');
+    this.headerEl = this.windowEl?.querySelector('.contentWrapperHeader') || null;
     this.contentEl = this.windowEl?.querySelector('.contentWrapper') || null;
     this.footerEl = this.windowEl?.querySelector('.overlay-footer') || null;
+
+    // Measure header and footer heights
+    this.headerHeight = this.headerEl?.offsetHeight || 0;
+    this.footerHeight = this.footerEl?.offsetHeight || 0;
 
     // Prevent body scroll while overlay is open
     document.body.style.overflow = 'hidden';
@@ -202,7 +210,8 @@ export class ImageViewer {
     const vh = this.getPageHeight();
     const margin = 200;
     const maxW = vw - margin;
-    const maxH = vh - margin;
+    // Account for header and footer in available height
+    const maxH = vh - margin - this.headerHeight - this.footerHeight;
 
     // Scale to fit viewport minus margin, preserving aspect
     const scaleX = (maxW - this.totalExtraX) / intrinsicW;
@@ -213,7 +222,8 @@ export class ImageViewer {
     this.baseInnerHeight = intrinsicH * fitScale;
 
     this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
-    this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY;
+    // Add header and footer to total overlay height
+    this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY + this.headerHeight + this.footerHeight;
 
     this.windowEl.style.width = `${this.baseOverlayWidth}px`;
     this.windowEl.style.height = `${this.baseOverlayHeight}px`;
@@ -246,7 +256,8 @@ export class ImageViewer {
     const innerW = this.baseInnerWidth * scale;
     const innerH = this.baseInnerHeight * scale;
     const overlayW = innerW + this.totalExtraX;
-    const overlayH = innerH + this.totalExtraY;
+    // Add header and footer heights to total overlay height
+    const overlayH = innerH + this.totalExtraY + this.headerHeight + this.footerHeight;
     this.windowEl.style.width = `${overlayW}px`;
     this.windowEl.style.height = `${overlayH}px`;
     this.windowEl.style.maxWidth = `${overlayW}px`;
@@ -541,6 +552,7 @@ export class ImageViewer {
     this.cleanupHandlers();
     this.overlay = null;
     this.windowEl = null;
+    this.headerEl = null;
     this.contentEl = null;
     this.footerEl = null;
   }

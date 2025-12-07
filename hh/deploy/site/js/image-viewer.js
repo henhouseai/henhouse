@@ -8,8 +8,11 @@ export class ImageViewer {
     constructor(pageId, initialImageId) {
         this.overlay = null;
         this.windowEl = null;
+        this.headerEl = null;
         this.contentEl = null;
         this.footerEl = null;
+        this.headerHeight = 0;
+        this.footerHeight = 0;
         this.currentScale = 1;
         this.panX = 0;
         this.panY = 0;
@@ -115,8 +118,12 @@ export class ImageViewer {
         });
         // Get references to overlay elements for pan/zoom
         this.windowEl = document.querySelector('.image-viewer-overlay');
+        this.headerEl = this.windowEl?.querySelector('.contentWrapperHeader') || null;
         this.contentEl = this.windowEl?.querySelector('.contentWrapper') || null;
         this.footerEl = this.windowEl?.querySelector('.overlay-footer') || null;
+        // Measure header and footer heights
+        this.headerHeight = this.headerEl?.offsetHeight || 0;
+        this.footerHeight = this.footerEl?.offsetHeight || 0;
         // Prevent body scroll while overlay is open
         document.body.style.overflow = 'hidden';
         // Initial sizing and inflection thresholds
@@ -181,7 +188,8 @@ export class ImageViewer {
         const vh = this.getPageHeight();
         const margin = 200;
         const maxW = vw - margin;
-        const maxH = vh - margin;
+        // Account for header and footer in available height
+        const maxH = vh - margin - this.headerHeight - this.footerHeight;
         // Scale to fit viewport minus margin, preserving aspect
         const scaleX = (maxW - this.totalExtraX) / intrinsicW;
         const scaleY = (maxH - this.totalExtraY) / intrinsicH;
@@ -189,7 +197,8 @@ export class ImageViewer {
         this.baseInnerWidth = intrinsicW * fitScale;
         this.baseInnerHeight = intrinsicH * fitScale;
         this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
-        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY;
+        // Add header and footer to total overlay height
+        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY + this.headerHeight + this.footerHeight;
         this.windowEl.style.width = `${this.baseOverlayWidth}px`;
         this.windowEl.style.height = `${this.baseOverlayHeight}px`;
         this.recomputeInflections();
@@ -218,7 +227,8 @@ export class ImageViewer {
         const innerW = this.baseInnerWidth * scale;
         const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
-        const overlayH = innerH + this.totalExtraY;
+        // Add header and footer heights to total overlay height
+        const overlayH = innerH + this.totalExtraY + this.headerHeight + this.footerHeight;
         this.windowEl.style.width = `${overlayW}px`;
         this.windowEl.style.height = `${overlayH}px`;
         this.windowEl.style.maxWidth = `${overlayW}px`;
@@ -491,6 +501,7 @@ export class ImageViewer {
         this.cleanupHandlers();
         this.overlay = null;
         this.windowEl = null;
+        this.headerEl = null;
         this.contentEl = null;
         this.footerEl = null;
     }
