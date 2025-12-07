@@ -385,8 +385,8 @@ export class ImageViewer {
     document.body.style.overflow = '';
   }
 
-  static async openFromImageLink(pageId: number, _imageId?: number): Promise<void> {
-    const viewer = new ImageViewer(pageId);
+  static async openFromImageLink(pageId: number, imageId?: number): Promise<void> {
+    const viewer = new ImageViewer(pageId, imageId);
     await viewer.show();
   }
 }

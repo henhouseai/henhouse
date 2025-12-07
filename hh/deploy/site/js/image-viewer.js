@@ -358,8 +358,8 @@ export class ImageViewer {
         this.container = null;
         document.body.style.overflow = '';
     }
-    static async openFromImageLink(pageId, _imageId) {
-        const viewer = new ImageViewer(pageId);
+    static async openFromImageLink(pageId, imageId) {
+        const viewer = new ImageViewer(pageId, imageId);
         await viewer.show();
     }
 }

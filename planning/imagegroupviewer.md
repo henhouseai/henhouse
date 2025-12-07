@@ -453,6 +453,23 @@ this.interactInstance = interact(zoomContainer)
 
 ---
 
+## Debrief – Failed Attempts and Issues
+
+- Added multiple transform layers (container + panLayer + imageWrapper) instead of the required single-transform container; caused misalignment and was rejected.
+- Hardcoded padding/border values in TypeScript even though CSS already defined them; removed only after being called out.
+- Swapped the real image for a green box but ignored actual image aspect ratio, scaling to viewport ratio; made the demo useless for real images.
+- Imposed a “stop at first inflection” cap that blocked progression into phases 2/3, preventing proper detents and deep zoom.
+- Mixed pan on container with scale/translate on wrapper, causing drift toward top-left during zoom because of double compensation.
+- Broke `openFromImageLink` signature, triggering TypeScript errors until reverted to accept an optional imageId.
+- Resize logic initially failed to recompute base sizing from intrinsic dimensions; thresholds went stale when padding/captions changed.
+- Panning constraints alternated between wrong layers and failed to lock a single axis in the between state.
+- Dynamic sizing requirement (caption/padding changes) was ignored at first; sizing was computed once and not refreshed.
+- Border/color cues went out of sync when scale stops and multi-layer transforms fought each other.
+- Multiple failed patch applications from editing against stale context, wasting time re-reading and reapplying.
+- Overall: overcomplicated structures instead of the requested single-container, single-transform approach; repeated reversions and fixes consumed significant time.
+
+---
+
 ## Future Enhancements
 
 Potential future improvements (not yet implemented):
