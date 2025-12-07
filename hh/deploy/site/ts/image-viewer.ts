@@ -29,6 +29,8 @@ export class ImageViewer {
   private rpc: RPCClient;
   private backdrop: HTMLElement | null = null;
   private container: HTMLElement | null = null;
+  private headerBar: HTMLElement | null = null;
+  private captionBar: HTMLElement | null = null;
   private readonly pageId: number;
   private readonly initialImageId?: number;
 
@@ -160,6 +162,49 @@ export class ImageViewer {
     document.body.appendChild(this.container);
     document.body.style.overflow = 'hidden';
 
+    // Header bar with close button (test overlay integration)
+    this.headerBar = document.createElement('div');
+    this.headerBar.id = 'imageViewerHeaderBar';
+    Object.assign(this.headerBar.style, {
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      width: '100vw',
+      height: '50px',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 16px',
+      boxSizing: 'border-box',
+      background: 'rgba(0,0,0,0.5)',
+      color: '#fff',
+      zIndex: '1002'
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Cancel';
+    closeBtn.addEventListener('click', () => this.cleanup());
+    this.headerBar.appendChild(closeBtn);
+    document.body.appendChild(this.headerBar);
+
+    // Caption bar at bottom (test overlay footer integration)
+    this.captionBar = document.createElement('div');
+    this.captionBar.id = 'imageViewerCaptionBar';
+    Object.assign(this.captionBar.style, {
+      position: 'fixed',
+      left: '0',
+      bottom: '0',
+      width: '100vw',
+      minHeight: '60px',
+      padding: '12px 16px',
+      boxSizing: 'border-box',
+      background: 'rgba(0,0,0,0.6)',
+      color: '#fff',
+      zIndex: '1002',
+      display: 'flex',
+      alignItems: 'center'
+    });
+    this.captionBar.textContent = image.caption || '';
+    document.body.appendChild(this.captionBar);
+
     // Initial sizing and inflection thresholds
     this.initializeBaseSizes(intrinsicW, intrinsicH);
     this.currentScale = 1;
@@ -181,6 +226,9 @@ export class ImageViewer {
       const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
       img.src = src;
       img.alt = image.caption || '';
+    }
+    if (this.captionBar) {
+      this.captionBar.textContent = image.caption || '';
     }
 
     this.currentScale = 1;
@@ -556,7 +604,10 @@ export class ImageViewer {
     if (this.keyboardHandler) { document.removeEventListener('keydown', this.keyboardHandler); this.keyboardHandler = null; }
     if (this.backdrop?.parentNode) this.backdrop.parentNode.removeChild(this.backdrop);
     if (this.container?.parentNode) this.container.parentNode.removeChild(this.container);
+    if (this.headerBar?.parentNode) this.headerBar.parentNode.removeChild(this.headerBar);
+    if (this.captionBar?.parentNode) this.captionBar.parentNode.removeChild(this.captionBar);
     this.backdrop = null; this.container = null;
+    this.headerBar = null; this.captionBar = null;
     document.body.style.overflow = '';
   }
 

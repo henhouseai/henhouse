@@ -676,9 +676,10 @@ The viewer implements a state-based panning system with three distinct zoom mode
 - ✅ Keyboard handlers (Esc, arrow keys)
 - ✅ Mouse wheel zoom with detent
 - ✅ Pinch-to-zoom with detent
+- ✅ Swipe navigation uses a single touchend handler; works at default scale
+- ✅ Between-state panning locks to the limiting axis and allows travel within bounds
 
 **Known Issues:**
-- ⚠️ Single-axis panning in "between" state may not be fully restricting (needs verification)
 - ⚠️ Phone gesture zoom detent may need cache refresh to work correctly
 
 ### Architecture Decisions
