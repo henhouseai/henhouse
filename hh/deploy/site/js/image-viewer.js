@@ -20,6 +20,8 @@ export class ImageViewer {
         this.baseOverlayHeight = 0;
         this.totalExtraX = 0;
         this.totalExtraY = 0;
+        this.baseInnerWidth = 0;
+        this.baseInnerHeight = 0;
         this.intrinsicWidth = 0;
         this.intrinsicHeight = 0;
         this.images = [];
@@ -181,26 +183,21 @@ export class ImageViewer {
         this.container.style.width = `${intrinsicW}px`;
         this.container.style.height = `${intrinsicH}px`;
         // Measure padding/border extras from computed style
-        const cs = getComputedStyle(this.container);
-        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-        const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-        const borderX = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
-        const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
-        this.totalExtraX = padX + borderX;
-        this.totalExtraY = padY + borderY;
+        this.measureExtras();
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
-        const margin = 40; // total margin per dimension
+        // Larger margin to start smaller without arbitrary scale factor
+        const margin = 200;
         const maxW = vw - margin;
         const maxH = vh - margin;
         // Scale to fit viewport minus margin, preserving aspect
         const scaleX = (maxW - this.totalExtraX) / intrinsicW;
         const scaleY = (maxH - this.totalExtraY) / intrinsicH;
-        const fitScale = Math.min(scaleX, scaleY, 1) * 0.6; // start noticeably smaller
-        const innerW = intrinsicW * fitScale;
-        const innerH = intrinsicH * fitScale;
-        this.baseOverlayWidth = innerW + this.totalExtraX;
-        this.baseOverlayHeight = innerH + this.totalExtraY;
+        const fitScale = Math.min(scaleX, scaleY, 1);
+        this.baseInnerWidth = intrinsicW * fitScale;
+        this.baseInnerHeight = intrinsicH * fitScale;
+        this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
+        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY;
         this.container.style.width = `${this.baseOverlayWidth}px`;
         this.container.style.height = `${this.baseOverlayHeight}px`;
         this.recomputeInflections();
@@ -211,26 +208,40 @@ export class ImageViewer {
         this.scaleForWidthMatch = vw / this.baseOverlayWidth;
         this.scaleForHeightMatch = vh / this.baseOverlayHeight;
     }
+    measureExtras() {
+        if (!this.container)
+            return;
+        const cs = getComputedStyle(this.container);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        const borderX = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+        const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+        this.totalExtraX = padX + borderX;
+        this.totalExtraY = padY + borderY;
+    }
     // ---- Transform and state ----------------------------------------------
     applyTransforms(scale) {
         if (!this.container)
             return;
-        this.updateOverlaySize(scale);
+        // Re-measure extras to account for dynamic padding/captions
+        this.measureExtras();
+        // Update base overlay (scale=1) with current extras
+        this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
+        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY;
+        this.recomputeInflections();
+        const innerW = this.baseInnerWidth * scale;
+        const innerH = this.baseInnerHeight * scale;
+        const overlayW = innerW + this.totalExtraX;
+        const overlayH = innerH + this.totalExtraY;
+        this.container.style.width = `${overlayW}px`;
+        this.container.style.height = `${overlayH}px`;
+        this.container.style.maxWidth = `${overlayW}px`;
+        this.container.style.maxHeight = `${overlayH}px`;
         const clamped = this.clampPan(scale, this.panX, this.panY);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.container.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
         this.setBorderForScale(scale);
-    }
-    updateOverlaySize(scale) {
-        if (!this.container)
-            return;
-        const w = this.baseOverlayWidth * scale;
-        const h = this.baseOverlayHeight * scale;
-        this.container.style.width = `${w}px`;
-        this.container.style.height = `${h}px`;
-        this.container.style.maxWidth = `${w}px`;
-        this.container.style.maxHeight = `${h}px`;
     }
     setBorderForScale(scale) {
         if (!this.container)
@@ -261,8 +272,8 @@ export class ImageViewer {
         const state = this.getZoomState(scale);
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
-        const scaledW = this.baseOverlayWidth * scale;
-        const scaledH = this.baseOverlayHeight * scale;
+        const scaledW = (this.baseInnerWidth * scale) + this.totalExtraX;
+        const scaledH = (this.baseInnerHeight * scale) + this.totalExtraY;
         const halfX = Math.max(0, (scaledW - vw) / 2);
         const halfY = Math.max(0, (scaledH - vh) / 2);
         const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
