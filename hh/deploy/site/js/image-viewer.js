@@ -1,9 +1,10 @@
 /**
- * ImageViewer - minimal overlay with a single container and single child.
- * One transform on the container (scale + pan). No extra layers.
+ * ImageViewer - single container + single child, scaled/panned via container transform.
+ * Uses image aspect ratio from get_image_group to set initial sizing.
  */
+import { RPCClient } from './rpc-client.js';
 export class ImageViewer {
-    constructor(pageId) {
+    constructor(pageId, initialImageId) {
         this.backdrop = null;
         this.container = null;
         this.currentScale = 1;
@@ -14,10 +15,15 @@ export class ImageViewer {
         this.detentActive = false;
         this.resizeHandler = null;
         this.keyboardHandler = null;
-        // Layout constants
-        this.startScale = 0.6;
+        // Layout state
         this.baseOverlayWidth = 0;
         this.baseOverlayHeight = 0;
+        this.totalExtraX = 0;
+        this.totalExtraY = 0;
+        this.intrinsicWidth = 0;
+        this.intrinsicHeight = 0;
+        this.images = [];
+        this.currentImageIndex = 0;
         // ---- Input handlers ----------------------------------------------------
         this.handleWheel = (e) => {
             e.preventDefault();
@@ -25,43 +31,30 @@ export class ImageViewer {
             const delta = e.deltaY;
             const oldScale = scale;
             const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-            const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
             const sens = 0.1;
             if (delta < 0)
                 scale += sens;
             else
                 scale -= sens;
-            const wasBelow = oldScale <= first;
-            const wasAbove = oldScale > first;
-            const willBelow = scale <= first;
-            const willAbove = scale > first;
-            if (delta < 0) {
-                if (wasBelow && willAbove) {
-                    scale = first;
-                    this.detentActive = true;
-                }
-                else if (this.detentActive && wasBelow && willAbove)
-                    scale = first;
-                else
-                    this.detentActive = false;
+            // Detent at first inflection
+            if (!this.detentActive && oldScale < first && scale >= first) {
+                scale = first;
+                this.detentActive = true;
             }
-            else {
-                if (wasAbove && willBelow) {
-                    scale = first;
-                    this.detentActive = true;
-                }
-                else if (this.detentActive && wasAbove && willBelow)
-                    scale = first;
-                else
-                    this.detentActive = false;
+            else if (this.detentActive && scale > first) {
+                this.detentActive = false;
             }
-            scale = Math.max(1, Math.min(3, Math.min(scale, second)));
+            if (scale < first) {
+                this.detentActive = false;
+            }
+            const maxScale = 3;
+            scale = Math.max(1, Math.min(maxScale, scale));
             this.currentScale = scale;
             const oldState = this.getZoomState(oldScale);
             const newState = this.getZoomState(scale);
             if (delta > 0 &&
-                (oldState === 'between' || oldState === 'zoomedIn' || oldState === 'heightMatch' || oldState === 'widthMatch') &&
-                (newState === 'widthMatch' || newState === 'zoomedOut' || newState === 'heightMatch')) {
+                (oldState === 'between' || oldState === 'zoomedIn') &&
+                newState === 'zoomedOut') {
                 this.panX = 0;
                 this.panY = 0;
             }
@@ -84,13 +77,41 @@ export class ImageViewer {
             this.panY = newPanY;
             this.applyTransforms(this.currentScale);
         };
+        this.rpc = new RPCClient();
         this.pageId = pageId;
+        this.initialImageId = initialImageId;
     }
     async show() {
-        this.renderOverlay();
+        await this.loadAndRender();
     }
-    // ---- Rendering ---------------------------------------------------------
+    // ---- Data + Rendering --------------------------------------------------
+    async loadAndRender() {
+        try {
+            const result = await this.rpc.call('get_image_group', { id: this.pageId });
+            const groupData = result.data;
+            if (!groupData || !groupData.images || groupData.images.length === 0) {
+                throw new Error('No images found in image group');
+            }
+            this.images = groupData.images;
+            if (this.initialImageId !== undefined) {
+                const idx = this.images.findIndex(img => img.id === this.initialImageId);
+                if (idx >= 0)
+                    this.currentImageIndex = idx;
+            }
+            this.renderOverlay();
+        }
+        catch (err) {
+            console.error('Error loading image viewer:', err);
+            this.rpc.showError('image_viewer', err);
+        }
+    }
     renderOverlay() {
+        const image = this.images[this.currentImageIndex];
+        const instance = image.instances[image.instances.length - 1]; // largest
+        const intrinsicW = instance.width;
+        const intrinsicH = instance.height;
+        this.intrinsicWidth = intrinsicW;
+        this.intrinsicHeight = intrinsicH;
         // Backdrop
         this.backdrop = document.createElement('div');
         this.backdrop.id = 'imageViewerBackdrop';
@@ -133,18 +154,39 @@ export class ImageViewer {
         document.body.appendChild(this.backdrop);
         document.body.appendChild(this.container);
         // Initial sizing and inflection thresholds
-        this.initializeBaseSizes();
+        this.initializeBaseSizes(intrinsicW, intrinsicH);
+        this.currentScale = 1;
         this.applyTransforms(1);
         this.container.style.opacity = '1';
         this.bindEvents();
     }
-    initializeBaseSizes() {
+    initializeBaseSizes(intrinsicW, intrinsicH) {
         if (!this.container)
             return;
+        // Temporarily size to intrinsic for measurement
+        this.container.style.width = `${intrinsicW}px`;
+        this.container.style.height = `${intrinsicH}px`;
+        // Measure padding/border extras from computed style
+        const cs = getComputedStyle(this.container);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        const borderX = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+        const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+        this.totalExtraX = padX + borderX;
+        this.totalExtraY = padY + borderY;
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
-        this.baseOverlayWidth = vw * this.startScale;
-        this.baseOverlayHeight = vh * this.startScale;
+        const margin = 40; // total margin per dimension
+        const maxW = vw - margin;
+        const maxH = vh - margin;
+        // Scale to fit viewport minus margin, preserving aspect
+        const scaleX = (maxW - this.totalExtraX) / intrinsicW;
+        const scaleY = (maxH - this.totalExtraY) / intrinsicH;
+        const fitScale = Math.min(scaleX, scaleY, 1) * 0.6; // start noticeably smaller
+        const innerW = intrinsicW * fitScale;
+        const innerH = intrinsicH * fitScale;
+        this.baseOverlayWidth = innerW + this.totalExtraX;
+        this.baseOverlayHeight = innerH + this.totalExtraY;
         this.container.style.width = `${this.baseOverlayWidth}px`;
         this.container.style.height = `${this.baseOverlayHeight}px`;
         this.recomputeInflections();
@@ -159,11 +201,22 @@ export class ImageViewer {
     applyTransforms(scale) {
         if (!this.container)
             return;
+        this.updateOverlaySize(scale);
         const clamped = this.clampPan(scale, this.panX, this.panY);
         this.panX = clamped.x;
         this.panY = clamped.y;
-        this.container.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px) scale(${scale})`;
+        this.container.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
         this.setBorderForScale(scale);
+    }
+    updateOverlaySize(scale) {
+        if (!this.container)
+            return;
+        const w = this.baseOverlayWidth * scale;
+        const h = this.baseOverlayHeight * scale;
+        this.container.style.width = `${w}px`;
+        this.container.style.height = `${h}px`;
+        this.container.style.maxWidth = `${w}px`;
+        this.container.style.maxHeight = `${h}px`;
     }
     setBorderForScale(scale) {
         if (!this.container)
@@ -182,14 +235,12 @@ export class ImageViewer {
         }
     }
     getZoomState(scale) {
-        if (scale <= 1.0)
+        const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        if (scale <= first + 1e-3)
             return 'zoomedOut';
-        if (Math.abs(scale - this.scaleForWidthMatch) < 0.01)
-            return 'widthMatch';
-        if (scale > this.scaleForWidthMatch && scale < this.scaleForHeightMatch)
+        if (scale < second - 1e-3)
             return 'between';
-        if (Math.abs(scale - this.scaleForHeightMatch) < 0.01)
-            return 'heightMatch';
         return 'zoomedIn';
     }
     clampPan(scale, panX, panY) {
@@ -201,9 +252,8 @@ export class ImageViewer {
         const halfX = Math.max(0, (scaledW - vw) / 2);
         const halfY = Math.max(0, (scaledH - vh) / 2);
         const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
-        if (state === 'zoomedOut' || state === 'widthMatch' || state === 'heightMatch') {
+        if (state === 'zoomedOut')
             return { x: 0, y: 0 };
-        }
         if (state === 'between') {
             if (widthHitsFirst)
                 return { x: 0, y: Math.max(-halfY, Math.min(halfY, panY)) };
@@ -261,7 +311,12 @@ export class ImageViewer {
         }, { passive: false });
         this.container.addEventListener('touchend', () => { dragging = false; }, { passive: false });
         this.resizeHandler = () => {
-            this.recomputeInflections();
+            if (this.intrinsicWidth && this.intrinsicHeight) {
+                this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
+            }
+            else {
+                this.recomputeInflections();
+            }
             this.currentScale = 1;
             this.panX = 0;
             this.panY = 0;
