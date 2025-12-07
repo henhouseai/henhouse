@@ -190,13 +190,11 @@ export class ImageViewer {
         const fitScale = Math.min(scaleX, scaleY, 1);
         this.baseInnerWidth = intrinsicW * fitScale;
         this.baseInnerHeight = intrinsicH * fitScale;
-        // Only set width on window, let height auto-calculate
+        // Set both width and height on window (but NOT on the image box inside)
         this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
+        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY + this.headerHeight + this.footerHeight;
         this.windowEl.style.width = `${this.baseOverlayWidth}px`;
-        this.windowEl.style.height = 'auto';
-        this.windowEl.style.maxHeight = '';
-        // Read actual rendered height for inflection calculations
-        this.baseOverlayHeight = this.windowEl.offsetHeight;
+        this.windowEl.style.height = `${this.baseOverlayHeight}px`;
         this.recomputeInflections();
     }
     recomputeInflections() {
@@ -221,13 +219,15 @@ export class ImageViewer {
         if (!this.windowEl)
             return;
         const innerW = this.baseInnerWidth * scale;
+        const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
-        // Only set width on window, let height auto-calculate
+        const overlayH = innerH + this.totalExtraY + this.headerHeight + this.footerHeight;
+        // Set both width and height on window (but NOT on the image box inside)
         this.windowEl.style.width = `${overlayW}px`;
+        this.windowEl.style.height = `${overlayH}px`;
         this.windowEl.style.maxWidth = `${overlayW}px`;
-        // Read actual height for pan clamping
-        const actualHeight = this.windowEl.offsetHeight;
-        const clamped = this.clampPan(scale, this.panX, this.panY, overlayW, actualHeight);
+        this.windowEl.style.maxHeight = `${overlayH}px`;
+        const clamped = this.clampPan(scale, this.panX, this.panY, overlayW, overlayH);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
