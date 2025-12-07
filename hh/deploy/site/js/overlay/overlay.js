@@ -94,15 +94,16 @@ export class Overlay {
         windowEl.appendChild(contentEl);
         // Add footer content if provided (e.g., caption in image viewer mode)
         if (this.props.footerContent) {
-            const footerEl = document.createElement('div');
-            footerEl.className = 'overlay-footer';
             if (typeof this.props.footerContent === 'string') {
+                const footerEl = document.createElement('div');
+                footerEl.className = 'contentWrapperHeader overlay';
                 footerEl.textContent = this.props.footerContent;
+                windowEl.appendChild(footerEl);
             }
             else {
-                footerEl.appendChild(this.props.footerContent);
+                // If it's an element, append it directly (it should have its own classes)
+                windowEl.appendChild(this.props.footerContent);
             }
-            windowEl.appendChild(footerEl);
         }
         // Only add debug options if submit button will be shown AND not in image viewer mode
         const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;

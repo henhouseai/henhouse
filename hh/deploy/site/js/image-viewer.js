@@ -98,9 +98,9 @@ export class ImageViewer {
         this.intrinsicHeight = instance.height;
         // Create the image element
         const imageContainer = this.createImageElement(image, instance);
-        // Create footer element for caption
+        // Create footer element for caption (same styling as header)
         const footerEl = document.createElement('div');
-        footerEl.className = 'image-viewer-caption';
+        footerEl.className = 'contentWrapperHeader overlay';
         footerEl.textContent = image.caption || '';
         // Show overlay using OverlayManager
         const overlayManager = OverlayManager.getInstance();
@@ -136,11 +136,8 @@ export class ImageViewer {
         const box = document.createElement('div');
         box.id = 'imageViewerTargetImage';
         box.className = 'image-viewer-box';
-        Object.assign(box.style, {
-            boxSizing: 'border-box',
-            width: '100%',
-            height: '100%'
-        });
+        box.style.boxSizing = 'border-box';
+        // Dimensions will be set by initializeBaseSizes/applyTransforms
         const img = document.createElement('img');
         img.id = 'imageViewerImg';
         img.className = 'image-viewer-img';
@@ -179,28 +176,33 @@ export class ImageViewer {
     initializeBaseSizes(intrinsicW, intrinsicH) {
         if (!this.windowEl)
             return;
-        // Temporarily size to intrinsic for measurement
-        this.windowEl.style.width = `${intrinsicW}px`;
-        this.windowEl.style.height = `${intrinsicH}px`;
         // Measure padding/border extras from computed style
         this.measureExtras();
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
         const margin = 200;
         const maxW = vw - margin;
-        // Account for header and footer in available height
-        const maxH = vh - margin - this.headerHeight - this.footerHeight;
-        // Scale to fit viewport minus margin, preserving aspect
+        // Estimate available height for image (viewport - margin - header - footer - padding)
+        const maxH = vh - margin - this.headerHeight - this.footerHeight - this.totalExtraY;
+        // Scale to fit, preserving aspect ratio
         const scaleX = (maxW - this.totalExtraX) / intrinsicW;
-        const scaleY = (maxH - this.totalExtraY) / intrinsicH;
+        const scaleY = maxH / intrinsicH;
         const fitScale = Math.min(scaleX, scaleY, 1);
         this.baseInnerWidth = intrinsicW * fitScale;
         this.baseInnerHeight = intrinsicH * fitScale;
+        // Set explicit dimensions on the image box
+        const imageBox = this.contentEl?.querySelector('#imageViewerTargetImage');
+        if (imageBox) {
+            imageBox.style.width = `${this.baseInnerWidth}px`;
+            imageBox.style.height = `${this.baseInnerHeight}px`;
+        }
+        // Only set width on window, let height auto-calculate
         this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
-        // Add header and footer to total overlay height
-        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY + this.headerHeight + this.footerHeight;
         this.windowEl.style.width = `${this.baseOverlayWidth}px`;
-        this.windowEl.style.height = `${this.baseOverlayHeight}px`;
+        this.windowEl.style.height = 'auto';
+        this.windowEl.style.maxHeight = '';
+        // Read actual rendered height for inflection calculations
+        this.baseOverlayHeight = this.windowEl.offsetHeight;
         this.recomputeInflections();
     }
     recomputeInflections() {
@@ -227,13 +229,18 @@ export class ImageViewer {
         const innerW = this.baseInnerWidth * scale;
         const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
-        // Add header and footer heights to total overlay height
-        const overlayH = innerH + this.totalExtraY + this.headerHeight + this.footerHeight;
+        // Set explicit dimensions on the image box
+        const imageBox = this.contentEl?.querySelector('#imageViewerTargetImage');
+        if (imageBox) {
+            imageBox.style.width = `${innerW}px`;
+            imageBox.style.height = `${innerH}px`;
+        }
+        // Only set width on window, let height auto-calculate
         this.windowEl.style.width = `${overlayW}px`;
-        this.windowEl.style.height = `${overlayH}px`;
         this.windowEl.style.maxWidth = `${overlayW}px`;
-        this.windowEl.style.maxHeight = `${overlayH}px`;
-        const clamped = this.clampPan(scale, this.panX, this.panY);
+        // Read actual height for pan clamping
+        const actualHeight = this.windowEl.offsetHeight;
+        const clamped = this.clampPan(scale, this.panX, this.panY, overlayW, actualHeight);
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
@@ -272,14 +279,12 @@ export class ImageViewer {
             return 'between';
         return 'zoomedIn';
     }
-    clampPan(scale, panX, panY) {
+    clampPan(scale, panX, panY, actualWidth, actualHeight) {
         const state = this.getZoomState(scale);
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
-        const scaledW = (this.baseInnerWidth * scale) + this.totalExtraX;
-        const scaledH = (this.baseInnerHeight * scale) + this.totalExtraY;
-        const halfOverflowX = Math.max(0, (scaledW - vw) / 2);
-        const halfOverflowY = Math.max(0, (scaledH - vh) / 2);
+        const halfOverflowX = Math.max(0, (actualWidth - vw) / 2);
+        const halfOverflowY = Math.max(0, (actualHeight - vh) / 2);
         const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
         if (state === 'zoomedOut')
             return { x: 0, y: 0 };
