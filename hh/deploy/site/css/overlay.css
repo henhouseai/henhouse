@@ -599,3 +599,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* Image viewer overlay - no scrollbars, we handle pan/zoom */
+.image-viewer-overlay {
+  overflow: hidden;
+}
