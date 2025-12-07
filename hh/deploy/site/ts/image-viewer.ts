@@ -152,6 +152,8 @@ export class ImageViewer {
       this.measureChromeHeights();
       this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
       this.applyTransforms(this.currentScale);
+      // Second pass after layout to ensure overflow-based pan gating uses real dimensions
+      requestAnimationFrame(() => this.applyTransforms(this.currentScale));
     });
 
     this.bindEvents();
@@ -202,6 +204,7 @@ export class ImageViewer {
     this.measureChromeHeights();
     this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
     this.applyTransforms(1);
+    requestAnimationFrame(() => this.applyTransforms(this.currentScale));
   }
 
   private initializeBaseSizes(intrinsicW: number, intrinsicH: number): void {
@@ -416,7 +419,21 @@ export class ImageViewer {
       if (touches.length !== 2 || this.pinchStartDist === null) return;
       const dist = this.getTouchDistance(touches);
       if (dist > 0) {
-        const newScale = this.pinchStartScale * (dist / this.pinchStartDist);
+        const proposedScale = this.pinchStartScale * (dist / this.pinchStartDist);
+        // Clamp and reset baseline at max to prevent rubber-band stretch
+        const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
+        const pixelPerDisplay = this.baseInnerWidth > 0 ? this.baseInnerWidth / this.intrinsicWidth : 1;
+        const maxScale = Math.max(1, 4 / pixelPerDisplay);
+        let newScale = Math.max(1, Math.min(maxScale, proposedScale));
+        if (newScale === this.currentScale && proposedScale > newScale) {
+          // Already at max; ignore further pinch-in
+          return;
+        }
+        if (newScale === maxScale && proposedScale >= maxScale) {
+          // Reset pinch baseline so further pinch-in doesn’t accumulate
+          this.pinchStartScale = newScale;
+          this.pinchStartDist = dist;
+        }
         this.applyScale(newScale, this.currentScale);
       }
     };
