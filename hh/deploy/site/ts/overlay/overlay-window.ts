@@ -27,7 +27,6 @@ export class OverlayWindow {
    */
   render(): HTMLElement {
     const window = document.createElement('div');
-    window.id = 'overlayWindow';
     window.className = 'overlay-window';
 
     if (this.props.className) {

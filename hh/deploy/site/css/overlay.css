@@ -60,7 +60,7 @@
 }
 
 /* Overlay window container */
-#overlayWindow {
+.overlay-window {
   position: fixed;
   top: 10%;
   left: 5%;
@@ -79,7 +79,7 @@
 }
 
 /* Overlay header (contentWrapperHeader.overlay) */
-#overlayWindow .contentWrapperHeader.overlay {
+.overlay-window .contentWrapperHeader.overlay {
   width: auto;
   margin: 3px;
   padding: 8px 6px 0 6px;
@@ -92,7 +92,7 @@
 }
 
 /* Overlay header buttons - base class */
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button {
   position: relative;
   top: -3px;
   margin-left: 10px;
@@ -107,81 +107,81 @@
   vertical-align: middle;
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button:hover {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button:hover {
   opacity: 0.9;
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button:active {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button:active {
   opacity: 0.8;
 }
 
 /* Cancel button modifier */
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-cancel {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-cancel {
   background-color: var(--overlay-header-cancel-button, #f44336);
   color: var(--overlay-header-cancel-button-text, #fff);
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-cancel:hover {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-cancel:hover {
   background-color: var(--overlay-header-cancel-button-hover, #da190b);
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-cancel:active {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-cancel:active {
   background-color: var(--overlay-header-cancel-button-active, #b71c1c);
 }
 
 /* Upload/Submit button modifier */
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-upload,
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-submit,
-#overlayWindow .contentWrapperHeader.overlay a.submitButton {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-upload,
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-submit,
+.overlay-window .contentWrapperHeader.overlay a.submitButton {
   background-color: var(--overlay-header-submit-button, #4caf50);
   color: var(--overlay-header-submit-button-text, #fff);
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-upload:hover,
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-submit:hover,
-#overlayWindow .contentWrapperHeader.overlay a.submitButton:hover {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-upload:hover,
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-submit:hover,
+.overlay-window .contentWrapperHeader.overlay a.submitButton:hover {
   background-color: var(--overlay-header-submit-button-hover, #45a049);
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-upload:active,
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-submit:active,
-#overlayWindow .contentWrapperHeader.overlay a.submitButton:active {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-upload:active,
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-submit:active,
+.overlay-window .contentWrapperHeader.overlay a.submitButton:active {
   background-color: var(--overlay-header-submit-button-active, #3d8b40);
 }
 
 /* Middle button modifier (blue) */
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-middle,
-#overlayWindow .contentWrapperHeader.overlay a.middleButton {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-middle,
+.overlay-window .contentWrapperHeader.overlay a.middleButton {
   background-color: #2196F3;
   color: white;
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-middle:hover,
-#overlayWindow .contentWrapperHeader.overlay a.middleButton:hover {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-middle:hover,
+.overlay-window .contentWrapperHeader.overlay a.middleButton:hover {
   background-color: #1976D2;
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.overlay-button-middle:active,
-#overlayWindow .contentWrapperHeader.overlay a.middleButton:active {
+.overlay-window .contentWrapperHeader.overlay a.overlay-button-middle:active,
+.overlay-window .contentWrapperHeader.overlay a.middleButton:active {
   background-color: #1565C0;
 }
 
 /* Legacy support for old class names */
-#overlayWindow .contentWrapperHeader.overlay a.cancelButton {
+.overlay-window .contentWrapperHeader.overlay a.cancelButton {
   background-color: var(--overlay-header-cancel-button, #f44336);
   color: var(--overlay-header-cancel-button-text, #fff);
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.cancelButton:hover {
+.overlay-window .contentWrapperHeader.overlay a.cancelButton:hover {
   background-color: var(--overlay-header-cancel-button-hover, #da190b);
 }
 
-#overlayWindow .contentWrapperHeader.overlay a.cancelButton:active {
+.overlay-window .contentWrapperHeader.overlay a.cancelButton:active {
   background-color: var(--overlay-header-cancel-button-active, #b71c1c);
 }
 
 /* Overlay content area */
-#overlayWindow .content.overlay {
+.overlay-window .content.overlay {
   width: auto;
   padding: 4px;
   border: 1px solid var(--overlay-content-border, #000);
@@ -194,12 +194,12 @@
 }
 
 /* Remove padding from content.overlay when it contains a debug table */
-#overlayWindow .content.overlay:has(.overlay-debug-table) {
+.overlay-window .content.overlay:has(.overlay-debug-table) {
   padding: 0;
 }
 
 /* Overlay content header (for collapsible sections) */
-#overlayWindow .contentHeader.overlay {
+.overlay-window .contentHeader.overlay {
   width: auto;
   padding: 4px 8px;
   margin: 3px;
@@ -213,11 +213,11 @@
   gap: 8px;
 }
 
-#overlayWindow .contentHeader.overlay:hover {
+.overlay-window .contentHeader.overlay:hover {
   background-color: var(--overlay-header-link-hover, #f0f0f0);
 }
 
-#overlayWindow .contentHeader.overlay button.overlay-content-toggle {
+.overlay-window .contentHeader.overlay button.overlay-content-toggle {
   background: none;
   border: none;
   padding: 2px 6px;
@@ -227,18 +227,18 @@
   flex-shrink: 0;
 }
 
-#overlayWindow .contentHeader.overlay button.overlay-content-toggle:hover {
+.overlay-window .contentHeader.overlay button.overlay-content-toggle:hover {
   opacity: 0.7;
 }
 
-#overlayWindow .contentHeader.overlay .overlay-content-header-text {
+.overlay-window .contentHeader.overlay .overlay-content-header-text {
   flex: 1;
 }
 
 /* Success, warning, and error messages */
-#overlayWindow div.overlaySuccess,
-#overlayWindow div.overlayWarning,
-#overlayWindow div.overlayError {
+.overlay-window div.overlaySuccess,
+.overlay-window div.overlayWarning,
+.overlay-window div.overlayError {
   width: auto;
   padding: 4px;
   border: 1px solid;
@@ -249,26 +249,26 @@
   clear: both;
 }
 
-#overlayWindow div.overlaySuccess {
+.overlay-window div.overlaySuccess {
   border-color: var(--overlay-success-border, #4caf50);
   background-color: var(--overlay-success, #e8f5e9);
   color: var(--overlay-success-text, #2e7d32);
 }
 
-#overlayWindow div.overlayWarning {
+.overlay-window div.overlayWarning {
   border-color: var(--overlay-warning-border, #ff9800);
   background-color: var(--overlay-warning, #fff3e0);
   color: var(--overlay-warning-text, #e65100);
 }
 
-#overlayWindow div.overlayError {
+.overlay-window div.overlayError {
   border-color: var(--overlay-error-border, #f44336);
   background-color: var(--overlay-error, #ffebee);
   color: var(--overlay-error-text, #c62828);
 }
 
 /* Input fields */
-#overlayWindow input {
+.overlay-window input {
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
@@ -277,41 +277,41 @@
   max-width: calc(100% - 20px);
 }
 
-#overlayWindow input.checkbox {
+.overlay-window input.checkbox {
   width: auto;
   border: 0;
 }
 
-#overlayWindow label {
+.overlay-window label {
   margin: 5px 10px;
   padding: 3px;
 }
 
 /* Form structure classes */
-#overlayWindow .overlay-form-group {
+.overlay-window .overlay-form-group {
   margin-bottom: 15px;
 }
 
-#overlayWindow .overlay-form-section {
+.overlay-window .overlay-form-section {
   margin-bottom: 20px;
 }
 
-#overlayWindow .overlay-form-divider {
+.overlay-window .overlay-form-divider {
   margin-top: 30px;
   padding-top: 20px;
   border-top: 1px solid var(--overlay-content-border, #ccc);
 }
 
-#overlayWindow .overlay-section-title {
+.overlay-window .overlay-section-title {
   margin-bottom: 10px;
 }
 
-#overlayWindow .overlay-warning-text {
+.overlay-window .overlay-warning-text {
   margin-bottom: 20px;
 }
 
 /* Form field classes */
-#overlayWindow .overlay-form-input {
+.overlay-window .overlay-form-input {
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
@@ -320,7 +320,7 @@
   max-width: calc(100% - 20px);
 }
 
-#overlayWindow .overlay-form-textarea {
+.overlay-window .overlay-form-textarea {
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
@@ -331,7 +331,7 @@
   font-family: monospace;
 }
 
-#overlayWindow .overlay-form-select {
+.overlay-window .overlay-form-select {
   margin: 5px 10px;
   padding: 2px;
   border: 1px solid var(--overlay-content-text, #000);
@@ -340,65 +340,65 @@
   max-width: calc(100% - 20px);
 }
 
-#overlayWindow .overlay-form-checkbox {
+.overlay-window .overlay-form-checkbox {
   width: auto;
   border: 0;
 }
 
 /* Layout pattern classes */
-#overlayWindow .overlay-form-grid {
+.overlay-window .overlay-form-grid {
   display: grid;
   grid-template-columns: 150px 1fr;
   gap: 10px;
   margin-bottom: 10px;
 }
 
-#overlayWindow .overlay-label-inline {
+.overlay-window .overlay-label-inline {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 /* Test content classes */
-#overlayWindow .overlay-test-nested {
+.overlay-window .overlay-test-nested {
   border: 1px solid var(--overlay-content-border, #ccc);
   padding: 10px;
   margin: 10px;
   clear: both;
 }
 
-#overlayWindow .overlay-test-list {
+.overlay-window .overlay-test-list {
   clear: both;
   margin-left: 20px;
   padding-left: 0;
 }
 
-#overlayWindow .overlay-test-label-block {
+.overlay-window .overlay-test-label-block {
   display: block;
   margin-bottom: 10px;
 }
 
-#overlayWindow .overlay-test-table {
+.overlay-window .overlay-test-table {
   width: 100%;
   border-collapse: collapse;
 }
 
 /* Browser component (for future phases) */
-#overlayWindow div.browser {
+.overlay-window div.browser {
   display: none;
 }
 
-#overlayWindow div.browser div.targetTile {
+.overlay-window div.browser div.targetTile {
   float: left;
   margin: 5px;
 }
 
-#overlayWindow div#browserTarget div.targetInfo div.targetName {
+.overlay-window div#browserTarget div.targetInfo div.targetName {
   font-size: 16pt;
   font-weight: bold;
 }
 
-#overlayWindow ul.overlayTileList {
+.overlay-window ul.overlayTileList {
   margin: 0;
   padding: 0;
   list-style-type: none;
@@ -406,7 +406,7 @@
   position: relative;
 }
 
-#overlayWindow ul.overlayTileList li {
+.overlay-window ul.overlayTileList li {
   margin: 3px 2px;
   padding: 0;
   display: inline;
@@ -414,7 +414,7 @@
 }
 
 /* Loading spinner */
-#overlayWindow img.ajaxloading {
+.overlay-window img.ajaxloading {
   position: relative;
   top: -3px;
   margin-left: 10px;
@@ -424,13 +424,13 @@
 
 /* Upload handler styles - chooseFilesButton now uses overlay-button base class */
 
-#overlayWindow .content.overlay.upload-placeholder {
+.overlay-window .content.overlay.upload-placeholder {
   padding: 40px;
   text-align: center;
   color: #999;
 }
 
-#overlayWindow .upload-file-item {
+.overlay-window .upload-file-item {
   margin-bottom: 10px;
   padding: 15px;
   border: 1px solid #ddd;
@@ -439,7 +439,7 @@
   position: relative;
 }
 
-#overlayWindow .upload-file-remove {
+.overlay-window .upload-file-remove {
   position: absolute;
   top: 5px;
   right: 5px;
@@ -454,57 +454,57 @@
   line-height: 1;
 }
 
-#overlayWindow .upload-file-remove:hover {
+.overlay-window .upload-file-remove:hover {
   background: #da190b;
 }
 
-#overlayWindow .upload-file-name {
+.overlay-window .upload-file-name {
   font-weight: bold;
   margin-bottom: 10px;
   padding-right: 30px;
 }
 
-#overlayWindow .upload-status {
+.overlay-window .upload-status {
   color: #666;
   font-size: 14px;
 }
 
-#overlayWindow .upload-status.pending {
+.overlay-window .upload-status.pending {
   color: #666;
 }
 
-#overlayWindow .upload-status.uploading {
+.overlay-window .upload-status.uploading {
   color: #2196F3;
 }
 
-#overlayWindow .upload-status.uploaded {
+.overlay-window .upload-status.uploaded {
   color: #4CAF50;
 }
 
-#overlayWindow .upload-status.processing {
+.overlay-window .upload-status.processing {
   color: #FF9800;
 }
 
-#overlayWindow .upload-status.success {
+.overlay-window .upload-status.success {
   color: #4CAF50;
   font-weight: bold;
 }
 
-#overlayWindow .upload-status.error {
+.overlay-window .upload-status.error {
   color: #f44336;
   font-weight: bold;
 }
 
-#overlayWindow .upload-progress-container {
+.overlay-window .upload-progress-container {
   margin-top: 10px;
   display: none;
 }
 
-#overlayWindow .upload-progress-container.show {
+.overlay-window .upload-progress-container.show {
   display: block;
 }
 
-#overlayWindow .upload-progress-bar {
+.overlay-window .upload-progress-bar {
   background: #f0f0f0;
   border-radius: 4px;
   height: 20px;
@@ -512,33 +512,33 @@
   overflow: hidden;
 }
 
-#overlayWindow .upload-progress-fill {
+.overlay-window .upload-progress-fill {
   background: #4CAF50;
   height: 100%;
   width: 0%;
   transition: width 0.3s;
 }
 
-#overlayWindow .upload-progress-fill.error {
+.overlay-window .upload-progress-fill.error {
   background: #f44336;
 }
 
-#overlayWindow .pending-file-item {
+.overlay-window .pending-file-item {
   background: #f9f9f9;
 }
 
-#overlayWindow .pending-file-item .upload-file-name {
+.overlay-window .pending-file-item .upload-file-name {
   margin-bottom: 8px;
 }
 
-#overlayWindow .pending-status {
+.overlay-window .pending-status {
   color: #FF9800;
   font-size: 14px;
   font-style: italic;
 }
 
 /* Debug options in overlay header */
-#overlayWindow .contentWrapperHeader.overlay .overlay-debug-options {
+.overlay-window .contentWrapperHeader.overlay .overlay-debug-options {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -546,19 +546,19 @@
   position: relative;
 }
 
-#overlayWindow .contentWrapperHeader.overlay .overlay-debug-options label {
+.overlay-window .contentWrapperHeader.overlay .overlay-debug-options label {
   display: inline-flex;
   align-items: center;
   margin-right: 10px;
   cursor: pointer;
 }
 
-#overlayWindow .contentWrapperHeader.overlay .overlay-debug-options input[type="checkbox"] {
+.overlay-window .contentWrapperHeader.overlay .overlay-debug-options input[type="checkbox"] {
   margin-right: 5px;
 }
 
 /* Debug options table */
-#overlayWindow .overlay-debug-filter-table th {
+.overlay-window .overlay-debug-filter-table th {
   padding-left: 10px;
   padding-right: 10px;
 }
