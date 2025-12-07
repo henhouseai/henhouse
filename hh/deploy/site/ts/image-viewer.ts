@@ -421,6 +421,10 @@ export class ImageViewer {
     }, { passive: false });
 
     this.container.addEventListener('touchmove', (e) => {
+      // Match stage behavior: prevent scroll when at default scale
+      if (e.touches.length === 1 && this.currentScale === 1) {
+        e.preventDefault();
+      }
       if (e.touches.length === 2) {
         e.preventDefault();
         dragging = false;
@@ -445,7 +449,7 @@ export class ImageViewer {
 
     this.container.addEventListener('touchend', (e) => {
       // Swipe navigation (match stage logic: only at default scale)
-      if (this.images.length > 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
+      if (this.images.length > 1 && this.currentScale === 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
         const touch = e.changedTouches[0];
         const dx = touch.clientX - this.swipeStartX;
         const dy = touch.clientY - this.swipeStartY;
@@ -455,7 +459,7 @@ export class ImageViewer {
         const velocity = dt > 0 ? dist / dt : 0;
         const minSwipeDistance = 100;
         const minSwipeVelocity = 0.3;
-        if (this.currentScale === 1 && isHorizontal && (dist >= minSwipeDistance || velocity >= minSwipeVelocity)) {
+        if (isHorizontal && (dist >= minSwipeDistance || velocity >= minSwipeVelocity)) {
           if (dx > 0) this.navigate(-1); else this.navigate(1);
         }
       }
