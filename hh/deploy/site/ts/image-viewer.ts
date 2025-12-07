@@ -107,6 +107,9 @@ export class ImageViewer {
     this.backdrop.addEventListener('click', (e) => {
       if (e.target === this.backdrop) this.cleanup();
     });
+    // Block scroll/zoom on backdrop
+    this.backdrop.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+    this.backdrop.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 
     // Container
     this.container = document.createElement('div');
@@ -131,10 +134,23 @@ export class ImageViewer {
       background: 'rgba(0,200,0,0.3)',
       border: '2px solid black'
     });
+
+    // Image element filling the box
+    const img = document.createElement('img');
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'contain';
+    const bestInstance = instance;
+    const src = bestInstance.src.startsWith('/srv/images/') ? bestInstance.src : `/srv/images/${bestInstance.src}`;
+    img.src = src;
+    img.alt = image.caption || '';
+
+    box.appendChild(img);
     this.container.appendChild(box);
 
     document.body.appendChild(this.backdrop);
     document.body.appendChild(this.container);
+    document.body.style.overflow = 'hidden';
 
     // Initial sizing and inflection thresholds
     this.initializeBaseSizes(intrinsicW, intrinsicH);
