@@ -153,14 +153,14 @@ export class ImageViewer {
         document.body.appendChild(this.backdrop);
         document.body.appendChild(this.container);
         document.body.style.overflow = 'hidden';
-        // Header bar with close button (test overlay integration)
+        // Header bar with close button (test overlay integration) inside container
         this.headerBar = document.createElement('div');
         this.headerBar.id = 'imageViewerHeaderBar';
         Object.assign(this.headerBar.style, {
-            position: 'fixed',
+            position: 'absolute',
             left: '0',
             top: '0',
-            width: '100vw',
+            width: '100%',
             height: '50px',
             display: 'flex',
             alignItems: 'center',
@@ -168,32 +168,34 @@ export class ImageViewer {
             boxSizing: 'border-box',
             background: 'rgba(0,0,0,0.5)',
             color: '#fff',
-            zIndex: '1002'
+            zIndex: '1003',
+            pointerEvents: 'auto'
         });
         const closeBtn = document.createElement('button');
         closeBtn.textContent = 'Cancel';
         closeBtn.addEventListener('click', () => this.cleanup());
         this.headerBar.appendChild(closeBtn);
-        document.body.appendChild(this.headerBar);
+        this.container.appendChild(this.headerBar);
         // Caption bar at bottom (test overlay footer integration)
         this.captionBar = document.createElement('div');
         this.captionBar.id = 'imageViewerCaptionBar';
         Object.assign(this.captionBar.style, {
-            position: 'fixed',
+            position: 'absolute',
             left: '0',
             bottom: '0',
-            width: '100vw',
+            width: '100%',
             minHeight: '60px',
             padding: '12px 16px',
             boxSizing: 'border-box',
             background: 'rgba(0,0,0,0.6)',
             color: '#fff',
-            zIndex: '1002',
+            zIndex: '1003',
             display: 'flex',
-            alignItems: 'center'
+            alignItems: 'center',
+            pointerEvents: 'auto'
         });
         this.captionBar.textContent = image.caption || '';
-        document.body.appendChild(this.captionBar);
+        this.container.appendChild(this.captionBar);
         // Initial sizing and inflection thresholds
         this.initializeBaseSizes(intrinsicW, intrinsicH);
         this.currentScale = 1;
@@ -565,10 +567,6 @@ export class ImageViewer {
             this.backdrop.parentNode.removeChild(this.backdrop);
         if (this.container?.parentNode)
             this.container.parentNode.removeChild(this.container);
-        if (this.headerBar?.parentNode)
-            this.headerBar.parentNode.removeChild(this.headerBar);
-        if (this.captionBar?.parentNode)
-            this.captionBar.parentNode.removeChild(this.captionBar);
         this.backdrop = null;
         this.container = null;
         this.headerBar = null;
