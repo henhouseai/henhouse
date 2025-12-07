@@ -369,6 +369,8 @@ export class ImageViewer {
   private bindEvents(): void {
     if (!this.container) return;
     this.container.addEventListener('wheel', this.handleWheel, { passive: false });
+    // Allow wheel zoom anywhere while overlay is up
+    window.addEventListener('wheel', this.handleWheel, { passive: false });
 
     // Simple mouse drag for pan
     let dragging = false;
@@ -386,11 +388,24 @@ export class ImageViewer {
     });
 
     // Touch handling: pinch zoom + drag pan
+    const onPinchMove = (touches: TouchList) => {
+      if (touches.length !== 2 || this.pinchStartDist === null) return;
+      const dist = this.getTouchDistance(touches);
+      if (dist > 0) {
+        const newScale = this.pinchStartScale * (dist / this.pinchStartDist);
+        this.applyScale(newScale, this.currentScale);
+      }
+    };
+
+    const startPinch = (e: TouchEvent) => {
+      this.pinchStartDist = this.getTouchDistance(e.touches);
+      this.pinchStartScale = this.currentScale;
+    };
+
     this.container.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
         e.preventDefault();
-        this.pinchStartDist = this.getTouchDistance(e.touches);
-        this.pinchStartScale = this.currentScale;
+        startPinch(e);
         dragging = false;
         this.swipeStartX = null;
         this.swipeStartY = null;
@@ -408,13 +423,7 @@ export class ImageViewer {
       if (e.touches.length === 2) {
         e.preventDefault();
         dragging = false;
-        if (this.pinchStartDist) {
-          const dist = this.getTouchDistance(e.touches);
-          if (dist > 0) {
-            const newScale = this.pinchStartScale * (dist / this.pinchStartDist);
-            this.applyScale(newScale, this.currentScale);
-          }
-        }
+        if (this.pinchStartDist) onPinchMove(e.touches);
         return;
       }
       if (!dragging) return;
@@ -443,7 +452,7 @@ export class ImageViewer {
         const dist = Math.hypot(dx, dy);
         const isHorizontal = Math.abs(dx) > Math.abs(dy);
         const velocity = dt > 0 ? dist / dt : 0;
-        if (isHorizontal && (dist >= 100 || velocity >= 0.3)) {
+        if (isHorizontal && (dist >= 60 || velocity >= 0.2)) {
           if (dx > 0) this.navigate(1); else this.navigate(-1);
         }
       }
@@ -451,6 +460,26 @@ export class ImageViewer {
       this.swipeStartY = null;
       this.swipeStartTime = null;
     }, { passive: false });
+
+    // Backdrop pinch/wheel to zoom anywhere
+    if (this.backdrop) {
+      this.backdrop.addEventListener('wheel', this.handleWheel, { passive: false });
+      this.backdrop.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          startPinch(e);
+        }
+      }, { passive: false });
+      this.backdrop.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          onPinchMove(e.touches);
+        }
+      }, { passive: false });
+      this.backdrop.addEventListener('touchend', () => {
+        this.pinchStartDist = null;
+      }, { passive: false });
+    }
 
     this.resizeHandler = () => {
       if (this.intrinsicWidth && this.intrinsicHeight) {
