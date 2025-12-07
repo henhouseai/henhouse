@@ -45,11 +45,14 @@ export class ImageViewer {
             const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
             let newPanX = this.panX + dx;
             let newPanY = this.panY + dy;
+            // Enable panning in blue (between) on the limiting axis only
             if (state === 'between') {
                 if (widthHitsFirst) {
+                    // width touched first; allow Y pan, lock X
                     newPanX = 0;
                 }
                 else {
+                    // height touched first; allow X pan, lock Y
                     newPanY = 0;
                 }
             }
@@ -388,8 +391,8 @@ export class ImageViewer {
             this.swipeStartTime = null;
         }, { passive: false });
         this.container.addEventListener('touchend', (e) => {
-            // Swipe navigation when at default scale
-            if (this.currentScale === 1 && this.images.length > 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
+            // Swipe navigation (allow at any scale)
+            if (this.images.length > 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
                 const touch = e.changedTouches[0];
                 const dx = touch.clientX - this.swipeStartX;
                 const dy = touch.clientY - this.swipeStartY;
