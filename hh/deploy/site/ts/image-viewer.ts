@@ -165,21 +165,6 @@ export class ImageViewer {
     // Header bar with close button (test overlay integration) inside container
     this.headerBar = document.createElement('div');
     this.headerBar.id = 'imageViewerHeaderBar';
-    Object.assign(this.headerBar.style, {
-      position: 'absolute',
-      left: '0',
-      top: '0',
-      width: '100%',
-      height: '50px',
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0 16px',
-      boxSizing: 'border-box',
-      background: 'rgba(0,0,0,0.5)',
-      color: '#fff',
-      zIndex: '1003',
-      pointerEvents: 'auto'
-    });
     const closeBtn = document.createElement('button');
     closeBtn.textContent = 'Cancel';
     closeBtn.addEventListener('click', () => this.cleanup());
@@ -189,21 +174,6 @@ export class ImageViewer {
     // Caption bar at bottom (test overlay footer integration)
     this.captionBar = document.createElement('div');
     this.captionBar.id = 'imageViewerCaptionBar';
-    Object.assign(this.captionBar.style, {
-      position: 'absolute',
-      left: '0',
-      bottom: '0',
-      width: '100%',
-      minHeight: '60px',
-      padding: '12px 16px',
-      boxSizing: 'border-box',
-      background: 'rgba(0,0,0,0.6)',
-      color: '#fff',
-      zIndex: '1003',
-      display: 'flex',
-      alignItems: 'center',
-      pointerEvents: 'auto'
-    });
     this.captionBar.textContent = image.caption || '';
     this.container.appendChild(this.captionBar);
 
