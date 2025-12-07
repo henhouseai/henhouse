@@ -37,6 +37,7 @@ export class ImageViewer {
         this.swipeStartTime = null;
         this.images = [];
         this.currentImageIndex = 0;
+        this.cleanupFns = [];
         // ---- Input handlers ----------------------------------------------------
         this.handleWheel = (e) => {
             e.preventDefault();
@@ -100,8 +101,9 @@ export class ImageViewer {
         const imageContainer = this.createImageElement(image, instance);
         // Create footer element for caption (same styling as header)
         const footerEl = document.createElement('div');
-        footerEl.className = 'contentWrapperHeader overlay';
+        footerEl.className = 'contentWrapperHeader overlay overlay-footer';
         footerEl.textContent = image.caption || '';
+        this.footerEl = footerEl;
         // Show overlay using OverlayManager
         const overlayManager = OverlayManager.getInstance();
         this.overlay = overlayManager.show({
@@ -120,7 +122,7 @@ export class ImageViewer {
         this.windowEl = document.querySelector('.image-viewer-overlay');
         this.headerEl = this.windowEl?.querySelector('.contentWrapperHeader') || null;
         this.contentEl = this.windowEl?.querySelector('.contentWrapper') || null;
-        this.footerEl = this.windowEl?.querySelector('.overlay-footer') || null;
+        this.footerEl = this.footerEl || this.windowEl?.querySelector('.overlay-footer') || null;
         // Measure header and footer heights
         this.headerHeight = this.headerEl?.offsetHeight || 0;
         this.footerHeight = this.footerEl?.offsetHeight || 0;
@@ -292,15 +294,15 @@ export class ImageViewer {
             return;
         // Wheel zoom on window
         this.windowEl.addEventListener('wheel', this.handleWheel, { passive: false });
+        this.cleanupFns.push(() => this.windowEl?.removeEventListener('wheel', this.handleWheel));
         window.addEventListener('wheel', this.handleWheel, { passive: false });
+        this.cleanupFns.push(() => window.removeEventListener('wheel', this.handleWheel));
         // Mouse drag for pan
         let dragging = false;
         let lastX = 0, lastY = 0;
-        this.windowEl.addEventListener('mousedown', (e) => { e.preventDefault(); dragging = true; lastX = e.clientX; lastY = e.clientY; });
-        this.windowEl.addEventListener('mouseup', () => { dragging = false; });
-        this.windowEl.addEventListener('mouseleave', () => { dragging = false; });
-        document.addEventListener('mouseup', () => { dragging = false; });
-        document.addEventListener('mousemove', (e) => {
+        const onMouseDown = (e) => { e.preventDefault(); dragging = true; lastX = e.clientX; lastY = e.clientY; };
+        const onMouseUp = () => { dragging = false; };
+        const onMouseMove = (e) => {
             if (!dragging)
                 return;
             const dx = e.clientX - lastX;
@@ -308,6 +310,18 @@ export class ImageViewer {
             lastX = e.clientX;
             lastY = e.clientY;
             this.handleDragMove(dx, dy);
+        };
+        this.windowEl.addEventListener('mousedown', onMouseDown);
+        this.windowEl.addEventListener('mouseup', onMouseUp);
+        this.windowEl.addEventListener('mouseleave', onMouseUp);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', onMouseMove);
+        this.cleanupFns.push(() => {
+            this.windowEl?.removeEventListener('mousedown', onMouseDown);
+            this.windowEl?.removeEventListener('mouseup', onMouseUp);
+            this.windowEl?.removeEventListener('mouseleave', onMouseUp);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('mousemove', onMouseMove);
         });
         // Touch handling: pinch zoom + drag pan
         const onPinchMove = (touches) => {
@@ -323,7 +337,7 @@ export class ImageViewer {
             this.pinchStartDist = this.getTouchDistance(e.touches);
             this.pinchStartScale = this.currentScale;
         };
-        this.windowEl.addEventListener('touchstart', (e) => {
+        const onTouchStart = (e) => {
             if (e.touches.length === 2) {
                 e.preventDefault();
                 startPinch(e);
@@ -341,8 +355,8 @@ export class ImageViewer {
                 this.swipeStartY = t.clientY;
                 this.swipeStartTime = e.timeStamp;
             }
-        }, { passive: false });
-        this.windowEl.addEventListener('touchmove', (e) => {
+        };
+        const onTouchMove = (e) => {
             if (e.touches.length === 1 && this.currentScale === 1) {
                 e.preventDefault();
             }
@@ -361,8 +375,8 @@ export class ImageViewer {
             lastX = t.clientX;
             lastY = t.clientY;
             this.handleDragMove(dx, dy);
-        }, { passive: false });
-        this.windowEl.addEventListener('touchend', (e) => {
+        };
+        const onTouchEnd = (e) => {
             dragging = false;
             // Swipe navigation: only when at default scale
             if (this.images.length > 1 && this.currentScale === 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
@@ -386,45 +400,71 @@ export class ImageViewer {
             this.swipeStartY = null;
             this.swipeStartTime = null;
             this.pinchStartDist = null;
-        }, { passive: false });
+        };
+        this.windowEl.addEventListener('touchstart', onTouchStart, { passive: false });
+        this.windowEl.addEventListener('touchmove', onTouchMove, { passive: false });
+        this.windowEl.addEventListener('touchend', onTouchEnd, { passive: false });
+        this.cleanupFns.push(() => {
+            this.windowEl?.removeEventListener('touchstart', onTouchStart);
+            this.windowEl?.removeEventListener('touchmove', onTouchMove);
+            this.windowEl?.removeEventListener('touchend', onTouchEnd);
+        });
         // Block scroll/zoom on backdrop
         const backdrop = document.querySelector('.overlay-backdrop');
         if (backdrop) {
-            backdrop.addEventListener('wheel', this.handleWheel, { passive: false });
-            backdrop.addEventListener('touchstart', (e) => {
+            const onBackdropWheel = this.handleWheel;
+            const onBackdropTouchStart = (e) => {
                 const te = e;
                 if (te.touches.length === 2) {
                     e.preventDefault();
                     startPinch(te);
                 }
-            }, { passive: false });
-            backdrop.addEventListener('touchmove', (e) => {
+            };
+            const onBackdropTouchMove = (e) => {
                 const te = e;
                 if (te.touches.length === 2) {
                     e.preventDefault();
                     onPinchMove(te.touches);
                 }
-            }, { passive: false });
-            backdrop.addEventListener('touchend', () => {
+            };
+            const onBackdropTouchEnd = () => {
                 this.pinchStartDist = null;
-            }, { passive: false });
+            };
+            backdrop.addEventListener('wheel', onBackdropWheel, { passive: false });
+            backdrop.addEventListener('touchstart', onBackdropTouchStart, { passive: false });
+            backdrop.addEventListener('touchmove', onBackdropTouchMove, { passive: false });
+            backdrop.addEventListener('touchend', onBackdropTouchEnd, { passive: false });
+            this.cleanupFns.push(() => {
+                backdrop.removeEventListener('wheel', onBackdropWheel);
+                backdrop.removeEventListener('touchstart', onBackdropTouchStart);
+                backdrop.removeEventListener('touchmove', onBackdropTouchMove);
+                backdrop.removeEventListener('touchend', onBackdropTouchEnd);
+            });
         }
         // Global pinch for two-finger anywhere
-        window.addEventListener('touchstart', (e) => {
+        const onWindowTouchStart = (e) => {
             if (e.touches.length === 2) {
                 e.preventDefault();
                 startPinch(e);
             }
-        }, { passive: false });
-        window.addEventListener('touchmove', (e) => {
+        };
+        const onWindowTouchMove = (e) => {
             if (e.touches.length === 2) {
                 e.preventDefault();
                 onPinchMove(e.touches);
             }
-        }, { passive: false });
-        window.addEventListener('touchend', () => {
+        };
+        const onWindowTouchEnd = () => {
             this.pinchStartDist = null;
-        }, { passive: false });
+        };
+        window.addEventListener('touchstart', onWindowTouchStart, { passive: false });
+        window.addEventListener('touchmove', onWindowTouchMove, { passive: false });
+        window.addEventListener('touchend', onWindowTouchEnd, { passive: false });
+        this.cleanupFns.push(() => {
+            window.removeEventListener('touchstart', onWindowTouchStart);
+            window.removeEventListener('touchmove', onWindowTouchMove);
+            window.removeEventListener('touchend', onWindowTouchEnd);
+        });
         this.resizeHandler = () => {
             if (this.intrinsicWidth && this.intrinsicHeight) {
                 this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
@@ -439,6 +479,8 @@ export class ImageViewer {
             this.applyTransforms(1);
         };
         window.addEventListener('resize', this.resizeHandler);
+        this.cleanupFns.push(() => { if (this.resizeHandler)
+            window.removeEventListener('resize', this.resizeHandler); });
         // Arrow keys for image navigation (ESC handled by overlay system)
         this.keyboardHandler = (e) => {
             if (!this.windowEl)
@@ -457,6 +499,8 @@ export class ImageViewer {
             }
         };
         document.addEventListener('keydown', this.keyboardHandler);
+        this.cleanupFns.push(() => { if (this.keyboardHandler)
+            document.removeEventListener('keydown', this.keyboardHandler); });
     }
     // ---- Utils -------------------------------------------------------------
     getPageWidth() {
@@ -479,14 +523,15 @@ export class ImageViewer {
         this.updateImageContent();
     }
     cleanupHandlers() {
-        if (this.resizeHandler) {
-            window.removeEventListener('resize', this.resizeHandler);
-            this.resizeHandler = null;
+        for (const fn of this.cleanupFns) {
+            try {
+                fn();
+            }
+            catch { /* ignore */ }
         }
-        if (this.keyboardHandler) {
-            document.removeEventListener('keydown', this.keyboardHandler);
-            this.keyboardHandler = null;
-        }
+        this.cleanupFns = [];
+        this.resizeHandler = null;
+        this.keyboardHandler = null;
         document.body.style.overflow = '';
     }
     cleanup() {

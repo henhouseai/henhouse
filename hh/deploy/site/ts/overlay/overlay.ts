@@ -158,6 +158,17 @@ export class Overlay {
   }
 
   /**
+   * Accessors for callers needing direct DOM references.
+   */
+  getWindowElement(): HTMLElement | null {
+    return this.windowEl;
+  }
+
+  getHeaderElement(): HTMLElement | null {
+    return this.headerEl;
+  }
+
+  /**
    * Unmount the overlay from the DOM.
    */
   unmount(): void {

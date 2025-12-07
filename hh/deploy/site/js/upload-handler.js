@@ -52,8 +52,11 @@ export class UploadHandler {
             if (!files || files.length === 0)
                 return;
             // Get overlay window if not already stored
+            if (!this.overlayWindow && this.overlay && typeof this.overlay.getWindowElement === 'function') {
+                this.overlayWindow = this.overlay.getWindowElement();
+            }
             if (!this.overlayWindow) {
-                this.overlayWindow = document.querySelector('#overlayWindow');
+                this.overlayWindow = document.querySelector('.overlay-window');
             }
             if (!this.overlayWindow) {
                 console.error('Overlay window not found');
@@ -94,7 +97,8 @@ export class UploadHandler {
             onMount: () => {
                 // Add upload-placeholder class immediately when overlay mounts (before it's visible)
                 // This prevents flicker by ensuring correct styling from the start
-                const placeholderContentDiv = document.querySelector('#overlayWindow .content.overlay:has(.upload-placeholder)');
+                const win = this.overlay?.getWindowElement() || document.querySelector('.overlay-window');
+                const placeholderContentDiv = win?.querySelector('.content.overlay .upload-placeholder');
                 if (placeholderContentDiv) {
                     placeholderContentDiv.classList.add('upload-placeholder');
                     this.placeholderDiv = placeholderContentDiv;
@@ -214,7 +218,7 @@ export class UploadHandler {
         });
         // Store references to buttons after overlay is shown (for disabling during upload)
         setTimeout(() => {
-            const headerEl = document.querySelector('#overlayWindow .contentWrapperHeader.overlay');
+            const headerEl = (this.overlay?.getHeaderElement && this.overlay.getHeaderElement()) || document.querySelector('.overlay-window .contentWrapperHeader.overlay');
             if (!headerEl) {
                 console.error('Could not find overlay header');
                 return;
@@ -230,8 +234,11 @@ export class UploadHandler {
     }
     addFile(file) {
         // Get overlay window if not already stored
+        if (!this.overlayWindow && this.overlay && typeof this.overlay.getWindowElement === 'function') {
+            this.overlayWindow = this.overlay.getWindowElement();
+        }
         if (!this.overlayWindow) {
-            this.overlayWindow = document.querySelector('#overlayWindow');
+            this.overlayWindow = document.querySelector('.overlay-window');
         }
         if (!this.overlayWindow) {
             console.error('Overlay window not found');
