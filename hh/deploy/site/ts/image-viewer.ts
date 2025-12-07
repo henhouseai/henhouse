@@ -319,18 +319,23 @@ export class ImageViewer {
     const vh = this.getPageHeight();
     const scaledW = (this.baseInnerWidth * scale) + this.totalExtraX;
     const scaledH = (this.baseInnerHeight * scale) + this.totalExtraY;
-    const halfX = Math.max(0, (scaledW - vw) / 2);
-    const halfY = Math.max(0, (scaledH - vh) / 2);
+    const halfOverflowX = Math.max(0, (scaledW - vw) / 2);
+    const halfOverflowY = Math.max(0, (scaledH - vh) / 2);
     const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
 
     if (state === 'zoomedOut') return { x: 0, y: 0 };
     if (state === 'between') {
-      if (widthHitsFirst) return { x: 0, y: Math.max(-halfY, Math.min(halfY, panY)) };
-      return { x: Math.max(-halfX, Math.min(halfX, panX)), y: 0 };
+      // In between state, one axis fits with margin; allow pan only along the non-limiting axis within that margin
+      if (widthHitsFirst) {
+        const halfFreeY = Math.max(0, (vh - scaledH) / 2);
+        return { x: 0, y: Math.max(-halfFreeY, Math.min(halfFreeY, panY)) };
+      }
+      const halfFreeX = Math.max(0, (vw - scaledW) / 2);
+      return { x: Math.max(-halfFreeX, Math.min(halfFreeX, panX)), y: 0 };
     }
     return {
-      x: Math.max(-halfX, Math.min(halfX, panX)),
-      y: Math.max(-halfY, Math.min(halfY, panY))
+      x: Math.max(-halfOverflowX, Math.min(halfOverflowX, panX)),
+      y: Math.max(-halfOverflowY, Math.min(halfOverflowY, panY))
     };
   }
 
