@@ -325,13 +325,10 @@ export class ImageViewer {
 
     if (state === 'zoomedOut') return { x: 0, y: 0 };
     if (state === 'between') {
-      // In between state, one axis fits with margin; allow pan only along the non-limiting axis within that margin
       if (widthHitsFirst) {
-        const halfFreeY = Math.max(0, (vh - scaledH) / 2);
-        return { x: 0, y: Math.max(-halfFreeY, Math.min(halfFreeY, panY)) };
+        return { x: Math.max(-halfOverflowX, Math.min(halfOverflowX, panX)), y: 0 };
       }
-      const halfFreeX = Math.max(0, (vw - scaledW) / 2);
-      return { x: Math.max(-halfFreeX, Math.min(halfFreeX, panX)), y: 0 };
+      return { x: 0, y: Math.max(-halfOverflowY, Math.min(halfOverflowY, panY)) };
     }
     return {
       x: Math.max(-halfOverflowX, Math.min(halfOverflowX, panX)),
