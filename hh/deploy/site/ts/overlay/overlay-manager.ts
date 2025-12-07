@@ -23,6 +23,10 @@ export interface OverlayOptions {
   onError?: (error: Error) => void;
   className?: string;
   style?: Partial<CSSStyleDeclaration>;
+  /** Image viewer mode: raw content (no div.content wrapper), no debug options, footer for caption */
+  imageViewerMode?: boolean;
+  /** Footer content (e.g., caption) - rendered after main content */
+  footerContent?: string | HTMLElement;
 }
 
 export class OverlayManager {

@@ -1,14 +1,15 @@
 /**
- * ImageViewer - single container + single child, scaled/panned via container transform.
- * Uses image aspect ratio from get_image_group to set initial sizing.
+ * ImageViewer - Image group viewer integrated with overlay system.
+ * Uses OverlayManager for modal handling, provides pan/zoom/touch functionality.
  */
 import { RPCClient } from './rpc-client.js';
+import { OverlayManager } from './overlay/overlay-manager.js';
 export class ImageViewer {
     constructor(pageId, initialImageId) {
-        this.backdrop = null;
-        this.container = null;
-        this.headerBar = null;
-        this.captionBar = null;
+        this.overlay = null;
+        this.windowEl = null;
+        this.contentEl = null;
+        this.footerEl = null;
         this.currentScale = 1;
         this.panX = 0;
         this.panY = 0;
@@ -47,14 +48,11 @@ export class ImageViewer {
             const widthHitsFirst = this.scaleForWidthMatch < this.scaleForHeightMatch;
             let newPanX = this.panX + dx;
             let newPanY = this.panY + dy;
-            // Enable panning in blue (between) on the limiting axis only
             if (state === 'between') {
                 if (widthHitsFirst) {
-                    // width touched first; allow X pan, lock Y
                     newPanY = 0;
                 }
                 else {
-                    // height touched first; allow Y pan, lock X
                     newPanX = 0;
                 }
             }
@@ -93,101 +91,68 @@ export class ImageViewer {
     renderOverlay() {
         const image = this.images[this.currentImageIndex];
         const instance = image.instances[image.instances.length - 1]; // largest
-        const intrinsicW = instance.width;
-        const intrinsicH = instance.height;
-        this.intrinsicWidth = intrinsicW;
-        this.intrinsicHeight = intrinsicH;
-        // Backdrop
-        this.backdrop = document.createElement('div');
-        this.backdrop.id = 'imageViewerBackdrop';
-        Object.assign(this.backdrop.style, {
-            position: 'fixed',
-            left: '0',
-            top: '0',
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0,0,0,0.6)',
-            zIndex: '1000'
+        this.intrinsicWidth = instance.width;
+        this.intrinsicHeight = instance.height;
+        // Create the image element
+        const imageContainer = this.createImageElement(image, instance);
+        // Create footer element for caption
+        const footerEl = document.createElement('div');
+        footerEl.className = 'image-viewer-caption';
+        footerEl.textContent = image.caption || '';
+        // Show overlay using OverlayManager
+        const overlayManager = OverlayManager.getInstance();
+        this.overlay = overlayManager.show({
+            header: 'Image Viewer',
+            content: [imageContainer],
+            imageViewerMode: true,
+            footerContent: footerEl,
+            closable: true,
+            showSubmit: false,
+            cancelLabel: 'Close',
+            className: 'image-viewer-overlay',
+            onCancel: () => this.cleanup(),
+            onUnmount: () => this.cleanupHandlers()
         });
-        this.backdrop.addEventListener('click', (e) => {
-            if (e.target === this.backdrop)
-                this.cleanup();
-        });
-        // Block scroll/zoom on backdrop
-        this.backdrop.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
-        this.backdrop.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-        // Container
-        this.container = document.createElement('div');
-        this.container.id = 'imageViewerWindow';
-        Object.assign(this.container.style, {
-            position: 'fixed',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: '1001',
-            transition: 'opacity 0.2s',
-            opacity: '0'
-        });
-        // Child box
+        // Get references to overlay elements for pan/zoom
+        this.windowEl = document.querySelector('.image-viewer-overlay');
+        this.contentEl = this.windowEl?.querySelector('.contentWrapper') || null;
+        this.footerEl = this.windowEl?.querySelector('.overlay-footer') || null;
+        // Prevent body scroll while overlay is open
+        document.body.style.overflow = 'hidden';
+        // Initial sizing and inflection thresholds
+        this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
+        this.currentScale = 1;
+        this.applyTransforms(1);
+        this.bindEvents();
+    }
+    createImageElement(image, instance) {
         const box = document.createElement('div');
         box.id = 'imageViewerTargetImage';
-        Object.assign(box.style, {
-            boxSizing: 'border-box',
-            width: '100%',
-            height: '100%',
-            background: 'rgba(0,200,0,0.3)',
-            border: '2px solid black'
-        });
-        // Image element filling the box
+        box.className = 'image-viewer-box';
         const img = document.createElement('img');
         img.id = 'imageViewerImg';
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'contain';
-        const bestInstance = instance;
-        const src = bestInstance.src.startsWith('/srv/images/') ? bestInstance.src : `/srv/images/${bestInstance.src}`;
+        img.className = 'image-viewer-img';
+        const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
         img.src = src;
         img.alt = image.caption || '';
         box.appendChild(img);
-        this.container.appendChild(box);
-        document.body.appendChild(this.backdrop);
-        document.body.appendChild(this.container);
-        document.body.style.overflow = 'hidden';
-        // Header bar with close button (test overlay integration) inside container
-        this.headerBar = document.createElement('div');
-        this.headerBar.id = 'imageViewerHeaderBar';
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = 'Cancel';
-        closeBtn.addEventListener('click', () => this.cleanup());
-        this.headerBar.appendChild(closeBtn);
-        this.container.appendChild(this.headerBar);
-        // Caption bar at bottom (test overlay footer integration)
-        this.captionBar = document.createElement('div');
-        this.captionBar.id = 'imageViewerCaptionBar';
-        this.captionBar.textContent = image.caption || '';
-        this.container.appendChild(this.captionBar);
-        // Initial sizing and inflection thresholds
-        this.initializeBaseSizes(intrinsicW, intrinsicH);
-        this.currentScale = 1;
-        this.applyTransforms(1);
-        this.container.style.opacity = '1';
-        this.bindEvents();
+        return box;
     }
     updateImageContent() {
-        if (!this.container)
+        if (!this.contentEl)
             return;
         const image = this.images[this.currentImageIndex];
         const instance = image.instances[image.instances.length - 1]; // largest
         this.intrinsicWidth = instance.width;
         this.intrinsicHeight = instance.height;
-        const img = this.container.querySelector('#imageViewerImg');
+        const img = this.contentEl.querySelector('#imageViewerImg');
         if (img) {
             const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
             img.src = src;
             img.alt = image.caption || '';
         }
-        if (this.captionBar) {
-            this.captionBar.textContent = image.caption || '';
+        if (this.footerEl) {
+            this.footerEl.textContent = image.caption || '';
         }
         this.currentScale = 1;
         this.panX = 0;
@@ -197,16 +162,15 @@ export class ImageViewer {
         this.applyTransforms(1);
     }
     initializeBaseSizes(intrinsicW, intrinsicH) {
-        if (!this.container)
+        if (!this.windowEl)
             return;
         // Temporarily size to intrinsic for measurement
-        this.container.style.width = `${intrinsicW}px`;
-        this.container.style.height = `${intrinsicH}px`;
+        this.windowEl.style.width = `${intrinsicW}px`;
+        this.windowEl.style.height = `${intrinsicH}px`;
         // Measure padding/border extras from computed style
         this.measureExtras();
         const vw = this.getPageWidth();
         const vh = this.getPageHeight();
-        // Larger margin to start smaller without arbitrary scale factor
         const margin = 200;
         const maxW = vw - margin;
         const maxH = vh - margin;
@@ -218,8 +182,8 @@ export class ImageViewer {
         this.baseInnerHeight = intrinsicH * fitScale;
         this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
         this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY;
-        this.container.style.width = `${this.baseOverlayWidth}px`;
-        this.container.style.height = `${this.baseOverlayHeight}px`;
+        this.windowEl.style.width = `${this.baseOverlayWidth}px`;
+        this.windowEl.style.height = `${this.baseOverlayHeight}px`;
         this.recomputeInflections();
     }
     recomputeInflections() {
@@ -229,9 +193,9 @@ export class ImageViewer {
         this.scaleForHeightMatch = vh / this.baseOverlayHeight;
     }
     measureExtras() {
-        if (!this.container)
+        if (!this.windowEl)
             return;
-        const cs = getComputedStyle(this.container);
+        const cs = getComputedStyle(this.windowEl);
         const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
         const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
         const borderX = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
@@ -241,37 +205,20 @@ export class ImageViewer {
     }
     // ---- Transform and state ----------------------------------------------
     applyTransforms(scale) {
-        if (!this.container)
+        if (!this.windowEl)
             return;
         const innerW = this.baseInnerWidth * scale;
         const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
         const overlayH = innerH + this.totalExtraY;
-        this.container.style.width = `${overlayW}px`;
-        this.container.style.height = `${overlayH}px`;
-        this.container.style.maxWidth = `${overlayW}px`;
-        this.container.style.maxHeight = `${overlayH}px`;
+        this.windowEl.style.width = `${overlayW}px`;
+        this.windowEl.style.height = `${overlayH}px`;
+        this.windowEl.style.maxWidth = `${overlayW}px`;
+        this.windowEl.style.maxHeight = `${overlayH}px`;
         const clamped = this.clampPan(scale, this.panX, this.panY);
         this.panX = clamped.x;
         this.panY = clamped.y;
-        this.container.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
-        this.setBorderForScale(scale);
-    }
-    setBorderForScale(scale) {
-        if (!this.container)
-            return;
-        const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-        const second = Math.max(this.scaleForWidthMatch, this.scaleForHeightMatch);
-        const eps = 0.001;
-        if (scale > second + eps) {
-            this.container.style.border = `3px solid yellow`;
-        }
-        else if (scale > first + eps) {
-            this.container.style.border = `3px solid blue`;
-        }
-        else {
-            this.container.style.border = `3px solid red`;
-        }
+        this.windowEl.style.transform = `translate(-50%, -50%) translate(${this.panX}px, ${this.panY}px)`;
     }
     applyScale(newScale, oldScale) {
         const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
@@ -331,17 +278,17 @@ export class ImageViewer {
     }
     // ---- Events binding ----------------------------------------------------
     bindEvents() {
-        if (!this.container)
+        if (!this.windowEl)
             return;
-        this.container.addEventListener('wheel', this.handleWheel, { passive: false });
-        // Allow wheel zoom anywhere while overlay is up
+        // Wheel zoom on window
+        this.windowEl.addEventListener('wheel', this.handleWheel, { passive: false });
         window.addEventListener('wheel', this.handleWheel, { passive: false });
-        // Simple mouse drag for pan
+        // Mouse drag for pan
         let dragging = false;
         let lastX = 0, lastY = 0;
-        this.container.addEventListener('mousedown', (e) => { e.preventDefault(); dragging = true; lastX = e.clientX; lastY = e.clientY; });
-        this.container.addEventListener('mouseup', () => { dragging = false; });
-        this.container.addEventListener('mouseleave', () => { dragging = false; });
+        this.windowEl.addEventListener('mousedown', (e) => { e.preventDefault(); dragging = true; lastX = e.clientX; lastY = e.clientY; });
+        this.windowEl.addEventListener('mouseup', () => { dragging = false; });
+        this.windowEl.addEventListener('mouseleave', () => { dragging = false; });
         document.addEventListener('mouseup', () => { dragging = false; });
         document.addEventListener('mousemove', (e) => {
             if (!dragging)
@@ -366,7 +313,7 @@ export class ImageViewer {
             this.pinchStartDist = this.getTouchDistance(e.touches);
             this.pinchStartScale = this.currentScale;
         };
-        this.container.addEventListener('touchstart', (e) => {
+        this.windowEl.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
                 e.preventDefault();
                 startPinch(e);
@@ -385,8 +332,7 @@ export class ImageViewer {
                 this.swipeStartTime = e.timeStamp;
             }
         }, { passive: false });
-        this.container.addEventListener('touchmove', (e) => {
-            // Match stage behavior: prevent scroll when at default scale
+        this.windowEl.addEventListener('touchmove', (e) => {
             if (e.touches.length === 1 && this.currentScale === 1) {
                 e.preventDefault();
             }
@@ -406,8 +352,7 @@ export class ImageViewer {
             lastY = t.clientY;
             this.handleDragMove(dx, dy);
         }, { passive: false });
-        // Single touchend handler (stage-style): detect swipe first, then reset
-        this.container.addEventListener('touchend', (e) => {
+        this.windowEl.addEventListener('touchend', (e) => {
             dragging = false;
             // Swipe navigation: only when at default scale
             if (this.images.length > 1 && this.currentScale === 1 && this.swipeStartX !== null && this.swipeStartY !== null && this.swipeStartTime !== null) {
@@ -427,28 +372,30 @@ export class ImageViewer {
                         this.navigate(1);
                 }
             }
-            // Reset swipe/pinch state
             this.swipeStartX = null;
             this.swipeStartY = null;
             this.swipeStartTime = null;
             this.pinchStartDist = null;
         }, { passive: false });
-        // Backdrop pinch/wheel to zoom anywhere
-        if (this.backdrop) {
-            this.backdrop.addEventListener('wheel', this.handleWheel, { passive: false });
-            this.backdrop.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 2) {
+        // Block scroll/zoom on backdrop
+        const backdrop = document.querySelector('.overlay-backdrop');
+        if (backdrop) {
+            backdrop.addEventListener('wheel', this.handleWheel, { passive: false });
+            backdrop.addEventListener('touchstart', (e) => {
+                const te = e;
+                if (te.touches.length === 2) {
                     e.preventDefault();
-                    startPinch(e);
+                    startPinch(te);
                 }
             }, { passive: false });
-            this.backdrop.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 2) {
+            backdrop.addEventListener('touchmove', (e) => {
+                const te = e;
+                if (te.touches.length === 2) {
                     e.preventDefault();
-                    onPinchMove(e.touches);
+                    onPinchMove(te.touches);
                 }
             }, { passive: false });
-            this.backdrop.addEventListener('touchend', () => {
+            backdrop.addEventListener('touchend', () => {
                 this.pinchStartDist = null;
             }, { passive: false });
         }
@@ -482,14 +429,11 @@ export class ImageViewer {
             this.applyTransforms(1);
         };
         window.addEventListener('resize', this.resizeHandler);
+        // Arrow keys for image navigation (ESC handled by overlay system)
         this.keyboardHandler = (e) => {
-            if (!this.container || !this.backdrop)
+            if (!this.windowEl)
                 return;
-            if (e.key === 'Escape') {
-                this.cleanup();
-                e.preventDefault();
-            }
-            else if (e.key === 'ArrowLeft') {
+            if (e.key === 'ArrowLeft') {
                 if (this.images.length > 1) {
                     this.navigate(-1);
                     e.preventDefault();
@@ -524,7 +468,7 @@ export class ImageViewer {
         this.currentImageIndex = (this.currentImageIndex + delta + this.images.length) % this.images.length;
         this.updateImageContent();
     }
-    cleanup() {
+    cleanupHandlers() {
         if (this.resizeHandler) {
             window.removeEventListener('resize', this.resizeHandler);
             this.resizeHandler = null;
@@ -533,15 +477,14 @@ export class ImageViewer {
             document.removeEventListener('keydown', this.keyboardHandler);
             this.keyboardHandler = null;
         }
-        if (this.backdrop?.parentNode)
-            this.backdrop.parentNode.removeChild(this.backdrop);
-        if (this.container?.parentNode)
-            this.container.parentNode.removeChild(this.container);
-        this.backdrop = null;
-        this.container = null;
-        this.headerBar = null;
-        this.captionBar = null;
         document.body.style.overflow = '';
+    }
+    cleanup() {
+        this.cleanupHandlers();
+        this.overlay = null;
+        this.windowEl = null;
+        this.contentEl = null;
+        this.footerEl = null;
     }
     static async openFromImageLink(pageId, imageId) {
         const viewer = new ImageViewer(pageId, imageId);

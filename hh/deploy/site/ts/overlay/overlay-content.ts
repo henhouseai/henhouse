@@ -6,6 +6,7 @@ export interface OverlayContentProps {
   children?: Array<string | HTMLElement>; // Array-based content structure (required)
   headers?: Array<string>; // Optional array of header strings for each content section
   className?: string;
+  rawContent?: boolean; // If true, append content directly without div.content wrapper
 }
 
 export class OverlayContent {
@@ -18,10 +19,29 @@ export class OverlayContent {
   /**
    * Render the content element.
    * Uses array-based content structure with optional headers for each section.
+   * If rawContent is true, appends content directly without div.content wrapper.
    */
   render(): HTMLElement {
     const container = document.createElement('div');
     container.className = 'contentWrapper overlay';
+    
+    // Raw content mode: append content items directly without wrappers
+    if (this.props.rawContent) {
+      const contentItems = this.props.children || [];
+      for (const item of contentItems) {
+        if (typeof item === 'string') {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = item;
+          while (tempDiv.firstChild) {
+            container.appendChild(tempDiv.firstChild);
+          }
+        } else {
+          container.appendChild(item);
+        }
+      }
+      return container;
+    }
+    
     const headers = this.props.headers || [];
     const contentItems = this.props.children || [];
     

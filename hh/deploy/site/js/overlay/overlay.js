@@ -61,7 +61,8 @@ export class Overlay {
         });
         this.content = new OverlayContent({
             children: this.props.content,
-            headers: this.props.contentHeaders
+            headers: this.props.contentHeaders,
+            rawContent: this.props.imageViewerMode
         });
     }
     /**
@@ -91,9 +92,21 @@ export class Overlay {
         this.headerEl = headerEl;
         const contentEl = this.content.render();
         windowEl.appendChild(contentEl);
-        // Only add debug options to footer if submit button will be shown (linked to submit button visibility)
+        // Add footer content if provided (e.g., caption in image viewer mode)
+        if (this.props.footerContent) {
+            const footerEl = document.createElement('div');
+            footerEl.className = 'overlay-footer';
+            if (typeof this.props.footerContent === 'string') {
+                footerEl.textContent = this.props.footerContent;
+            }
+            else {
+                footerEl.appendChild(this.props.footerContent);
+            }
+            windowEl.appendChild(footerEl);
+        }
+        // Only add debug options if submit button will be shown AND not in image viewer mode
         const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
-        if (willShowSubmit) {
+        if (willShowSubmit && !this.props.imageViewerMode) {
             // Add debug options as a collapsible footer section
             this.debugOptions = new OverlayDebugOptions();
             const debugEl = this.debugOptions.render();

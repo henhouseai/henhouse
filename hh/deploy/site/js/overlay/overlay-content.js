@@ -8,10 +8,28 @@ export class OverlayContent {
     /**
      * Render the content element.
      * Uses array-based content structure with optional headers for each section.
+     * If rawContent is true, appends content directly without div.content wrapper.
      */
     render() {
         const container = document.createElement('div');
         container.className = 'contentWrapper overlay';
+        // Raw content mode: append content items directly without wrappers
+        if (this.props.rawContent) {
+            const contentItems = this.props.children || [];
+            for (const item of contentItems) {
+                if (typeof item === 'string') {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = item;
+                    while (tempDiv.firstChild) {
+                        container.appendChild(tempDiv.firstChild);
+                    }
+                }
+                else {
+                    container.appendChild(item);
+                }
+            }
+            return container;
+        }
         const headers = this.props.headers || [];
         const contentItems = this.props.children || [];
         // Determine max length to iterate through both arrays
