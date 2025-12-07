@@ -355,11 +355,11 @@ export class ImageViewer {
     // Enable panning in blue (between) on the limiting axis only
     if (state === 'between') {
       if (widthHitsFirst) {
-        // width touched first; allow Y pan, lock X
-        newPanX = 0;
-      } else {
-        // height touched first; allow X pan, lock Y
+        // width touched first; allow X pan, lock Y
         newPanY = 0;
+      } else {
+        // height touched first; allow Y pan, lock X
+        newPanX = 0;
       }
     }
     this.panX = newPanX;
