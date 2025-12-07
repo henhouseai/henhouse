@@ -7,6 +7,7 @@ export interface OverlayWindowProps {
   height?: string | number;
   position?: 'center' | 'top' | 'custom';
   className?: string;
+  mode?: 'fixed' | 'pannable' | 'zoomable';
   style?: Partial<CSSStyleDeclaration>;
 }
 
@@ -28,7 +29,9 @@ export class OverlayWindow {
   render(): HTMLElement {
     const window = document.createElement('div');
     window.className = 'overlay-window';
-
+    if (this.props.mode) {
+      window.className += ` overlay-window-${this.props.mode}`;
+    }
     if (this.props.className) {
       window.className += ` ${this.props.className}`;
     }

@@ -17,6 +17,7 @@ export class Browser {
         this.mode = options.mode;
         this.onSubmit = options.onSubmit;
         this.onCancel = options.onCancel;
+        this.overlayMode = options.overlayMode || 'fixed';
         // Determine initial page ID
         if (options.initialPageId) {
             this.currentPageId = options.initialPageId;
@@ -80,6 +81,7 @@ export class Browser {
                     header: this.getBrowserTitle(),
                     content: contentParts,
                     contentHeaders: contentParts.map(() => ''),
+                    mode: this.overlayMode,
                     closable: true,
                     showSubmit: true,
                     submitLabel: this.getSubmitLabel(),

@@ -16,6 +16,7 @@ export class PageActionsImages {
             const browser = new Browser({
                 mode: 'image',
                 initialPageId: pageId,
+                overlayMode: 'pannable',
                 onSubmit: async (result) => {
                     if (typeof result === 'object' && 'imageIds' in result) {
                         const imageResult = result;
@@ -122,6 +123,7 @@ export class PageActionsImages {
             const browser = new Browser({
                 mode: 'image',
                 initialPageId: pageId,
+                overlayMode: 'pannable',
                 onSubmit: async (result) => {
                     if (typeof result === 'object' && 'imageInstances' in result) {
                         const imageResult = result;

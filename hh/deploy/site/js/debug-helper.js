@@ -91,6 +91,7 @@ export function handleRPCResponseWithDebug(rpcResult, method, params) {
             header: 'Debug Information',
             content: contentArray,
             contentHeaders: headerArray,
+            mode: 'fixed',
             closable: true,
             cancelLabel: 'Close',
             showSubmit: false,

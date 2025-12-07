@@ -26,6 +26,7 @@ export interface BrowserOptions {
   initialPageId?: number;
   onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void> | Promise<any> | any;
   onCancel?: () => void;
+  overlayMode?: 'fixed' | 'pannable' | 'zoomable';
 }
 
 interface SelectedImage {
@@ -46,12 +47,14 @@ export class Browser {
   private onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void> | Promise<any> | any;
   private onCancel?: () => void;
   private viewToggle: any = null; // ViewToggle instance for this browser
+  private overlayMode: 'fixed' | 'pannable' | 'zoomable';
 
   constructor(options: BrowserOptions) {
     this.rpc = new RPCClient();
     this.mode = options.mode;
     this.onSubmit = options.onSubmit;
     this.onCancel = options.onCancel;
+    this.overlayMode = options.overlayMode || 'fixed';
     
     // Determine initial page ID
     if (options.initialPageId) {
@@ -120,6 +123,7 @@ export class Browser {
           header: this.getBrowserTitle(),
           content: contentParts,
           contentHeaders: contentParts.map(() => ''),
+          mode: this.overlayMode,
           closable: true,
           showSubmit: true,
           submitLabel: this.getSubmitLabel(),

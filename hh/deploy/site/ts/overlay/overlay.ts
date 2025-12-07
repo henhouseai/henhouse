@@ -35,9 +35,12 @@ export class Overlay {
   private previousFocus: HTMLElement | null = null;
   private isClosing: boolean = false;
   private debugOptions: OverlayDebugOptions | null = null;
+  // Pannable support
+  private pannablePanY: number = 0;
+  private pannableCleanup: Array<() => void> = [];
 
   constructor(options: OverlayOptions, zIndex: number) {
-    this.props = { ...options };
+    this.props = { mode: 'fixed', ...options };
     this.state = {
       isVisible: false,
       isLoading: false,
@@ -62,6 +65,7 @@ export class Overlay {
       height: 'auto',
       position: 'center',
       className: this.props.className,
+      mode: this.props.mode,
       style: this.props.style
     });
 
@@ -155,6 +159,10 @@ export class Overlay {
     if (this.props.onMount) {
       this.props.onMount();
     }
+
+    if (this.props.mode === 'pannable') {
+      this.initializePannable();
+    }
   }
 
   /**
@@ -186,6 +194,9 @@ export class Overlay {
     // Remove from DOM
     this.container.remove();
     this.container = null;
+
+    // Cleanup pannable listeners
+    this.cleanupPannable();
 
     // Restore previous focus
     if (this.previousFocus && document.body.contains(this.previousFocus)) {
@@ -493,6 +504,148 @@ export class Overlay {
   }
 
   /**
+   * Initialize pannable behavior for overlays that should pan vertically instead of scrolling.
+   * Wheel always pans; pinch adjusts width between 90–100% of viewport; no vertical zoom.
+   */
+  private initializePannable(): void {
+    if (!this.windowEl) return;
+
+    const marginFrac = 0.05; // 5% margin top/bottom
+
+    const measureAndClamp = () => {
+      if (!this.windowEl) return;
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      const h = this.windowEl.offsetHeight;
+      const margin = marginFrac * vh;
+      const minTop = Math.min(margin, vh - h - margin);
+      const maxTop = margin;
+
+      if (h + 2 * margin <= vh) {
+        this.pannablePanY = (vh - h) / 2;
+      } else {
+        this.pannablePanY = Math.max(minTop, Math.min(maxTop, this.pannablePanY || margin));
+      }
+
+      this.windowEl.style.top = `${this.pannablePanY}px`;
+      this.windowEl.style.left = '50%';
+      this.windowEl.style.transform = 'translateX(-50%)';
+    };
+
+    const clampAndSet = (deltaY: number) => {
+      if (!this.windowEl) return;
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      const h = this.windowEl.offsetHeight;
+      const margin = marginFrac * vh;
+      const minTop = Math.min(margin, vh - h - margin);
+      const maxTop = margin;
+
+      this.pannablePanY = (this.pannablePanY || margin) - deltaY;
+
+      if (h + 2 * margin <= vh) {
+        this.pannablePanY = (vh - h) / 2;
+      } else {
+        this.pannablePanY = Math.max(minTop, Math.min(maxTop, this.pannablePanY));
+      }
+
+      this.windowEl.style.top = `${this.pannablePanY}px`;
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      clampAndSet(e.deltaY);
+    };
+
+    const pinchState = { startDist: 0, startWidth: 0 };
+    const touchState = { active: false, lastY: 0 };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        pinchState.startDist = this.getTouchDistance(e.touches);
+        pinchState.startWidth = this.windowEl?.offsetWidth || 0;
+      } else if (e.touches.length === 1) {
+        touchState.active = true;
+        touchState.lastY = e.touches[0].clientY;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchState.startDist > 0) {
+        e.preventDefault();
+        const dist = this.getTouchDistance(e.touches);
+        if (dist > 0 && this.windowEl) {
+          const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+          const minW = 0.9 * vw;
+          const maxW = 1.0 * vw;
+          const scale = dist / pinchState.startDist;
+          const newW = Math.max(minW, Math.min(maxW, pinchState.startWidth * scale));
+          this.windowEl.style.width = `${newW}px`;
+          requestAnimationFrame(measureAndClamp);
+        }
+      } else if (touchState.active && e.touches.length === 1) {
+        e.preventDefault();
+        const currentY = e.touches[0].clientY;
+        const dy = touchState.lastY - currentY;
+        touchState.lastY = currentY;
+        clampAndSet(dy);
+      }
+    };
+
+    const onTouchEnd = () => {
+      touchState.active = false;
+      pinchState.startDist = 0;
+    };
+
+    const onResize = () => measureAndClamp();
+
+    const attach = (target: EventTarget | null, event: string, handler: EventListenerOrEventListenerObject, opts?: AddEventListenerOptions) => {
+      if (!target) return;
+      target.addEventListener(event, handler, opts);
+      this.pannableCleanup.push(() => target.removeEventListener(event, handler, opts as any));
+    };
+
+    attach(this.windowEl, 'wheel', onWheel as EventListener, { passive: false });
+    attach(window, 'wheel', onWheel as EventListener, { passive: false });
+
+    attach(this.windowEl, 'touchstart', onTouchStart as EventListener, { passive: false });
+    attach(this.windowEl, 'touchmove', onTouchMove as EventListener, { passive: false });
+    attach(this.windowEl, 'touchend', onTouchEnd as EventListener, { passive: false });
+    attach(window, 'touchstart', onTouchStart as EventListener, { passive: false });
+    attach(window, 'touchmove', onTouchMove as EventListener, { passive: false });
+    attach(window, 'touchend', onTouchEnd as EventListener, { passive: false });
+
+    const backdropEl = (this.container?.querySelector('.overlay-backdrop') as Element | null) ?? null;
+    attach(backdropEl, 'wheel', onWheel as EventListener, { passive: false });
+    attach(backdropEl, 'touchstart', onTouchStart as EventListener, { passive: false });
+    attach(backdropEl, 'touchmove', onTouchMove as EventListener, { passive: false });
+    attach(backdropEl, 'touchend', onTouchEnd as EventListener, { passive: false });
+
+    attach(window, 'resize', onResize as EventListener);
+
+    measureAndClamp();
+  }
+
+  private cleanupPannable(): void {
+    while (this.pannableCleanup.length) {
+      const fn = this.pannableCleanup.pop();
+      if (fn) {
+        try {
+          fn();
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  private getTouchDistance(touches: TouchList): number {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  /**
    * Show debug table in a separate overlay window (stacked on top).
    */
   showDebugTable(debugData: DebugData, requestInfo?: { method: string; params: any }): void {
@@ -527,6 +680,7 @@ export class Overlay {
       header: 'Debug Information',
       content: [contentHtml],
       contentHeaders: [''],
+      mode: 'fixed',
       closable: true,
       cancelLabel: 'Close',
       showSubmit: false,

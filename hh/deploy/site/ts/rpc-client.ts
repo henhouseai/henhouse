@@ -295,6 +295,7 @@ export class RPCClient {
       header: `Error: ${label}`,
       content: errorContent,
       contentHeaders: errorContent.map(() => ''), // Empty headers for each error div
+      mode: 'fixed',
       closable: true,
       cancelLabel: 'Close',
       showSubmit: false // No submit button, just close

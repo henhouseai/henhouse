@@ -20,6 +20,7 @@ export class PageActionsImages {
       const browser = new Browser({
         mode: 'image',
         initialPageId: pageId,
+        overlayMode: 'pannable',
         onSubmit: async (result: any) => {
           if (typeof result === 'object' && 'imageIds' in result) {
             const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };
@@ -138,6 +139,7 @@ export class PageActionsImages {
       const browser = new Browser({
         mode: 'image',
         initialPageId: pageId,
+        overlayMode: 'pannable',
         onSubmit: async (result: any) => {
           if (typeof result === 'object' && 'imageInstances' in result) {
             const imageResult = result as { imageIds: number[]; imageInstances: Array<{ image_id: number; source_page_id: number; source_rank: number }> };

@@ -94,6 +94,7 @@ export class SourceCodeFilePageData extends PageData {
                 header: 'Edit Source Code File',
                 content: [editableFieldsHtml, readOnlyFieldsHtml],
                 contentHeaders: ['Editable Fields', 'Read-Only Fields (for display only)'],
+                mode: 'fixed',
                 closable: true,
                 submitLabel: 'Submit',
                 cancelLabel: 'Cancel',

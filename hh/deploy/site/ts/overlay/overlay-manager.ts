@@ -10,6 +10,7 @@ export interface OverlayOptions {
   content?: Array<string | HTMLElement>; // Array-based content structure (required)
   contentHeaders?: Array<string>; // Optional headers for each content section
   footer?: string | HTMLElement;
+  mode?: 'fixed' | 'pannable' | 'zoomable';
   closable?: boolean;
   showSubmit?: boolean;
   submitLabel?: string;

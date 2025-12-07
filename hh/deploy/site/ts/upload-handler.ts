@@ -118,6 +118,7 @@ export class UploadHandler {
       header: 'Upload Images',
       content: [placeholderWrapper],
       contentHeaders: [''],
+      mode: 'fixed',
       closable: true, // Allow closing by clicking backdrop
       submitLabel: 'Upload',
       cancelLabel: 'Cancel',

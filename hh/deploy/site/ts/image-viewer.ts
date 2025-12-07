@@ -125,14 +125,14 @@ export class ImageViewer {
       closable: true,
       showSubmit: false,
       cancelLabel: 'Close',
-      className: 'image-viewer-overlay',
+      mode: 'zoomable',
       onCancel: () => this.cleanup(),
       onUnmount: () => this.cleanupHandlers()
     });
 
     // Get references to overlay elements for pan/zoom
-    this.windowEl = document.querySelector('.image-viewer-overlay');
-    this.headerEl = this.windowEl?.querySelector('.contentWrapperHeader') || null;
+    this.windowEl = this.overlay?.getWindowElement ? this.overlay.getWindowElement() : null;
+    this.headerEl = this.overlay?.getHeaderElement ? this.overlay.getHeaderElement() : this.windowEl?.querySelector('.contentWrapperHeader') || null;
     this.contentEl = this.windowEl?.querySelector('.contentWrapper') || null;
     this.footerEl = this.footerEl || this.windowEl?.querySelector('.overlay-footer') || null;
 
