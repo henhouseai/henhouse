@@ -172,6 +172,9 @@ export class ImageViewer {
     img.style.width = '100%';
     img.style.height = '100%';
     img.style.objectFit = 'contain';
+    // Set intrinsic dimensions so layout knows the true size immediately
+    img.width = instance.width;
+    img.height = instance.height;
     const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
     img.src = src;
     img.alt = image.caption || '';
