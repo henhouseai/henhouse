@@ -222,12 +222,6 @@ export class ImageViewer {
     applyTransforms(scale) {
         if (!this.container)
             return;
-        // Re-measure extras to account for dynamic padding/captions
-        this.measureExtras();
-        // Update base overlay (scale=1) with current extras
-        this.baseOverlayWidth = this.baseInnerWidth + this.totalExtraX;
-        this.baseOverlayHeight = this.baseInnerHeight + this.totalExtraY;
-        this.recomputeInflections();
         const innerW = this.baseInnerWidth * scale;
         const innerH = this.baseInnerHeight * scale;
         const overlayW = innerW + this.totalExtraX;
@@ -260,7 +254,9 @@ export class ImageViewer {
     }
     applyScale(newScale, oldScale) {
         const first = Math.min(this.scaleForWidthMatch, this.scaleForHeightMatch);
-        const maxScale = 3;
+        // Cap so displayed pixels do not exceed 4x intrinsic
+        const pixelPerDisplay = this.baseInnerWidth > 0 ? this.baseInnerWidth / this.intrinsicWidth : 1;
+        const maxScale = Math.max(1, 4 / pixelPerDisplay);
         if (!this.detentActive && oldScale < first && newScale >= first) {
             newScale = first;
             this.detentActive = true;
@@ -401,7 +397,7 @@ export class ImageViewer {
                 const dist = Math.hypot(dx, dy);
                 const isHorizontal = Math.abs(dx) > Math.abs(dy);
                 const velocity = dt > 0 ? dist / dt : 0;
-                if (isHorizontal && (dist >= 60 || velocity >= 0.2)) {
+                if (isHorizontal && (dist >= 40 || velocity >= 0.15)) {
                     if (dx > 0)
                         this.navigate(1);
                     else
@@ -431,6 +427,22 @@ export class ImageViewer {
                 this.pinchStartDist = null;
             }, { passive: false });
         }
+        // Global pinch for two-finger anywhere
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                startPinch(e);
+            }
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                onPinchMove(e.touches);
+            }
+        }, { passive: false });
+        window.addEventListener('touchend', () => {
+            this.pinchStartDist = null;
+        }, { passive: false });
         this.resizeHandler = () => {
             if (this.intrinsicWidth && this.intrinsicHeight) {
                 this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
