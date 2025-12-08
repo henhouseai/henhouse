@@ -506,24 +506,6 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='update'
 )
 @register_mcp_tool(
-    tool_name='set_file_visibility',
-    description='Set the visibility of a file. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'file_id': {'type': 'integer', 'description': 'The ID of the file to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for file_id (use either file_id or id)'},
-            'visibility': {'type': 'integer', 'description': 'The new visibility value for the file'}
-        },
-        'required': ['file_id', 'visibility']
-    },
-    tiers=[3, 4, 7, 8],
-    requires_approval=False,
-    crud_type='update',
-    app_action_group='files',
-    app_action_label='Visibility'
-)
-@register_mcp_tool(
     tool_name='copy_files_app',
     description='Copy files to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},

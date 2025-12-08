@@ -4,7 +4,7 @@
 import { OverlayManager } from './overlay/overlay-manager.js';
 import { handleRPCResponseWithDebug } from './debug-helper.js';
 export class UploadHandler {
-    constructor(rpc, seedData) {
+    constructor(rpc, seedData, mode = 'image') {
         this.uploadStatuses = [];
         this.chooseFilesBtn = null;
         this.uploadBtn = null;
@@ -13,10 +13,17 @@ export class UploadHandler {
         this.overlayWindow = null;
         this.rpc = rpc;
         this.seedData = seedData;
+        this.mode = mode;
+        this.uploadAction = mode === 'file' ? 'upload_files' : 'upload_images';
+        this.acceptFilter = mode === 'file' ? '*' : 'image/*';
+        this.headerTitle = mode === 'file' ? 'Upload Files' : 'Upload Images';
+        this.placeholderText = mode === 'file'
+            ? 'No files selected. Click "Choose Files" to add files.'
+            : 'No files selected. Click "Choose Files" to add images.';
         this.fileInput = document.createElement('input');
         this.fileInput.type = 'file';
         this.fileInput.multiple = true;
-        this.fileInput.accept = 'image/*';
+        this.fileInput.accept = this.acceptFilter;
         this.fileInput.style.display = 'none';
     }
     /**
@@ -31,7 +38,7 @@ export class UploadHandler {
             .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
     }
     /**
-     * Handle Upload: Upload images to current page
+     * Handle Upload: Upload images/files to current page
      */
     async handle() {
         const overlayManager = OverlayManager.getInstance();
@@ -42,7 +49,7 @@ export class UploadHandler {
             return;
         }
         // Create placeholder content (just the inner wrapper, overlay system will wrap it)
-        const placeholderText = document.createTextNode('No files selected. Click "Choose Files" to add images.');
+        const placeholderText = document.createTextNode(this.placeholderText);
         const placeholderWrapper = document.createElement('div');
         placeholderWrapper.className = 'upload-placeholder';
         placeholderWrapper.appendChild(placeholderText);
@@ -84,7 +91,7 @@ export class UploadHandler {
         });
         // Show overlay with custom header buttons
         this.overlay = overlayManager.show({
-            header: 'Upload Images',
+            header: this.headerTitle,
             content: [placeholderWrapper],
             contentHeaders: [''],
             mode: 'fixed',
@@ -172,7 +179,7 @@ export class UploadHandler {
                                         params['debug-limit'] = status.debugOptions.debugLimit;
                                     }
                                 }
-                                const rpcResult = await this.rpc.call('upload_images', params);
+                                const rpcResult = await this.rpc.call(this.uploadAction, params);
                                 // Track if debug data was present (prevents auto-fade)
                                 if (rpcResult.debug && Array.isArray(rpcResult.debug.entries) && rpcResult.debug.entries.length > 0) {
                                     hasDebugData = true;
@@ -208,7 +215,7 @@ export class UploadHandler {
                 // Return success - disable auto-fade if debug data was present
                 // Use standardized redirect pattern ('self' for refresh)
                 return {
-                    _showMessage: `Successfully uploaded ${this.uploadStatuses.length} image(s)`,
+                    _showMessage: `Successfully uploaded ${this.uploadStatuses.length} ${this.mode === 'file' ? 'file(s)' : 'image(s)'}`,
                     _autoFade: !hasDebugData, // Disable auto-fade if debug data was present
                     _redirectAfterFade: hasDebugData ? null : 'self' // Only redirect if no debug data (standardized pattern)
                 };

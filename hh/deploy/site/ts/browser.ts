@@ -21,10 +21,19 @@ export interface ImageSelectionResult {
   }>;
 }
 
+export interface FileSelectionResult {
+  fileIds: number[];
+  fileInstances: Array<{
+    file_id: number;
+    source_page_id: number;
+    source_rank: number;
+  }>;
+}
+
 export interface BrowserOptions {
   mode: BrowserMode;
   initialPageId?: number;
-  onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void> | Promise<any> | any;
+  onSubmit: (result: number | number[] | ImageSelectionResult | FileSelectionResult) => void | Promise<void> | Promise<any> | any;
   onCancel?: () => void;
   overlayMode?: 'fixed' | 'pannable' | 'zoomable';
 }
@@ -42,9 +51,9 @@ export class Browser {
   private overlay: Overlay | null = null;
   private currentPageId: number;
   private selectedImages: SelectedImage[] = []; // Store image data with cloned HTML
-  private selectedFileIds: number[] = [];
+  private selectedFiles: Array<{ fileId: number; sourcePageId: number; sourceRank: number }> = [];
   private mode: BrowserMode;
-  private onSubmit: (result: number | number[] | ImageSelectionResult) => void | Promise<void> | Promise<any> | any;
+  private onSubmit: (result: number | number[] | ImageSelectionResult | FileSelectionResult) => void | Promise<void> | Promise<any> | any;
   private onCancel?: () => void;
   private viewToggle: any = null; // ViewToggle instance for this browser
   private overlayMode: 'fixed' | 'pannable' | 'zoomable';
@@ -97,7 +106,7 @@ export class Browser {
       }
       
       // Add file buffer if in file mode
-      if (this.mode === 'file' && this.selectedFileIds.length > 0) {
+      if (this.mode === 'file' && this.selectedFiles.length > 0) {
         contentParts.push(this.renderFileBuffer());
       }
 
@@ -301,18 +310,31 @@ export class Browser {
         }
       },
 
-      // File links: prevent default navigation (for now)
+      // File links: handle file selection (only in file mode)
       onFileLink: (fileId: number, link: HTMLAnchorElement) => {
         if (this.mode === 'file') {
-          // For now, we'll handle file selection later
-          // Just prevent default navigation (already handled by helper)
+          const row = link.closest('tr');
+          let sourceRank = 0;
+          if (row) {
+            const rankCell = row.querySelector('td');
+            if (rankCell) {
+              const parsedRank = parseInt((rankCell.textContent || '').trim(), 10);
+              if (!Number.isNaN(parsedRank)) {
+                sourceRank = parsedRank;
+              }
+            }
+          }
+          this.handleFileClick(fileId, this.currentPageId, sourceRank);
         }
       },
 
       // Custom matcher for buffer tile clicks (ID-based, not href-based)
       customMatcher: (href: string, link: HTMLAnchorElement) => {
-        // Buffer tiles have IDs starting with "selected_image_" and no href
-        if (link.id && link.id.startsWith('selected_image_') && this.mode === 'image') {
+        // Buffer tiles have IDs starting with "selected_image_" or "selected_file_" and no href
+        if (link.id && this.mode === 'image' && link.id.startsWith('selected_image_')) {
+          return true;
+        }
+        if (link.id && this.mode === 'file' && link.id.startsWith('selected_file_')) {
           return true;
         }
         return false;
@@ -323,6 +345,10 @@ export class Browser {
         if (link.id && link.id.startsWith('selected_image_')) {
           const bufferIndex = parseInt(link.id.replace('selected_image_', ''), 10);
           this.handleBufferImageClick(bufferIndex);
+        }
+        if (link.id && link.id.startsWith('selected_file_')) {
+          const bufferIndex = parseInt(link.id.replace('selected_file_', ''), 10);
+          this.handleBufferFileClick(bufferIndex);
         }
       },
 
@@ -398,7 +424,7 @@ export class Browser {
    * Handle submit - call callback with result.
    */
   private async handleSubmit(): Promise<any> {
-    let result: number | number[] | ImageSelectionResult;
+    let result: number | number[] | ImageSelectionResult | FileSelectionResult;
     let message: string;
     
     if (this.mode === 'page') {
@@ -420,11 +446,19 @@ export class Browser {
       result = imageResult;
       message = `${this.selectedImages.length} image${this.selectedImages.length !== 1 ? 's' : ''} selected: ${imageResult.imageIds.join(', ')}`;
     } else {
-      if (this.selectedFileIds.length === 0) {
+      if (this.selectedFiles.length === 0) {
         throw new Error('Please select at least one file');
       }
-      result = [...this.selectedFileIds];
-      message = `${result.length} file${result.length !== 1 ? 's' : ''} selected: ${result.join(', ')}`;
+      const fileIds = this.selectedFiles.map(f => f.fileId);
+      result = {
+        fileIds,
+        fileInstances: this.selectedFiles.map(f => ({
+          file_id: f.fileId,
+          source_page_id: f.sourcePageId,
+          source_rank: f.sourceRank
+        }))
+      };
+      message = `${fileIds.length} file${fileIds.length !== 1 ? 's' : ''} selected: ${fileIds.join(', ')}`;
     }
 
     try {
@@ -517,12 +551,39 @@ ${tableRowsHtml}
    * Render file buffer (tiles + table).
    */
   private renderFileBuffer(): string {
-    if (this.selectedFileIds.length === 0) {
+    if (this.selectedFiles.length === 0) {
       return '';
     }
 
-    // TODO: Implement file buffer rendering
-    return '';
+    const tableRowsHtml = this.selectedFiles.map((file, idx) => {
+      return `      <tr>
+        <td>${idx + 1}</td>
+        <td><a id="selected_file_${idx}" class="bufferTableLink">${file.fileId}</a></td>
+        <td>${file.sourcePageId}</td>
+        <td>${file.sourceRank || ''}</td>
+      </tr>`;
+    }).join('\n');
+
+    return `<div id="browserFileBuffer" class="content browserFileBuffer overlay">
+  <div id="browserFileBufferHeader" class="contentHeader overlay">
+    <h3>Selected Files (${this.selectedFiles.length})</h3>
+  </div>
+  <div id="browserFileBufferTable" class="content overlay">
+    <table class="dataTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>ID</th>
+          <th>Source Page</th>
+          <th>Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+${tableRowsHtml}
+      </tbody>
+    </table>
+  </div>
+</div>`;
   }
 
   /**
@@ -552,9 +613,32 @@ ${tableRowsHtml}
       const count = this.selectedImages.length;
       return count > 0 ? `Submit ${count} Image${count !== 1 ? 's' : ''}` : 'Submit';
     } else {
-      const count = this.selectedFileIds.length;
+      const count = this.selectedFiles.length;
       return count > 0 ? `Submit ${count} File${count !== 1 ? 's' : ''}` : 'Submit';
     }
+  }
+
+  /**
+   * Handle file click (adds to buffer, allows duplicates).
+   */
+  private handleFileClick(fileId: number, sourcePageId: number, sourceRank: number): void {
+    if (this.mode !== 'file') return;
+    this.selectedFiles.push({
+      fileId,
+      sourcePageId,
+      sourceRank
+    });
+    this.loadAndRender();
+  }
+
+  /**
+   * Handle buffer file click (remove from buffer).
+   */
+  private handleBufferFileClick(bufferIndex: number): void {
+    if (this.mode !== 'file') return;
+    if (bufferIndex < 0 || bufferIndex >= this.selectedFiles.length) return;
+    this.selectedFiles.splice(bufferIndex, 1);
+    this.loadAndRender();
   }
 }
 
