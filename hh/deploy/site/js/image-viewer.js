@@ -100,10 +100,14 @@ export class ImageViewer {
         // Create the image element
         const imageContainer = this.createImageElement(image, instance);
         // Create footer element for caption (same styling as header)
-        const footerEl = document.createElement('div');
-        // Keep footer styling aligned with header; no extra class needed for sizing
-        footerEl.className = 'contentWrapperHeader overlay';
+        const footerEl = document.createElement('a');
+        footerEl.className = 'contentWrapperHeader overlay image-caption-link';
         footerEl.textContent = image.caption || '';
+        footerEl.href = `/img/${image.id}`;
+        footerEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = footerEl.href;
+        });
         this.footerEl = footerEl;
         // Show overlay using OverlayManager
         const overlayManager = OverlayManager.getInstance();
@@ -175,9 +179,12 @@ export class ImageViewer {
             const src = instance.src.startsWith('/srv/images/') ? instance.src : `/srv/images/${instance.src}`;
             img.src = src;
             img.alt = image.caption || '';
+            img.width = instance.width;
+            img.height = instance.height;
         }
         if (this.footerEl) {
             this.footerEl.textContent = image.caption || '';
+            this.footerEl.href = `/img/${image.id}`;
         }
         this.currentScale = 1;
         this.panX = 0;
@@ -450,7 +457,6 @@ export class ImageViewer {
         });
         // Block scroll/zoom on backdrop
         const backdrop = document.querySelector('.overlay-backdrop');
-        const preventTouch = (e) => { e.preventDefault(); };
         if (backdrop) {
             const onBackdropWheel = this.handleWheel;
             const onBackdropTouchStart = (e) => {
@@ -470,19 +476,16 @@ export class ImageViewer {
             const onBackdropTouchEnd = () => {
                 this.pinchStartDist = null;
             };
+            // Allow tap/click to close by not preventing touchstart for single-touch
             backdrop.addEventListener('wheel', onBackdropWheel, { passive: false });
             backdrop.addEventListener('touchstart', onBackdropTouchStart, { passive: false });
             backdrop.addEventListener('touchmove', onBackdropTouchMove, { passive: false });
             backdrop.addEventListener('touchend', onBackdropTouchEnd, { passive: false });
-            backdrop.addEventListener('touchstart', preventTouch, { passive: false });
-            backdrop.addEventListener('touchmove', preventTouch, { passive: false });
             this.cleanupFns.push(() => {
                 backdrop.removeEventListener('wheel', onBackdropWheel);
                 backdrop.removeEventListener('touchstart', onBackdropTouchStart);
                 backdrop.removeEventListener('touchmove', onBackdropTouchMove);
                 backdrop.removeEventListener('touchend', onBackdropTouchEnd);
-                backdrop.removeEventListener('touchstart', preventTouch);
-                backdrop.removeEventListener('touchmove', preventTouch);
             });
         }
         // Global pinch for two-finger anywhere
