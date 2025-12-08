@@ -387,10 +387,10 @@ export class ImageViewer {
     if (!this.windowEl) return;
     
     // Wheel zoom on window
-    this.windowEl.addEventListener('wheel', this.handleWheel, { passive: false });
-    this.cleanupFns.push(() => this.windowEl?.removeEventListener('wheel', this.handleWheel));
-    window.addEventListener('wheel', this.handleWheel, { passive: false });
-    this.cleanupFns.push(() => window.removeEventListener('wheel', this.handleWheel));
+    this.windowEl.addEventListener('wheel', this.handleWheel as EventListener, { passive: false });
+    this.cleanupFns.push(() => this.windowEl?.removeEventListener('wheel', this.handleWheel as EventListener));
+    window.addEventListener('wheel', this.handleWheel as EventListener, { passive: false });
+    this.cleanupFns.push(() => window.removeEventListener('wheel', this.handleWheel as EventListener));
 
     // Mouse drag for pan
     let dragging = false;
@@ -515,8 +515,9 @@ export class ImageViewer {
 
     // Block scroll/zoom on backdrop
     const backdrop = document.querySelector('.overlay-backdrop') as HTMLElement | null;
+    const preventTouch = (e: Event) => { e.preventDefault(); };
     if (backdrop) {
-      const onBackdropWheel = this.handleWheel;
+      const onBackdropWheel = this.handleWheel as EventListener;
       const onBackdropTouchStart = (e: Event) => {
         const te = e as TouchEvent;
         if (te.touches.length === 2) {
@@ -538,11 +539,15 @@ export class ImageViewer {
       backdrop.addEventListener('touchstart', onBackdropTouchStart, { passive: false });
       backdrop.addEventListener('touchmove', onBackdropTouchMove, { passive: false });
       backdrop.addEventListener('touchend', onBackdropTouchEnd, { passive: false });
+      backdrop.addEventListener('touchstart', preventTouch, { passive: false });
+      backdrop.addEventListener('touchmove', preventTouch, { passive: false });
       this.cleanupFns.push(() => {
         backdrop.removeEventListener('wheel', onBackdropWheel);
         backdrop.removeEventListener('touchstart', onBackdropTouchStart);
         backdrop.removeEventListener('touchmove', onBackdropTouchMove);
         backdrop.removeEventListener('touchend', onBackdropTouchEnd);
+        backdrop.removeEventListener('touchstart', preventTouch);
+        backdrop.removeEventListener('touchmove', preventTouch);
       });
     }
 

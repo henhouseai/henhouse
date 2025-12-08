@@ -94,6 +94,7 @@
   top: 50%;
   transform: translate(-50%, -50%);
   max-width: none;
+  touch-action: none;
 }
 
 .overlay-window.pannable {
@@ -627,6 +628,10 @@
 /* Image viewer overlay - no scrollbars, we handle pan/zoom */
 .overlay-window.zoomable {
   overflow: hidden;
+}
+
+.overlay-backdrop {
+  touch-action: none;
 }
 
 /* Zoomable chrome tweaks: remove padding/margins/backgrounds behind the image */

@@ -450,6 +450,7 @@ export class ImageViewer {
         });
         // Block scroll/zoom on backdrop
         const backdrop = document.querySelector('.overlay-backdrop');
+        const preventTouch = (e) => { e.preventDefault(); };
         if (backdrop) {
             const onBackdropWheel = this.handleWheel;
             const onBackdropTouchStart = (e) => {
@@ -473,11 +474,15 @@ export class ImageViewer {
             backdrop.addEventListener('touchstart', onBackdropTouchStart, { passive: false });
             backdrop.addEventListener('touchmove', onBackdropTouchMove, { passive: false });
             backdrop.addEventListener('touchend', onBackdropTouchEnd, { passive: false });
+            backdrop.addEventListener('touchstart', preventTouch, { passive: false });
+            backdrop.addEventListener('touchmove', preventTouch, { passive: false });
             this.cleanupFns.push(() => {
                 backdrop.removeEventListener('wheel', onBackdropWheel);
                 backdrop.removeEventListener('touchstart', onBackdropTouchStart);
                 backdrop.removeEventListener('touchmove', onBackdropTouchMove);
                 backdrop.removeEventListener('touchend', onBackdropTouchEnd);
+                backdrop.removeEventListener('touchstart', preventTouch);
+                backdrop.removeEventListener('touchmove', preventTouch);
             });
         }
         // Global pinch for two-finger anywhere
