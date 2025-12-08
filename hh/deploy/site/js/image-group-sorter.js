@@ -106,7 +106,7 @@ export class ImageGroupSorter {
             header: `Sort Images - Page ${this.pageId}`,
             content: content,
             contentHeaders: [''],
-            mode: 'fixed',
+            mode: 'pannable',
             closable: true,
             showSubmit: true,
             submitLabel: 'Sort',

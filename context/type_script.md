@@ -31,6 +31,7 @@ This document covers the TypeScript/ES modules system that provides client-side 
 
 ### Overlay System Usage
 - Always use `OverlayManager.getInstance().show()` - never instantiate directly (see `overlay-manager.ts`)
+- Set the overlay `mode`: `fixed` (default, 90% clamp + inner scroll), `pannable` (full-height flow, wheel/touch pans the window), `zoomable` (width-driven, height auto, pan/zoom gestures). Modes add classes `overlay-window-{mode}` and `{mode}`.
 - Content should use array-based structure with headers for multiple sections (see `overlay-content.ts` - `render()` method)
 - Debug options automatically available when submit button is shown (see `overlay.ts` - `mount()` method)
 - Errors automatically stack as separate content sections (see `overlay.ts` - `handleSubmit()` method)
@@ -96,6 +97,11 @@ Core files in `hh/deploy/site/ts/`:
 - `upload-handler.ts` - Image upload handler
 - `seed.ts` - Seed data reader
 - Action handlers: `page-actions-fields.ts`, `page-actions-pages.ts`, `page-actions-images.ts`
+- `image-viewer.ts` - Zoomable image viewer (uses `mode: 'zoomable'`, width-only sizing, intrinsic dimensions set on images, caption links to `/img/{id}`)
+
+**Potential refactors / future work**
+- Extract a reusable sortable helper (for image/file group sorters) instead of duplicating logic in `image-group-sorter.ts` and the planned file-group sorter; overlay remains mode-based, helper would wire Sortable setup + rank commit loop.
+- Consider optional overlay flags/hooks for sortable flows rather than hard-coding per overlay; today it’s handled in the sorter modules.
 
 ---
 
@@ -130,6 +136,21 @@ Base overlay component that handles lifecycle, rendering, and state management.
 - `contentHeaders: Array<string>` - Optional headers for each content section (empty string = no header)
 
 See `overlay.ts` - `OverlayOptions` interface for complete options structure.
+
+**Modes**:
+- `mode: 'fixed' | 'pannable' | 'zoomable'`
+  - **fixed** (default): 90% max width/height, inner scroll if needed.
+  - **pannable**: height flows; wheel/touch pans the whole overlay vertically; pinch on mobile fits width to 90–100% (no vertical zoom); uses classes `overlay-window-pannable`/`pannable`.
+  - **zoomable**: width-driven sizing (height auto), no max-height; pan/zoom gestures with state-based axis locking; uses classes `overlay-window-zoomable`/`zoomable`.
+  - Mode classes are added to the window element for CSS targeting.
+
+**Zoomable specifics (image viewer)**:
+- Width-only sizing: sets window width, lets height flow; single fit pass on init to hit viewport height within ~1px tolerance; no height/max-height set.
+- Axis locking from overflow: no pan if no overflow; single-axis pan when only one axis overflows; both axes when both overflow.
+- Gestures: wheel zoom; pinch zoom with max-scale clamp and baseline reset to avoid rubber-band; drag-to-pan; swipe navigation when scale=1.
+- Touch handling: `touch-action: none` on window/backdrop; preventDefault on pinch paths; backdrop tap closes overlay on mobile.
+- Intrinsic image dimensions set on `<img>` to avoid first-load mis-measurements; caption is a link to `/img/{id}`.
+- See `hh/deploy/site/ts/image-viewer.ts` for implementation.
 
 **State Management**: See `overlay.ts` - `OverlayState` interface:
 - `isVisible`: Overlay visibility state

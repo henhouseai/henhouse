@@ -13,7 +13,7 @@ This document covers the implementation of the image viewer overlay system, a fu
 
 ## Agent Quick Reference
 
-- **Core Concept**: Image viewer integrates with overlay system using `imageViewerMode` flag
+- **Core Concept**: Image viewer integrates with overlay system using `mode: 'zoomable'`
 - **MCP Tool**: `get_image_group` - returns JSON data for all images in a page's image group
 - **TypeScript Class**: `ImageViewer` in `hh/deploy/site/ts/image-viewer.ts`
 - **Overlay Integration**: Uses `OverlayManager.getInstance().show()` with special options
@@ -24,7 +24,7 @@ This document covers the implementation of the image viewer overlay system, a fu
 
 ### Current State
 - Image viewer is integrated with the overlay system
-- Uses `imageViewerMode` flag to trigger special overlay behavior
+- Uses overlay `mode: 'zoomable'` to trigger special behavior
 - Native event handling for pan/zoom/touch (no external library)
 - Header shows "Image Viewer" title with Cancel button (from overlay system)
 - Footer shows caption with same styling as header
@@ -47,7 +47,7 @@ The image viewer provides a full-screen viewing experience for images in a page'
 1. **Image Link Click**: User clicks an image link in the page's image group
 2. **Viewer Creation**: `ImageViewer.openFromImageLink(pageId, imageId)` called
 3. **Data Loading**: Viewer calls `get_image_group` MCP tool to fetch all images and instances
-4. **Overlay Creation**: Viewer uses `OverlayManager.getInstance().show()` with `imageViewerMode: true`
+4. **Overlay Creation**: Viewer uses `OverlayManager.getInstance().show()` with `mode: 'zoomable'`
 5. **Interaction Setup**: Viewer sets up native event handlers for pan/zoom/touch
 6. **Navigation**: User can navigate between images using arrow keys or swipe gestures
 7. **Zoom/Pan**: User can zoom with mouse wheel or pinch gestures, pan by dragging
@@ -56,8 +56,9 @@ The image viewer provides a full-screen viewing experience for images in a page'
 
 - **`get_image_group` Action**: Backend action returning JSON data for all images
 - **`ImageViewer` Class**: TypeScript class managing viewer state, pan/zoom, and navigation
-- **Overlay System**: Modified to support `imageViewerMode` with raw content and footer
-- **CSS Styling**: `.image-viewer-overlay` class for overflow handling
+- **Overlay System**: Uses zoomable mode (raw content, footer)
+- **CSS Styling**: zoomable classes (`overlay-window-zoomable`, `zoomable`)
+- **Caption Link**: Caption is an anchor to `/img/{id}`
 
 ---
 
@@ -65,29 +66,29 @@ The image viewer provides a full-screen viewing experience for images in a page'
 
 ### Overlay System Integration
 
-The image viewer uses the standard overlay system with special options:
+The image viewer uses the standard overlay system with `mode: 'zoomable'`:
 
 ```typescript
 OverlayManager.getInstance().show({
   header: 'Image Viewer',
   content: [imageContainer],
-  imageViewerMode: true,        // Triggers special behavior
+  mode: 'zoomable',             // Zoomable behavior
   footerContent: captionElement, // Caption below image
   closable: true,
   showSubmit: false,            // No submit button
   cancelLabel: 'Close',
-  className: 'image-viewer-overlay',
   onCancel: () => this.cleanup(),
   onUnmount: () => this.cleanupHandlers()
 });
 ```
 
-### What `imageViewerMode` Does
+### What zoomable mode does
 
-When `imageViewerMode: true`:
+When `mode: 'zoomable'`:
 1. **No Debug Options**: Debug options section is not rendered
 2. **Raw Content**: Content goes directly into overlay without `div.content` wrapper
 3. **Footer Support**: `footerContent` is rendered after main content
+4. **Touch Handling**: `touch-action: none` on window/backdrop; explicit pinch handlers
 
 ### Zoom State System
 
@@ -113,9 +114,9 @@ The viewer implements three distinct zoom states:
 **Width-Only Control**: The viewer only sets width on the overlay window and lets height calculate naturally:
 
 1. Calculate target width based on image aspect ratio and viewport constraints
-2. Set only `width` and `maxWidth` on window element
+2. Set only `width`/`maxWidth` on window element (no height)
 3. Let header, image, and footer stack vertically with natural heights
-4. Read `offsetHeight` after rendering for inflection calculations
+4. Read `offsetHeight` after rendering for inflection calculations; images set intrinsic width/height to avoid first-load mis-measurements
 
 This avoids complex height calculations that must account for header, footer, padding, and borders.
 
