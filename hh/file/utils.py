@@ -50,7 +50,6 @@ def store_uploaded_file(temp_path: str, original_filename: str) -> Tuple[str, st
     project_name, _ = detect_project_context()
     base_path = Path(f"/srv/files/{project_name}")
     base_path.mkdir(parents=True, exist_ok=True)
-    os.chmod(base_path, 0o775)
 
     date_path = create_date_directory(base_path)
 
