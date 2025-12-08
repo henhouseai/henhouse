@@ -9,6 +9,7 @@ import { getSeedData } from './seed.js';
 import { PageActionsFields } from './page-actions-fields.js';
 import { PageActionsPages } from './page-actions-pages.js';
 import { PageActionsImages } from './page-actions-images.js';
+import { PageActionsFiles } from './page-actions-files.js';
 
 export interface PageInfo {
   id: number;
@@ -578,4 +579,5 @@ function applyMixin(target: any, source: any): void {
 applyMixin(PageData, PageActionsFields);
 applyMixin(PageData, PageActionsPages);
 applyMixin(PageData, PageActionsImages);
+applyMixin(PageData, PageActionsFiles);
 
