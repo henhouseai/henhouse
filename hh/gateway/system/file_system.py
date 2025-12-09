@@ -519,7 +519,7 @@ class FileSystem:
         """Get the system's temporary directory (cross-platform)."""
         return tempfile.gettempdir()
 
-    def chown(self, path: str, username: str, group: str = None, recursive: bool = False) -> bool:
+    def chown(self, path: str, username: str, group: Optional[str] = None, recursive: bool = False) -> bool:
         """Change file ownership to specified user and optionally group. Returns True if successful.
         
         Args:
@@ -535,6 +535,9 @@ class FileSystem:
             trace_out()
             return False
         try:
+            if not hasattr(os, "chown"):
+                trace_out()
+                return False
             user_info = pwd.getpwnam(username)
             uid = user_info.pw_uid
             
@@ -542,6 +545,9 @@ class FileSystem:
             if group:
                 import grp
                 try:
+                    if not hasattr(grp, "getgrnam"):
+                        trace_out()
+                        return False
                     group_info = grp.getgrnam(group)
                     gid = group_info.gr_gid
                 except KeyError:
@@ -608,7 +614,7 @@ class FileSystem:
             trace_out()
             return False
 
-    def chmod_tree(self, path: str, dir_mode: int = None, file_mode: int = None) -> bool:
+    def chmod_tree(self, path: str, dir_mode: Optional[int] = None, file_mode: Optional[int] = None) -> bool:
         """Change permissions recursively with different modes for directories and files.
         
         Args:

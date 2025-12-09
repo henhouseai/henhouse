@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import os
 import subprocess
+import importlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
 
 from hh.gateway.registry.debug import (
     get_debug,
@@ -41,12 +42,15 @@ _GRP_DEPENDENCY = "grp"
 
 
 @register_dependency(_PSUTIL_DEPENDENCY)
-def _import_psutil():
+def _import_psutil() -> Any:
     try:
-        import psutil
-        return psutil
+        return importlib.import_module("psutil")  # type: ignore[import-untyped]
     except ImportError:
         return None
+
+if TYPE_CHECKING:
+    import psutil as psutil_type
+psutil: Any = cast("psutil_type", _import_psutil())  # type: ignore[assignment]
 
 
 @register_dependency(_PWD_DEPENDENCY)
@@ -120,15 +124,13 @@ class ProcessManager:
             # On Windows, we don't use privilege escalation for maintenance
             trace_out()
             return False
-        try:
+        if hasattr(os, "geteuid"):
             result = os.geteuid() == 0
             log(f"Privilege check: {result}")
             trace_out()
             return result
-        except AttributeError:
-            # geteuid doesn't exist on Windows
-            trace_out()
-            return False
+        trace_out()
+        return False
 
     def require_privileged(self) -> bool:
         """Require elevated privileges. Reports appropriate error if not met.
@@ -159,7 +161,7 @@ class ProcessManager:
         Returns list of dicts with 'pid', 'name', 'cmdline' keys.
         """
         trace_in()
-        processes = []
+        processes: List[Dict[str, Any]] = []
 
         if not require("psutil"):
             trace_out()
@@ -442,10 +444,6 @@ class ProcessManager:
             warn(f"Error getting group info for gid {gid}: {e}")
             trace_out()
             return None
-        except Exception as e:
-            warn(f"Error checking group existence for {groupname}: {e}")
-            trace_out()
-            return False
 
     def user_exists(self, username: str) -> bool:
         """Check if a user exists. Returns False on Windows or if user doesn't exist."""

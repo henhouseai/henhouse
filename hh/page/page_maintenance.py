@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 import re
 
 from hh.gateway.registry.debug import (
@@ -9,6 +9,12 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -29,7 +35,7 @@ def _initialize_page_maintenance_debug():
 
 
 
-class PageMaintenanceMixin:
+class PageMaintenanceMixin(BasePage):
     def regex_text(
         self,
         *,

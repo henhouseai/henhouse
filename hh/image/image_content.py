@@ -1,7 +1,13 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 import datetime as dt
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+
+if TYPE_CHECKING:
+    from hh.image.image_base import BaseImage
+else:
+    class BaseImage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -18,7 +24,19 @@ def _initialize_image_content_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-class ImageContentMixin:
+class ImageContentMixin(BaseImage):
+    id: int
+    gateway: Any
+    caption: Optional[str]
+    visibility: Optional[int]
+    username: Optional[str]
+    comments: Optional[str]
+    last_modified: Optional[dt.datetime]
+    uploaded: Optional[dt.datetime]
+    view_count: Optional[int]
+    instances: Optional[List[Dict[str, Any]] | List[Any]]
+    cached_usage: Optional[List[Dict[str, Any]] | List[Any]]
+
     
     def modify_caption(self, caption: str) -> bool:
         trace_in()
@@ -197,7 +215,7 @@ class ImageContentMixin:
             # Ensure deleted directory exists (will be created when file operations execute)
             deleted_path.mkdir(parents=True, exist_ok=True)
             # Process each instance file
-            for instance in self.instances:
+            for instance in (self.instances or []):
                 src_path = instance.get('src', '')
                 if not src_path:
                     continue

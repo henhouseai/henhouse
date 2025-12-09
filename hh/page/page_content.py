@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 import datetime as dt
 import json
 from copy import deepcopy
@@ -7,6 +7,12 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
 from hh.page.page_registry import get_page
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -26,7 +32,22 @@ def _initialize_page_content_debug():
 
 
 
-class PageContentMixin:
+class PageContentMixin(BasePage):
+    id: int
+    gateway: Any
+    parent: Optional[int]
+    class_name: Optional[str]
+    name: Optional[str]
+    link: Optional[str]
+    text: Optional[str]
+    visibility: Optional[int]
+    last_modified: Optional[dt.datetime]
+    username: Optional[str]
+    comments: Optional[str]
+    metadata: Optional[Dict[str, Any]]
+    prepared_text: Optional[List[Dict[str, Any]]]
+    displayStyle: Optional[int]
+    viewCount: Optional[int]
 
     @staticmethod
     def _parse_metadata_value(metadata: Any) -> Dict[str, Any]:
@@ -108,7 +129,7 @@ class PageContentMixin:
             # For validation, pass empty string if name_value is None (validation expects string)
             validation_name = name_value if name_value is not None else ""
             log(f"Validating new name '{validation_name}' for page {self.id}")
-            parent_page = get_page(page_id=self.parent)
+            parent_page = get_page(page_id=self.parent) if self.parent else None
             if not parent_page:
                 warn(f"Parent page {self.parent} not found for validation")
                 report_error("action", f"Parent page {self.parent} not found")
@@ -284,7 +305,7 @@ class PageContentMixin:
         trace_out()
         return not is_error()
 
-    def add_page(self, page_class: str = 'page', name: Optional[str] = None) -> int:
+    def add_page(self, page_class: str = 'page', name: Optional[str] = None) -> Optional[int]:
         trace_in()
         # Get current database user
         user_results = self.gateway.conn.read("SELECT USER() as db_user")

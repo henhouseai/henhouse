@@ -21,7 +21,12 @@ def _initialize_debug():
     warn = get_warn(True)
 
 class JsonResponse(TypedDict, total=False):
+    id: str
+    name: str
     status: str
+    created_at: str
+    updated_at: str
+    message: Union[Dict, List, str]
     timestamp: str
     data: Union[Dict, List]
     error: str
@@ -45,7 +50,7 @@ def json_out(obj: Union[Dict, List]) -> None:
 def json_success(data: Union[Dict, List]) -> JsonResponse:
     """Create a success JSON response."""
     trace_in()
-    result = {"status": "ok", "timestamp": iso_now(), "data": data}
+    result: JsonResponse = {"status": "ok", "timestamp": iso_now(), "data": data}
     log(f"Success response created: data keys={list(data.keys()) if isinstance(data, dict) else 'not dict'}")
     trace_out()
     return result

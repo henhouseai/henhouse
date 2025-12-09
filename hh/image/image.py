@@ -36,6 +36,22 @@ class Image(
     ImageCacheMixin,
 ):
 
+    id: int
+    gateway: Any
+    caption: Optional[str]
+    username: Optional[str]
+    uploaded: Optional[dt.datetime]
+    visibility: Optional[int]
+    view_count: Optional[int]
+    last_modified: Optional[dt.datetime]
+    comments: Optional[str]
+    instances: List[Any]
+    cached_usage: Optional[List[Any]]
+    cache_built_at: Optional[Any]
+    cache_source_last_modified: Optional[Any]
+    cache_hydrated: bool
+    _cache_needs_refresh: bool
+
     def __init__(self, image_id: int):
         trace_in()
         self.gateway = get_gateway()

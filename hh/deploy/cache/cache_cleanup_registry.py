@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import importlib
 from pathlib import Path
-from typing import Dict, Callable, Optional, Any
+from typing import Dict, Callable, Optional, Any, List, cast
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.deploy.utils import detect_project_context
 
@@ -157,15 +157,17 @@ def clean_all_caches() -> Dict[str, Any]:
     trace_in()
     cleanups = discover_cache_cleanups()
     results = {}
-    aggregated = {
+    aggregated_counts: Dict[str, int] = {
         'pycache_dirs': 0,
         'pyc_files': 0,
         'cache_files': 0,
         'cache_dirs': 0,
+    }
+    aggregated_lists: Dict[str, List[Any]] = {
         'pycache_dirs_list': [],
         'pyc_files_list': [],
         'cache_files_list': [],
-        'cache_dirs_list': []
+        'cache_dirs_list': [],
     }
     
     for cache_name, cleanup_func in cleanups.items():
@@ -177,12 +179,13 @@ def clean_all_caches() -> Dict[str, Any]:
             # Aggregate any fields that exist in the result
             if isinstance(cleanup_result, dict):
                 for field in ['pycache_dirs', 'pyc_files', 'cache_files', 'cache_dirs']:
-                    if field in cleanup_result:
-                        aggregated[field] += cleanup_result[field]
-                
+                    if field in cleanup_result and isinstance(cleanup_result[field], int):
+                        aggregated_counts[field] += cleanup_result[field]
+
                 for field in ['pycache_dirs_list', 'pyc_files_list', 'cache_files_list', 'cache_dirs_list']:
-                    if field in cleanup_result:
-                        aggregated[field].extend(cleanup_result[field])
+                    list_val = cleanup_result.get(field)
+                    if isinstance(list_val, list):
+                        aggregated_lists[field].extend(list_val)
             
             log(f"Successfully cleaned cache: {cache_name}")
         except Exception as e:
@@ -190,7 +193,7 @@ def clean_all_caches() -> Dict[str, Any]:
             results[cache_name] = {'success': False, 'error': str(e)}
     
     # Add aggregated results
-    results['_aggregated'] = aggregated
+    results['_aggregated'] = {**aggregated_counts, **aggregated_lists}
     
     successful = sum(1 for v in results.values() if isinstance(v, dict) and v.get('success', True))
     total = len([k for k in results.keys() if k != '_aggregated'])

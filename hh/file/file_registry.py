@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+
+if TYPE_CHECKING:
+    from hh.file.file import File
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None

@@ -41,7 +41,7 @@ def _sanitize_filename(name: str) -> str:
     return safe or "file"
 
 
-def store_uploaded_file(temp_path: str, original_filename: str) -> Tuple[str, str, int, str]:
+def store_uploaded_file(temp_path: str, original_filename: str) -> Optional[Tuple[str, str, int, str]]:
     """
     Copy the uploaded file into the /srv/files/{project}/{Y}/{m}/{d} hierarchy.
     Returns (relative_path, stored_filename, size_bytes, mime_type).
@@ -52,6 +52,10 @@ def store_uploaded_file(temp_path: str, original_filename: str) -> Tuple[str, st
     base_path.mkdir(parents=True, exist_ok=True)
 
     date_path = create_date_directory(base_path)
+    if date_path is None:
+        debug(f"Failed to create date directory: {base_path}")
+        trace_out()
+        return None
 
     original_name = Path(original_filename).name
     sanitized_stem = _sanitize_filename(Path(original_name).stem)

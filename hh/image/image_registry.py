@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 
@@ -20,6 +20,10 @@ def _initialize_debug():
     warn = get_warn(True)
 
 _image_cache: Dict[int, Any] = {}
+
+
+if TYPE_CHECKING:
+    from hh.image.image import Image
 
 
 def get_image(image_id: int) -> Optional["Image"]:

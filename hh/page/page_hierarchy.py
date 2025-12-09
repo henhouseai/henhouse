@@ -1,8 +1,14 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import datetime as dt
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -22,7 +28,12 @@ def _initialize_page_hierarchy_debug():
 
 
 
-class PageHierarchyMixin:
+class PageHierarchyMixin(BasePage):
+    id: int
+    parent: Optional[int]
+    class_name: Optional[str]
+    name: Optional[str]
+    display_name: Optional[str]
 
     @staticmethod
     def _get_children_query(parent_id: int) -> tuple[str, list]:
@@ -65,6 +76,8 @@ class PageHierarchyMixin:
                 "class": current_page.class_name
             })
             # Get parent page
+            if current_page.parent is None:
+                break
             parent_page = get_page(page_id=current_page.parent)
             if not parent_page:
                 warn(f"Parent page {current_page.parent} not found for page {current_page.id}")

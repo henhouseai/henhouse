@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import (
@@ -14,6 +14,12 @@ from hh.gateway.registry.debug import (
 )
 from hh.deploy.utils import detect_project_context
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from hh.file.file_base import BaseFile
+else:
+    class BaseFile:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -32,7 +38,17 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-class FileContentMixin:
+class FileContentMixin(BaseFile):
+    file_name: Optional[str]
+    file_path: Optional[str]
+    description: Optional[str]
+    mime_type: Optional[str]
+    size_bytes: Optional[int]
+    username: Optional[str]
+    uploaded: Optional[dt.datetime]
+    last_modified: Optional[dt.datetime]
+    comments: Optional[str]
+    visibility: Optional[int]
     def flag_file_modification(self, comments: str) -> bool:
         trace_in()
         note = comments or ""
@@ -129,7 +145,10 @@ class FileContentMixin:
         try:
             project_name, _ = detect_project_context()
             base_path = Path(f"/srv/files/{project_name}")
-            current_file = base_path / self.file_path
+            file_path_str = self.file_path
+            if file_path_str is None:
+                return
+            current_file = base_path / file_path_str
             if not current_file.exists():
                 log(f"File not found, skipping: {current_file}")
                 return

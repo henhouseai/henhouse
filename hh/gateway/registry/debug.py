@@ -12,7 +12,7 @@ from hh.gateway.debug.debug_filters import FilterMixin
 _SAFE_MODE_ATTR = "_gateway_safe_mode_depth"
 _SAFE_DEBUG_ATTR = "_gateway_safe_debug_instance"
 _tls = threading.local()
-_DEBUG_MODULE_PATH = "hh.gateway.debug.debug_table"
+_DEBUG_MODULE_PATH: Optional[str] = "hh.gateway.debug.debug_table"
 
 _use_trace = False
 _use_log = False

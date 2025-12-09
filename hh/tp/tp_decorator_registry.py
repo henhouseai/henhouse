@@ -99,7 +99,7 @@ def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str]]:
                 if spec and spec.loader:
                     module = importlib.util.module_from_spec(spec)
                     # Store the file:// path on the module for later reference
-                    module.__file_path__ = module_path
+                    module.__file_path__ = module_path  # type: ignore[attr-defined]
                     spec.loader.exec_module(module)
                     log(f"Successfully imported deployed module {file_path.name}")
                     import_results[module_path] = {
@@ -158,7 +158,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
     import_results = _import_modules(decorator_files)
     # Import the TP registry module to get populated global arrays
     from hh.tp.tp_decorator_registry import _global_registry
-    decorator_data = {}
+    decorator_data: Dict[str, Dict[str, str]] = {}
     
     # Process successfully loaded decorators
     for decorator_name, decorator_func in _global_registry.items():
@@ -193,7 +193,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
                 "module": stored_module_path,
                 "function": decorator_func.__name__,
                 "load_status": "success",
-                "load_error": None
+                "load_error": ""
             }
             log(f"Found TP decorator: {decorator_name} -> {stored_module_path}.{decorator_func.__name__}")
     # Process failed imports
@@ -209,7 +209,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
                     "module": module_path,
                     "function": decorator_name,
                     "load_status": "failed",
-                    "load_error": result["error"]
+                    "load_error": result["error"] or ""
                 }
     # Write cache
     cache_data = {

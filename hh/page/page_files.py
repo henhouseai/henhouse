@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import (
@@ -15,6 +15,16 @@ from hh.gateway.registry.debug import (
 from hh.page.page_registry import get_page
 from hh.file.file_registry import get_file
 from hh.file.utils import store_uploaded_file
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+    from hh.file.file_base import BaseFile
+else:
+    class BasePage:
+        pass
+
+    class BaseFile:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -35,7 +45,7 @@ def _initialize_page_files_debug():
 
 
 
-class PageFilesMixin:
+class PageFilesMixin(BasePage):
     def get_files_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
         trace_in()
         # If rebuild flag is set, clear the cache to force a rebuild
@@ -108,7 +118,13 @@ class PageFilesMixin:
             trace_out()
             return None
 
-        relative_path, _, size_bytes, mime_type = store_uploaded_file(temp_path, original_filename)
+        stored = store_uploaded_file(temp_path, original_filename)
+        if stored is None:
+            warn(f"Failed to store uploaded file: {original_filename}")
+            report_error("file_upload", f"Failed to store file {original_filename}")
+            trace_out()
+            return None
+        relative_path, _, size_bytes, mime_type = stored
         new_file_id = self._create_file_record(
             file_name=Path(original_filename).name,
             file_path=relative_path,

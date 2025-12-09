@@ -40,7 +40,7 @@ def _get_page_class_and_load_utils(page_id: int) -> Optional[type]:
         report_error("action", f"Page {page_id} not found")
         return None
     
-    page_class_name = results[0].get('class', 'page')
+    page_class_name = str(results[0].get('class') or 'page')
     # Get the appropriate Page subclass from registry
     PageClass = get_page_class(page_class_name)
     if PageClass is None:

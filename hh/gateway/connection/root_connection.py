@@ -45,7 +45,7 @@ class RootConnection(Connection):
         
         # When running as root, try to detect project owner and use their config
         dsn = None
-        if os.geteuid() == 0 and project_name:  # Running as root
+        if hasattr(os, "geteuid") and os.geteuid() == 0 and project_name:  # Running as root
             # Try to find project owner's config
             try:
                 import pwd
@@ -54,6 +54,10 @@ class RootConnection(Connection):
                 if os.path.exists(srv_path):
                     stat_info = os.stat(srv_path)
                     owner_uid = stat_info.st_uid
+                    if not hasattr(pwd, "getpwuid"):
+                        warn("pwd.getpwuid is not available")
+                        trace_out()
+                        return None
                     owner_info = pwd.getpwuid(owner_uid)
                     owner_home = owner_info.pw_dir
                     owner_config = f'{owner_home}/.henhouse.cnf'
@@ -106,7 +110,7 @@ class RootConnection(Connection):
         
         # Get cache DSN info but override user/password
         dsn = None
-        if os.geteuid() == 0 and project_name:  # Running as root
+        if hasattr(os, "geteuid") and os.geteuid() == 0 and project_name:  # Running as root
             # Try to find project owner's config for cache database name
             try:
                 import pwd
@@ -114,6 +118,10 @@ class RootConnection(Connection):
                 if os.path.exists(srv_path):
                     stat_info = os.stat(srv_path)
                     owner_uid = stat_info.st_uid
+                    if not hasattr(pwd, "getpwuid"):
+                        warn("pwd.getpwuid is not available")
+                        trace_out()
+                        return None
                     owner_info = pwd.getpwuid(owner_uid)
                     owner_home = owner_info.pw_dir
                     owner_config = f'{owner_home}/.henhouse.cnf'

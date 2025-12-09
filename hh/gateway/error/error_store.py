@@ -1,6 +1,6 @@
 from __future__ import annotations
 import threading
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional
 from dataclasses import dataclass
 from enum import Enum
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -39,7 +39,7 @@ class ErrorType(Enum):
 class ErrorEntry:
     error_type: ErrorType
     content: Union[str, Dict[str, Any]]
-    timestamp: float = None
+    timestamp: Optional[float] = None
 
 class GlobalErrorStore:
     def __init__(self):
@@ -65,7 +65,7 @@ class GlobalErrorStore:
             log(f"Error added to global store. Total errors now: {len(self._errors)}")
             trace_out()
     
-    def get_errors(self, error_type: str = None) -> List[ErrorEntry]:
+    def get_errors(self, error_type: Optional[str] = None) -> List[ErrorEntry]:
         with self._lock:
             trace_in()
             log(f"Getting errors from global store - type filter: {error_type}, total errors: {len(self._errors)}")
@@ -84,7 +84,7 @@ class GlobalErrorStore:
             trace_out()
             return self._errors.copy()
     
-    def has_errors(self, error_type: str = None) -> bool:
+    def has_errors(self, error_type: Optional[str] = None) -> bool:
         with self._lock:
             trace_in()
             #log(f"Checking for errors - type filter: {error_type}, total errors: {len(self._errors)}")
@@ -113,19 +113,19 @@ def report_error(error_type: str, content: Union[str, Dict[str, Any]]):
     _global_error_store.add_error(error_type, content)
     trace_out()
 
-def is_error(error_type: str = None) -> bool:
+def is_error(error_type: Optional[str] = None) -> bool:
     trace_in()
     result = _global_error_store.has_errors(error_type)
     trace_out()
     return result
 
-def get_errors(error_type: str = None) -> List[ErrorEntry]:
+def get_errors(error_type: Optional[str] = None) -> List[ErrorEntry]:
     trace_in()
     result = _global_error_store.get_errors(error_type)
     trace_out()
     return result
 
-def get_error_count(error_type: str = None) -> int:
+def get_error_count(error_type: Optional[str] = None) -> int:
     trace_in()
     errors = _global_error_store.get_errors(error_type)
     trace_out()

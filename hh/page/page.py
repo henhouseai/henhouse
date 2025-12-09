@@ -45,6 +45,29 @@ class Page(
     PageCacheMixin,
 ):
 
+    id: int
+    gateway: Any
+    parent: Optional[int]
+    class_name: Optional[str]
+    name: Optional[str]
+    link: Optional[str]
+    text: Optional[str]
+    visibility: Optional[int]
+    last_modified: Optional[dt.datetime]
+    username: Optional[str]
+    comments: Optional[str]
+    metadata: Optional[Dict[str, Any]]
+    displayStyle: Optional[int]
+    viewCount: Optional[int]
+    display_name: Optional[str]
+    prepared_text: Optional[Any]
+    children_by_class: Dict[str, Any]
+    images: List[Any]
+    files: List[Any]
+    cache_built_at: Optional[Any]
+    cache_hydrated: bool
+    _cache_needs_refresh: bool
+
     def __init__(self, id: int):
         trace_in()
         self.gateway = get_gateway()

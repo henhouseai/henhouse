@@ -67,10 +67,10 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
     log(f"Parsing {len(tokens)} tokens")
     state = ParserState.EXPECT_COMMAND
     i = 0
-    primary_command = None
-    additional_commands = []
-    flags = []
-    order = []
+    primary_command: Optional[ParsedCommand] = None
+    additional_commands: list[ParsedCommand] = []
+    flags: list[ParsedFlag] = []
+    order: list[ParsedCommand | ParsedFlag | ParsedValueMarker] = []
     while i < len(tokens):
         token = tokens[i]
         log(f"Processing token {i}: {token.kind.value}='{token.text}' in state {state.value}")

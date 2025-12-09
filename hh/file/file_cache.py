@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, TYPE_CHECKING
 
 from hh.gateway.registry.debug import (
     get_trace_in,
@@ -13,6 +13,12 @@ from hh.gateway.registry.debug import (
     register_debug_init,
 )
 from hh.gateway.error.error_store import report_error, is_error
+
+if TYPE_CHECKING:
+    from hh.file.file_base import BaseFile
+else:
+    class BaseFile:
+        pass
 
 
 trace_in = lambda message=None: None
@@ -32,7 +38,8 @@ def _initialize_file_cache_debug():
     warn = get_warn(True)
 
 
-class FileCacheMixin:
+class FileCacheMixin(BaseFile):
+    pages: List[Any]
 
     def _ensure_file_cache_entry(self) -> bool:
         """Ensure cache entry exists in cache database. Only creates if missing."""

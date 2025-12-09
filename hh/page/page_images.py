@@ -1,10 +1,16 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from pathlib import Path
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.image.image_registry import get_image # Needed for image operations
 from hh.image.image import Image # Needed for image operations
 from hh.page.page_registry import get_page # Needed for page operations
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,7 +30,7 @@ def _initialize_page_images_debug():
 
 
 
-class PageImagesMixin:
+class PageImagesMixin(BasePage):
 
     def get_images_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
         trace_in()
@@ -73,7 +79,7 @@ class PageImagesMixin:
         return images_data
 
 
-    def add_image(self, file_path: str, caption: Optional[str] = None) -> int:
+    def add_image(self, file_path: str, caption: Optional[str] = None) -> Optional[int]:
         trace_in()
         log(f"Adding image to page {self.id}: {file_path}")
         # Use filename as default caption if no caption provided
@@ -93,12 +99,12 @@ class PageImagesMixin:
             if not image:
                 warn(f"Image {image_id} not found")
                 report_error("action", f"Image {image_id} not found")
-        if not is_error() and image_id:
-            if not image.process_upload(uploaded_file_path=file_path, filename=f"image_{image_id}"):
-                warn(f"Failed to process image {image_id}")
-                report_error("action", f"Failed to process image {image_id}")
             else:
-                image.flag_image_modification("image uploaded")
+                if not image.process_upload(uploaded_file_path=file_path, filename=f"image_{image_id}"):
+                    warn(f"Failed to process image {image_id}")
+                    report_error("action", f"Failed to process image {image_id}")
+                else:
+                    image.flag_image_modification("image uploaded")
         if image_id:
             log(f"Image creation completed successfully")
         else:
@@ -111,7 +117,7 @@ class PageImagesMixin:
         return image_id
 
 
-    def _create_image_record(self, caption: Optional[str] = None) -> int:
+    def _create_image_record(self, caption: Optional[str] = None) -> Optional[int]:
         trace_in()
         # Insert image record (no parent or rank - those are in image_groups)
         image_id = None

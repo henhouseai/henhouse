@@ -5,7 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from hh.gateway.error.error_store import get_errors, is_error, report_error
-from hh.gateway.gateway import get_gateway, trace_in, trace_out, log, warn
+from hh.gateway.gateway import get_gateway
+from hh.gateway.registry.debug import (
+    get_debug,
+    get_log,
+    get_trace_in,
+    get_trace_out,
+    get_warn,
+    register_debug_init,
+)
 from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import (
     register_action,
@@ -21,6 +29,22 @@ from hh.render.render import (
     render_block,
     render_header_block,
 )
+
+trace_in = lambda message=None: None
+trace_out = lambda message=None: None
+log = lambda message: None
+debug = lambda message: None
+warn = lambda message=None: None
+
+
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
+    log = get_log(True)
+    debug = get_debug(True)
+    warn = get_warn(True)
 
 
 def fetch_stale_page_id() -> int | None:

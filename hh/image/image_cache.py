@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, TYPE_CHECKING
 
 from hh.gateway.registry.debug import (
     get_trace_in,
@@ -13,6 +13,12 @@ from hh.gateway.registry.debug import (
     register_debug_init,
 )
 from hh.gateway.error.error_store import report_error, is_error
+
+if TYPE_CHECKING:
+    from hh.image.image_base import BaseImage
+else:
+    class BaseImage:
+        pass
 
 
 trace_in = lambda message=None: None
@@ -36,7 +42,12 @@ def _initialize_image_cache_debug():
 # by the wrapper system in image.py, similar to page_cache.py
 
 
-class ImageCacheMixin:
+class ImageCacheMixin(BaseImage):
+    instances: List[Dict[str, Any]]
+    cached_usage: Optional[List[Dict[str, Any]]]
+    caption: Optional[str]
+    visibility: Optional[int]
+    view_count: Optional[int]
 
     def _ensure_image_cache_entry(self) -> bool:
         """Ensure cache entry exists in cache database. Only creates if missing."""

@@ -138,9 +138,9 @@ class Debug(FilterMixin):
         debug_print(f"debug_safe.render() - starting render")
         self.get_arg_overrides()
         self.filtered_data = []
-        folder_counts = {}
-        file_counts = {}
-        function_counts = {}
+        folder_counts: Dict[str, int] = {}
+        file_counts: Dict[str, int] = {}
+        function_counts: Dict[str, int] = {}
         shared_data = self._get_shared_store().captured_data
         debug_print(f"debug_safe.render() - shared_data length: {len(shared_data)}")
         

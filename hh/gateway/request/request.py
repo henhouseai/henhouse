@@ -23,6 +23,14 @@ NO_GROUPS = {
 }
 
 class Request:
+    raw_argv: List[str]
+    command: Optional[str]
+    no_flags: List[str]
+    string_args: dict[str, Any]
+    int_args: dict[str, int]
+    flag_args: List[str]
+    extra_commands: List[str]
+    extra_command_defaults: dict[str, Any]
     def __init__(self, raw_argv: List[str]):
         trace_in()
         self.raw_argv = raw_argv
@@ -45,8 +53,9 @@ class Request:
                 self.no_flags = parsed_request.no_flags
                 self.extra_commands = parsed_request.extra_commands
                 self.extra_command_defaults = parsed_request.extra_command_defaults
-                self.command = self.command.replace('-', '_')
-                self.extra_commands = [cmd.replace('-', '_') for cmd in self.extra_commands]
+                if self.command:
+                    self.command = self.command.replace('-', '_')
+                self.extra_commands = [cmd.replace('-', '_') for cmd in self.extra_commands if cmd]
                 log(f"Request populated with grammar parsing: command={self.command}, flags={len(self.flag_args)}, no_flags={len(self.no_flags)}")
             else:
                 warn("Grammar parsing failed, using fallback")

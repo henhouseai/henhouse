@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 import json
 import datetime as dt
 from decimal import Decimal
@@ -15,6 +15,12 @@ from hh.gateway.registry.debug import (
 )
 from hh.gateway.error.error_store import report_error, is_error
 from hh.tp.tp import TextProcessor
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -36,7 +42,13 @@ def _initialize_page_cache_debug():
 # Cache methods are not registered as mixin methods - they're called internally by the wrapper system
 
 
-class PageCacheMixin:
+class PageCacheMixin(BasePage):
+
+    display_name: Optional[str]
+    prepared_text: Optional[Any]
+    children_by_class: Dict[str, Any]
+    images: List[Any]
+    files: List[Any]
 
     def _ensure_cache_entry(self) -> bool:
         trace_in()

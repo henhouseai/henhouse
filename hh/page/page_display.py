@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error
 from hh.gateway.gateway import get_gateway
@@ -6,6 +6,12 @@ from hh.gateway.registry.mcp_whitelist import MCPWhitelist
 from hh.page.page_class_registry import get_page_class
 from hh.page.page_registry import get_page
 from hh.tp.tp import TextProcessor
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -25,7 +31,8 @@ def _initialize_page_display_debug():
 
 
 
-class PageDisplayMixin:
+class PageDisplayMixin(BasePage):
+    children_by_class: Dict[str, Any]
     
     def _add_upper_content(self) -> List[str]:
         return []
@@ -199,7 +206,7 @@ class PageDisplayMixin:
             return []
         
         # Use the class's own _get_children_query() method
-        query, params = cls._get_children_query(parent_id)
+        query, params = cls._get_children_query(parent_id)  # type: ignore[arg-type,call-arg]
         log(f"Using query for class '{cls.__name__}': {query[:500]}...")
         results = gateway.conn.read(query, params)
         children_data = []

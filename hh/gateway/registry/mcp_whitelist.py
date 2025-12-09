@@ -38,7 +38,7 @@ def register_mcp_tool(
     tool_name: str,
     description: str,
     inputSchema: Dict[str, Any],
-    tiers: List[int] = None,
+    tiers: Optional[List[int]] = None,
     requires_approval: bool = False,
     crud_type: str = 'read',
     display_color: Optional[str] = None,
@@ -124,7 +124,7 @@ def _scan_for_mcp_tools() -> List[str]:
     trace_out()
     return found_files
 
-def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str]]:
+def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Optional[str]]]:
     """Import modules and return import results."""
     trace_in()
     import_results = {}

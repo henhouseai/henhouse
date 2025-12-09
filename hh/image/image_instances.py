@@ -1,7 +1,13 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from pathlib import Path
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+
+if TYPE_CHECKING:
+    from hh.image.image_base import BaseImage
+else:
+    class BaseImage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -18,7 +24,8 @@ def _initialize_image_instances_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-class ImageInstancesMixin:
+class ImageInstancesMixin(BaseImage):
+    instances: List[Dict[str, Any]]
     
     def load_instances(self) -> List[Dict[str, Any]]:
         trace_in()

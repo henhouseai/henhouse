@@ -1,20 +1,23 @@
 import os
 import configparser
-from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict
+from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict, TYPE_CHECKING
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.system.dependency import register_dependency
 
+if TYPE_CHECKING:
+    import pymysql as pymysql_type  # type: ignore[import-untyped]
+
 # Register pymysql as a dependency
-pymysql = None
+pymysql = None  # type: ignore[assignment]
 
 @register_dependency("pymysql")
 def _load_pymysql():
     global pymysql
     try:
-        import pymysql as _pymysql
-        pymysql = _pymysql
+        import pymysql as _pymysql  # type: ignore[import-untyped]
+        pymysql = _pymysql  # type: ignore[assignment]
         return True
     except ImportError:
         return False
@@ -50,7 +53,7 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
     path = os.path.expanduser(f'~/.{project_name}.cnf')
     if os.path.exists(path):
         config.read(path)
-        dsn = {
+        dsn: Dict[str, Union[str, int]] = {
             'host': config.get('client', 'host', fallback='localhost'),
             'user': config.get('client', 'user', fallback='root'),
             'password': config.get('client', 'password', fallback=''),
@@ -59,7 +62,7 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
         }
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
-        cache_dsn = {
+        cache_dsn: Dict[str, Union[str, int]] = {
             'host': config.get('client', 'cache_host', fallback=dsn['host']),
             'user': config.get('client', 'cache_user', fallback=dsn['user']),
             'password': config.get('client', 'cache_password', fallback=dsn['password']),
@@ -154,7 +157,7 @@ class Connection:
             
             # Detect user tier level from DSN username
             if project_name:
-                tier_level = self._detect_user_tier_level(project_name, main_dsn.get('user', ''))
+                tier_level = self._detect_user_tier_level(project_name, str(main_dsn.get('user', '') or ''))
             
             # Get cache DSN (may be overridden by subclasses, otherwise use standard loading)
             cache_dsn = self._get_cache_dsn(project_name)
@@ -162,13 +165,16 @@ class Connection:
                 _, cache_dsn = _load_dsn(project_name)
             
             # Open main database connection
-            cursorclass = pymysql.cursors.DictCursor
-            self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)
+            cursorclass = pymysql.cursors.DictCursor  # type: ignore[attr-defined]
+            if pymysql is None:
+                trace_out()
+                return 0
+            self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
             log(f"Main database connection opened: host={main_dsn['host']}, database={main_dsn.get('database', 'None')}")
             
             # Open cache database connection
             if cache_dsn:
-                self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)
+                self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
                 log(f"Cache database connection opened: host={cache_dsn['host']}, database={cache_dsn['database']}")
             else:
                 warn("Cache DSN not available, using main database for cache")
@@ -359,7 +365,7 @@ class Connection:
         setattr(exc, '_error_extras', extras)
     
     # Main database CRUD operations
-    def read(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
+    def read(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[Dict[str, Any]]:
         """Execute a SELECT query on the main database. Returns list of dict rows."""
         trace_in()
         if not self._initialized or not self.main:

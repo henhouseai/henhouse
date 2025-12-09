@@ -1,9 +1,12 @@
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 import os
 import datetime
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.system.dependency import register_dependency
+
+if TYPE_CHECKING:
+    from PIL import Image as PILImage
 
 # Register pillow as a dependency
 Image = None
@@ -37,8 +40,12 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def load_image(file_path: str) -> Optional[Image.Image]:
+def load_image(file_path: str) -> Optional["PILImage.Image"]:
     trace_in()
+    if Image is None:
+        warn("Image is None")
+        trace_out()
+        return None
     try:
         img = Image.open(file_path)
         original_mode = img.mode
@@ -56,7 +63,7 @@ def load_image(file_path: str) -> Optional[Image.Image]:
         return None
 
 
-def validate_image_size(img: Image.Image, min_width: int = 300) -> bool:
+def validate_image_size(img: "PILImage.Image", min_width: int = 300) -> bool:
     trace_in()
     width, height = img.size
     if width < min_width:
@@ -96,8 +103,12 @@ def create_date_directory(base_path: Path) -> Optional[Path]:
         raise Exception(error_msg) from e
 
 
-def calculate_target_height(img: Image.Image, target_width: int) -> int:
+def calculate_target_height(img: "PILImage.Image", target_width: int) -> int:
     trace_in()
+    if Image is None:
+        warn("Image is None")
+        trace_out()
+        return 0
     width, height = img.size
     result = int(height * target_width / width)
     log(f"Calculated target height: {width}x{height} -> {target_width}x{result} (aspect ratio: {width/height:.3f})")
@@ -105,8 +116,12 @@ def calculate_target_height(img: Image.Image, target_width: int) -> int:
     return result
 
 
-def scale_image(img: Image.Image, target_width: int, target_height: int) -> Optional[Image.Image]:
+def scale_image(img: "PILImage.Image", target_width: int, target_height: int) -> Optional["PILImage.Image"]:
     trace_in()
+    if Image is None:
+        warn("Image is None")
+        trace_out()
+        return None
     try:
         original_width, original_height = img.size
         scaled = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
@@ -120,8 +135,12 @@ def scale_image(img: Image.Image, target_width: int, target_height: int) -> Opti
         return None
 
 
-def write_jpg(img: Image.Image, filepath: Path, quality: int = 80) -> bool:
+def write_jpg(img: "PILImage.Image", filepath: Path, quality: int = 80) -> bool:
     trace_in()
+    if Image is None:
+        warn("Image is None")
+        trace_out()
+        return False
     try:
         img.save(filepath, 'JPEG', quality=quality, optimize=True)
         os.chmod(filepath, 0o664)
@@ -157,6 +176,10 @@ def cleanup_unused_files(file_paths: List[str], base_path: Path) -> int:
 
 def get_image_info(file_path: str) -> Optional[Dict[str, Any]]:
     trace_in()
+    if Image is None:
+        warn("Image is None")
+        trace_out()
+        return None
     try:
         with Image.open(file_path) as img:
             result = {

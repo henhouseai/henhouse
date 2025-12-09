@@ -19,6 +19,7 @@ MAINTENANCE_APP_SOURCE: str = 'hh/deploy/maintenance/worker.py'
 EXTRA_DEPLOY_FILES: List[str] = [
     'hh/deploy/flask/http_client.py',
     'hh/deploy/flask/mcp_client.py',
+    'hh/deploy/flask/download_client.py',
     'hh/deploy/maint/maintenance_client.py',
 ]
 

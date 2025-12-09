@@ -1,6 +1,7 @@
 from typing import Optional
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+from hh.image.image_base import BaseImage
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -17,7 +18,7 @@ def _initialize_image_validation_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-class ImageValidationMixin:
+class ImageValidationMixin(BaseImage):
     
     def validate_caption(self, caption: str) -> bool:
         trace_in()

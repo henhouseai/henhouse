@@ -11,7 +11,7 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from flask import Flask, send_from_directory, request
+from flask import Flask, send_from_directory, request, send_file
 import tempfile
 import uuid
 
@@ -342,6 +342,74 @@ def mcp_handler(path: str = ""):
             },
             "id": None
         }), 500, {'Content-Type': 'application/json'}
+
+
+@app.route("/file/<int:file_id>", methods=["GET"])
+def download_file(file_id: int):
+    """
+    Stream a file by ID using the download backend for metadata, then serve from disk.
+    """
+    import json
+
+    cmd = ['python3', str(PROJECT_ROOT / 'download_client.py'), 'get_file_info', '--id', str(file_id)]
+
+    acquired = _gateway_semaphore.acquire(timeout=10)
+    if not acquired:
+        logging.error("Gateway concurrency limit reached for download request")
+        return "Server busy, please retry", 503
+
+    try:
+        env = os.environ.copy()
+        env['USER_TIER'] = TIER_SUFFIX
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+        )
+    finally:
+        _gateway_semaphore.release()
+
+    if result.returncode != 0 or not result.stdout:
+        logging.warning(f"download_client failed for file_id={file_id}, rc={result.returncode}, stderr={result.stderr[:200] if result.stderr else ''}")
+        return "File not found", 404
+
+    try:
+        resp = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        logging.error(f"Invalid JSON from download_client for file_id={file_id}: {result.stdout[:200]}")
+        return "Internal error", 500
+
+    if resp.get("status") != "ok":
+        logging.info(f"Download metadata error for file_id={file_id}: {resp.get('errors')}")
+        return "File not found", 404
+
+    file_info = (resp.get("data") or {}).get("file") or {}
+    rel_path = file_info.get("file_path")
+    if not rel_path:
+        logging.info(f"No file_path in metadata for file_id={file_id}")
+        return "File not found", 404
+
+    base_path = Path(f"/srv/files/{PROJECT_NAME}")
+    abs_path = base_path / rel_path
+
+    if not abs_path.exists():
+        logging.info(f"File path missing on disk for file_id={file_id}: {abs_path}")
+        return "File not found", 404
+
+    download_name = file_info.get("file_name") or abs_path.name
+    mime_type = file_info.get("mime_type") or "application/octet-stream"
+
+    return send_file(
+        abs_path,
+        mimetype=mime_type,
+        as_attachment=True,
+        download_name=download_name,
+        conditional=True,
+    )
+
 
 @app.route('/img/<path:image_path>', methods=['GET'])
 def image_handler(image_path: str = ""):

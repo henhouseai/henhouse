@@ -1,8 +1,14 @@
 from __future__ import annotations
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page
+
+if TYPE_CHECKING:
+    from hh.image.image_base import BaseImage
+else:
+    class BaseImage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -20,12 +26,12 @@ def _initialize_image_display_debug():
     warn = get_warn(True)
 
 
-class ImageDisplayMixin:
+class ImageDisplayMixin(BaseImage):
+    cached_usage: Optional[List[Dict[str, Any]]]
 
     def show_image(self) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and getattr(self, 'cached_usage', None) is not None
-        response_data = {}
         extra_actions: List[Dict[str, Any]] = []
 
         if cache_ready:
@@ -58,7 +64,7 @@ class ImageDisplayMixin:
             if extra_actions:
                 log(f"Found {len(extra_actions)} extra actions for image {self.id}")
 
-        response_data = {
+        response_data: Dict[str, Any] = {
             "image": image_data,
             "usage": usage_data,
             "instances": instances_data
@@ -153,7 +159,7 @@ class ImageDisplayMixin:
                     extra_actions.append({
                         'type': 'warning',
                         'message': f"Found {len(orphaned_instances)} orphaned image instances",
-                        'details': orphaned_instances
+                        'details': cast(Any, orphaned_instances)
                     })
             except Exception as e:
                 warn(f"Failed to check for orphaned instances: {str(e)}")
@@ -182,10 +188,10 @@ class ImageDisplayMixin:
                         extra_actions.append({
                             'type': 'warning',
                             'message': f"Large file detected: {filesize} bytes",
-                            'details': {
+                            'details': cast(Any, {
                                 'instance': instance,
                                 'filesize_mb': round(filesize / (1024 * 1024), 2)
-                            }
+                            })
                         })
                     # Check for unusual aspect ratios
                     if width > 0 and height > 0:
@@ -194,10 +200,10 @@ class ImageDisplayMixin:
                             extra_actions.append({
                                 'type': 'info',
                                 'message': f"Unusual aspect ratio: {aspect_ratio:.2f}",
-                                'details': {
+                                'details': cast(Any, {
                                     'instance': instance,
                                     'aspect_ratio': aspect_ratio
-                                }
+                                })
                             })
             except Exception as e:
                 warn(f"Failed to check image properties: {str(e)}")

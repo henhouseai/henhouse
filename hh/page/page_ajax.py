@@ -1,8 +1,14 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -22,7 +28,7 @@ def _initialize_page_ajax_debug():
 
 
 
-class PageAjaxMixin:
+class PageAjaxMixin(BasePage):
 
     def get_page(self) -> Dict[str, Any]:
         """Assemble a minimal JSON-friendly payload for AJAX consumption."""

@@ -25,6 +25,23 @@ def _initialize_debug():
 
 class File(FileContentMixin, FileCacheMixin):
 
+    id: int
+    gateway: Any
+    file_name: Optional[str]
+    file_path: Optional[str]
+    description: Optional[str]
+    mime_type: Optional[str]
+    size_bytes: Optional[int]
+    username: Optional[str]
+    uploaded: Optional[dt.datetime]
+    last_modified: Optional[dt.datetime]
+    comments: Optional[str]
+    visibility: Optional[int]
+    pages: List[Any]
+    cache_built_at: Optional[Any]
+    cache_hydrated: bool
+    _cache_needs_refresh: bool
+
     def __init__(self, file_id: int):
         trace_in()
         self.gateway = get_gateway()
