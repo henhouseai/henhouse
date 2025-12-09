@@ -373,7 +373,13 @@ def download_file(file_id: int):
         _gateway_semaphore.release()
 
     if result.returncode != 0 or not result.stdout:
-        logging.warning(f"download_client failed for file_id={file_id}, rc={result.returncode}, stderr={result.stderr[:200] if result.stderr else ''}")
+        logging.warning(
+            "download_client failed for file_id=%s, rc=%s, stdout=%s, stderr=%s",
+            file_id,
+            result.returncode,
+            (result.stdout or "").strip(),
+            (result.stderr or "").strip(),
+        )
         return "File not found", 404
 
     try:
