@@ -1,7 +1,13 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page # Needed for can_move_to_page
+
+if TYPE_CHECKING:
+    from hh.page.page_base import BasePage
+else:
+    class BasePage:
+        pass
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -21,7 +27,11 @@ def _initialize_page_validation_debug():
 
 
 
-class PageValidationMixin:
+class PageValidationMixin(BasePage):
+    id: int
+    parent: Optional[int]
+    gateway: Any
+    class_name: Optional[str]
     
     @classmethod
     def allow_null_names(cls) -> bool:

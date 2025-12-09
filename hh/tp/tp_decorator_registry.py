@@ -87,7 +87,7 @@ def _scan_for_decorator(decorator_name: str) -> List[str]:
     return found_files
 
 
-def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str]]:
+def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Any]]:
     trace_in()
     import_results = {}
     for module_path in module_paths:

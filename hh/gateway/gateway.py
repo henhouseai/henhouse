@@ -91,7 +91,10 @@ class Gateway:
             self.os = ProcessManager()
         
         if not is_error():
-            self.registry = CommandRegistry(self.command, self.backend)
+            if self.command is None or self.backend is None:
+                report_error("registry", "Command or backend missing")
+            else:
+                self.registry = CommandRegistry(self.command, self.backend)
         
         self._initialize_action()
         self._initialize_backend()
@@ -405,10 +408,13 @@ class Gateway:
             if response_path is None:
                 response_path = BACKEND_RESPONSE_MODULES.get("parser")
                 log(f"Unknown backend '{self.backend}', defaulting to parser response handler")
-            module_name, class_name = response_path.rsplit(".", 1)
-            module = __import__(module_name, fromlist=[class_name])
-            ResponseClass = getattr(module, class_name)
-            self.response = ResponseClass()
+            if response_path:
+                module_name, class_name = response_path.rsplit(".", 1)
+                module = __import__(module_name, fromlist=[class_name])
+                ResponseClass = getattr(module, class_name)
+                self.response = ResponseClass()
+            else:
+                raise ValueError("No response handler found")
             # Set user tier level on response
             if self._user_tier_level > 0:
                 self.response.set_user_tier_level(self._user_tier_level)

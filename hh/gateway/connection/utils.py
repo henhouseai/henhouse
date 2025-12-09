@@ -74,7 +74,7 @@ def ensure_iso_timestamps(row: Dict[str, Any], fields: Sequence[str]) -> None:
     row_cast = row  # type: ignore[assignment]
     for f in fields:
         v = row_cast.get(f)
-        if hasattr(v, 'isoformat'):
+        if v is not None and hasattr(v, 'isoformat'):
             row_cast[f] = v.isoformat(sep=' ', timespec='microseconds')
             converted_count += 1
     log(f"Timestamp conversion completed: {converted_count} fields converted out of {len(fields)}")
