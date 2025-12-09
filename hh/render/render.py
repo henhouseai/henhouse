@@ -132,14 +132,14 @@ class TableData:
         last_row['_links'][column_name] = {'type': 'image_file', 'src_path': src_path}
         return self
     
-    def add_file_link_to_column(self, column_name: str, src_path: str) -> 'TableData':
-        """Add file link metadata to the specified column of the most recently added row."""
+    def add_file_link_to_column(self, column_name: str, file_id: int) -> 'TableData':
+        """Add file link metadata (by file_id) to the specified column of the most recently added row."""
         if not self.rows:
             return self
         last_row = self.rows[-1]
         if '_links' not in last_row:
             last_row['_links'] = {}
-        last_row['_links'][column_name] = {'type': 'file', 'src_path': src_path}
+        last_row['_links'][column_name] = {'type': 'file', 'id': file_id}
         return self
     
     def num_rows(self) -> int:

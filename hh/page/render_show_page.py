@@ -337,9 +337,9 @@ def render_files_section(files_data: List[Dict[str, Any]], page_id: Optional[int
                 size=size_display,
                 path=safe_str(file_path),
             )
-            if file_path:
-                files_rows.add_file_link_to_column('name', file_path)
-                files_rows.add_file_link_to_column('path', file_path)
+            if file_id is not None:
+                files_rows.add_file_link_to_column('name', file_id)
+                files_rows.add_file_link_to_column('path', file_id)
         if files_rows.num_rows() > 0:
             # Generate wrapper_id with page_id if available
             wrapper_id = f'fileGroup_{page_id}' if page_id is not None else None
@@ -353,7 +353,13 @@ def render_files_section(files_data: List[Dict[str, Any]], page_id: Optional[int
                 block_type=block,
                 wrapper_id=wrapper_id
             )
-            gateway.response.set_file_group(files_block)
+            if getattr(gateway, "backend", None) == "http" and page_id is not None:
+                page_id_str = str(page_id)
+                header_id = f"fileGroupHeader_{page_id_str}"
+                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="files">FILES</a>\n</div>'
+                gateway.response.set_file_group(header_html + files_block)
+            else:
+                gateway.response.set_file_group(files_block)
     trace_out()
 
 
