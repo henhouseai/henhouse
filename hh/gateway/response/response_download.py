@@ -37,13 +37,13 @@ class ResponseDownload(Response):
             }
             if self.debug_output:
                 error_response["debug"] = self.debug_output
-            return json.dumps(error_response, ensure_ascii=False)
+            return json.dumps(error_response, ensure_ascii=False, default=str)
 
         base_payload = dict(self.payload)
         if base_payload.get("errors") is None:
             base_payload.pop("errors", None)
         if base_payload.get("debug") is None:
             base_payload.pop("debug", None)
-        return json.dumps(base_payload, ensure_ascii=False)
+        return json.dumps(base_payload, ensure_ascii=False, default=str)
 
 
