@@ -300,6 +300,13 @@ For a tool to work through MCP:
 - Must use `success_payload()` for response data (creates proper structure)
 - Should follow standard Gateway patterns (error handling, tracing)
 
+### How `mcp_utils.py` modules get imported (and when the registry is populated)
+
+- There are two import paths:
+  - **Whitelist rebuild path**: On cache miss/force rebuild, `mcp_whitelist._scan_for_mcp_tools()` finds every file with `@register_mcp_tool` under `hh/`, then `_import_modules()` imports them. Each decorator call populates `_global_tool_registry`. MCP-tier tools (1-4) are written into tier caches; app-action-only tools (5-8) stay only in the in-memory registry.
+  - **Page-load path**: When a page is loaded (HTTP or MCP backend), `hh/page/page_registry.py::_load_mcp_utils_for_page_class` walks the page class MRO and `importlib.import_module("{base}.mcp_utils")` for each class. That import also runs decorators and fills `_global_tool_registry`. This is how app actions get into memory for `get_page`/`show_page` responses, even though they are not stored in the tier caches.
+- `get_app_actions(user_tier_level)` reads `_global_tool_registry` (not the tier caches) and filters for app-action tier levels (5-8, mapped from user tier +4). Page mixins attach these to `available_actions` for MCP responses.
+
 ### Schema Validation
 
 The `inputSchema` in whitelist is used by `MCPWhitelist.validate_tool()` for validation:

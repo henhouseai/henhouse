@@ -167,6 +167,7 @@ class Connection:
             # Open main database connection
             cursorclass = pymysql.cursors.DictCursor  # type: ignore[attr-defined]
             if pymysql is None:
+                warn("pymysql is None")
                 trace_out()
                 return 0
             self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
