@@ -158,7 +158,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
     import_results = _import_modules(decorator_files)
     # Import the TP registry module to get populated global arrays
     from hh.tp.tp_decorator_registry import _global_registry
-    decorator_data: Dict[str, Dict[str, str]] = {}
+    decorator_data: Dict[str, Dict[str, Any]] = {}
     
     # Process successfully loaded decorators
     for decorator_name, decorator_func in _global_registry.items():
@@ -172,7 +172,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
                 # Try to get module from sys.modules
                 import sys
                 if module_name in sys.modules:
-                    module_obj = sys.modules[module_name]
+                    module_obj: Any = sys.modules[module_name]
                     if hasattr(module_obj, '__file_path__'):
                         stored_module_path = module_obj.__file_path__
             except Exception:
@@ -182,10 +182,10 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
             if stored_module_path == module_name:
                 for module_path, result in import_results.items():
                     if result.get("status") == "success" and module_path.startswith("file://"):
-                        module_obj = result.get("module")
-                        if module_obj and hasattr(decorator_func, '__module__'):
+                        module_obj_2: Any = result.get("module")
+                        if module_obj_2 and hasattr(decorator_func, '__module__'):
                             # Check if decorator's module matches
-                            if module_name == module_obj.__name__:
+                            if module_name == module_obj_2.__name__:
                                 stored_module_path = module_path
                                 break
             
@@ -209,7 +209,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
                     "module": module_path,
                     "function": decorator_name,
                     "load_status": "failed",
-                    "load_error": result["error"] or ""
+                    "load_error": result.get("error") or ""
                 }
     # Write cache
     cache_data = {

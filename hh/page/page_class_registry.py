@@ -93,7 +93,7 @@ def discover_page_classes(force_regenerate: bool = False) -> Dict[str, Dict[str,
     class_files = _scan_for_page_classes()
     import_results = _import_modules(class_files)
     # Get the populated global registry
-    class_data = {}
+    class_data: Dict[str, Dict[str, Any]] = {}
     # Process successfully loaded classes
     for class_name, page_class in _page_class_registry.items():
         if page_class is not None:  # Only process loaded classes

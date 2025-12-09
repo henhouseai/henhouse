@@ -49,7 +49,7 @@ def _import_psutil() -> Any:
         return None
 
 if TYPE_CHECKING:
-    import psutil as psutil_type
+    import psutil as psutil_type  # type: ignore[import-untyped]
 psutil: Any = cast("psutil_type", _import_psutil())  # type: ignore[assignment]
 
 

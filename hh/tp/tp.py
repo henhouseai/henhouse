@@ -260,6 +260,7 @@ class TextProcessor:
         original_token = token
         token = token.strip()
         log(f"Coercing argument: '{original_token}' -> '{token}'")
+        result: Union[str, int, float]
         if (len(token) >= 2) and ((token[0] == token[-1]) and token[0] in ("'", '"')):
             result = token[1:-1]
             log(f"String literal: '{token}' -> '{result}'")
@@ -458,7 +459,10 @@ class TextProcessor:
         elif etype == "link":
             return self._generate_link_json(element)
         elif etype == "image":
-            return self._generate_image_json(element)
+            image_json = self._generate_image_json(element)
+            if image_json is None:
+                return {"type": "image", "resolved_image": None}
+            return image_json
         elif etype == "empty":
             return {"type": "empty", "content": ""}
         else:
@@ -478,13 +482,14 @@ class TextProcessor:
         if isinstance(display, str) and display:
             name_override = display
         # Build JSON structure
-        result = {
+        resolved_page_json: Dict[str, Any] = {
+            "id": resolved_page["id"],
+            "parent": resolved_page.get("parent", 1),
+            "name": resolved_page["name"]
+        }
+        result: Dict[str, Any] = {
             "type": "page_link",
-            "resolved_page": {
-                "id": resolved_page["id"],
-                "parent": resolved_page.get("parent", 1),
-                "name": resolved_page["name"]
-            }
+            "resolved_page": resolved_page_json
         }
         if name_override:
             result["resolved_page"]["name_override"] = name_override
@@ -548,15 +553,16 @@ class TextProcessor:
         log(f"Resolving image {identifier['type']}: '{identifier['value']}' -> image_id={resolved_image['id']}, instances={len(resolved_image['instances'])}")
         log(f"Caption: {caption}")
         # Build JSON structure
-        result = {
+        resolved_image_json: Dict[str, Any] = {
+            "id": resolved_image["id"],
+            "filename": resolved_image["filename"],
+            "path": resolved_image["path"],
+            "caption": resolved_image["caption"],
+            "instances": resolved_image["instances"]
+        }
+        result: Dict[str, Any] = {
             "type": "image",
-            "resolved_image": {
-                "id": resolved_image["id"],
-                "filename": resolved_image["filename"],
-                "path": resolved_image["path"],
-                "caption": resolved_image["caption"],
-                "instances": resolved_image["instances"]
-            }
+            "resolved_image": resolved_image_json
         }
         if caption:
             result["resolved_image"]["caption_override"] = caption
@@ -617,9 +623,9 @@ class TextProcessor:
                 if results:
                     primary_image_id = results[0]['id']
                     log(f"Found primary image ID {primary_image_id} for page {page_id}")
-                    result = self._resolve_image_info({"type": "image_id", "value": primary_image_id})
+                    resolved_image = self._resolve_image_info({"type": "image_id", "value": primary_image_id})
                     trace_out()
-                    return result
+                    return resolved_image
                 else:
                     log(f"No primary image found for page {page_id}")
                     trace_out()
@@ -637,9 +643,9 @@ class TextProcessor:
                 page = find_page(link=page_name)
                 if page and hasattr(page, 'id'):
                     log(f"Found page '{page_name}' with ID {page.id}")
-                    result = self._resolve_image_info({"type": "page_id", "value": page.id})
+                    resolved_image = self._resolve_image_info({"type": "page_id", "value": page.id})
                     trace_out()
-                    return result
+                    return resolved_image
                 else:
                     log(f"No page found with name '{page_name}'")
                     trace_out()
@@ -664,7 +670,7 @@ class TextProcessor:
 
     # ============ Decorators ============
 
-    def _apply_decorator(self, name: str, json_data: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_decorator(self, name: str, json_data: Dict[str, Any], args: Dict[str, Any]) -> Any:
         trace_in()
         log(f"Applying decorator '{name}' to JSON data")
         func = get_tp_decorator(name)
@@ -696,17 +702,18 @@ class TextProcessor:
         if not func:
             warn(f"Final decorator '{name}' not found")
             trace_out()
-            return json_data
+            return str(json_data)
         try:
             result = func(json_data)
-            log(f"Final decorator '{name}' result: {repr(result[:500])}{'...' if len(result) > 500 else ''}")
+            result_str = str(result)
+            log(f"Final decorator '{name}' result: {repr(result_str[:500])}{'...' if len(result_str) > 500 else ''}")
             trace_out()
-            return result
+            return result_str
         except Exception as e:
             warn(f"Error applying final decorator '{name}': {e}")
             report_error("textprocessor", f"Error applying final decorator '{name}': {e}")
             trace_out()
-            return json_data
+            return str(json_data)
 
 
     def _extract_display_text(self, json_data: Dict[str, Any]) -> str:
@@ -766,7 +773,7 @@ class TextProcessor:
             return False
 
 
-    def _update_links_table_from_link(self, conn, element: Dict[str, Any], page_id: int) -> None:
+    def _update_links_table_from_link(self, conn, element: Dict[str, Any], page_id: int) -> Optional[bool]:
         trace_in()
         identifier = element.get('identifier', {})
         identifier_type = identifier.get('type')
@@ -789,15 +796,15 @@ class TextProcessor:
                 else:
                     log(f"Could not resolve page name '{page_name}' to page ID, skipping")
                     trace_out()
-                    return
+                    return None
             except Exception as e:
                 log(f"Error resolving page name '{page_name}': {e}, skipping")
                 trace_out()
-                return
+                return None
         else:
             log(f"Unknown link identifier type: {identifier_type}, skipping")
             trace_out()
-            return
+            return None
         # Insert into links table
         try:
             insert_query = "INSERT INTO links (id, link, resolution_id) VALUES (%s, %s, %s)"
@@ -831,9 +838,10 @@ class TextProcessor:
                     log(f"Error inserting nested image reference: {e}")
         
         trace_out()
+        return None
 
 
-    def _update_links_table_from_image(self, conn, element: Dict[str, Any], page_id: int) -> None:
+    def _update_links_table_from_image(self, conn, element: Dict[str, Any], page_id: int) -> Optional[bool]:
         trace_in()
         identifier = element.get('identifier', {})
         identifier_type = identifier.get('type')
@@ -876,11 +884,11 @@ class TextProcessor:
                 else:
                     log(f"Could not resolve page name '{page_name}' to page ID, skipping")
                     trace_out()
-                    return
+                    return None
             except Exception as e:
                 log(f"Error resolving page name '{page_name}': {e}, skipping")
                 trace_out()
-                return
+                return None
         elif identifier_type == 'image_id':
             # Direct image ID reference: {{{123456}}} -> image_links table
             target_image_id = identifier_value
@@ -901,6 +909,7 @@ class TextProcessor:
         else:
             log(f"Unknown image identifier type: {identifier_type}, skipping")
         trace_out()
+        return None
 
     # ============ Low-level helpers ============
 

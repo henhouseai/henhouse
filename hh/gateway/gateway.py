@@ -130,6 +130,9 @@ class Gateway:
                 report_error("request", "No command found")
 
     def _initialize_action(self):
+        if not self.registry:
+            report_error("registry", "No registry found.")
+            return
         if not is_error() and self.registry.has_action_handler():
             self.action_handler = self.registry.get_action_handler()
         else:
@@ -137,9 +140,13 @@ class Gateway:
         if not is_error() and self.registry.has_action_args():
             action_args = self.registry.get_action_args()
             for arg in action_args:
-                self.request.add_synthetic_arg(arg, arg)
+                if self.request:
+                    self.request.add_synthetic_arg(arg, arg)
 
     def _initialize_backend(self):
+        if not self.registry:
+            report_error("registry", "No registry found.")
+            return
         if not is_error() and self.registry.has_backend_handler():
             self.backend_handler = self.registry.get_backend_handler()
         else:
@@ -203,7 +210,7 @@ class Gateway:
         except Exception:
             pass
 
-    def dispatch(self, raw_argv: List[str], backend: str) -> None:
+    def dispatch(self, raw_argv: List[str], backend: str) -> Optional[str]:
         self._initialize(raw_argv, backend)
         log("Gateway initialization completed, dispatching...")
         if not is_error() and not self.request:
@@ -212,19 +219,21 @@ class Gateway:
             report_error("request", "No command found")
         if not is_error() and not self.backend:
             report_error("registry", "No backend found.")
-        if not is_error():
+        if not is_error() and self.registry:
             if self.registry.load_action_module():
-                log(f"Action module loaded: {self.action_handler.__module__}")
+                if self.action_handler:
+                    log(f"Action module loaded: {self.action_handler.__module__}")
             else:
                 module_name = self.action_handler.__module__ if self.action_handler else "unknown"
                 report_error("registry", f"Error loading action module: {module_name}")
-        if not is_error():
+        if not is_error() and self.registry:
             if self.registry.load_backend_module():
-                log(f"Backend module loaded: {self.backend_handler.__module__}")
+                if self.backend_handler:
+                    log(f"Backend module loaded: {self.backend_handler.__module__}")
             else:
                 module_name = self.backend_handler.__module__ if self.backend_handler else "unknown"
                 report_error("registry", f"Error loading backend module: {module_name}")
-        if not is_error():
+        if not is_error() and self.action_handler:
             log(f"Starting action execution: {self.action_handler.__module__}.{self.action_handler.__name__}")
             start_time = time.time()
             try:
@@ -239,20 +248,11 @@ class Gateway:
                 duration = time.time() - start_time
                 warn("Action execution raised an exception.")
                 report_error("action", f"Action execution raised an exception in {duration:.3f}s: {e}")
-        if not is_error() and not self.response.has_action_response():
+        if not is_error() and (not self.response or not self.response.has_action_response()):
             report_error("backend", "No action response found")
-
-        # Injected errors for maintenance ping testing (25% chance each, or always if -log).
-        # Commented out - uncomment to test error handling.
-        # proceed_to_backend = not is_error()
-        # force_error = bool(self.request and self.request.get_arg('log'))
-        # if force_error or random.random() < 0.25:
-        #     report_error("action", "Injected test error after action execution")
-        # if force_error or random.random() < 0.25:
-        #     report_error("backend", "Injected test error before backend execution")
         proceed_to_backend = not is_error()
 
-        if proceed_to_backend:
+        if proceed_to_backend and self.backend_handler:
             log(f"Starting backend execution: {self.backend_handler.__module__}.{self.backend_handler.__name__}")
             start_time = time.time()
             try:
@@ -329,6 +329,8 @@ class Gateway:
     def flush_debug(self) -> None:
         if self.debug_system == "none" or not self.get_debug_func:
             return
+        if not self.response:
+            return
         try:
             debug_obj = self.get_debug_func()
             if hasattr(debug_obj, 'render'):
@@ -355,12 +357,12 @@ class Gateway:
                 self.debug_module = importlib.import_module("hh.gateway.debug.debug_safe")
                 self.debug_system = "debug_safe"
             except Exception as e:
-                self.warn(f"Failed to switch to safe debug mode: {e}")
+                warn(f"Failed to switch to safe debug mode: {e}")
     
     def restore_debug_system(self) -> None:
         if self.debug_system == "debug_safe":
             try:
-                if self.request.get_arg("trace"):
+                if self.request and self.request.get_arg("trace"):
                     target_system = "trace"
                 else:
                     target_system = "table"              
@@ -369,7 +371,7 @@ class Gateway:
                 self.get_debug_func = resolve_get_debug_for(target_system)
                 self.debug_system = target_system
             except Exception as e:
-                self.warn(f"Failed to restore debug system: {e}")
+                warn(f"Failed to restore debug system: {e}")
     
     def _initialize_connection(self, dry_run: bool = False) -> int:
         """Determine and create connection type based on command-line arguments (lazy import if needed). Returns user tier level."""
@@ -399,7 +401,7 @@ class Gateway:
         trace_in()
         try:
             # Lazy load and instantiate appropriate Response subclass based on backend
-            response_path = BACKEND_RESPONSE_MODULES.get(self.backend)
+            response_path = BACKEND_RESPONSE_MODULES.get(self.backend or "")
             if response_path is None:
                 response_path = BACKEND_RESPONSE_MODULES.get("parser")
                 log(f"Unknown backend '{self.backend}', defaulting to parser response handler")
@@ -522,12 +524,3 @@ class Gateway:
         trace_out()
 
 
-gateway: Optional[Gateway] = None
-
-def get_gateway() -> Gateway:
-    global gateway
-    trace_in()
-    if gateway is None:
-        gateway = Gateway()
-    trace_out()
-    return gateway

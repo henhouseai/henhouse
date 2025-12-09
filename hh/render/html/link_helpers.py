@@ -17,7 +17,9 @@ def create_image_file_link(src_path: str) -> str:
     return f'/srv/images/{src_path}'
 
 
-def create_file_link(src_path: str) -> str:
-    """Create a file link URL for the given source path."""
+def create_file_link(src_path: str = "", file_id: Union[int, str, None] = None) -> str:
+    """Create a file link URL. Prefer file_id (new /file/{id} route); fallback to legacy path."""
+    if file_id is not None:
+        return f'/file/{file_id}'
     return f'/srv/files/{src_path}'
 

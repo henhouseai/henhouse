@@ -1,6 +1,6 @@
 import os
 import configparser
-from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict, TYPE_CHECKING
+from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict, TYPE_CHECKING, cast
 from hh.deploy.utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -165,6 +165,7 @@ class Connection:
                 _, cache_dsn = _load_dsn(project_name)
             
             # Open main database connection
+            assert pymysql is not None
             cursorclass = pymysql.cursors.DictCursor  # type: ignore[attr-defined]
             if pymysql is None:
                 warn("pymysql is None")
@@ -506,7 +507,7 @@ class Connection:
                     result = list(rows)
                     log(f"Cache DB READ executed successfully: {len(result)} rows returned")
                 trace_out()
-                return result
+                return cast(List[DatabaseRow], result)
         except Exception as exc:
             warn(f"Cache DB READ execution failed: {exc}")
             setattr(exc, 'sql', sql)
@@ -595,7 +596,7 @@ class Connection:
                     result = list(rows)
                     log(f"History DB READ executed successfully: {len(result)} rows returned")
                 trace_out()
-                return result
+                return cast(List[DatabaseRow], result)
         except Exception as exc:
             warn(f"History DB READ execution failed: {exc}")
             setattr(exc, 'sql', sql)

@@ -67,14 +67,15 @@ def json_error(error: str, hint: Optional[str] = None) -> JsonResponse:
     trace_out()
     return payload
 
-def ensure_iso_timestamps(row: DatabaseRow, fields: Sequence[str]) -> None:
+def ensure_iso_timestamps(row: Dict[str, Any], fields: Sequence[str]) -> None:
     """Convert datetime fields in a row to ISO format strings."""
     trace_in()
     converted_count = 0
+    row_cast = row  # type: ignore[assignment]
     for f in fields:
-        v = row.get(f)
+        v = row_cast.get(f)
         if hasattr(v, 'isoformat'):
-            row[f] = v.isoformat(sep=' ', timespec='microseconds')
+            row_cast[f] = v.isoformat(sep=' ', timespec='microseconds')
             converted_count += 1
     log(f"Timestamp conversion completed: {converted_count} fields converted out of {len(fields)}")
     trace_out()

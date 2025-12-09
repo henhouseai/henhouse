@@ -125,8 +125,8 @@ def render_html_flexible_table(
                         elif link_type == 'image' and link_id is not None:
                             href = create_image_link(link_id)
                             cell_content = f'<a href="{href}">{cell_content}</a>'
-                        elif link_type == 'file' and src_path:
-                            href = create_file_link(src_path)
+                        elif link_type == 'file' and (link_id is not None or src_path):
+                            href = create_file_link(src_path=src_path or "", file_id=link_id)
                             cell_content = f'<a href="{href}">{cell_content}</a>'
                     
                     row_values[i] = cell_content
@@ -185,8 +185,8 @@ def render_html_flexible_table(
                     elif link_type == 'image_file' and src_path:
                         href = create_image_file_link(src_path)
                         cell_content = f'<a href="{href}">{cell_content}</a>'
-                    elif link_type == 'file' and src_path:
-                        href = create_file_link(src_path)
+                    elif link_type == 'file' and (link_id is not None or src_path):
+                        href = create_file_link(src_path=src_path or "", file_id=link_id)
                         cell_content = f'<a href="{href}">{cell_content}</a>'
                 
                 row_values[0] = cell_content
@@ -214,8 +214,8 @@ def render_html_flexible_table(
                     elif link_type == 'image_file' and src_path:
                         href = create_image_file_link(src_path)
                         cell_content = f'<a href="{href}">{cell_content}</a>'
-                    elif link_type == 'file' and src_path:
-                        href = create_file_link(src_path)
+                    elif link_type == 'file' and (link_id is not None or src_path):
+                        href = create_file_link(src_path=src_path or "", file_id=link_id)
                         cell_content = f'<a href="{href}">{cell_content}</a>'
                 
                 row_values[i] = cell_content
