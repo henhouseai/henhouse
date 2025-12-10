@@ -15,6 +15,28 @@ export class RPCError extends Error {
         // Don't format multiple errors into one message - keep them separate
     }
 }
+/**
+ * Show a simple overlay with stacked error messages.
+ */
+export function showErrorOverlay(messages, title = 'Error') {
+    const overlayManager = OverlayManager.getInstance();
+    const content = messages.map((msg) => `<div class="overlayError">${escapeHtml(msg)}</div>`);
+    overlayManager.show({
+        header: title,
+        content,
+        contentHeaders: content.map(() => ''), // no headers per message
+        mode: 'fixed',
+        closable: true,
+        cancelLabel: 'Close',
+        showSubmit: false,
+    });
+}
+// Local helper (duplicate of private escapeHtml to avoid calling an instance method)
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 export class RPCClient {
     /**
      * Extract and parse MCP response data from the envelope.
@@ -200,47 +222,21 @@ export class RPCClient {
      * Display an error message to the user.
      */
     showError(label, error) {
-        // Create an overlay window to display the error
-        // This replaces the old temporary error box behavior
-        const overlayManager = OverlayManager.getInstance();
-        // Check if it's an RPCError with multiple errors
-        let errorMessages = [];
+        const messages = [];
         if (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors) && error.errors.length > 0) {
-            // RPCError with multiple errors - extract all of them
             const rpcError = error;
-            errorMessages = rpcError.errors.map((err) => ({
-                type: 'error',
-                text: `${err.type}: ${err.content}`
-            }));
-            // Also add the main error message if present
+            for (const err of rpcError.errors) {
+                messages.push(`${err.type}: ${err.content}`);
+            }
             if (rpcError.message) {
-                errorMessages.unshift({
-                    type: 'error',
-                    text: rpcError.message
-                });
+                messages.unshift(rpcError.message);
             }
         }
         else {
-            // Single error
             const errorMessage = error instanceof Error ? error.message : String(error);
-            errorMessages = [{
-                    type: 'error',
-                    text: errorMessage
-                }];
+            messages.push(errorMessage);
         }
-        // Create error content - each error as a separate red div
-        const errorContent = errorMessages.map(msg => {
-            return `<div class="overlayError">${this.escapeHtml(msg.text)}</div>`;
-        });
-        overlayManager.show({
-            header: `Error: ${label}`,
-            content: errorContent,
-            contentHeaders: errorContent.map(() => ''), // Empty headers for each error div
-            mode: 'fixed',
-            closable: true,
-            cancelLabel: 'Close',
-            showSubmit: false // No submit button, just close
-        });
+        showErrorOverlay(messages, `Error: ${label}`);
     }
     /**
      * Escape HTML to prevent XSS.

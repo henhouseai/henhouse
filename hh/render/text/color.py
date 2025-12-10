@@ -41,7 +41,7 @@ COLOR_NAMES = list(COLORS.keys())
 class ColorManager:
     """Manages automatic color assignment for strings using round-robin color indexing."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._pools: Dict[str, Dict[str, int]] = {}
         self._indices: Dict[str, int] = {}
     

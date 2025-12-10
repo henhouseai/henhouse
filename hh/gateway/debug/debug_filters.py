@@ -16,7 +16,7 @@ def parse_list_arg(list_arg: str) -> List[str]:
 class FilterMixin:
     """Mixin class providing shared filtering functionality for debug systems"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.whitelist: List[str] = ["*"]
         self.graylist: List[str] = []
         self.blacklist: List[str] = []

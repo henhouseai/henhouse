@@ -42,11 +42,11 @@ class ErrorEntry:
     timestamp: Optional[float] = None
 
 class GlobalErrorStore:
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self._errors: List[ErrorEntry] = []
     
-    def add_error(self, error_type: str, content: Union[str, Dict[str, Any]]):
+    def add_error(self, error_type: str, content: Union[str, Dict[str, Any]]) -> None:
         with self._lock:
             trace_in()
             import time
@@ -108,7 +108,7 @@ class GlobalErrorStore:
     
 _global_error_store = GlobalErrorStore()
 
-def report_error(error_type: str, content: Union[str, Dict[str, Any]]):
+def report_error(error_type: str, content: Union[str, Dict[str, Any]]) -> None:
     trace_in()
     _global_error_store.add_error(error_type, content)
     trace_out()
@@ -131,5 +131,5 @@ def get_error_count(error_type: Optional[str] = None) -> int:
     trace_out()
     return len(errors)
 
-def get_global_error_store():
+def get_global_error_store() -> GlobalErrorStore:
     return _global_error_store

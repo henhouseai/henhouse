@@ -49,7 +49,7 @@ def get_gateway() -> Gateway:
     return gateway
 
 class Gateway:
-    def __init__(self):
+    def __init__(self) -> None:
         self.request: Optional[Request] = None
         self.response: Optional[Response] = None
         self.conn: Optional[Connection] = None
@@ -103,6 +103,7 @@ class Gateway:
     def _initialize_debug_module(self):
         if self.request is None:
             return
+        assert self.request is not None
         use_trace = bool(self.request.get_arg('trace'))
         use_log = bool(self.request.get_arg('log'))
         use_debug = bool(self.request.get_arg('debug') or self.request.get_arg('log'))
@@ -112,6 +113,8 @@ class Gateway:
     def _initialize_command(self):
         if not is_error() and self.request is None:
             report_error("request", "No request found")
+        if not is_error():
+            assert self.request is not None
         if not is_error() and self.request.has_command():
             # Command was specified - use it as-is
             self.command = self.request.get_command()
@@ -156,6 +159,7 @@ class Gateway:
             report_error("registry", "No backend handler found.")
         
     def _configure_debug_module(self):
+        assert self.request is not None
         # Check trace flag first (enables trace flags regardless of backend)
         if self.request.get_arg("trace"):
             self.debug_system = "trace"
@@ -180,6 +184,7 @@ class Gateway:
     
     def _apply_debug_filter_overrides(self):
         """Apply debug filter overrides from request arguments to shared debug store"""
+        assert self.request is not None
         try:
             # Process debug limit
             debug_limit = self.request.get_arg('debug-limit')

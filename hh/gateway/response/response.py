@@ -20,7 +20,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 class Response:
-    def __init__(self):
+    def __init__(self) -> None:
         trace_in()
         self.output_buffer: List[str] = []
         self.action_response: Optional[dict] = None

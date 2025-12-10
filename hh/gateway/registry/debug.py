@@ -30,7 +30,7 @@ def debug_print(message: str) -> None:
     pass
 
 class SharedDebugDataStore(FilterMixin):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._lock = threading.Lock()
         self.captured_data: List[Any] = []
@@ -100,7 +100,7 @@ def _debug_print(message: str) -> None:
     if _DEBUG_REGISTRY_PRINTS:
         print(message)
 
-def _initialize_single_debug_func(func: Callable, module_name: str, function_name: str, auto_init: bool = False) -> bool:
+def _initialize_single_debug_func(func: Callable[[], Any], module_name: str, function_name: str, auto_init: bool = False) -> bool:
     func_id = f"{module_name}.{function_name}"
     if func_id in _initialized_functions:
         return False
@@ -154,7 +154,7 @@ def initialize_debug_modules() -> None:
 def get_debug_init_count() -> int:
     return len(_debug_init_functions)
 
-def _resolve_get_debug():
+def _resolve_get_debug() -> Optional[Callable[[], Any]]:
     try:
         if not _DEBUG_MODULE_PATH:
             return None
@@ -170,7 +170,7 @@ def set_debug_backend(system: str) -> None:
         return
     _DEBUG_MODULE_PATH = f"hh.gateway.debug.debug_{system}"
 
-def resolve_get_debug_for(system: str):
+def resolve_get_debug_for(system: str) -> Optional[Callable[[], Any]]:
     try:
         if not system or system == "none":
             return None
@@ -185,12 +185,12 @@ def _get_depth() -> int:
 def _set_depth(depth: int) -> None:
     setattr(_tls, _SAFE_MODE_ATTR, depth)
 
-def _get_safe_debug():
+def _get_safe_debug() -> Any:
     result = getattr(_tls, _SAFE_DEBUG_ATTR, None)
     debug_print(f"_get_safe_debug() - result is None: {result is None}")
     return result
 
-def _set_safe_debug(debug_instance) -> None:
+def _set_safe_debug(debug_instance: Any) -> None:
     setattr(_tls, _SAFE_DEBUG_ATTR, debug_instance)
 
 def is_safe_mode() -> bool:
@@ -247,7 +247,7 @@ def debug(message: str) -> None:
 def warn(message: str) -> None:
     _shared_debug_store.capture(message, 5)
 
-def _resolve_debug_obj():
+def _resolve_debug_obj() -> Optional[Any]:
     get_debug = _resolve_get_debug()
     if get_debug is None:
         return None
@@ -325,31 +325,31 @@ def set_trace_flags(use_trace: bool = False, use_log: bool = False, use_debug: b
     _use_log = use_log
     _use_debug = use_debug
 
-def get_trace_in(debug_enabled: bool = True):
+def get_trace_in(debug_enabled: bool = True) -> Callable[..., None]:
     if not debug_enabled or not _use_trace:
         def noop_trace_in(message=None): pass
         return noop_trace_in
     return trace_in
 
-def get_trace_out(debug_enabled: bool = True):
+def get_trace_out(debug_enabled: bool = True) -> Callable[..., None]:
     if not debug_enabled or not _use_trace:
         def noop_trace_out(message=None): pass
         return noop_trace_out
     return trace_out
 
-def get_log(debug_enabled: bool = True):
+def get_log(debug_enabled: bool = True) -> Callable[..., None]:
     if not debug_enabled or not _use_log:
         def noop_log(message): pass
         return noop_log
     return log
 
-def get_debug(debug_enabled: bool = True):
+def get_debug(debug_enabled: bool = True) -> Callable[..., None]:
     if not debug_enabled or not _use_debug:
         def noop_debug(message): pass
         return noop_debug
     return debug
 
-def get_warn(debug_enabled: bool = True):
+def get_warn(debug_enabled: bool = True) -> Callable[..., None]:
     return warn
 
 def get_shared_debug_store():
