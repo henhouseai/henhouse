@@ -158,28 +158,26 @@ class ImageCacheMixin(BaseImage):
                     self.id,
                 ),
             )
-            # Update main database cache_built_at
-            if affected > 0:
-                self.gateway.conn.update(
-                    """
-                        UPDATE images
-                        SET cache_built_at = %s
-                        WHERE id = %s
-                    """,
-                    (now, self.id),
-                )
-                
-                # Verify the data was actually written by reading it back
-                verify_check = self.gateway.conn.read_cache(
-                    "SELECT cache_built_at FROM images WHERE id = %s",
-                    (self.id,),
-                )
-                if verify_check:
-                    debug(f"_refresh_cached_image: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
-                else:
-                    warn(f"_refresh_cached_image: Verification failed - cache entry not found after UPDATE")
-            else:
+            # Always bump main database cache_built_at even when UPDATE is a no-op
+            self.gateway.conn.update(
+                """
+                    UPDATE images
+                    SET cache_built_at = %s
+                    WHERE id = %s
+                """,
+                (now, self.id),
+            )
+            if affected == 0:
                 debug(f"_refresh_cached_image: UPDATE affected 0 rows for image {self.id} - no change needed")
+            # Verify the data was actually written by reading it back
+            verify_check = self.gateway.conn.read_cache(
+                "SELECT cache_built_at FROM images WHERE id = %s",
+                (self.id,),
+            )
+            if verify_check:
+                debug(f"_refresh_cached_image: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
+            else:
+                warn(f"_refresh_cached_image: Verification failed - cache entry not found after UPDATE")
             
             debug(f"Refreshed cache for image {self.id}: rows={affected}, instances={len(self.instances) if self.instances else 0}, usage={len(self.cached_usage) if self.cached_usage else 0}")
         except Exception as exc:

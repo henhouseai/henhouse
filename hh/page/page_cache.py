@@ -189,28 +189,26 @@ class PageCacheMixin(BasePage):
                     self.id,
                 ),
             )
-            # Update main database cache_built_at
-            if affected > 0:
-                self.gateway.conn.update(
-                    """
-                        UPDATE pages
-                        SET cache_built_at = %s
-                        WHERE id = %s
-                    """,
-                    (now, self.id),
-                )
-                
-                # Verify the data was actually written by reading it back
-                verify_check = self.gateway.conn.read_cache(
-                    "SELECT display_name, cache_built_at FROM pages WHERE id = %s",
-                    (self.id,),
-                )
-                if verify_check:
-                    debug(f"_refresh_cached_page: Verification - cache entry has display_name='{verify_check[0].get('display_name')}', cache_built_at={verify_check[0].get('cache_built_at')}")
-                else:
-                    warn(f"_refresh_cached_page: Verification failed - cache entry not found after UPDATE")
+            # Always bump main database cache_built_at even when UPDATE is a no-op
+            self.gateway.conn.update(
+                """
+                    UPDATE pages
+                    SET cache_built_at = %s
+                    WHERE id = %s
+                """,
+                (now, self.id),
+            )
+            
+            # Verify the data was actually written by reading it back
+            verify_check = self.gateway.conn.read_cache(
+                "SELECT display_name, cache_built_at FROM pages WHERE id = %s",
+                (self.id,),
+            )
+            if verify_check:
+                debug(f"_refresh_cached_page: Verification - cache entry has display_name='{verify_check[0].get('display_name')}', cache_built_at={verify_check[0].get('cache_built_at')}")
             else:
-                # 0 rows affected doesn't necessarily mean an error - could just mean no change was needed
+                warn(f"_refresh_cached_page: Verification failed - cache entry not found after UPDATE")
+            if affected == 0:
                 debug(f"_refresh_cached_page: UPDATE affected 0 rows for page {self.id} - no change needed")
             
             debug(f"Refreshed cache for page {self.id}: rows={affected}")

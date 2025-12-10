@@ -152,27 +152,26 @@ class FileCacheMixin(BaseFile):
                     self.id,
                 ),
             )
-            # Update main database cache_built_at
-            if affected > 0:
-                self.gateway.conn.update(
-                    """
-                        UPDATE files
-                        SET cache_built_at = %s
-                        WHERE id = %s
-                    """,
-                    (now, self.id),
-                )
-                
-                # Verify the data was actually written by reading it back
-                verify_check = self.gateway.conn.read_cache(
-                    "SELECT cache_built_at FROM files WHERE id = %s",
-                    (self.id,),
-                )
-                if verify_check:
-                    debug(f"_refresh_cached_file: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
-                else:
-                    warn(f"_refresh_cached_file: Verification failed - cache entry not found after UPDATE")
+            # Always bump main database cache_built_at even when UPDATE is a no-op
+            self.gateway.conn.update(
+                """
+                    UPDATE files
+                    SET cache_built_at = %s
+                    WHERE id = %s
+                """,
+                (now, self.id),
+            )
+            
+            # Verify the data was actually written by reading it back
+            verify_check = self.gateway.conn.read_cache(
+                "SELECT cache_built_at FROM files WHERE id = %s",
+                (self.id,),
+            )
+            if verify_check:
+                debug(f"_refresh_cached_file: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
             else:
+                warn(f"_refresh_cached_file: Verification failed - cache entry not found after UPDATE")
+            if affected == 0:
                 warn(f"_refresh_cached_file: UPDATE affected 0 rows for file {self.id} - cache entry may not exist")
             
             debug(f"Refreshed cache for file {self.id}: rows={affected}, usage={len(self.pages) if self.pages else 0}")
