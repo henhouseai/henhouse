@@ -111,14 +111,14 @@ class ImageCacheMixin(BaseImage):
 
         # Ensure both fields are populated by calling their internal mixin methods
         # The getters check if field is populated first, and only hydrate if empty
+        # The getters set the attributes themselves, so we just call them
         # This ensures we always have fully hydrated data to cache
         
         if not self.instances:
-            self.instances = self.get_instances()
+            self.get_instances()
         
-        # Get usage data if cached_usage is empty
         if not self.cached_usage:
-            self.cached_usage = self._get_usage_data()
+            self._get_usage_data()
         
         # Serialize all data
         instances_json = self._dump_json(self.instances) if self.instances else None

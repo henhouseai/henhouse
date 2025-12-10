@@ -17,8 +17,7 @@ class DebugTable(Debug):
         self.process_extra_data()
         table_entries = []
         for entry in self.filtered_data:
-            if entry.level not in [1, 2]:
-                table_entries.append(entry)
+            table_entries.append(entry)
         debug_print(f"debug_debug.render_table_hook() - table_entries count: {len(table_entries)}")
         if not table_entries:
             debug_print(f"debug_debug.render_table_hook() - no table entries, returning empty")

@@ -52,12 +52,17 @@ class ImageInstancesMixin(BaseImage):
 
     def get_instances(self) -> List[Dict[str, Any]]:
         trace_in()
-        debug(f"Getting instances for image {self.id}")
-        if not self.instances:  # Load on-demand if not already loaded
-            self.instances = self.load_instances()
-            # Flag that cache needs refresh since we just hydrated
-            if self.instances:  # Only flag if actual instances were loaded
-                self._flag_cache_refresh()
+        # Check if field is already populated
+        if hasattr(self, 'instances') and self.instances:
+            debug(f"Image {self.id}: returning cached instances")
+            trace_out()
+            return self.instances.copy()
+        # Field is empty, need to hydrate from database
+        instances = self.load_instances()
+        self.instances = instances
+        # Only flag cache refresh if we actually found instances (data changed)
+        if instances:  # Only flag if actual instances were loaded
+            self._flag_cache_refresh()
         trace_out()
         return self.instances.copy()
 

@@ -10,7 +10,8 @@ def debug_print(message: str) -> None:
 
 class DebugTrace(DebugTable):
 
-    def process_extra_data(self) -> None:
+
+    def process_extra_data_disabled(self) -> None:
         debug_print(f"debug_trace.process_extra_data() - starting")
         
         # INDEPENDENT COUNTING LOGIC - BEFORE TREE BUILDING
@@ -113,7 +114,7 @@ class DebugTrace(DebugTable):
         mark_leaves_and_cleanup(trace_structure)
         self.trace_structure = trace_structure
 
-    def render_extra_data(self) -> str:
+    def render_extra_data_disabled(self) -> str:
         debug_print(f"debug_trace.render_extra_data() - has trace_structure: {hasattr(self, 'trace_structure')}")
         if hasattr(self, 'trace_structure'):
             result = self.render_trace_table(self.trace_structure)

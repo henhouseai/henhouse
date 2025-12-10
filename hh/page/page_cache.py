@@ -114,22 +114,23 @@ class PageCacheMixin(BasePage):
 
         # Ensure all 5 fields are populated by calling their internal mixin methods
         # The getters check if field is populated first, and only hydrate if empty
+        # The getters set the attributes themselves, so we just call them
         # This ensures we always have fully hydrated data to cache
         
         if not self.display_name:
-            self.display_name = self._get_display_name()
+            self._get_display_name()
         
         if self.prepared_text is None:
-            self.prepared_text = self.get_prepared_text()
+            self.get_prepared_text()
         
-        children = self._get_children_by_class()
-        self.children_by_class = children if children else {}
+        if not self.children_by_class:
+            self._get_children_by_class()
         
         if not self.images:
-            self.images = self.get_images_data()
+            self.get_images_data()
         
         if not self.files:
-            self.files = self.get_files_data()
+            self.get_files_data()
         
         # Serialize all data
         display_name_str = self.display_name

@@ -78,6 +78,12 @@ class ImageDisplayMixin(BaseImage):
 
     def _get_usage_data(self) -> List[Dict[str, Any]]:
         trace_in()
+        # Check if field is already populated
+        if hasattr(self, 'cached_usage') and self.cached_usage is not None:
+            debug(f"Image {self.id}: returning cached usage data")
+            trace_out()
+            return self.cached_usage
+        # Field is empty, need to hydrate from database
         usage_data = []
         if not is_error():
             try:
@@ -137,7 +143,8 @@ class ImageDisplayMixin(BaseImage):
             except Exception as e:
                 warn(f"Failed to get usage data for image {self.id}: {str(e)}")
                 report_error("backend", f"Failed to get usage data: {str(e)}")
-        # Flag that cache needs refresh since we just hydrated
+        self.cached_usage = usage_data
+        # Only flag cache refresh if we actually found usage data (data changed)
         if usage_data:  # Only flag if actual usage data was found
             self._flag_cache_refresh()
         trace_out()
