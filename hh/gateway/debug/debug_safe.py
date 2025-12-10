@@ -3,7 +3,7 @@ import inspect
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from hh.gateway.debug.debug_filters import FilterMixin, parse_list_arg
 from hh.render.text.color import COLORS, COLOR_NAMES, RESET_COLOR, get_color, apply_color_code
 
@@ -13,7 +13,7 @@ def debug_print(message: str) -> None:
     # print(f"DEBUG: {message}")
     pass
 
-def detect_document_root() -> str:
+def detect_document_root():
     current_file = Path(__file__).resolve()
     for parent in [current_file.parent] + list(current_file.parents):
         if (parent / 'hh' / '__init__.py').exists():
@@ -30,43 +30,34 @@ def trim_document_root(path: str) -> str:
 DOCUMENT_ROOT = detect_document_root()
 
 class DebugEntry:
-    def __init__(
-        self,
-        index: int,
-        timestamp: float,
-        level: int,
-        message: str,
-        function_name: str,
-        filename: str,
-        folder: str,
-    ) -> None:
-        self.index: int = index
-        self.timestamp: float = timestamp
-        self.level: int = level
-        self.message: str = message
-        self.function_name: str = function_name
-        self.filename: str = filename
-        self.folder: str = folder
-        self.white_passed: bool = False
-        self.gray_passed: bool = False
-        self.black_passed: bool = False
-        self.limit_passed: bool = False
-        self.folder_count: int = 0
-        self.file_count: int = 0
-        self.function_count: int = 0
+    def __init__(self, index, timestamp, level, message, function_name, filename, folder):
+        self.index = index
+        self.timestamp = timestamp
+        self.level = level
+        self.message = message
+        self.function_name = function_name
+        self.filename = filename
+        self.folder = folder
+        self.white_passed = False
+        self.gray_passed = False
+        self.black_passed = False
+        self.limit_passed = False
+        self.folder_count = 0
+        self.file_count = 0
+        self.function_count = 0
 
 class Debug(FilterMixin):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
-        self._shared_store: Any = None
-        self._module_colors: Dict[str, int] = {}
-        self._filename_colors: Dict[tuple[str, str], int] = {}
-        self._function_colors: Dict[tuple[str, str, str], int] = {}
+        self._shared_store = None
+        self._module_colors: dict = {}
+        self._filename_colors: dict = {}
+        self._function_colors: dict = {}
         self._module_color_index: int = 0
         self.filtered_data: List[DebugEntry] = []
         self._next_index: int = 0
 
-    def _get_shared_store(self) -> Any:
+    def _get_shared_store(self):
         if self._shared_store is None:
             from hh.gateway.registry.debug import get_shared_debug_store
             self._shared_store = get_shared_debug_store()
@@ -147,10 +138,18 @@ class Debug(FilterMixin):
         debug_print(f"debug_safe.render() - starting render")
         self.get_arg_overrides()
         self.filtered_data = []
-        folder_counts: Dict[str, int] = {}
-        file_counts: Dict[str, int] = {}
-        function_counts: Dict[str, int] = {}
+        folder_counts = {}
+        file_counts = {}
+        function_counts = {}
         shared_data = self._get_shared_store().captured_data
+        trace_enabled = False
+        try:
+            from hh.gateway.gateway import get_gateway
+            gateway = get_gateway()
+            if gateway and gateway.request and gateway.request.get_arg('trace'):
+                trace_enabled = True
+        except Exception:
+            pass
         debug_print(f"debug_safe.render() - shared_data length: {len(shared_data)}")
         
         for entry in shared_data:
@@ -169,7 +168,7 @@ class Debug(FilterMixin):
             will_be_shown = (filtered_entry.white_passed and filtered_entry.gray_passed and filtered_entry.black_passed)
             file_combination = f"{entry.folder} - {entry.filename}"
             function_combination = f"{entry.folder} - {entry.filename} - {entry.function_name}"
-            if entry.level >= 3:
+            if entry.level >= (1 if trace_enabled else 3):
                 filtered_entry.limit_passed = self.should_show_message(function_combination, will_be_shown)
             else:
                 filtered_entry.limit_passed = False
