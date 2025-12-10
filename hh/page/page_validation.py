@@ -153,6 +153,18 @@ class PageValidationMixin(BasePage):
                 report_error("action", f"Target page {target_page_id} does not exist")
                 trace_out()
                 return False
+            if target_page.class_name is None or self.class_name is None:
+                warn("Page class missing for move validation")
+                report_error("action", "Page class missing for move validation")
+                trace_out()
+                return False
+        if is_error():
+            trace_out()
+            return False
+        # mypy guard
+        assert target_page is not None
+        assert target_page.class_name is not None
+        assert self.class_name is not None
         if not is_error():
             # Check if target is a child of this page (would create circular reference)
             child_ids = self._check_children_recursive()

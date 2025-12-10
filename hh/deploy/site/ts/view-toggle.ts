@@ -4,7 +4,7 @@
  * Supports callbacks for pre/post-processing of swapped content.
  */
 
-import { RPCClient } from './rpc-client.js';
+import { RPCClient, RPCError } from './rpc-client.js';
 import { interceptLinks } from './overlay/overlay-link-helpers.js';
 import { getSeedData } from './seed.js';
 
@@ -170,8 +170,11 @@ class ViewToggle {
       this.replaceSectionContent(pageId, section, domContent, className, linkElement, context);
 
     } catch (error) {
-      console.error('Error handling view toggle:', error);
-      // Could show error to user via overlay or console
+      if (error instanceof RPCError) {
+        this.rpc.showError('get_page_section', error);
+      } else {
+        console.error('Error handling view toggle:', error);
+      }
     }
   }
 

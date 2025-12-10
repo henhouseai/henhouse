@@ -4,11 +4,7 @@ from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from typing import Any, Callable, Dict, List, Optional
-from hh.gateway.registry.cache import (
-    check_command_exists, 
-    check_backend_exists, 
-    check_command_in_backend
-)
+from hh.gateway.registry.cache import  check_command_exists, check_backend_exists, check_command_in_backend, discover_backend_specific_registrations  # type: ignore[attr-defined]
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.registry.backend import BACKEND_TYPES, BACKEND_DECORATORS, BACKEND_DICTS
 from hh.gateway.error.error_store import report_error, is_error
@@ -47,7 +43,7 @@ def create_backend_decorator(backend_type: str):
     info_class_name = f"{backend_type.title()}Info"
     dict_name = f"{backend_type}s"
     
-    def decorator(name: str = None):
+    def decorator(name: Optional[str] = None):
         def inner_decorator(func):
             @wraps(func)
             def wrapper(*args: Any, **kwargs: Any):
@@ -94,7 +90,7 @@ def backend_stub():
 for backend_type in BACKEND_TYPES:
     backends[backend_type] = BackendInfo(function=backend_stub)
 
-def register_command(name: str = None, action_args: Optional[List[str]] = None) -> Callable[[Callable], Callable]:
+def register_command(name: Optional[str] = None, action_args: Optional[List[str]] = None) -> Callable[[Callable], Callable]:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any):
@@ -104,10 +100,11 @@ def register_command(name: str = None, action_args: Optional[List[str]] = None) 
         log("register_command buffering '%s' from '%s' (action_args=%s)" % (actual_name, func.__module__, action_args))
         command_info = CommandInfo(function=wrapper, action_args=action_args or [])
         commands[actual_name] = command_info
-        register_command.commands = dict(commands)
+        register_command.commands = dict(commands)  # type: ignore[attr-defined]
         trace_out()
         return wrapper
     return decorator
+register_command.commands = {}  # type: ignore[attr-defined]
 
 class CommandRegistry:
     def __init__(self, command: str, backend: str) -> None:
@@ -169,7 +166,6 @@ class CommandRegistry:
             return
         
         # Use action cache data to find the action handler (not the delivery backend cache)
-        from hh.gateway.registry.cache import check_command_in_backend
         action_registration = check_command_in_backend(self.command, "action")
         if action_registration and "handlers" in action_registration:
             command_name = self.command
@@ -191,7 +187,6 @@ class CommandRegistry:
             if not self.error_cache_data:
                 try:
                     # Force discovery of backend-specific registrations
-                    from hh.gateway.registry.cache import discover_backend_specific_registrations
                     registrations = discover_backend_specific_registrations(self.backend, force_regenerate=True)
                     error_handler_info = registrations.get("error_handler")
                     if error_handler_info:
@@ -304,8 +299,16 @@ class CommandRegistry:
             return False
         
         # Load action module from cache data
-        module_to_load = self.action_cache_data["module"]
-        function_name = self.action_cache_data["function"]
+        if not self.action_cache_data:
+            warn("No action cache data found")
+            trace_out()
+            return False
+        module_to_load = self.action_cache_data.get("module")
+        function_name = self.action_cache_data.get("function")
+        if not module_to_load or not function_name:
+            warn("Incomplete action cache data")
+            trace_out()
+            return False
             
         try:
             module = import_module(module_to_load)
@@ -330,8 +333,16 @@ class CommandRegistry:
             return False
         
         # Load backend module from cache data
-        module_to_load = self.backend_cache_data["module"]
-        function_name = self.backend_cache_data["function"]
+        if not self.backend_cache_data:
+            warn("No backend cache data found")
+            trace_out()
+            return False
+        module_to_load = self.backend_cache_data.get("module")
+        function_name = self.backend_cache_data.get("function")
+        if not module_to_load or not function_name:
+            warn("Incomplete backend cache data")
+            trace_out()
+            return False
             
         try:
             module = import_module(module_to_load)
