@@ -32,33 +32,17 @@ class ImageDisplayMixin(BaseImage):
     def show_image(self) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and getattr(self, 'cached_usage', None) is not None
-        extra_actions: List[Dict[str, Any]] = []
-
         if cache_ready:
-            debug(f"Image {self.id}: serving show_image payload from cache")
-            image_data = self.get_image_data()
-            usage_data = self.cached_usage or []
-            instances_data = self.get_instances_data()
+            debug(f"Image {self.id}: cache available, methods will check cache independently")
         else:
-            image_data = {}
-            usage_data = []
-            instances_data = []
-            if not is_error():
-                debug(f"Getting image data for image {self.id}")
-                image_data = self.get_image_data()
-                log(f"Retrieved image data for image {self.id}")
-            if not is_error():
-                usage_data = self._get_usage_data()
-                log(f"Retrieved usage data: {len(usage_data)} pages using image {self.id}")
-            if not is_error():
-                instances_data = self.get_instances_data()
-                log(f"Retrieved instances data: {len(instances_data)} instances for image {self.id}")
-            if not is_error():
-                self.cached_usage = usage_data
-                self.cache_hydrated = True
-                # Flag that cache needs refresh since we just computed this data
-                self._flag_cache_refresh()
-
+            debug(f"Image {self.id}: cache miss or stale entry; rebuilding show_image payload")
+        
+        image_data = self.get_image_data()
+        usage_data = self._get_usage_data()
+        self.get_instances()  # Ensure instances are loaded before get_instances_data()
+        instances_data = self.get_instances_data()
+        
+        extra_actions: List[Dict[str, Any]] = []
         if not is_error():
             extra_actions = self._check_extra_actions()
             if extra_actions:
@@ -71,6 +55,8 @@ class ImageDisplayMixin(BaseImage):
         }
         if extra_actions:
             response_data["extra_actions"] = extra_actions
+        
+        # Cache refresh will be handled by wrapper method system if flag is set
         log(f"Generated complete display data for image {self.id}: {self.caption}")
         trace_out()
         return response_data
