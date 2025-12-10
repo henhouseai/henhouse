@@ -108,11 +108,11 @@ class FileCacheMixin(BaseFile):
 
         # Ensure pages field is populated by calling internal mixin method
         # The getter checks if field is populated first, and only hydrates if empty
+        # The getter sets the attribute itself, so we just call it
         # This ensures we always have fully hydrated data to cache
         
-        # Get usage data if pages is empty
         if not self.pages:
-            self.pages = self.get_usage_data()
+            self.get_usage_data()
         
         # Serialize all data
         pages_json = self._dump_json(self.pages) if self.pages else None
