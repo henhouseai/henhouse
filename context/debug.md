@@ -358,7 +358,7 @@ The filtering system that provides precise control over debug output by implemen
 
 The debug filters enable developers to see exactly the debug information they need without being overwhelmed by irrelevant output. It implements whitelist, graylist, and blacklist filtering with wildcard pattern matching and combination counting to prevent spam while providing precise control over debug output.
 
-### FilterMixin Class
+### Filter Class
 
 #### owned by:
 - debug systems : *Used by debug data stores and rendering systems*

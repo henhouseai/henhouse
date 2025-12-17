@@ -63,13 +63,13 @@ The following diagram shows the core system relationships and dependencies:
 
 - *Page Registry*: hot cache for in-memory instances
 - *Page Class Registry*: dynamic subclass loading
-- *9 Mixins*: validation, hierarchy, content, images, files, display, ajax, cache, maintenance
+- *Comprehensive functionality*: validation, hierarchy, content, images, files, display, ajax, cache, maintenance
 - *TextProcessor*: markup parsing for page content
 - *Cache System*: two-tier caching (hot cache + cache database)
 
 #### **Image and File Systems**: media and attachment management
 
-- Follow same patterns as Page system (registry, cache, mixins)
+- Follow same patterns as Page system (registry, cache)
 - Multi-size image instances with automatic generation
 - Usage tracking via image_groups/file_groups tables
 
@@ -216,7 +216,7 @@ The render system provides unified output formatting for structured data, transf
 The Page system provides hierarchical content management with pages, images, files, and custom markup processing. All Page operations access the database through Gateway.conn, using standard Connection methods (read, create, update, delete) for all CRUD operations. When actions modify page content, they set results via Gateway.response.set_action_response(), which backends then format for output. The Page system's cache refresh mechanism integrates with Gateway's commit process: when derived fields are computed during a request, pages are flagged for cache refresh, and during Gateway.commit(), the refresh_stale_page_caches() function writes all flagged cache updates to the cache database. This coordination ensures cache consistency while maintaining the single-shot request lifecycle. The same pattern applies to Image and File systems, which follow similar registry and cache patterns but with simpler structures.
 
 - Hierarchical content system with pages, images, files, and custom markup
-- Base Page class with 9 mixins, designed for inheritance and extension
+- Base Page class designed for inheritance and extension
 - Standard action pattern uses `show_page()` as consistent output format for CRUD operations
 - Multi-tier caching strategy for performance optimization
 - Database abstraction supporting main, cache, and history databases (history not yet implemented)
@@ -224,7 +224,7 @@ The Page system provides hierarchical content management with pages, images, fil
 
 #### **Page Hierarchy**
 
-- 9-mixin architecture (validation, hierarchy, content, images, files, display, ajax, cache, maintenance)
+- Comprehensive functionality organized into focused areas (validation, hierarchy, content, images, files, display, ajax, cache, maintenance)
 - Parent-child relationships with automatic breadcrumb generation
 - Extensible infrastructure: Base Page class designed for inheritance with derived classes
 - Five validation functions control page behavior and hierarchy constraints (allow_null_names, allow_duplicate_names, auto_link_name, allow_class_inside, allow_inside_of)
@@ -235,7 +235,7 @@ The Page system provides hierarchical content management with pages, images, fil
 
 #### **Text Processing**
 
-TextProcessor provides custom markup parsing for page content, handling wiki-style syntax for links, images, and decorators. The system integrates into the Page system through PageContentMixin.get_prepared_text(), which processes page text content and caches the result in the prepared_text field. During link and image resolution, TextProcessor uses Gateway.conn to query the page and image registries, resolving page names to IDs and finding primary images for pages. When page text is modified via PageContentMixin.modify_text(), TextProcessor updates the links and image_links database tables to track page-to-page and page-to-image relationships. The processed text flows through a decorator pipeline that can produce different output formats (JSON, CLI tables, HTML) based on the final decorator, making it format-agnostic while maintaining the same parsing and resolution logic.
+TextProcessor provides custom markup parsing for page content, handling wiki-style syntax for links, images, and decorators. The system integrates into the Page system through Page.get_prepared_text(), which processes page text content and caches the result in the prepared_text field. During link and image resolution, TextProcessor uses Gateway.conn to query the page and image registries, resolving page names to IDs and finding primary images for pages. When page text is modified via Page.modify_text(), TextProcessor updates the links and image_links database tables to track page-to-page and page-to-image relationships. The processed text flows through a decorator pipeline that can produce different output formats (JSON, CLI tables, HTML) based on the final decorator, making it format-agnostic while maintaining the same parsing and resolution logic.
 
 - Custom markup language similar to wiki syntax ([[links]], {{images}}, {{{direct_image_id}}})
 - Recursive-descent parser architecture handles nested elements and decorator chains
@@ -388,7 +388,7 @@ The following documents provide detailed implementation information beyond this 
 **Most important documents for general development work:**
 
 - **gateway.md**: Essential reading for understanding how the system orchestrates requests, manages state, and coordinates all subsystems. Required for any work involving request handling, database connections, file operations, or extending Gateway functionality.
-- **page.md**: Essential reading for content management work. Covers the extensible page system architecture, mixin patterns, validation functions, and how to create new page types. Required for any work involving pages, images, files, or content processing.
+- **page.md**: Essential reading for content management work. Covers the extensible page system architecture, validation functions, and how to create new page types. Required for any work involving pages, images, files, or content processing.
 - **deployment.md**: Essential reading for understanding the deployment system architecture, multi-tier infrastructure setup, and production deployment workflows. Required for any work involving server setup, deployment operations, or production environment management.
 
 ### **gateway.md**
@@ -400,7 +400,7 @@ The following documents provide detailed implementation information beyond this 
 
 ### **page.md**
 
-- **Mixin Architecture**: The nine mixins and their responsibilities with detailed breakdown
+- **Page Architecture**: The Page class functionality organized into focused areas with detailed breakdown
 - **Extension Patterns**: How derived classes override validation functions with specific examples
 - **Metadata Extraction**: Mechanics of automatic metadata extraction as object attributes
 - **Database Access**: Database access patterns through `gateway.conn` and transaction handling

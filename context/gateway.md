@@ -182,7 +182,7 @@ See `SharedDebugDataStore` class and global debug functions in `hh/gateway/regis
 - `-debug-limit 1`: Quick peek (1 message per combination)
 - `-debug-limit 20`: Deep dive (20 messages per combination)
 
-See `FilterMixin` class in `hh/gateway/debug/debug_filters.py` for implementation.
+See the filter class in `hh/gateway/debug/debug_filters.py` for implementation.
 
 ### Error System
 

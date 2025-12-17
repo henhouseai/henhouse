@@ -11,7 +11,6 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
    - [The Five Validation Functions](#the-five-validation-functions)
    - [Extensibility System](#extensibility-system)
    - [CRUD Operations](#crud-operations)
-   - [The Nine Mixins](#the-nine-mixins)
    - [Cache System](#cache-system)
    - [Page Registry](#page-registry)
    - [Page Class Registry](#page-class-registry)
@@ -21,7 +20,7 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
 ## Agent Quick Reference
 
 - **Core Modules**: `page/` (hierarchical content), `image/` (media management), `tp/` (markup parsing)
-- **Mixin Architecture**: Page class uses 9 mixins with direct database access via `self.gateway.conn`
+- **Architecture**: Page class provides comprehensive functionality with direct database access via `self.gateway.conn`
 - **Extensibility**: Base Page class designed for inheritance; derived classes override validation functions, hooks, and display methods
 - **Cache System**: Five derived fields (display_name, prepared_text, children_by_class, images, files) plus main DB metadata cached in separate cache database
 - **Page Registry**: Hot cache system with automatic cache refresh during gateway commit
@@ -37,7 +36,7 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
 - **Page Objects**: Actions create Page instances via `get_page(page_id)` from page registry
 - **Image Objects**: Actions create Image instances for media operations
 - **Text Processing**: Page content parsed through TextProcessor with decorator registry
-- **Mixin Pattern**: Pages use multiple mixins for functionality
+- **Page Methods**: Pages provide comprehensive methods for all operations
 - **Display Methods**: Call `show_page()` for formatted output data
 
 ### Common Usage Patterns
@@ -52,15 +51,15 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
 
 **Files**: `hh/page/*.py`
 
-The hierarchical page management system with CRUD operations, display logic, and content processing. Provides a clean object-oriented interface using mixins for functionality. **The Page system is designed as extensible infrastructure** - the base `Page` class provides core functionality, while derived classes extend it for specific content types (source code files, work pages, etc.).
+The hierarchical page management system with CRUD operations, display logic, and content processing. **The Page system is designed as extensible infrastructure** - the base `Page` class provides core functionality, while derived classes extend it for specific content types (source code files, work pages, etc.).
 
 ### Core Architecture
 
-The Page class is a composite of nine specialized mixins, providing a modular architecture that can be extended through inheritance. All mixin methods access the database directly through `self.gateway.conn`.
+The Page class provides comprehensive functionality organized into focused areas, with a modular architecture that can be extended through inheritance. All Page methods access the database directly through `self.gateway.conn`.
 
 #### Page Class Structure
 
-The Page class is defined in `hh/page/page.py` and inherits from nine mixins. See the class definition for the complete mixin list.
+The Page class is defined in `hh/page/page.py`. See the class definition for the complete method list.
 
 #### Metadata Extraction
 
@@ -74,7 +73,7 @@ The Page constructor automatically extracts metadata fields as object attributes
 
 #### Database Access Pattern
 
-All mixin methods access the database directly through `self.gateway.conn`. See any mixin method (e.g., `modify_name()` in `PageContentMixin`) for examples.
+All Page methods access the database directly through `self.gateway.conn`. See any Page method (e.g., `modify_name()`) for examples.
 
 **Key Points**:
 - All methods use `self.gateway.conn` directly
@@ -86,7 +85,7 @@ All mixin methods access the database directly through `self.gateway.conn`. See 
 
 The Page system provides **five validation functions** that control page behavior and hierarchy constraints. These are the primary extension points for derived classes to customize validation rules.
 
-All five functions are defined in `PageValidationMixin` and can be overridden by derived classes:
+All five functions are defined in the Page class and can be overridden by derived classes:
 
 #### 1. `allow_null_names()` - Class Method
 
@@ -100,7 +99,7 @@ All five functions are defined in `PageValidationMixin` and can be overridden by
 - Set to `True` for classes that don't require names (e.g., `SourceCodeFile`, `WorkDocket`)
 - Set to `False` for classes that must have names (e.g., base `Page`)
 
-**Example Override**: See `SourceCodeFileValidationMixin.allow_null_names()` in `hh/source_code_file/source_code_file_validation.py`
+**Example Override**: See `SourceCodeFile.allow_null_names()` in `hh/source_code_file/source_code_file.py`
 
 #### 2. `allow_duplicate_names()` - Class Method
 
@@ -114,7 +113,7 @@ All five functions are defined in `PageValidationMixin` and can be overridden by
 - Set to `False` to enforce unique names within a parent (rare)
 - Keep `True` for most use cases
 
-**Example Override**: See `SourceCodeFileValidationMixin.allow_duplicate_names()` in `hh/source_code_file/source_code_file_validation.py`
+**Example Override**: See `SourceCodeFile.allow_duplicate_names()` in `hh/source_code_file/source_code_file.py`
 
 #### 3. `auto_link_name()` - Class Method
 
@@ -128,7 +127,7 @@ All five functions are defined in `PageValidationMixin` and can be overridden by
 - Set to `False` for classes that manage links manually (e.g., `SourceCodeFile`, `WorkDocket`)
 - Keep `True` for simple pages where name and link should match
 
-**Example Override**: See `SourceCodeFileValidationMixin.auto_link_name()` in `hh/source_code_file/source_code_file_validation.py`
+**Example Override**: See `SourceCodeFile.auto_link_name()` in `hh/source_code_file/source_code_file.py`
 
 #### 4. `allow_class_inside()` - Instance Method
 
@@ -142,7 +141,7 @@ All five functions are defined in `PageValidationMixin` and can be overridden by
 - Restrict which child classes are allowed under this page type
 - Example: Work dockets might only allow "ask" children
 
-**Example Override**: See `SourceCodeFileValidationMixin.allow_class_inside()` in `hh/source_code_file/source_code_file_validation.py`
+**Example Override**: See `SourceCodeFile.allow_class_inside()` in `hh/source_code_file/source_code_file.py`
 
 #### 5. `allow_inside_of()` - Class Method
 
@@ -156,9 +155,9 @@ All five functions are defined in `PageValidationMixin` and can be overridden by
 - Enforce hierarchy constraints (e.g., "asks can only be inside work dockets")
 - Prevent abstract classes from being instantiated directly
 
-**Example Override** (Abstract Class): See `WorkPageValidationMixin.allow_inside_of()` in `hh/work/work_page_validation.py` - prevents abstract class from being instantiated directly.
+**Example Override** (Abstract Class): See `WorkPage.allow_inside_of()` in `hh/work/work_page.py` - prevents abstract class from being instantiated directly.
 
-**Example Override** (Hierarchy Constraint): See `WorkDocketValidationMixin.allow_inside_of()` in `hh/work_docket/work_docket_validation.py`
+**Example Override** (Hierarchy Constraint): See `WorkDocket.allow_inside_of()` in `hh/work_docket/work_docket.py`
 
 #### Validation Function Usage
 
@@ -167,7 +166,7 @@ These functions are called during:
 - **Name Modification** (`modify_name()`): Checks `allow_null_names()`, `allow_duplicate_names()`, `auto_link_name()`
 - **Move Operations** (`move_page()`): Checks `allow_class_inside()` and `allow_inside_of()`
 
-See `PageValidationMixin.validate_name()` in `hh/page/page_validation.py` for the full implementation that uses these functions.
+See `Page.validate_name()` in `hh/page/page.py` for the full implementation that uses these functions.
 
 ### Extensibility System
 
@@ -175,13 +174,13 @@ The Page system is designed for extension through inheritance. Derived classes c
 
 #### Creating Derived Classes
 
-Derived classes extend `Page` (or intermediate abstract classes) and add their own mixins:
+Derived classes extend `Page` (or intermediate abstract classes):
 
-**Simple Derived Class Example**: See `SourceCodeFile` class in `hh/source_code_file/source_code_file.py` - extends Page directly with validation and content mixins.
+**Simple Derived Class Example**: See `SourceCodeFile` class in `hh/source_code_file/source_code_file.py` - extends Page directly with custom validation and content methods.
 
 **Abstract Intermediate Class Example**: See `WorkPage` class in `hh/work/work_page.py` - abstract base class that extends Page and provides shared functionality (status, meta, sort_order) for work entities.
 
-**Concrete Derived Class Example**: See `WorkDocket` class in `hh/work_docket/work_docket.py` - extends WorkPage (which extends Page) with work docket-specific validation and content mixins.
+**Concrete Derived Class Example**: See `WorkDocket` class in `hh/work_docket/work_docket.py` - extends WorkPage (which extends Page) with work docket-specific validation and content methods.
 
 #### Inheritance Patterns
 
@@ -211,14 +210,14 @@ Derived classes can override the following methods to customize behavior:
 - Called before page deletion for cleanup
 - Use for deleting related records or cleaning up resources
 
-See `PageContentMixin._add_page_class_information()` and `_delete_page_class_information()` in `hh/page/page_content.py` for the base implementations.
+See `Page._add_page_class_information()` and `_delete_page_class_information()` in `hh/page/page.py` for the base implementations.
 
 ##### Display Hooks
 
 **`_get_display_name()`** - Instance Method
 - Override to customize how page names are displayed
 - Default: Returns `self.name` or `f"Page {self.id}"`
-- Example: See `SourceCodeFileContentMixin._get_display_name()` in `hh/source_code_file/source_code_file_content.py` for an override that extracts filename from `file_path` when name is null
+- Example: See `SourceCodeFile._get_display_name()` in `hh/source_code_file/source_code_file.py` for an override that extracts filename from `file_path` when name is null
 
 **`_add_upper_content()`** - Instance Method
 - Override to add content above the main page content
@@ -234,13 +233,13 @@ See `PageContentMixin._add_page_class_information()` and `_delete_page_class_inf
 - Override to customize badge headers displayed above page content
 - Returns `Dict[str, Any]` with badge data
 - Default: Returns page summary badge
-- See `PageDisplayMixin._add_badge_headers()` in `hh/page/page_display.py` for base implementation
+- See `Page._add_badge_headers()` in `hh/page/page.py` for base implementation
 
 **`_get_child_row_field_type()`** - Instance Method
 - Override to customize the field type/icon shown when this page appears as a child in tables
 - Returns string field type (used for rendering icons/labels)
 - Default: Returns `'page'`
-- Example: See `WorkDocketContentMixin._get_child_row_field_type()` in `hh/work_docket/work_docket_content.py` for status-based field types
+- Example: See `WorkDocket._get_child_row_field_type()` in `hh/work_docket/work_docket.py` for status-based field types
 
 ##### Hierarchy Hooks
 
@@ -248,7 +247,7 @@ See `PageContentMixin._add_page_class_information()` and `_delete_page_class_inf
 - Override to customize which children are returned and how they're ordered
 - Returns tuple of `(query_string, params_list)`
 - Default: Returns only 'page' class children, sorted by name
-- Example: See `WorkDocketContentMixin._get_children_query()` in `hh/work_docket/work_docket_content.py` for custom ordering by metadata sort_order
+- Example: See `WorkDocket._get_children_query()` in `hh/work_docket/work_docket.py` for custom ordering by metadata sort_order
 
 **`getChildrenOf(parent_id: int, view_type: str = 'tile')`** - Static Method
 - Override to customize default view_type and class-specific child retrieval behavior
@@ -256,7 +255,7 @@ See `PageContentMixin._add_page_class_information()` and `_delete_page_class_inf
 - Matches legacy `getChildrenOf()` pattern where each class handles its own children
 - Default: `view_type='tile'` in base class, can be overridden (e.g., `SourceCodeFile` defaults to `'table'`)
 - Uses the class's own `_get_children_query()` to get children of that specific class
-- Example: See `SourceCodeFileContentMixin.getChildrenOf()` in `hh/source_code_file/source_code_file_content.py` for class-specific override
+- Example: See `SourceCodeFile.getChildrenOf()` in `hh/source_code_file/source_code_file.py` for class-specific override
 
 **`_copy_page_class_information(new_page_id: int)`** - Instance Method
 - Override to customize what happens when a page is copied
@@ -270,7 +269,7 @@ Derived classes can use the metadata JSON field to store custom data. The Page c
 **Example**: `WorkPage` stores `status`, `meta`, and `sort_order` in metadata:
 - These are automatically available as `self.status`, `self.meta`, `self.sort_order`
 - Derived classes like `WorkDocket` inherit this behavior
-- The `WorkPageContentMixin` provides methods to modify these fields
+- The `WorkPage` class provides methods to modify these fields
 
 ### CRUD Operations
 
@@ -283,7 +282,7 @@ All page actions follow this structure:
 1. **Registration**: Use `@register_action` and `@register_command` decorators
 2. **Argument Validation**: Check required arguments via `gateway.is_set()` and `gateway.get_arg()`
 3. **Page Loading**: Load page via `get_page(page_id)` from registry
-4. **Operation**: Call mixin method on page instance (e.g., `page.modify_name()`, `page.add_page()`)
+4. **Operation**: Call method on page instance (e.g., `page.modify_name()`, `page.add_page()`)
 5. **Response**: Call `page.show_page()` and set action response
 6. **Error Handling**: Use `is_error()` and `report_error()` throughout
 
@@ -305,171 +304,7 @@ The `show_page()` method is the standard output format for page operations. It r
 - `upper_content`: Additional content above main content
 - `lower_content`: Additional content below main content
 
-See `PageDisplayMixin.show_page()` in `hh/page/page_display.py` for the full implementation. For MCP backend, it returns a lightweight payload without badge headers and extra content.
-
-### The Nine Mixins
-
-The Page class uses multiple inheritance with nine specialized mixins, each providing focused functionality. All mixin methods access the database directly through `self.gateway.conn`.
-
-#### 1. PageValidationMixin (`page_validation.py`)
-
-**Purpose**: Name validation, move validation, duplicate checking, hierarchy constraints
-
-**Key Methods**:
-- `validate_name(name, page_class, exclude_id, error_on_invalid)` - Validates page name using the five validation functions
-- `can_move_to_page(target_page_id)` - Validates if page can be moved to target
-- `check_children_recursive()` - Recursively gets all descendant page IDs
-
-**Extension Points**:
-- Override the five validation functions (`allow_null_names()`, `allow_duplicate_names()`, `auto_link_name()`, `allow_class_inside()`, `allow_inside_of()`)
-
-**Code Reference**: `hh/page/page_validation.py`
-
-#### 2. PageHierarchyMixin (`page_hierarchy.py`)
-
-**Purpose**: Parent-child relationships, breadcrumbs, move/copy operations
-
-**Key Methods**:
-- `get_path()` - Returns breadcrumb path from root to this page
-- `get_children_data()` - Returns full child page data
-- `get_child_page_ids()` - Returns list of child page IDs
-- `move_page(target_page_id)` - Moves page to new parent
-- `copy_page(target_page_id, recursive, max_depth)` - Copies page with optional recursion
-- `_get_display_name()` - Computes display name (cached in `display_name` field)
-
-**Extension Points**:
-- Override `_get_children_query(parent_id)` to customize child queries and ordering
-- Override `_get_display_name()` to customize display name computation
-- Override `_copy_page_class_information(new_page_id)` to customize copy behavior
-
-**Cache Fields**: `display_name` (computed via `_get_display_name()`)
-
-**Code Reference**: `hh/page/page_hierarchy.py`
-
-#### 3. PageContentMixin (`page_content.py`)
-
-**Purpose**: CRUD operations, text processing, page data assembly, metadata management
-
-**Key Methods**:
-- `modify_name(name)` - Updates page name (respects `auto_link_name()`)
-- `modify_text(text)` - Updates page text content and processes links
-- `add_page(page_class, name)` - Creates new child page
-- `delete_page()` - Deletes page and all children recursively
-- `get_page_data()` - Returns page metadata dictionary
-- `flag_page_modification(comments)` - Updates audit trail (last_modified, username, comments)
-- `set_metadata_value(key, value)` - Sets a metadata key-value pair
-- `get_prepared_text()` - Returns processed text content (cached in `prepared_text` field)
-
-**Extension Points**:
-- Override `_add_page_class_information(new_page_id)` (classmethod) for class-specific setup after creation
-- Override `_delete_page_class_information()` (instance method) for class-specific cleanup before deletion
-- Override `get_allowed_child_classes()` to customize which child classes are allowed
-
-**Cache Fields**: `prepared_text` (computed via `get_prepared_text()`)
-
-**Code Reference**: `hh/page/page_content.py`
-
-#### 4. PageImagesMixin (`page_images.py`)
-
-**Purpose**: Image association management, ranking, copying/moving images
-
-**Key Methods**:
-- `get_images_data()` - Returns list of associated images with ranks (cached in `images` field)
-- `add_image(file_path, caption)` - Adds image to page and processes upload
-- `copy_images(image_ids, target_rank)` - Copies images to this page
-- `move_images(image_instances, target_rank)` - Moves images from other pages
-- `set_image_rank(image_id, current_rank, new_rank)` - Reorders images
-- `remove_image(image_id, image_rank)` - Removes image from page
-
-**Internal Methods**:
-- `_create_image_record(caption)` - Creates image record in database
-- `_add_image_to_group(image_id, rank)` - Adds image to page's image group
-- `_reorder_images()` - Reorders all images to fix gaps
-
-**Cache Fields**: `images` (computed via `get_images_data()`)
-
-**Code Reference**: `hh/page/page_images.py`
-
-#### 5. PageFilesMixin (`page_files.py`)
-
-**Purpose**: File association management, ranking, copying/moving files
-
-**Key Methods**:
-- `get_files_data()` - Returns list of associated files with ranks (cached in `files` field)
-- `add_file(temp_path, original_filename, description)` - Adds file to page
-- `copy_files(file_ids, target_rank)` - Copies files to this page
-- `move_files(file_instances, target_rank)` - Moves files from other pages
-- `set_file_rank(file_id, current_rank, new_rank)` - Reorders files
-- `remove_file(file_id, file_rank)` - Removes file from page
-
-**Internal Methods**:
-- `_create_file_record(...)` - Creates file record in database
-- `_add_file_to_group(file_id, rank)` - Adds file to page's file group
-- `_reorder_files()` - Reorders all files to fix gaps
-
-**Cache Fields**: `files` (computed via `get_files_data()`)
-
-**Code Reference**: `hh/page/page_files.py`
-
-#### 6. PageDisplayMixin (`page_display.py`)
-
-**Purpose**: Display data preparation, child grouping, badge headers
-
-**Key Methods**:
-- `show_page()` - Returns complete display data dictionary (standard output format)
-- `_get_children_by_class()` - Groups children by class (cached in `children_by_class` field)
-- `getChildrenOf(parent_id, view_type='tile')` - Static method to get children of a specific class type for a parent page (matches legacy pattern)
-
-**Extension Points** (all can be overridden):
-- `_add_upper_content()` - Add content above main page content
-- `_add_lower_content()` - Add content below main page content
-- `_add_badge_headers()` - Customize badge headers
-- `_get_child_row_field_type()` - Customize field type when displayed as child row
-- `getChildrenOf(parent_id, view_type='tile')` - Static method override to customize default view_type and class-specific behavior
-
-**View Type Support**: The `getChildrenOf()` static method supports a `view_type` parameter:
-- `'table'` → Returns data formatted for table rendering (standard format with field_type, num_children)
-- `'tile'` → Returns data formatted for tile rendering (includes display_name, images array with first image)
-- Default: `'tile'` in base class, can be overridden by derived classes (e.g., `SourceCodeFile` defaults to `'table'`)
-- Parser backend always forces `view_type='table'` to ensure CLI compatibility
-- Data format is indicated by `_format` metadata field ('table' or 'tile')
-
-**Cache Fields**: `children_by_class` (computed via `_get_children_by_class()`)
-
-**Code Reference**: `hh/page/page_display.py`
-
-#### 7. PageAjaxMixin (`page_ajax.py`)
-
-**Purpose**: AJAX-friendly JSON payload assembly for MCP backend
-
-**Key Methods**:
-- `get_page()` - Returns minimal JSON structure with available actions
-  - Includes `page`, `images`, `children_by_class`
-  - Adds `available_actions` for MCP backend (app actions based on user tier)
-
-**Code Reference**: `hh/page/page_ajax.py`
-
-#### 8. PageCacheMixin (`page_cache.py`)
-
-**Purpose**: Cache database management for five derived fields plus main DB metadata backup
-
-**Key Methods**:
-- `_refresh_cached_page()` - Writes all five derived fields plus metadata to cache database
-- `_ensure_cache_entry()` - Ensures cache entry exists in cache database
-- `_flag_cache_refresh()` - Flags that cache needs refresh (called by getters)
-
-**Cache Fields**: All five derived fields (display_name, prepared_text, children_by_class, images, files) plus metadata backup
-
-**Code Reference**: `hh/page/page_cache.py`
-
-#### 9. PageMaintenanceMixin (`page_maintenance.py`)
-
-**Purpose**: Maintenance operations like regex text replacement
-
-**Key Methods**:
-- `regex_text(old_name, new_name)` - Replaces page name references in text content
-
-**Code Reference**: `hh/page/page_maintenance.py`
+See `Page.show_page()` in `hh/page/page.py` for the full implementation. For MCP backend, it returns a lightweight payload without badge headers and extra content.
 
 ### Cache System
 
@@ -518,7 +353,7 @@ See `Page.__init__()` in `hh/page/page.py` for cache hydration logic.
    - Main DB fields as metadata backup
 4. Updates `cache_built_at` in main database
 
-See `PageCacheMixin._refresh_cached_page()` in `hh/page/page_cache.py` for the refresh implementation.
+See `Page._refresh_cached_page()` in `hh/page/page.py` for the refresh implementation.
 
 #### Lazy Computation Pattern
 
@@ -603,7 +438,7 @@ When `get_page(page_id)` is called:
 1. Queries database for page's `class` field
 2. Calls `get_page_class(class_name)` to get appropriate subclass
 3. Instantiates that subclass instead of base Page class
-4. Subclass inherits all mixin functionality
+4. Subclass inherits all Page functionality
 5. Page constructor automatically extracts metadata fields as attributes
 
 This enables polymorphic page loading - the same `get_page()` call returns different subclasses based on database content.
@@ -619,7 +454,7 @@ The image management system with CRUD operations, multi-size instance management
 ### Image Class
 
 The Image class follows a similar architecture to Page:
-- Uses mixins for functionality (ImageValidationMixin, ImageContentMixin, ImageInstancesMixin, ImageUsageMixin, ImageDisplayMixin, ImageCacheMixin)
+- Provides comprehensive functionality organized into focused areas
 - Has its own registry system (`image_registry.py`) with hot cache
 - Uses cache database for derived fields (instances, pages/usage) plus metadata backup
 - Follows same patterns as Page but simpler structure
@@ -646,7 +481,7 @@ Images cache two derived fields plus metadata:
 - `pages`: Usage data - which pages use this image (JSON)
 - `metadata`: Backup of main DB fields (caption, username, uploaded, last_modified, comments, visibility, viewCount)
 
-See `ImageCacheMixin._refresh_cached_image()` in `hh/image/image_cache.py` for cache refresh implementation.
+See `Image._refresh_cached_image()` in `hh/image/image.py` for cache refresh implementation.
 
 ---
 
@@ -659,7 +494,7 @@ The file management system with CRUD operations and display logic. Follows the s
 ### File Class
 
 The File class follows the same architecture as Image and Page:
-- Uses mixins (FileContentMixin, FileCacheMixin)
+- Provides comprehensive functionality organized into focused areas
 - Has registry system with hot cache
 - Uses cache database for derived fields plus metadata backup
 - Simplest of the three (no multi-size processing, no hierarchy)
@@ -685,7 +520,7 @@ Files cache one derived field plus metadata:
 - `pages`: Usage data - which pages use this file (JSON)
 - `metadata`: Backup of main DB fields (file_name, file_path, description, mime_type, size_bytes, username, uploaded, last_modified, comments, visibility)
 
-See `FileCacheMixin._refresh_cached_file()` in `hh/file/file_cache.py` for cache refresh implementation.
+See `File._refresh_cached_file()` in `hh/file/file.py` for cache refresh implementation.
 
 ---
 
@@ -698,8 +533,8 @@ The custom markup parsing system for page content. Implements decorator-based pr
 **Note**: This module is documented separately. The Page system integrates with TextProcessor via `get_prepared_text()`, which processes page text content and caches the result in the `prepared_text` field.
 
 **Key Integration Points**:
-- `PageContentMixin.get_prepared_text()` - Calls `TextProcessor.preprocess()` to process text
-- `PageContentMixin.modify_text()` - Validates text with TextProcessor and updates links table
+- `Page.get_prepared_text()` - Calls `TextProcessor.preprocess()` to process text
+- `Page.modify_text()` - Validates text with TextProcessor and updates links table
 - Processed text cached in `prepared_text` field (part of the five derived fields)
 
 ---
@@ -707,7 +542,7 @@ The custom markup parsing system for page content. Implements decorator-based pr
 ## Integration with Other Systems
 
 ### With Gateway (see gateway.md)
-- Actions create Page/Image/File instances and call mixin methods
+- Actions create Page/Image/File instances and call their methods
 - Actions return JSON via `gateway.response.set_action_response()`
 - Backends receive Page/Image/File JSON data for formatting
 - Cache refresh happens during gateway commit via `refresh_stale_page_caches()`, `refresh_stale_image_caches()`, `refresh_stale_file_caches()`
@@ -729,11 +564,11 @@ The custom markup parsing system for page content. Implements decorator-based pr
 ### With MCP Backend (see mcp.md)
 - Page operations exposed as MCP tools via `mcp_utils.py`
 - Tier-based access control via `@register_mcp_tool` decorators
-- `PageAjaxMixin.get_page()` provides lightweight JSON for MCP responses
+- `Page.get_page()` provides lightweight JSON for MCP responses
 - App actions layer provides web UI integration
 
 ### Database Access Pattern
 - All modules use `gateway.conn` methods directly
-- Page/Image/File mixins call `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
+- Page/Image/File classes call `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
 - Cache operations use `gateway.conn.read_cache()`, `gateway.conn.create_cache()`, `gateway.conn.update_cache()`
 - Tier-based credentials loaded from `~/.project.cnf` files

@@ -198,7 +198,7 @@ See `hh/tp/tp.py` - `TextProcessor` class:
 - HTML output: `TextProcessor(final_decorator='http')` - See `hh/tp/tp_decorators.py` - `http_decorator()` function
 
 ### Database Integration
-See `hh/page/page_content.py` - `PageContentMixin.modify_text()` method:
+See `hh/page/page.py` - `Page.modify_text()` method:
 - TextProcessor integration with database connection via `gateway.conn`
 - `processor.update_links_table(gateway.conn, page_id)` - Updates `links` and `image_links` tables
 - Connection uses standard Henhouse Connection class methods (`read()`, `create()`, `delete()`)
@@ -237,7 +237,7 @@ Provides error handling:
 - Debug system integration with trace/log/debug/warn functions (via `register_debug_init`) - See `hh/tp/tp.py` - `_initialize_debug()` function
 - Error reporting through Henhouse error system (`report_error("textprocessor", ...)` and `report_error("link_resolution", ...)`) - See `hh/tp/tp.py` throughout for error reporting
 - Gateway access for database connections: Uses `get_gateway().conn` for internal lookups (e.g., primary image lookup) - See `hh/tp/tp.py` - `_resolve_image_info()` method
-- Database connection parameter: `update_links_table(conn, page_id)` receives Connection instance from caller - See `hh/page/page_content.py` - `PageContentMixin.modify_text()` for usage pattern
+- Database connection parameter: `update_links_table(conn, page_id)` receives Connection instance from caller - See `hh/page/page.py` - `Page.modify_text()` for usage pattern
 - Standard Henhouse database connection patterns (Connection class with `read()`, `create()`, `delete()` methods)
 - Page registry integration (`get_page()`, `find_page()`) - See `hh/tp/tp.py` - `_resolve_link_info()` and `_resolve_image_info()` methods
 - Image registry integration (`get_image()`) - See `hh/tp/tp.py` - `_resolve_image_info()` method
