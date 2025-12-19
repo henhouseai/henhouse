@@ -93,7 +93,7 @@ class Ask(WorkPage):
         )
     
     @classmethod
-    def getChildrenOf(cls, parent_id: int, view_type: str = 'tile') -> List[Dict[str, Any]]:
+    def getChildrenOf(cls, parent_id: int, view_type: str = 'table') -> List[Dict[str, Any]]:
         """
         Override to query for ask pages (not tasks) when called from a parent.
         Uses sort_order for ordering.

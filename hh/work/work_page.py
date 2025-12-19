@@ -192,6 +192,27 @@ class WorkPage(Page):
         # No additional cleanup required now that metadata lives on the page row.
         trace_out()
     
+    def _get_display_name(self) -> str:
+        """
+        Override to use class name instead of 'Page' when name is missing.
+        Formats class name nicely: 'work_docket' -> 'Work Docket 699'
+        """
+        # Check if field is already populated
+        if hasattr(self, 'display_name') and self.display_name:
+            return self.display_name
+        # Field is empty, compute it
+        if self.name:
+            display_name = self.name
+        else:
+            # Format class name: convert underscores to spaces and capitalize words
+            class_name = self.class_name or 'page'
+            formatted_class = ' '.join(word.capitalize() for word in class_name.split('_'))
+            display_name = f"{formatted_class} {self.id}"
+        self.display_name = display_name
+        # Flag that cache needs refresh since we just computed
+        self._flag_cache_refresh()
+        return display_name
+    
     def _get_child_page_data(self) -> Dict[str, Any]:
         """Override to return simplified data for work page children: id, name, sort_order, meta, timestamps."""
         trace_in()
