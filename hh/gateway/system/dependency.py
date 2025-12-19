@@ -6,27 +6,44 @@ The dependency_list command then checks if all registered dependencies are avail
 
 from __future__ import annotations
 
-from typing import Dict, Set
+from typing import Dict, Set, Callable, Optional
 
 # Hot cache of registered dependencies: {dependency_name: set of modules that need it}
 _DEPENDENCY_REGISTRY: Dict[str, Set[str]] = {}
+
+# Custom checker functions for system binaries and other non-Python dependencies
+_DEPENDENCY_CHECKERS: Dict[str, Callable[[], bool]] = {}
 
 
 def register_dependency(dependency_name: str):
     """Decorator to register that a module requires an external dependency.
     
-    Usage:
+    Usage for Python packages:
         @register_dependency("psutil")
         def some_function():
             ...
     
+    Usage for system binaries (custom checker function):
+        @register_dependency("ffprobe")
+        def _check_ffprobe():
+            result = subprocess.run(['ffprobe', '-version'], ...)
+            return result.returncode == 0
+    
     Multiple modules can register the same dependency - they'll be tracked separately.
+    If a checker function is provided (function name starts with '_check_'), it will be used 
+    instead of trying to import the module.
     """
     def decorator(func):
         module_name = func.__module__
         if dependency_name not in _DEPENDENCY_REGISTRY:
             _DEPENDENCY_REGISTRY[dependency_name] = set()
         _DEPENDENCY_REGISTRY[dependency_name].add(module_name)
+        
+        # If the function name suggests it's a checker function, store it
+        # This handles cases like _check_ffprobe, _check_ffmpeg, etc.
+        if callable(func) and func.__name__.startswith('_check_'):
+            _DEPENDENCY_CHECKERS[dependency_name] = func
+        
         return func
     return decorator
 
@@ -41,9 +58,24 @@ def check_dependency(dependency_name: str) -> tuple[bool, str]:
     
     Returns (is_available, error_message).
     
+    First checks for a custom checker function (for system binaries like ffprobe, ffmpeg).
+    If no custom checker exists, tries to import as a Python module.
+    
     Note: Some packages have different import names than their package names.
     For example, the "pillow" package is imported as "PIL".
     """
+    # Check if there's a custom checker function (for system binaries)
+    if dependency_name in _DEPENDENCY_CHECKERS:
+        try:
+            checker_func = _DEPENDENCY_CHECKERS[dependency_name]
+            is_available = checker_func()
+            if is_available:
+                return True, ""
+            else:
+                return False, f"Custom checker returned False for {dependency_name}"
+        except Exception as e:
+            return False, f"Custom checker error: {str(e)}"
+    
     # Special cases for packages with different import names
     import_name_map = {
         "pillow": "PIL",  # Pillow package is imported as PIL
