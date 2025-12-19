@@ -67,6 +67,22 @@ def get_auth_block(project_name: str, tier: str) -> List[str]:
         "",
     ]
 
+def get_media_server_proxy_block(media_port: int) -> List[str]:
+    """Return media server proxy_pass configuration for download/stream routes."""
+    return [
+        "    # Media server routes (downloads and streams)",
+        "    # Route all media download/stream requests to dedicated media server",
+        "    location ~ ^/(file|img|audio|video)/\\d+/(download|stream)$ {",
+        "        client_max_body_size 50M;",
+        f"        proxy_pass http://127.0.0.1:{media_port};",
+        "        proxy_set_header Host $host;",
+        "        proxy_set_header X-Real-IP $remote_addr;",
+        "        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+        "        proxy_set_header X-Forwarded-Proto $scheme;",
+        "    }",
+        "",
+    ]
+
 def get_flask_proxy_block(port: int) -> List[str]:
     """Return Flask proxy_pass configuration for a given port."""
     return [
@@ -82,7 +98,7 @@ def get_flask_proxy_block(port: int) -> List[str]:
     ]
 
 def generate_server_block(server_names: List[str], port: int, static_locations: str, 
-                         label: str = "", extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse") -> List[str]:
+                         label: str = "", extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None) -> List[str]:
     """Generate a complete Nginx server block.
     
     Args:
@@ -91,11 +107,18 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
         static_locations: Pre-formatted static location blocks
         label: Optional comment label for the server block
         extra_blocks: Optional extra configuration blocks to add before proxy
+        project_name: Project name for detecting media port
+        media_port: Media server port (if None, will be detected)
         
     Returns:
         List of strings for the server block
     """
     lines = []
+    
+    # Detect media port if not provided
+    if media_port is None:
+        ports = detect_flask_ports(project_name)
+        media_port = ports.get('media', 5005)
     
     # Add label comment if provided
     if label:
@@ -139,6 +162,9 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
         lines.extend(extra_blocks)
         lines.append("")
     
+    # Add media server proxy (before Flask proxy so it takes precedence)
+    lines.extend(get_media_server_proxy_block(media_port))
+    
     # Add Flask proxy
     lines.extend(get_flask_proxy_block(port))
     
@@ -170,6 +196,22 @@ def detect_flask_ports(project_name: str) -> dict:
             # Fall back to default ports on any error
             default_ports = {'guest': 5001, 'verified': 5002, 'admin': 5003, 'root': 5004}
             ports[tier] = default_ports[tier]
+    
+    # Detect media server port
+    media_file = f'/srv/{project_name}/{project_name}_media.py'
+    try:
+        with open(media_file, 'r') as f:
+            content = f.read()
+        match = re.search(r'port\s*=\s*(\d+)', content)
+        if match:
+            ports['media'] = int(match.group(1))
+        else:
+            # Default: port after all tier apps
+            ports['media'] = 5005
+    except FileNotFoundError:
+        ports['media'] = 5005
+    except Exception:
+        ports['media'] = 5005
     
     return ports
 
@@ -222,7 +264,7 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
 
 def generate_https_server_block(server_names: List[str], port: int, static_locations: str,
                                certificate_path: str, label: str = "", rate_limit: str = "general",
-                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse") -> List[str]:
+                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None) -> List[str]:
     """Generate a complete Nginx HTTPS server block.
     
     Args:
@@ -233,11 +275,18 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
         label: Optional comment label for the server block
         rate_limit: Rate limit zone (general or admin)
         extra_blocks: Optional extra configuration blocks to add before proxy
+        project_name: Project name for detecting media port
+        media_port: Media server port (if None, will be detected)
         
     Returns:
         List of strings for the server block
     """
     lines = []
+    
+    # Detect media port if not provided
+    if media_port is None:
+        ports = detect_flask_ports(project_name)
+        media_port = ports.get('media', 5005)
     
     # Add label comment if provided
     if label:
@@ -288,6 +337,9 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
     if extra_blocks:
         lines.extend(extra_blocks)
         lines.append("")
+    
+    # Add media server proxy (before Flask proxy so it takes precedence)
+    lines.extend(get_media_server_proxy_block(media_port))
     
     # Add Flask proxy
     lines.extend(get_flask_proxy_block(port))

@@ -273,6 +273,36 @@ def deploy() -> bool:
             warn(f"Failed to deploy Flask apps: {e}")
             report_error("backend", f"Failed to deploy Flask apps: {e}")
 
+    # Deploy media server Flask app
+    if not is_error():
+        try:
+            media_source = source / 'flask' / 'media_server.py'
+            if media_source.exists():
+                media_dest = dest / f'{project_name}_media.py'
+                
+                # Read the media_server.py content
+                with open(media_source, 'r') as f:
+                    content = f.read()
+                
+                # Replace the port with media server port (after all tier apps)
+                media_port = start_port + len(HENHOUSE_TIERS)
+                content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {media_port}')
+                
+                # Replace the log file path with media server path
+                log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
+                content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
+                
+                # Write the modified content
+                with open(media_dest, 'w') as f:
+                    f.write(content)
+                
+                log(f"Deployed Media Server Flask app: {project_name}_media.py (port {media_port})")
+            else:
+                log("Media server media_server.py not found, skipping media server deployment")
+        except Exception as e:
+            warn(f"Failed to deploy media server: {e}")
+            report_error("backend", f"Failed to deploy media server: {e}")
+
     # Deploy maintenance worker script
     if not is_error():
         try:

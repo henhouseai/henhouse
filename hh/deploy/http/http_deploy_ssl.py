@@ -56,7 +56,7 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
         from hh.deploy.http.nginx_config_helpers import (
-            generate_https_server_block, 
+            generate_https_server_block, detect_flask_ports, 
             generate_http_redirect_block,
             get_server_configs
         )
@@ -94,6 +94,10 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         all_domains = [domain, f'www.{domain}', f'admin.{domain}', f'panel.{domain}']
         config_lines.extend(generate_http_redirect_block(all_domains))
         
+        # Detect media port
+        ports = detect_flask_ports(project_name)
+        media_port = ports.get('media', 5005)
+        
         # Get server configurations
         servers = get_server_configs(domain, project_name)
         
@@ -106,7 +110,8 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
             certificate_path,
             main_server['label'],
             rate_limit="general",
-            project_name=project_name
+            project_name=project_name,
+            media_port=media_port
         )
         config_lines.extend(block_lines)
         
@@ -119,7 +124,8 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
                 certificate_path,
                 server['label'],
                 rate_limit="admin",
-                project_name=project_name
+                project_name=project_name,
+                media_port=media_port
             )
             config_lines.extend(block_lines)
         

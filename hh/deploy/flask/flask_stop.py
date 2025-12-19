@@ -101,6 +101,57 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
         trace_out()
         return error_result
 
+def stop_media_server(project_name: str) -> Dict[str, Any]:
+    """Stop media server Flask daemon."""
+    trace_in()
+    try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            error_result = {'type': 'media', 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            trace_out()
+            return error_result
+        
+        # Find process running media server
+        cmd = ['ps', 'aux']
+        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        
+        lines = ps_result.stdout.split('\n')
+        pids_to_kill = []
+        
+        for line in lines:
+            if f'{project_name}_media.py' in line and 'python' in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        pids_to_kill.append(pid)
+                    except ValueError:
+                        pass
+        
+        if not pids_to_kill:
+            not_running_result = {'type': 'media', 'status': 'not_running'}
+            log(f"No Media Server Flask daemon found")
+            trace_out()
+            return not_running_result
+        
+        # Kill the processes
+        killed_pids = []
+        for pid in pids_to_kill:
+            if gateway.os.kill_process(pid, force=False):
+                killed_pids.append(pid)
+                log(f"Sent SIGTERM to PID {pid} (Media Server)")
+        
+        if killed_pids:
+            return {'type': 'media', 'status': 'stopped', 'pids': killed_pids}
+        else:
+            return {'type': 'media', 'status': 'not_found'}
+        
+    except Exception as e:
+        error_result = {'type': 'media', 'status': 'error', 'error': str(e)}
+        warn(f"Error stopping Media Server Flask daemon: {e}")
+        trace_out()
+        return error_result
+
 def run_flask_stop(project_name: str) -> Dict[str, Any]:
     trace_in()
     results = []
@@ -108,18 +159,22 @@ def run_flask_stop(project_name: str) -> Dict[str, Any]:
         result = stop_flask_daemon(project_name, tier)
         results.append(result)
 
+    # Stop media server
+    media_result = stop_media_server(project_name)
+    results.append(media_result)
+
     stopped_count = sum(1 for r in results if r.get('status') == 'stopped')
     not_running_count = sum(1 for r in results if r.get('status') == 'not_running')
     failed_count = sum(1 for r in results if r.get('status') == 'error')
 
-    if stopped_count > 0 or not_running_count == len(HENHOUSE_TIERS):
+    if stopped_count > 0 or not_running_count == len(HENHOUSE_TIERS) + 1:  # +1 for media server
         remove_logrotate(project_name)
 
     data = {
         "project_name": project_name,
         "daemons": results,
         "summary": {
-            "total": len(HENHOUSE_TIERS),
+            "total": len(HENHOUSE_TIERS) + 1,  # +1 for media server
             "stopped": stopped_count,
             "not_running": not_running_count,
             "failed": failed_count,

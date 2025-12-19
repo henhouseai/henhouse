@@ -30,7 +30,7 @@ def create_nginx_config(domain: str, project_name: str) -> str:
     try:
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
-        from hh.deploy.http.nginx_config_helpers import generate_server_block, get_server_configs
+        from hh.deploy.http.nginx_config_helpers import generate_server_block, get_server_configs, detect_flask_ports
         
         # Get static locations and summary
         whitelist_result = generate_nginx_static_locations(project_name)
@@ -63,6 +63,10 @@ def create_nginx_config(domain: str, project_name: str) -> str:
             "",
         ]
         
+        # Detect media port
+        ports = detect_flask_ports(project_name)
+        media_port = ports.get('media', 5005)
+        
         # Generate server blocks using helper
         servers = get_server_configs(domain, project_name)
         for server in servers:
@@ -71,7 +75,8 @@ def create_nginx_config(domain: str, project_name: str) -> str:
                 server['port'], 
                 static_locations,
                 server['label'],
-                project_name=project_name
+                project_name=project_name,
+                media_port=media_port
             )
             config_lines.extend(block_lines)
         

@@ -139,6 +139,83 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
         trace_out()
         return result
 
+def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
+    """Start media server Flask daemon (runs as admin user)."""
+    trace_in()
+    try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            error_result = {'type': 'media', 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            trace_out()
+            return error_result
+        
+        # Media server runs as admin user
+        user = f"{project_name}_admin"
+        app_path = f"/srv/{project_name}/{project_name}_media.py"
+        
+        # Check if app file exists
+        if not gateway.files or not gateway.files.file_exists(app_path):
+            result = {'type': 'media', 'status': 'not_found', 'error': f'Media server app file not found: {app_path}'}
+            trace_out()
+            return result
+        
+        # Check if user exists
+        if not gateway.os.user_exists(user):
+            result = {'type': 'media', 'status': 'user_not_found', 'error': f'User not found: {user}'}
+            trace_out()
+            return result
+        
+        # Stop any existing media server processes
+        check_cmd = ['ps', 'aux']
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+        lines = check_result.stdout.split('\n')
+        pids_to_kill = []
+        for line in lines:
+            if f'{project_name}_media.py' in line and 'python' in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        pids_to_kill.append(pid)
+                    except ValueError:
+                        pass
+        killed_any = False
+        for pid in pids_to_kill:
+            if gateway.os.kill_process(pid, force=False):
+                log(f"Sent SIGTERM to PID {pid} (Media Server)")
+                killed_any = True
+        
+        # Start media server daemon as admin user
+        cmd = f'sudo -u {user} bash -c "cd /srv/{project_name} && nohup python3 {app_path} < /dev/null &> /dev/null &"'
+        debug(f"Running command: {cmd}")
+        
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        debug(f"Started process with PID: {process.pid}")
+        
+        time.sleep(1)
+        
+        # Check if the media server is actually running
+        check_cmd = ['ps', 'aux']
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+        debug(f"Process check for '{project_name}_media.py'")
+        
+        if f'{project_name}_media.py' in check_result.stdout:
+            result_status = 'restarted' if killed_any else 'started'
+            start_result: dict[str, str | int] = {'type': 'media', 'status': result_status, 'port': port, 'user': user}
+            log(f"Started Media Server Flask daemon on port {port}")
+        else:
+            start_result = {'type': 'media', 'status': 'failed', 'error': 'Process not found running'}
+            warn(f"Media Server Flask daemon failed to start")
+        
+        trace_out()
+        return start_result
+        
+    except Exception as e:
+        error_result = {'type': 'media', 'status': 'error', 'error': str(e)}
+        warn(f"Error starting Media Server Flask daemon: {e}")
+        trace_out()
+        return error_result
+
 def run_flask_start(project_name: str, start_port: int = 5001) -> Dict[str, Any]:
     trace_in()
     remove_logrotate(project_name)
@@ -147,6 +224,11 @@ def run_flask_start(project_name: str, start_port: int = 5001) -> Dict[str, Any]
         port = start_port + i
         result = start_flask_daemon(project_name, tier, port)
         results.append(result)
+
+    # Start media server on port after all tier apps
+    media_port = start_port + len(HENHOUSE_TIERS)
+    media_result = start_media_server(project_name, media_port)
+    results.append(media_result)
 
     started_count = sum(1 for r in results if r.get('status') in {'started', 'restarted', 'already_running'})
     failed_count = sum(1 for r in results if r.get('status') in {'failed', 'error'})
@@ -158,7 +240,7 @@ def run_flask_start(project_name: str, start_port: int = 5001) -> Dict[str, Any]
         "project_name": project_name,
         "daemons": results,
         "summary": {
-            "total": len(HENHOUSE_TIERS),
+            "total": len(HENHOUSE_TIERS) + 1,  # +1 for media server
             "started": started_count,
             "failed": failed_count,
         },
