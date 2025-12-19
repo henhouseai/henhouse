@@ -26,7 +26,7 @@ debug = lambda message: None
 warn = lambda message: None
 
 @register_debug_init
-def _initialize_work_docket_debug():
+def _initialize_ask_debug():
     global trace_in, trace_out, log, debug, warn
     trace_in = get_trace_in(True)
     trace_out = get_trace_out(True)
@@ -35,51 +35,52 @@ def _initialize_work_docket_debug():
     warn = get_warn(True)
 
 
-@register_page_class('work_docket')
-class WorkDocket(WorkPage):
+@register_page_class('ask')
+class Ask(WorkPage):
     """
-    A derived WorkPage class for work dockets.
-    Extends WorkPage with work docket specific functionality.
+    A derived WorkPage class for asks.
+    Extends WorkPage with ask specific functionality.
+    Asks can only be inside work dockets and can only contain tasks.
     """
     
     def __init__(self, id: int):
-        """Initialize WorkDocket by calling parent constructor."""
+        """Initialize Ask by calling parent constructor."""
         # Call parent constructor (WorkPage initializes status, meta, sort_order, timestamps)
         super().__init__(id)
     
     @classmethod
     def allow_null_names(cls) -> bool:
-        """Work dockets allow null names."""
+        """Asks allow null names."""
         return True
     
     @classmethod
     def allow_duplicate_names(cls) -> bool:
-        """Work dockets allow duplicate names."""
+        """Asks allow duplicate names."""
         return True
     
     @classmethod
     def auto_link_name(cls) -> bool:
-        """Work dockets do not auto-link names."""
+        """Asks do not auto-link names."""
         return False
     
     def allow_class_inside(self, target_class: str) -> bool:
-        """Work dockets can only contain ask children."""
-        return target_class == 'ask'
+        """Asks can only contain task children."""
+        return target_class == 'task'
     
     @classmethod
     def allow_inside_of(cls, parent_class: str) -> bool:
-        """Work dockets can be inside any page."""
-        return True
+        """Asks can only be inside work dockets."""
+        return parent_class == 'work_docket'
     
     @staticmethod
     def _get_children_query(parent_id: int) -> tuple[str, list]:
-        """Return query for getting work docket children (asks), ordered by sort_order."""
+        """Return query for getting ask children (tasks), ordered by sort_order."""
         return (
             """
             SELECT pages.id
             FROM pages
             WHERE pages.parent = %s
-              AND pages.class = 'ask'
+              AND pages.class = 'task'
             ORDER BY COALESCE(
                 CAST(JSON_UNQUOTE(JSON_EXTRACT(pages.metadata, '$.sort_order')) AS UNSIGNED),
                 0
@@ -89,7 +90,6 @@ class WorkDocket(WorkPage):
         )
     
     def _get_child_row_field_type(self) -> str:
-        """Return field type based on status for work docket rows."""
+        """Return field type based on status for ask rows."""
         status = self.status if hasattr(self, 'status') else 'todo'
-        return f'work_docket_{status}'
-
+        return f'ask_{status}'

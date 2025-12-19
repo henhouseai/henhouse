@@ -2,7 +2,6 @@ from hh.render.config.config_registry import register_label
 
 @register_label('activities',                        'Activities:',                 '📋')
 @register_label('activity',                          'Activity:',                   '📋')
-@register_label('ask',                               'Ask:',                        '🧩')
 @register_label('blank_emoji',                       '',                            '  ')
 @register_label('content',                           'Content:',                    '📄')
 @register_label('created_at',                         'Created At:',                  '⏰')
@@ -28,10 +27,8 @@ from hh.render.config.config_registry import register_label
 @register_label('sql',                               'SQL:',                        '📝')
 @register_label('statistics',                        'Statistics:',                 '📊')
 @register_label('status',                           'Status:',                     '🔸')
-@register_label('step',                              'Step:',                       '📍')
 @register_label('step_tree',                         'Step Tree:',                  '📍')
 @register_label('tab',                               '',                            '  ')
-@register_label('task',                              'Task:',                       '📌')
 @register_label('todo',                              'Todo:',                       '🔲')
 @register_label('trace_in',                          'In:',                         '🔲')
 @register_label('trace_out',                         'Out:',                        '✅')
