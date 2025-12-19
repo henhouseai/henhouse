@@ -227,6 +227,52 @@ class WorkPage(Page):
         trace_out()
         return data
     
+    def _add_badge_headers(self) -> Dict[str, Any]:
+        """Override to add work-specific fields to page_summary and add work_meta badge."""
+        trace_in()
+        # Get base badge headers from parent
+        badge_headers = super()._add_badge_headers()
+        
+        # Add work fields to page_summary badge (like mcp_request does with status)
+        badge_headers['page_summary']['status'] = self.status if hasattr(self, 'status') else 'todo'
+        badge_headers['page_summary']['sort_order'] = self.sort_order if hasattr(self, 'sort_order') else 0
+        badge_headers['page_summary']['started_ts'] = str(self.started_ts) if hasattr(self, 'started_ts') and self.started_ts else None
+        badge_headers['page_summary']['ended_ts'] = str(self.ended_ts) if hasattr(self, 'ended_ts') and self.ended_ts else None
+        
+        # Add work meta badge as generic badge
+        # Parse meta if it's a string, otherwise use the dict
+        meta_dict = {}
+        if hasattr(self, 'meta_dict') and self.meta_dict:
+            meta_dict = self.meta_dict
+        elif hasattr(self, 'meta') and self.meta:
+            if isinstance(self.meta, str):
+                try:
+                    meta_dict = json.loads(self.meta)
+                except (ValueError, TypeError):
+                    meta_dict = {}
+            elif isinstance(self.meta, dict):
+                meta_dict = self.meta
+        
+        # For parser backend, format as pretty JSON string
+        # For HTTP backend, keep as dict for key-value rendering
+        gateway = get_gateway()
+        if gateway and hasattr(gateway, 'backend') and gateway.backend == 'parser':
+            # Parser: format as indented JSON string
+            if meta_dict:
+                meta_formatted = json.dumps(meta_dict, indent=2, ensure_ascii=False)
+            else:
+                meta_formatted = "{}"
+            badge_headers['work_meta'] = {'meta': meta_formatted}
+        else:
+            # HTTP: keep as dict for key-value pair rendering
+            if meta_dict:
+                badge_headers['work_meta'] = meta_dict
+            else:
+                badge_headers['work_meta'] = {}
+        
+        trace_out()
+        return badge_headers
+    
     def get_page_data(self) -> Dict[str, Any]:
         """Override to add work entity specific fields to full page data."""
         trace_in()

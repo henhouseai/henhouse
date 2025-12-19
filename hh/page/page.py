@@ -2534,19 +2534,29 @@ class Page:
             else:
                 log(f"Successfully updated page {self.id} name in database")
         if not is_error():
-            if self.name == self.link:
-                log(f"Page {self.id} has auto-link enabled (name == link), updating link as well")
-                link_value = name_value if (self.auto_link_name() and name_value is not None) else None
-                log(f"Setting link to: {link_value}")
-                affected = self.gateway.conn.update("UPDATE pages SET link = %s WHERE id = %s", (link_value, self.id))
-                if affected == 0:
-                    warn(f"Failed to update page {self.id} link - no rows affected")
-                    report_error("action", f"Failed to update page {self.id} link")
+            # Gate through auto_link_name() first - only update link if this class supports auto-linking
+            if self.auto_link_name():
+                # Check if name == link to determine if we should update the link
+                # This allows for linkless pages (name exists but link is NULL) even when auto_link_name() is True
+                if self.name == self.link:
+                    log(f"Page {self.id} has auto-link enabled (name == link), updating link as well")
+                    link_value = name_value if name_value is not None else None
+                    log(f"Setting link to: {link_value}")
+                    # Only update if link_value is different from current link
+                    if link_value != self.link:
+                        affected = self.gateway.conn.update("UPDATE pages SET link = %s WHERE id = %s", (link_value, self.id))
+                        if affected == 0:
+                            warn(f"Failed to update page {self.id} link - no rows affected")
+                            report_error("action", f"Failed to update page {self.id} link")
+                        else:
+                            self.link = link_value
+                            log(f"Successfully updated page {self.id} link to '{link_value}'")
+                    else:
+                        log(f"Link unchanged for page {self.id}, skipping update")
                 else:
-                    self.link = link_value
-                    log(f"Successfully updated page {self.id} link to '{link_value}'")
+                    log(f"Page {self.id} is linkless (name != link), skipping link update")
             else:
-                log(f"Page {self.id} does not have auto-link enabled, skipping link update")
+                log(f"Page {self.id} does not have auto-link enabled (auto_link_name() == False), skipping link update")
         if not is_error():
             modification_type = 'name and link' if self.auto_link_name() else 'name'
             log(f"Flagging page modification: {modification_type} changed")
