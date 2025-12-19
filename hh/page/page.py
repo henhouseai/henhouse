@@ -668,6 +668,23 @@ class Page:
             'children': children_count
         }
         return badge_headers
+    
+    def finalize_response_http(self, source_data: Dict[str, Any]) -> None:
+        """Hook called by HTTP backend to finalize response data before rendering.
+        Default: removes page_summary badge for HTTP backend.
+        Override in derived classes to customize behavior.
+        """
+        # Remove page_summary badge for HTTP backend (default behavior)
+        badge_headers = source_data.get('badge_headers', {})
+        if 'page_summary' in badge_headers:
+            del badge_headers['page_summary']
+    
+    def finalize_response_parser(self, source_data: Dict[str, Any]) -> None:
+        """Hook called by parser backend to finalize response data before rendering.
+        Default: no-op (parser doesn't need any cleanup).
+        Override in derived classes to customize behavior.
+        """
+        pass  # Parser backend doesn't need any cleanup by default
 
     def _add_lower_content(self) -> List[str]:
         return []
@@ -2887,11 +2904,16 @@ class Page:
                 except Exception as exc:
                     warn(f"Failed to load MCP actions: {exc}")
         else:
+            # Get audio and video data
+            audio_data = self.get_audio_data()
+            video_data = self.get_video_data()
             response_data = {
                 "page": page_data,
                 "children_by_class": children_by_class,
                 "images": images_data,
                 "files": files_data,
+                "audio": audio_data,
+                "video": video_data,
                 "badge_headers": badge_headers,
                 "upper_content": upper_content,
                 "lower_content": lower_content,

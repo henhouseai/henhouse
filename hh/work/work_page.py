@@ -273,6 +273,10 @@ class WorkPage(Page):
         trace_out()
         return badge_headers
     
+    def finalize_response_http(self, source_data: Dict[str, Any]) -> None:
+        """WorkPage keeps page_summary badge even for HTTP backend."""
+        pass  # Don't remove page_summary badge
+    
     def get_page_data(self) -> Dict[str, Any]:
         """Override to add work entity specific fields to full page data."""
         trace_in()

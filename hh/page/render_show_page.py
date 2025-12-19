@@ -353,13 +353,8 @@ def render_files_section(files_data: List[Dict[str, Any]], page_id: Optional[int
                 block_type=block,
                 wrapper_id=wrapper_id
             )
-            if getattr(gateway, "backend", None) == "http" and page_id is not None:
-                page_id_str = str(page_id)
-                header_id = f"fileGroupHeader_{page_id_str}"
-                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="files">FILES</a>\n</div>'
-                gateway.response.set_file_group(header_html + files_block)
-            else:
-                gateway.response.set_file_group(files_block)
+            # Header will be added automatically by ResponseHTTP.get_output()
+            gateway.response.set_file_group(files_block)
     trace_out()
 
 
@@ -484,10 +479,20 @@ def show_page() -> bool:
     log("Processing show page data successfully")
     
     page_data = source_data.get('page', {})
+    page_id = page_data.get('id')
+    
+    # Call finalize_response hook based on backend type
+    if page_id:
+        from hh.page.page_registry import get_page
+        page = get_page(page_id=page_id)
+        if page:
+            if gateway.backend == "http":
+                page.finalize_response_http(source_data)
+            elif gateway.backend == "parser":
+                page.finalize_response_parser(source_data)
     
     # Render all sections - response classes handle output format differences
     cache_built_at = source_data.pop('cache_built_at', None)
-    page_id = page_data.get('id')
     
     # Use helpers (overlay_mode=False for HTTP backend)
     render_path_section(page_data, page_id=page_id, overlay_mode=False)
@@ -504,10 +509,18 @@ def show_page() -> bool:
     children_by_class = source_data.get('children_by_class', {})
     images_data = source_data.get('images', [])
     files_data = source_data.get('files', [])
+    audio_data = source_data.get('audio', [])
+    video_data = source_data.get('video', [])
     if images_data:
         render_images_section(images_data, page_id=page_id, overlay_mode=False)
     if files_data:
         render_files_section(files_data, page_id=page_id)
+    if audio_data:
+        from hh.page.render_helpers import render_audio_section
+        render_audio_section(audio_data, page_id=page_id, overlay_mode=False)
+    if video_data:
+        from hh.page.render_helpers import render_video_section
+        render_video_section(video_data, page_id=page_id, overlay_mode=False)
     if children_by_class:
         render_children_by_class_section(children_by_class, page_id=page_id, overlay_mode=False)
     lower_content = source_data.get('lower_content', [])
@@ -522,6 +535,8 @@ def show_page() -> bool:
             'children_by_class',
             'images',
             'files',
+            'audio',
+            'video',
             'badge_headers',
             'upper_content',
             'lower_content',

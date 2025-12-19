@@ -241,13 +241,43 @@ class ResponseHTTP(Response):
             child_pages_html = "\n".join(self.child_pages)
             if child_pages_html:
                 content_divs.append(child_pages_html)
-        if self.image_group:
+        # Get page_id from seed_data for header generation
+        page_id = None
+        try:
+            if self.seed_data and isinstance(self.seed_data, dict):
+                page_obj = self.seed_data.get('page') if isinstance(self.seed_data.get('page'), dict) else None
+                if page_obj and page_obj.get('id'):
+                    page_id = str(page_obj.get('id'))
+        except Exception:
+            pass
+        
+        # Add media groups with automatic headers for HTTP backend
+        if self.image_group and page_id:
+            header_id = f"pageImageGroupHeader_{page_id}"
+            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id}" data-section="images">IMAGES</a>\n</div>'
+            content_divs.append(header_html + self.image_group)
+        elif self.image_group:
             content_divs.append(self.image_group)
-        if self.file_group:
+        
+        if self.file_group and page_id:
+            header_id = f"fileGroupHeader_{page_id}"
+            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id}" data-section="files">FILES</a>\n</div>'
+            content_divs.append(header_html + self.file_group)
+        elif self.file_group:
             content_divs.append(self.file_group)
-        if self.audio_group:
+        
+        if self.audio_group and page_id:
+            header_id = f"audioGroupHeader_{page_id}"
+            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id}" data-section="audio">AUDIO</a>\n</div>'
+            content_divs.append(header_html + self.audio_group)
+        elif self.audio_group:
             content_divs.append(self.audio_group)
-        if self.video_group:
+        
+        if self.video_group and page_id:
+            header_id = f"videoGroupHeader_{page_id}"
+            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id}" data-section="video">VIDEO</a>\n</div>'
+            content_divs.append(header_html + self.video_group)
+        elif self.video_group:
             content_divs.append(self.video_group)
         if body_content:
             content_divs.append(body_content)

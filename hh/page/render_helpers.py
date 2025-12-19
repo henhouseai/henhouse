@@ -211,11 +211,8 @@ def render_page_summary_badge(
     if additional_classes is None:
         additional_classes = []
     
-    # Skip rendering for HTTP backend - handled by AJAX
-    if gateway and hasattr(gateway, 'backend') and gateway.backend == "http" and not overlay_mode:
-        log("Skipping page summary badge for HTTP backend (handled by AJAX)")
-        trace_out()
-        return None
+    # Note: HTTP backend badge removal is handled by finalize_response_http() hook
+    # This function always renders if called
     
     page_data = TableData()
     # Known fields that have special handling
@@ -793,32 +790,24 @@ def render_images_section(
                 trace_out()
                 return None
     else:
-        # HTTP backend or overlay mode: render as tiles
+        # HTTP backend or overlay mode: render as tiles (header will be added by ResponseHTTP)
         if page_id is None:
             warn("page_id is required for tile rendering")
             trace_out()
             return None
         page_id_str = str(page_id)
-        header_id = f"{wrapper_id_prefix}pageImageGroupHeader_{page_id_str}"
-        # Add overlay class if in overlay mode
-        header_classes = 'contentHeader'
-        if additional_classes:
-            header_classes += ' ' + ' '.join(additional_classes)
-        header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="images">IMAGES</a>\n</div>'
         
         # Generate wrapper_id with prefix (same pattern as other sections)
         wrapper_id = f"{wrapper_id_prefix}pageImageGroup_{page_id_str}"
         wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
         image_group = ImageGroup(images_data, page_id, target_width=300, wrapper_id=wrapper_id, wrapper_extra_classes=wrapper_extra_classes)
         content_html = image_group.render()  # Get HTML string (includes wrapper divs)
-        # Prepend header
-        result = header_html + content_html
         
         if overlay_mode:
             trace_out()
-            return result
+            return content_html
         else:
-            gateway.response.set_image_group(result)
+            gateway.response.set_image_group(content_html)
             trace_out()
             return None
     
@@ -910,26 +899,11 @@ def render_audio_section(
         )
         
         if overlay_mode:
-            # Generate header HTML for overlay mode
-            if page_id is not None:
-                header_id = f"{wrapper_id_prefix}pageAudioGroupHeader_{page_id_str}"
-                header_classes = 'contentHeader'
-                if additional_classes:
-                    header_classes += ' ' + ' '.join(additional_classes)
-                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="audio">AUDIO</a>\n</div>'
-                result = header_html + '\n' + audio_block
-            else:
-                result = audio_block
             trace_out()
-            return result
+            return audio_block
         else:
-            if gateway.backend == "http" and page_id is not None:
-                page_id_str = str(page_id)
-                header_id = f"pageAudioGroupHeader_{page_id_str}"
-                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="audio">AUDIO</a>\n</div>'
-                gateway.response.set_audio_group(header_html + audio_block)
-            else:
-                gateway.response.set_audio_group(audio_block)
+            # Header will be added automatically by ResponseHTTP.get_output()
+            gateway.response.set_audio_group(audio_block)
     
     trace_out()
     return None
@@ -1024,26 +998,11 @@ def render_video_section(
         )
         
         if overlay_mode:
-            # Generate header HTML for overlay mode
-            if page_id is not None:
-                header_id = f"{wrapper_id_prefix}pageVideoGroupHeader_{page_id_str}"
-                header_classes = 'contentHeader'
-                if additional_classes:
-                    header_classes += ' ' + ' '.join(additional_classes)
-                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="video">VIDEO</a>\n</div>'
-                result = header_html + '\n' + video_block
-            else:
-                result = video_block
             trace_out()
-            return result
+            return video_block
         else:
-            if gateway.backend == "http" and page_id is not None:
-                page_id_str = str(page_id)
-                header_id = f"pageVideoGroupHeader_{page_id_str}"
-                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="video">VIDEO</a>\n</div>'
-                gateway.response.set_video_group(header_html + video_block)
-            else:
-                gateway.response.set_video_group(video_block)
+            # Header will be added automatically by ResponseHTTP.get_output()
+            gateway.response.set_video_group(video_block)
     
     trace_out()
     return None
