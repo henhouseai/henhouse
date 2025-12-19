@@ -22,7 +22,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 try:
-    import wcwidth as _wc
+    import wcwidth as _wc  # type: ignore[import-untyped]
 except Exception:
     _wc = None
 

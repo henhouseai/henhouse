@@ -184,9 +184,9 @@ def build_warnings(added: List[str], modified: List[str], d_root: Path, warn_ind
 
 def _read_key_stream() -> str:
     if msvcrt is not None:
-        ch = msvcrt.getch()
+        ch = msvcrt.getch()  # type: ignore[attr-defined]
         if ch in (b'\xe0', b'\x00'):
-            _ = msvcrt.getch()
+            _ = msvcrt.getch()  # type: ignore[attr-defined]
             return ''
         if ch in (b'\r', b'\n'):
             return ''

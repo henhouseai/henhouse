@@ -92,6 +92,14 @@ def mcp_handler(path: str = ""):
                 # Multipart request with JSON-RPC in form field
                 try:
                     jsonrpc_str = request.form.get('jsonrpc')
+                    if jsonrpc_str is None:
+                        return json.dumps({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32700,
+                                "message": "Parse error: missing jsonrpc field"
+                            }
+                        }), 400, {'Content-Type': 'application/json'}
                     mcp_request = json.loads(jsonrpc_str)
                 except Exception as e:
                     return json.dumps({
@@ -183,6 +191,7 @@ def mcp_handler(path: str = ""):
         form_argv = []
         if request.form:
             for key in request.form.keys():
+                value: str | None = None
                 try:
                     value = request.form.get(key)
                 except Exception:
