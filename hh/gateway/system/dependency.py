@@ -7,6 +7,7 @@ The dependency_list command then checks if all registered dependencies are avail
 from __future__ import annotations
 
 from typing import Dict, Set, Callable, Optional
+import subprocess
 
 # Hot cache of registered dependencies: {dependency_name: set of modules that need it}
 _DEPENDENCY_REGISTRY: Dict[str, Set[str]] = {}
@@ -58,13 +59,14 @@ def check_dependency(dependency_name: str) -> tuple[bool, str]:
     
     Returns (is_available, error_message).
     
-    First checks for a custom checker function (for system binaries like ffprobe, ffmpeg).
-    If no custom checker exists, tries to import as a Python module.
+    If a custom checker function is registered (for system binaries like ffprobe, ffmpeg),
+    use that. Otherwise, try to import as a Python module.
     
     Note: Some packages have different import names than their package names.
     For example, the "pillow" package is imported as "PIL".
     """
     # Check if there's a custom checker function (for system binaries)
+    # If one exists, we specifically need the system binary, not a Python package
     if dependency_name in _DEPENDENCY_CHECKERS:
         try:
             checker_func = _DEPENDENCY_CHECKERS[dependency_name]
@@ -72,7 +74,12 @@ def check_dependency(dependency_name: str) -> tuple[bool, str]:
             if is_available:
                 return True, ""
             else:
-                return False, f"Custom checker returned False for {dependency_name}"
+                # Checker function returned False - binary not found
+                return False, f"System binary '{dependency_name}' not found in PATH"
+        except FileNotFoundError:
+            return False, f"System binary '{dependency_name}' not found in PATH"
+        except subprocess.TimeoutExpired:
+            return False, f"System binary '{dependency_name}' check timed out"
         except Exception as e:
             return False, f"Custom checker error: {str(e)}"
     

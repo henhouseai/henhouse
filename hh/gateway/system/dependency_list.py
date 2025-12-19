@@ -92,6 +92,11 @@ def dependency_list() -> bool:
         # Scan and import all modules with @register_dependency
         _scan_and_import_dependencies()
         
+        # Debug: Log registered dependencies and checkers
+        from hh.gateway.system.dependency import _DEPENDENCY_REGISTRY, _DEPENDENCY_CHECKERS
+        debug(f"Registered dependencies: {list(_DEPENDENCY_REGISTRY.keys())}")
+        debug(f"Custom checkers available: {list(_DEPENDENCY_CHECKERS.keys())}")
+        
         # Check all registered dependencies
         results = check_all_dependencies()
         
