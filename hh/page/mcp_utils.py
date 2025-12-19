@@ -42,6 +42,18 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read'
 )
 @register_mcp_tool(
+    tool_name='get_app_actions',
+    description='Get available app actions for the current user tier level. Returns list of app actions that can be triggered from the web interface.',
+    inputSchema={
+        'type': 'object',
+        'properties': {},
+        'required': []
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
     tool_name='count_pages',
     description='Count the total number of pages and images in the database.',
     inputSchema={

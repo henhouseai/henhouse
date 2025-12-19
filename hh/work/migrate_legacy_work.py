@@ -89,8 +89,53 @@ def migrate_legacy_work() -> bool:
             if step['task_id']:
                 steps_by_task[step['task_id']].append(step)
         
-        # Check for -full flag
+        # Check for flags
         show_full = gateway.is_set('full')
+        step1_mode = gateway.is_set('step1')
+        
+        # If step1 mode, output MySQL query and exit early
+        if step1_mode:
+            query = None
+            if not work_dockets:
+                summary_lines = ["No work dockets found to migrate."]
+            else:
+                # Get all work docket IDs
+                work_docket_ids = [str(wd['id']) for wd in work_dockets]
+                ids_list = ', '.join(work_docket_ids)
+                
+                # Generate MySQL query
+                query = f"""SELECT id, page_id, started_ts, ended_ts, active, meta, title, description, status, sort_order 
+FROM work_dockets 
+WHERE id IN ({ids_list})
+ORDER BY id"""
+                
+                summary_lines = []
+                summary_lines.append("=" * 80)
+                summary_lines.append("STEP 1: MYSQL QUERY FOR WORK DOCKETS")
+                summary_lines.append("=" * 80)
+                summary_lines.append("")
+                summary_lines.append(f"Found {len(work_dockets)} work dockets to migrate.")
+                summary_lines.append("")
+                summary_lines.append("MySQL Query:")
+                summary_lines.append("-" * 80)
+                summary_lines.append(query)
+                summary_lines.append("")
+                summary_lines.append("=" * 80)
+                summary_lines.append("Run this query and paste the results for manual MCP migration.")
+                summary_lines.append("=" * 80)
+            
+            summary_text = "\n".join(summary_lines)
+            log(summary_text)
+            
+            gateway.response.set_action_response({
+                "summary": summary_text,
+                "step1_query": query,
+                "work_docket_count": len(work_dockets),
+                "work_docket_ids": [wd['id'] for wd in work_dockets] if work_dockets else []
+            })
+            
+            trace_out()
+            return True
         
         # Print summary
         summary_lines = []
@@ -106,6 +151,7 @@ def migrate_legacy_work() -> bool:
         
         if not show_full:
             summary_lines.append("(Use -full flag to see detailed listings)")
+            summary_lines.append("(Use -step1 flag to generate MySQL query for work dockets)")
             summary_lines.append("")
         
         # Work dockets detail (only if -full flag is set)

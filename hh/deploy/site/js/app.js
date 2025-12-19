@@ -30,13 +30,13 @@ class ActionManager {
             // Store in PageManager
             const pageManager = PageManager.getInstance();
             pageManager.setPageData(pageData);
-            // Get available actions from page data
-            const rawData = pageData.getRawData();
-            const availableActions = rawData.available_actions;
+            // Get available actions separately via get_app_actions MCP tool
+            const appActionsResult = await this.rpc.call('get_app_actions', {});
+            const availableActions = appActionsResult.data?.available_actions || [];
             if (availableActions && availableActions.length > 0) {
                 // Separate hot-cache actions from persistent ones
-                const hotCacheActions = availableActions.filter(action => action.source === 'hot_cache');
-                const persistentActions = availableActions.filter(action => !action.source || action.source !== 'hot_cache');
+                const hotCacheActions = availableActions.filter((action) => action.source === 'hot_cache');
+                const persistentActions = availableActions.filter((action) => !action.source || action.source !== 'hot_cache');
                 // Update hot-cache actions: remove old ones not in new list, add new ones
                 this.updateHotCacheActions(hotCacheActions);
                 // Process persistent actions (only add, never remove - they're server-rendered)

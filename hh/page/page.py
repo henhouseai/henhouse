@@ -96,7 +96,6 @@ from hh.image.image_registry import get_image
 from hh.image.image import Image
 from hh.file.file_registry import get_file
 from hh.file.file_utils import store_uploaded_file
-from hh.gateway.registry.mcp_whitelist import MCPWhitelist
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -1941,25 +1940,6 @@ class Page:
             'children_by_class': children_by_class,
         }
         
-        # Add available app actions if MCP backend
-        gateway = get_gateway()
-        
-        # Only include available_actions for MCP backend, not HTTP (HTTP renders them server-side)
-        if gateway and gateway.backend == "mcp" and gateway.response:
-            try:
-                user_tier_level = gateway.response.get_user_tier_level()
-                
-                # get_app_actions() adds 4 to user_tier_level and checks for app actions at that tier
-                app_actions = MCPWhitelist.get_app_actions(user_tier_level)
-                
-                if app_actions:
-                    # Add source field to mark these as hot_cache
-                    for action in app_actions:
-                        action['source'] = 'hot_cache'
-                    result['available_actions'] = app_actions
-                    log(f"Added {len(app_actions)} app actions to get_page response")
-            except Exception as e:
-                log(f"Error getting app actions: {e}")
         
         trace_out()
         return result
@@ -2893,16 +2873,6 @@ class Page:
                 "children_by_class": children_by_class,
                 "files": files_data,
             }
-            if gateway and gateway.backend == "mcp" and gateway.response:
-                try:
-                    user_tier_level = gateway.response.get_user_tier_level()
-                    app_actions = MCPWhitelist.get_app_actions(user_tier_level)
-                    if app_actions:
-                        for action in app_actions:
-                            action['source'] = 'hot_cache'
-                        response_data['available_actions'] = app_actions
-                except Exception as exc:
-                    warn(f"Failed to load MCP actions: {exc}")
         else:
             # Get audio and video data
             audio_data = self.get_audio_data()
