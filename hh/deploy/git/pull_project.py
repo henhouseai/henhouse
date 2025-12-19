@@ -66,7 +66,7 @@ def pull_project() -> bool:
         return False
 
     # Detect project context
-    from hh.deploy.utils import detect_project_context
+    from hh.deploy.deploy_utils import detect_project_context
     project_name, repo_root = detect_project_context()
     log(f"Using project: {project_name} at {repo_root}")
     

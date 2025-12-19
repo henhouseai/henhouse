@@ -245,6 +245,10 @@ class ResponseHTTP(Response):
             content_divs.append(self.image_group)
         if self.file_group:
             content_divs.append(self.file_group)
+        if self.audio_group:
+            content_divs.append(self.audio_group)
+        if self.video_group:
+            content_divs.append(self.video_group)
         if body_content:
             content_divs.append(body_content)
         

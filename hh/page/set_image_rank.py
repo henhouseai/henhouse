@@ -119,7 +119,7 @@ def set_image_rank() -> bool:
     
     if not is_error() and page is not None and source_rank_int is not None:
         log(f"Setting image {image_id} rank from {source_rank_int} to {target_rank} in page {page_id}")
-        success = page.set_image_rank(image_id, source_rank_int, target_rank)
+        success = page.set_media_rank("image", image_id, source_rank_int, target_rank)
         if not success:
             warn(f"Failed to set image {image_id} rank from {source_rank_int} to {target_rank}")
             report_error("action", f"Failed to set image {image_id} rank from {source_rank_int} to {target_rank}")

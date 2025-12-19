@@ -283,6 +283,10 @@ def build_work_docket(status: Dict[str, Any]) -> List[Tuple[str, bool]]:
         docket.append(("image-cache-refresh", False))
     if status.get("stale_files", 0) > 0:
         docket.append(("file-cache-refresh", False))
+    if status.get("stale_audio", 0) > 0:
+        docket.append(("audio-cache-refresh", False))
+    if status.get("stale_video", 0) > 0:
+        docket.append(("video-cache-refresh", False))
     
     return docket
 
@@ -371,6 +375,10 @@ def run_cycle(last_heartbeat: datetime) -> tuple[bool, datetime]:
                 stale_counts.append(f"{status['stale_images']} images") 
             if status.get("stale_files", 0) > 0:
                 stale_counts.append(f"{status['stale_files']} files")
+            if status.get("stale_audio", 0) > 0:
+                stale_counts.append(f"{status['stale_audio']} audio")
+            if status.get("stale_video", 0) > 0:
+                stale_counts.append(f"{status['stale_video']} video")
             
             # Status check info is redundant with status data - removed
             
@@ -410,6 +418,10 @@ def run_cycle(last_heartbeat: datetime) -> tuple[bool, datetime]:
         stale_counts.append(f"{status['stale_images']} images") 
     if status.get("stale_files", 0) > 0:
         stale_counts.append(f"{status['stale_files']} files")
+    if status.get("stale_audio", 0) > 0:
+        stale_counts.append(f"{status['stale_audio']} audio")
+    if status.get("stale_video", 0) > 0:
+        stale_counts.append(f"{status['stale_video']} video")
     
     work_summary = []
     if pending_jobs:

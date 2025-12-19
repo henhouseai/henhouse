@@ -378,12 +378,12 @@ class Image:
         trace_in()
         log(f"Starting image processing: {source_file_path} -> {filename_base}")
         try:
-            from hh.image.utils import load_image, validate_image_size, create_date_directory
+            from hh.image.image_utils import load_image, validate_image_size, create_date_directory
             from hh.image.image_size_tiers import IMAGE_SIZE_TIERS, MIN_IMAGE_WIDTH
             from pathlib import Path
             # Get base path for image storage
             try:
-                from hh.deploy.utils import detect_project_context
+                from hh.deploy.deploy_utils import detect_project_context
                 project_name, _ = detect_project_context()
                 base_path = Path(f"/srv/images/{project_name}")
             except Exception as e:
@@ -463,7 +463,7 @@ class Image:
     def _process_size(self, img, tier_name: str, target_width: int, date_path: Path, filename_base: str, base_path: Path) -> Optional[Dict[str, Any]]:
         trace_in()
         try:
-            from hh.image.utils import calculate_target_height, scale_image, write_jpg
+            from hh.image.image_utils import calculate_target_height, scale_image, write_jpg
             # Calculate target dimensions
             target_height = calculate_target_height(img, target_width)
             # Scale image
@@ -592,7 +592,7 @@ class Image:
     def _save_full_size(self, img, date_path: Path, filename_base: str, base_path: Path) -> Optional[Dict[str, Any]]:
         trace_in()
         try:
-            from hh.image.utils import write_jpg
+            from hh.image.image_utils import write_jpg
             # Generate file path for full-size image
             filepath = date_path / f"{filename_base}.jpg"
             # Write original image as JPEG
@@ -621,7 +621,7 @@ class Image:
             # Load instances if not already loaded (this populates self.instances)
             self.get_instances()
             # Get project context for base path
-            from hh.deploy.utils import detect_project_context
+            from hh.deploy.deploy_utils import detect_project_context
             from pathlib import Path
             project_name, _ = detect_project_context()
             base_path = Path(f"/srv/images/{project_name}")

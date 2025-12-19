@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import Dict, Any
-from hh.gateway.registry.registry import register_action, register_command
+from typing import Dict, Any, Mapping, cast
+from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
-from hh.gateway.response.json_standard import success_payload
+from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.image.image_registry import get_image
+from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -22,9 +23,9 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_action('modify_caption')
-@register_command('modify_caption')
-def modify_caption() -> bool:
+@register_action('modify_image_caption')
+@register_command('modify_image_caption')
+def modify_image_caption() -> bool:
     trace_in()
     gateway = get_gateway()
     image_id_arg = gateway.get_arg('image_id') or gateway.get_arg('id')
@@ -68,29 +69,71 @@ def modify_caption() -> bool:
             warn(f"Failed to modify caption for image {image_id}")
             report_error("action", f"Failed to modify caption for image {image_id}")
     
-    # Reload image to show updated state
-    updated_image = None
     if not is_error():
-        log(f"Reloading image {image_id} to show updated state")
-        updated_image = get_image(image_id=image_id)
-        if not updated_image:
-            warn(f"Failed to reload image {image_id}")
-            report_error("action", f"Failed to reload image {image_id}")
-    
-    if not is_error() and updated_image is not None:
-        response_data = updated_image.show_image()
-        
-        # Add operation-specific metadata
-        response_data.update({
+        # Build minimal response structure
+        response_data = {
             "image_id": image_id,
             "old_caption": old_caption,
-            "new_caption": caption,
-            "operation": "modify_caption"
-        })
+            "new_caption": caption
+        }
         
         log(f"Successfully modified caption for image {image_id}")
         gateway.response.set_action_response(success_payload(response_data))
     
     trace_out()
     return not is_error()
+
+
+@register_parser('modify_image_caption')
+def modify_image_caption_parser() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway.response.has_action_response():
+        warn("No action response available")
+        report_error("backend", "No action response available")
+        trace_out()
+        return False
+    
+    try:
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
+        image_id = source_data.get("image_id")
+        old_caption = source_data.get("old_caption", "")
+        new_caption = source_data.get("new_caption", "")
+        
+        lines = [render_header_block("l_modify_image_caption_header")]
+        
+        table = TableData()
+        table.add_row("modify_image_caption_header", info="")
+        
+        # Operation details
+        table.add_row("image_id", info=str(image_id))
+        table.add_row("extra_data_old_caption", info=old_caption if old_caption else "N/A")
+        table.add_row("extra_data_new_caption", info=new_caption if new_caption else "N/A")
+        
+        lines.append(
+            render_block(
+                table,
+                FieldConfig()
+                .add_header("modify_image_caption_header")
+                .add_simple(["image_id", "extra_data_old_caption", "extra_data_new_caption"]),
+                block_type="rows",
+                table_overrides={"margin_l": 4},
+            )
+        )
+        
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully with {len(lines)} lines")
+        trace_out()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Parser execution raised an exception: {exc}")
+        report_error("backend", f"Parser execution raised an exception: {exc}")
+        trace_out()
+        return False
 

@@ -143,6 +143,26 @@ class TableData:
         last_row['_links'][column_name] = {'type': 'file', 'id': file_id}  # type: ignore[typeddict-item]
         return self
     
+    def add_audio_link_to_column(self, column_name: str, audio_id: int) -> 'TableData':
+        """Add audio link metadata to the specified column of the most recently added row."""
+        if not self.rows:
+            return self
+        last_row = self.rows[-1]
+        if '_links' not in last_row:
+            last_row['_links'] = {}  # type: ignore[typeddict-item]
+        last_row['_links'][column_name] = {'type': 'audio', 'id': audio_id}  # type: ignore[typeddict-item]
+        return self
+    
+    def add_video_link_to_column(self, column_name: str, video_id: int) -> 'TableData':
+        """Add video link metadata to the specified column of the most recently added row."""
+        if not self.rows:
+            return self
+        last_row = self.rows[-1]
+        if '_links' not in last_row:
+            last_row['_links'] = {}  # type: ignore[typeddict-item]
+        last_row['_links'][column_name] = {'type': 'video', 'id': video_id}  # type: ignore[typeddict-item]
+        return self
+    
     def num_rows(self) -> int:
         if self.gateway and self.gateway.is_no('header') and len(self.rows) > 1:
             return len(self.rows) - 1

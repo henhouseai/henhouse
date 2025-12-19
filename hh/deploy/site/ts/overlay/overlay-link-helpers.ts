@@ -26,6 +26,18 @@ export interface LinkInterceptorOptions {
   onFileLink?: (fileId: number, link: HTMLAnchorElement) => void;
 
   /**
+   * Callback for audio links (href="/audio/123").
+   * If provided, audio links will be intercepted and this callback will be called.
+   */
+  onAudioLink?: (audioId: number, link: HTMLAnchorElement) => void;
+
+  /**
+   * Callback for video links (href="/video/123").
+   * If provided, video links will be intercepted and this callback will be called.
+   */
+  onVideoLink?: (videoId: number, link: HTMLAnchorElement) => void;
+
+  /**
    * Selector for links to skip (e.g., toggle links).
    * Default: 'a[class*="updatePageView_"]'
    */
@@ -60,6 +72,8 @@ export function interceptLinks(container: HTMLElement, options: LinkInterceptorO
     onPageLink,
     onImageLink,
     onFileLink,
+    onAudioLink,
+    onVideoLink,
     skipSelector = 'a[class*="updatePageView_"]',
     customMatcher,
     customHandler,
@@ -130,6 +144,30 @@ export function interceptLinks(container: HTMLElement, options: LinkInterceptorO
       link.addEventListener('click', (e) => {
         e.preventDefault();
         onFileLink(fileId, link);
+      });
+      (link as any)[markerProperty] = true;
+      return;
+    }
+
+    // Check if it's an audio link (starts with /audio/)
+    const audioMatch = href.match(/^\/audio\/(\d+)$/);
+    if (audioMatch && onAudioLink) {
+      const audioId = parseInt(audioMatch[1], 10);
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        onAudioLink(audioId, link);
+      });
+      (link as any)[markerProperty] = true;
+      return;
+    }
+
+    // Check if it's a video link (starts with /video/)
+    const videoMatch = href.match(/^\/video\/(\d+)$/);
+    if (videoMatch && onVideoLink) {
+      const videoId = parseInt(videoMatch[1], 10);
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        onVideoLink(videoId, link);
       });
       (link as any)[markerProperty] = true;
       return;

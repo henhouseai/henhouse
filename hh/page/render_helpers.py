@@ -825,3 +825,226 @@ def render_images_section(
     trace_out()
     return None
 
+
+def render_audio_section(
+    audio_data: List[Dict[str, Any]],
+    page_id: Optional[int] = None,
+    overlay_mode: bool = False,
+    wrapper_id_prefix: str = '',
+    additional_classes: Optional[List[str]] = None
+) -> Optional[str]:
+    """
+    Render audio section as table.
+    
+    Returns HTML string if overlay_mode is True, otherwise sets on gateway.response.
+    """
+    trace_in()
+    gateway = get_gateway()
+    if additional_classes is None:
+        additional_classes = []
+    
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return None
+    
+    block = 'audio'
+    if gateway.is_no(block) or not audio_data:
+        trace_out()
+        return None
+    
+    log(f"Rendering audio section with {len(audio_data)} audio files")
+    
+    audio_rows = TableData()
+    audio_rows.add_row(
+        'audio_header',
+        label='Audio',
+        rank='Rank',
+        id='ID',
+        caption='Caption',
+        uploaded='Uploaded',
+        duration='Duration',
+        size='Size',
+        instances='Instances'
+    )
+    
+    for audio_entry in audio_data:
+        audio_id = audio_entry.get('id')
+        max_filesize = audio_entry.get('max_filesize', 0)
+        size_display = f"{max_filesize:,} B" if isinstance(max_filesize, int) else 'N/A'
+        duration_seconds = audio_entry.get('duration_seconds')
+        duration_display = f"{duration_seconds:.1f}s" if duration_seconds is not None else 'N/A'
+        instances_count = len(audio_entry.get('instances', []))
+        
+        audio_rows.add_row(
+            'audio_item',
+            rank=str(audio_entry.get('audio_rank', 'N/A')),
+            id=str(audio_id) if audio_id is not None else 'N/A',
+            caption=safe_str(audio_entry.get('caption', 'untitled')),
+            uploaded=safe_str(audio_entry.get('uploaded', 'N/A')),
+            duration=duration_display,
+            size=size_display,
+            instances=str(instances_count)
+        )
+        if audio_id is not None:
+            audio_rows.add_audio_link_to_column('label', audio_id)
+            audio_rows.add_audio_link_to_column('rank', audio_id)
+            audio_rows.add_audio_link_to_column('id', audio_id)
+            audio_rows.add_audio_link_to_column('caption', audio_id)
+    
+    if audio_rows.num_rows() > 0:
+        page_id_str = str(page_id) if page_id is not None else ''
+        wrapper_id = f"{wrapper_id_prefix}pageAudioGroup_{page_id_str}" if page_id is not None else None
+        wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
+        
+        audio_block = render_block(
+            audio_rows,
+            FieldConfig()
+                .add_header('audio_header')
+                .add_simple(['audio_item']),
+            table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
+            block_type=block,
+            wrapper_id=wrapper_id,
+            wrapper_extra_classes=wrapper_extra_classes,
+            backend='http' if overlay_mode else None
+        )
+        
+        if overlay_mode:
+            # Generate header HTML for overlay mode
+            if page_id is not None:
+                header_id = f"{wrapper_id_prefix}pageAudioGroupHeader_{page_id_str}"
+                header_classes = 'contentHeader'
+                if additional_classes:
+                    header_classes += ' ' + ' '.join(additional_classes)
+                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="audio">AUDIO</a>\n</div>'
+                result = header_html + '\n' + audio_block
+            else:
+                result = audio_block
+            trace_out()
+            return result
+        else:
+            if gateway.backend == "http" and page_id is not None:
+                page_id_str = str(page_id)
+                header_id = f"pageAudioGroupHeader_{page_id_str}"
+                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="audio">AUDIO</a>\n</div>'
+                gateway.response.set_audio_group(header_html + audio_block)
+            else:
+                gateway.response.set_audio_group(audio_block)
+    
+    trace_out()
+    return None
+
+
+def render_video_section(
+    video_data: List[Dict[str, Any]],
+    page_id: Optional[int] = None,
+    overlay_mode: bool = False,
+    wrapper_id_prefix: str = '',
+    additional_classes: Optional[List[str]] = None
+) -> Optional[str]:
+    """
+    Render video section as table.
+    
+    Returns HTML string if overlay_mode is True, otherwise sets on gateway.response.
+    """
+    trace_in()
+    gateway = get_gateway()
+    if additional_classes is None:
+        additional_classes = []
+    
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return None
+    
+    block = 'video'
+    if gateway.is_no(block) or not video_data:
+        trace_out()
+        return None
+    
+    log(f"Rendering video section with {len(video_data)} video files")
+    
+    video_rows = TableData()
+    video_rows.add_row(
+        'video_header',
+        label='Video',
+        rank='Rank',
+        id='ID',
+        caption='Caption',
+        uploaded='Uploaded',
+        dimensions='Dimensions',
+        duration='Duration',
+        size='Size',
+        instances='Instances'
+    )
+    
+    for video_entry in video_data:
+        video_id = video_entry.get('id')
+        max_filesize = video_entry.get('max_filesize', 0)
+        size_display = f"{max_filesize:,} B" if isinstance(max_filesize, int) else 'N/A'
+        width = video_entry.get('width')
+        height = video_entry.get('height')
+        dimensions_display = f"{width}x{height}" if width is not None and height is not None else 'N/A'
+        duration_seconds = video_entry.get('duration_seconds')
+        duration_display = f"{duration_seconds:.1f}s" if duration_seconds is not None else 'N/A'
+        instances_count = len(video_entry.get('instances', []))
+        
+        video_rows.add_row(
+            'video_item',
+            rank=str(video_entry.get('video_rank', 'N/A')),
+            id=str(video_id) if video_id is not None else 'N/A',
+            caption=safe_str(video_entry.get('caption', 'untitled')),
+            uploaded=safe_str(video_entry.get('uploaded', 'N/A')),
+            dimensions=dimensions_display,
+            duration=duration_display,
+            size=size_display,
+            instances=str(instances_count)
+        )
+        if video_id is not None:
+            video_rows.add_video_link_to_column('label', video_id)
+            video_rows.add_video_link_to_column('rank', video_id)
+            video_rows.add_video_link_to_column('id', video_id)
+            video_rows.add_video_link_to_column('caption', video_id)
+    
+    if video_rows.num_rows() > 0:
+        page_id_str = str(page_id) if page_id is not None else ''
+        wrapper_id = f"{wrapper_id_prefix}pageVideoGroup_{page_id_str}" if page_id is not None else None
+        wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
+        
+        video_block = render_block(
+            video_rows,
+            FieldConfig()
+                .add_header('video_header')
+                .add_simple(['video_item']),
+            table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
+            block_type=block,
+            wrapper_id=wrapper_id,
+            wrapper_extra_classes=wrapper_extra_classes,
+            backend='http' if overlay_mode else None
+        )
+        
+        if overlay_mode:
+            # Generate header HTML for overlay mode
+            if page_id is not None:
+                header_id = f"{wrapper_id_prefix}pageVideoGroupHeader_{page_id_str}"
+                header_classes = 'contentHeader'
+                if additional_classes:
+                    header_classes += ' ' + ' '.join(additional_classes)
+                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="video">VIDEO</a>\n</div>'
+                result = header_html + '\n' + video_block
+            else:
+                result = video_block
+            trace_out()
+            return result
+        else:
+            if gateway.backend == "http" and page_id is not None:
+                page_id_str = str(page_id)
+                header_id = f"pageVideoGroupHeader_{page_id_str}"
+                header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id_str}" data-section="video">VIDEO</a>\n</div>'
+                gateway.response.set_video_group(header_html + video_block)
+            else:
+                gateway.response.set_video_group(video_block)
+    
+    trace_out()
+    return None
+

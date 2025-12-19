@@ -111,6 +111,7 @@ export class ImageViewer {
         this.footerEl = footerEl;
         // Show overlay using OverlayManager
         const overlayManager = OverlayManager.getInstance();
+        const currentImage = this.images[this.currentImageIndex];
         this.overlay = overlayManager.show({
             header: 'Image Viewer',
             content: [imageContainer],
@@ -118,9 +119,15 @@ export class ImageViewer {
             footerContent: footerEl,
             closable: true,
             showSubmit: false,
+            middleButtonLabel: 'More Info',
+            middleButtonIndependent: true,
             cancelLabel: 'Close',
             mode: 'zoomable',
             onCancel: () => this.cleanup(),
+            onMiddleButton: () => {
+                // Navigate to image show page
+                window.location.href = `/img/${currentImage.id}`;
+            },
             onUnmount: () => this.cleanupHandlers()
         });
         // Get references to overlay elements for pan/zoom
@@ -194,6 +201,17 @@ export class ImageViewer {
         this.initializeBaseSizes(this.intrinsicWidth, this.intrinsicHeight);
         this.applyTransforms(1);
         requestAnimationFrame(() => this.applyTransforms(this.currentScale));
+        // Update middle button (More Info) to point to current image
+        const middleBtn = document.querySelector('#middleOverlayWindow');
+        if (middleBtn) {
+            // Remove old listeners and add new one
+            const newMiddleBtn = middleBtn.cloneNode(true);
+            middleBtn.parentNode?.replaceChild(newMiddleBtn, middleBtn);
+            newMiddleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.location.href = `/img/${image.id}`;
+            });
+        }
     }
     initializeBaseSizes(intrinsicW, intrinsicH) {
         if (!this.windowEl)

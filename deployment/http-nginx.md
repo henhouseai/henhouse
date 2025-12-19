@@ -63,7 +63,8 @@ The `http_deploy` command creates HTTP-only NGINX configuration:
 **Configuration Features**:
 - **Port**: 80 (HTTP only)
 - **Server blocks**: 3 blocks (main, admin, panel)
-- **Static file serving**: Direct NGINX serving for whitelisted files (from `configuration.md` whitelists)
+- **Static file serving**: Direct NGINX serving for whitelisted files (from `configuration.md` whitelists) and images
+- **File serving**: Files served via Flask routes (`/file/<id>` and `/file/<id>/download`) for gated access
 - **Flask proxy**: All other requests proxied to Flask apps (see `flask.md`)
 - **Security headers**: X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy
 - **Rate limiting**: General rate limit zone
@@ -238,7 +239,7 @@ Generates NGINX location blocks for static file serving:
    - From `CONTEXT_WHITELIST`: adds context folders (e.g., `context/`, `planning/`) (see `configuration.md`)
 
 2. **Generate Location Blocks**:
-   - Always includes `/srv/images/{project_name}/` and `/srv/files/{project_name}/` (created by `installation.md`)
+   - Always includes `/srv/images/{project_name}/` (created by `installation.md`)
    - Generates location blocks for each static directory
    - Each block:
      - Maps URL path to filesystem alias
@@ -254,7 +255,9 @@ Generates NGINX location blocks for static file serving:
 - `/site/` → `/srv/{project_name}/site/` (for misc files like favicon.ico)
 - `/context/` → `/srv/{project_name}/context/` (for context documentation, deployed by `file-deployment.md`)
 - `/srv/images/` → `/srv/images/{project_name}/` (for image storage, created by `installation.md`)
-- `/srv/files/` → `/srv/files/{project_name}/` (for file storage, created by `installation.md`)
+- **Files**: Files are served via Flask routes for gated access:
+  - `/file/<id>` - Shows file page (via `show-file` action)
+  - `/file/<id>/download` - Downloads file (via download backend)
 
 **See also**: `hh/deploy/http/nginx_whitelist.py` functions `generate_nginx_static_locations`, `_generate_location_blocks`
 

@@ -1,7 +1,7 @@
 import os
 from typing import Optional, Dict, Union
 from hh.gateway.connection.connection import Connection, _load_dsn
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 

@@ -50,12 +50,14 @@ export class Overlay {
         });
         // Calculate button visibility (used in both constructor and mount)
         const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
-        const willShowMiddle = willShowSubmit && !!this.props.middleButtonLabel && !!this.props.onMiddleButton;
+        const middleButtonIndependent = this.props.middleButtonIndependent === true;
+        const willShowMiddle = (middleButtonIndependent || willShowSubmit) && !!this.props.middleButtonLabel && !!this.props.onMiddleButton;
         this.header = new OverlayHeader({
             title: this.props.header,
             showCancel: this.props.closable !== false,
             showSubmit: willShowSubmit,
             showMiddleButton: willShowMiddle,
+            middleButtonIndependent: middleButtonIndependent,
             cancelLabel: this.props.cancelLabel || 'Cancel',
             submitLabel: this.props.submitLabel || 'Submit',
             middleButtonLabel: this.props.middleButtonLabel,
@@ -215,7 +217,9 @@ export class Overlay {
             // Only restore submit button on error (not on success)
             if (!submitBtn && this.props.onSubmit && (this.state.error || (this.state.messages && this.state.messages.some(m => m.type === 'error')))) {
                 // Restore middle button if it was configured
-                const willShowMiddle = !!this.props.middleButtonLabel && !!this.props.onMiddleButton;
+                const middleButtonIndependent = this.props.middleButtonIndependent === true;
+                const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
+                const willShowMiddle = (middleButtonIndependent || willShowSubmit) && !!this.props.middleButtonLabel && !!this.props.onMiddleButton;
                 if (willShowMiddle) {
                     const middleBtn = document.createElement('a');
                     middleBtn.id = 'middleOverlayWindow';

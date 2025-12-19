@@ -16,6 +16,7 @@ export interface OverlayOptions {
   submitLabel?: string;
   cancelLabel?: string;
   middleButtonLabel?: string;
+  middleButtonIndependent?: boolean;
   onMiddleButton?: () => void;
   onMount?: () => void;
   onUnmount?: () => void;

@@ -151,6 +151,12 @@ class ViewToggle {
         if (section === 'images') {
             contentId = `${prefix}pageImageGroup_${pageId}`;
         }
+        else if (section === 'audio') {
+            contentId = `${prefix}pageAudioGroup_${pageId}`;
+        }
+        else if (section === 'video') {
+            contentId = `${prefix}pageVideoGroup_${pageId}`;
+        }
         else if (section === 'children') {
             if (!className) {
                 console.warn('Class name required for children section');
@@ -184,9 +190,13 @@ class ViewToggle {
         if (section === 'images' && !isInOverlay) {
             this.setupImageViewerLinks(newElement, pageId);
         }
-        // Set up image viewer link interception for image sections (only on main page, not in overlays)
-        if (section === 'images' && !isInOverlay) {
-            this.setupImageViewerLinks(newElement, pageId);
+        // Set up audio viewer link interception for audio sections (only on main page, not in overlays)
+        if (section === 'audio' && !isInOverlay) {
+            this.setupAudioViewerLinks(newElement, pageId);
+        }
+        // Set up video viewer link interception for video sections (only on main page, not in overlays)
+        if (section === 'video' && !isInOverlay) {
+            this.setupVideoViewerLinks(newElement, pageId);
         }
         // Call onAfterSwap callback if provided (allows DOM manipulation after swap)
         if (this.callbacks.onAfterSwap) {
@@ -206,6 +216,32 @@ class ViewToggle {
                 await ImageViewer.openFromImageLink(parseInt(pageId, 10), imageId);
             },
             markerProperty: '__imageViewerIntercepted'
+        });
+    }
+    /**
+     * Set up audio viewer link interception for audio group links.
+     */
+    setupAudioViewerLinks(container, pageId) {
+        interceptLinks(container, {
+            onAudioLink: async (audioId, link) => {
+                // Open audio viewer with this audio file
+                const { AudioViewer } = await import('./audio-viewer.js');
+                await AudioViewer.openFromAudioLink(parseInt(pageId, 10), audioId);
+            },
+            markerProperty: '__audioViewerIntercepted'
+        });
+    }
+    /**
+     * Set up video viewer link interception for video group links.
+     */
+    setupVideoViewerLinks(container, pageId) {
+        interceptLinks(container, {
+            onVideoLink: async (videoId, link) => {
+                // Open video viewer with this video file
+                const { VideoViewer } = await import('./video-viewer.js');
+                await VideoViewer.openFromVideoLink(parseInt(pageId, 10), videoId);
+            },
+            markerProperty: '__videoViewerIntercepted'
         });
     }
 }
@@ -242,9 +278,17 @@ function setupInitialImageViewerLinks() {
             else {
                 console.warn(`Image group element not found: pageImageGroup_${pageId}`);
             }
+            const audioGroup = document.getElementById(`pageAudioGroup_${pageId}`);
+            if (audioGroup) {
+                viewToggleInstance.setupAudioViewerLinks(audioGroup, pageId);
+            }
+            const videoGroup = document.getElementById(`pageVideoGroup_${pageId}`);
+            if (videoGroup) {
+                viewToggleInstance.setupVideoViewerLinks(videoGroup, pageId);
+            }
         }
         else {
-            console.warn('Could not set up image viewer links - missing seed data or view toggle instance');
+            console.warn('Could not set up viewer links - missing seed data or view toggle instance');
         }
     }, 100);
 }

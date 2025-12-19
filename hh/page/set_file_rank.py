@@ -89,7 +89,7 @@ def set_file_rank() -> bool:
     # Perform rank update
     if not is_error() and page is not None:
         log(f"Setting file {file_id} rank to {target_rank} on page {page_id}")
-        success = page.set_file_rank(file_id, current_rank or target_rank, target_rank)
+        success = page.set_media_rank("file", file_id, current_rank or target_rank, target_rank)
         if not success:
             warn(f"Failed to set rank for file {file_id} on page {page_id}")
             report_error("action", f"Failed to set rank for file {file_id} on page {page_id}")

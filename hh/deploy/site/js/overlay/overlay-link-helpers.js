@@ -11,7 +11,7 @@
  * @param options - Interception options
  */
 export function interceptLinks(container, options = {}) {
-    const { onPageLink, onImageLink, onFileLink, skipSelector = 'a[class*="updatePageView_"]', customMatcher, customHandler, markerProperty = '__overlayIntercepted' } = options;
+    const { onPageLink, onImageLink, onFileLink, onAudioLink, onVideoLink, skipSelector = 'a[class*="updatePageView_"]', customMatcher, customHandler, markerProperty = '__overlayIntercepted' } = options;
     // Find all links (with or without href - some links use IDs instead)
     const links = container.querySelectorAll('a');
     links.forEach(link => {
@@ -68,6 +68,28 @@ export function interceptLinks(container, options = {}) {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 onFileLink(fileId, link);
+            });
+            link[markerProperty] = true;
+            return;
+        }
+        // Check if it's an audio link (starts with /audio/)
+        const audioMatch = href.match(/^\/audio\/(\d+)$/);
+        if (audioMatch && onAudioLink) {
+            const audioId = parseInt(audioMatch[1], 10);
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                onAudioLink(audioId, link);
+            });
+            link[markerProperty] = true;
+            return;
+        }
+        // Check if it's a video link (starts with /video/)
+        const videoMatch = href.match(/^\/video\/(\d+)$/);
+        if (videoMatch && onVideoLink) {
+            const videoId = parseInt(videoMatch[1], 10);
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                onVideoLink(videoId, link);
             });
             link[markerProperty] = true;
             return;

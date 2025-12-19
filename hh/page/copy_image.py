@@ -78,7 +78,7 @@ def copy_image() -> bool:
     
     if not is_error() and page is not None:
         log(f"Copying image {image_id} to target page {target_page_id}")
-        success = page.copy_images([image_id], target_rank=rank_int)
+        success = page.copy_media_items("image", [image_id], target_rank=rank_int)
         if not success:
             warn(f"Failed to copy image {image_id} to target page {target_page_id}")
             report_error("action", f"Failed to copy image {image_id} to target page {target_page_id}")

@@ -119,7 +119,7 @@ def copy_files() -> bool:
     # Perform copy
     if not is_error() and target_page is not None:
         log(f"Copying {len(file_ids)} files from page {source_page_id} to page {target_page_id}")
-        success = target_page.copy_files(file_ids, target_rank=target_rank_int)
+        success = target_page.copy_media_items("file", file_ids, target_rank=target_rank_int)
         if not success:
             warn(f"Failed to copy files to page {target_page_id}")
             report_error("action", f"Failed to copy files to page {target_page_id}")

@@ -41,8 +41,8 @@ export class OverlayHeader {
             });
             header.appendChild(cancelBtn);
         }
-        // Middle button (only shown when submit button is also shown)
-        if (this.props.showMiddleButton && this.props.showSubmit) {
+        // Middle button (shown when independent OR when submit button is also shown)
+        if (this.props.showMiddleButton && (this.props.middleButtonIndependent || this.props.showSubmit)) {
             const middleBtn = document.createElement('a');
             middleBtn.id = 'middleOverlayWindow';
             middleBtn.className = 'overlay-button overlay-button-middle middleButton';

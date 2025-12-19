@@ -215,7 +215,7 @@ def file_cache_refresh_parser() -> bool:
         else:
             # File ID row
             table.add_row(
-                "file_id",
+                "file_cache_file_id",
                 info=str(file_id),
             )
             
@@ -245,7 +245,7 @@ def file_cache_refresh_parser() -> bool:
                 table,
                 FieldConfig()
                 .add_header("file_cache_refresh_header")
-                .add_simple(["no_stale_files", "file_id", "refresh_status", "file_cache_refresh_remaining"])
+                .add_simple(["no_stale_files", "file_cache_file_id", "refresh_status", "file_cache_refresh_remaining"])
                 .add_simple_color("file_cache_error", "red"),
                 block_type="maintenance",
                 table_overrides={"margin_l": 4},

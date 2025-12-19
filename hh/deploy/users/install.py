@@ -26,7 +26,7 @@ def _initialize_debug():
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.users.access import auto_scan_user_keys, generate_ssh_keys, add_user_key
 from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, setup_user_convenience_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
 
@@ -144,6 +144,12 @@ def install() -> bool:
         
         # Set up files directory with proper permissions
         setup_files_directory(project_name)
+        
+        # Set up audio directory with proper permissions
+        setup_audio_directory(project_name)
+        
+        # Set up video directory with proper permissions
+        setup_video_directory(project_name)
         
         # Set ownership and permissions for the created directory structure
         from hh.deploy.srv.deploy import setup_deployment_ownership_and_permissions
@@ -624,6 +630,12 @@ def setup_files_directory(project_name: str) -> None:
         gateway.files.chmod(str(files_dir), 0o2775)
         log(f"Created files directory with group write: {files_dir}")
         
+        # Create deleted subdirectory
+        deleted_dir = files_dir / 'deleted'
+        deleted_dir.mkdir(parents=True, exist_ok=True)
+        gateway.files.chmod(str(deleted_dir), 0o2775)
+        log(f"Created deleted subdirectory: {deleted_dir}")
+        
         # Set ownership for files directory
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
         admin_group_name = f"{project_name}_admin"
@@ -635,6 +647,72 @@ def setup_files_directory(project_name: str) -> None:
     except Exception as e:
         warn(f"Failed to setup files directory: {str(e)}")
         report_error("backend", f"Failed to setup files directory: {str(e)}")
+    finally:
+        trace_out()
+
+def setup_audio_directory(project_name: str) -> None:
+    """Set up audio directory with proper permissions during installation."""
+    trace_in()
+    gateway = get_gateway()
+    try:
+        log(f"Setting up audio directory for project {project_name}")
+        
+        # Create /srv/audio/{project_name} directory
+        audio_dir = Path(f'/srv/audio/{project_name}')
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        gateway.files.chmod(str(audio_dir), 0o2775)
+        log(f"Created audio directory with group write: {audio_dir}")
+        
+        # Create deleted subdirectory
+        deleted_dir = audio_dir / 'deleted'
+        deleted_dir.mkdir(parents=True, exist_ok=True)
+        gateway.files.chmod(str(deleted_dir), 0o2775)
+        log(f"Created deleted subdirectory: {deleted_dir}")
+        
+        # Set ownership for audio directory and subdirectories
+        project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+        admin_group_name = f"{project_name}_admin"
+        gateway.files.chown(str(audio_dir), project_highest_user, group=admin_group_name, recursive=True)
+        log(f"Set audio directory ownership: {project_highest_user}:{admin_group_name}")
+        
+        log("Audio directory setup completed successfully")
+        
+    except Exception as e:
+        warn(f"Failed to setup audio directory: {str(e)}")
+        report_error("backend", f"Failed to setup audio directory: {str(e)}")
+    finally:
+        trace_out()
+
+def setup_video_directory(project_name: str) -> None:
+    """Set up video directory with proper permissions during installation."""
+    trace_in()
+    gateway = get_gateway()
+    try:
+        log(f"Setting up video directory for project {project_name}")
+        
+        # Create /srv/video/{project_name} directory
+        video_dir = Path(f'/srv/video/{project_name}')
+        video_dir.mkdir(parents=True, exist_ok=True)
+        gateway.files.chmod(str(video_dir), 0o2775)
+        log(f"Created video directory with group write: {video_dir}")
+        
+        # Create deleted subdirectory
+        deleted_dir = video_dir / 'deleted'
+        deleted_dir.mkdir(parents=True, exist_ok=True)
+        gateway.files.chmod(str(deleted_dir), 0o2775)
+        log(f"Created deleted subdirectory: {deleted_dir}")
+        
+        # Set ownership for video directory and subdirectories
+        project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+        admin_group_name = f"{project_name}_admin"
+        gateway.files.chown(str(video_dir), project_highest_user, group=admin_group_name, recursive=True)
+        log(f"Set video directory ownership: {project_highest_user}:{admin_group_name}")
+        
+        log("Video directory setup completed successfully")
+        
+    except Exception as e:
+        warn(f"Failed to setup video directory: {str(e)}")
+        report_error("backend", f"Failed to setup video directory: {str(e)}")
     finally:
         trace_out()
 

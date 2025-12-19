@@ -42,6 +42,8 @@ class Response:
         self.child_pages: List[str] = []
         self.image_group: str = ""
         self.file_group: str = ""
+        self.audio_group: str = ""
+        self.video_group: str = ""
         self.admin: bool = False
         self.user_info_html: str = ""
         self.site_links_html: str = ""
@@ -228,6 +230,26 @@ class Response:
             log(f"Set file group: {len(content)} characters")
         else:
             log("Skipped empty file group content")
+        trace_out()
+    
+    def set_audio_group(self, content: str) -> None:
+        """Set the audio group section content."""
+        trace_in()
+        if content and content.strip():
+            self.audio_group = content
+            log(f"Set audio group: {len(content)} characters")
+        else:
+            log("Skipped empty audio group content")
+        trace_out()
+    
+    def set_video_group(self, content: str) -> None:
+        """Set the video group section content."""
+        trace_in()
+        if content and content.strip():
+            self.video_group = content
+            log(f"Set video group: {len(content)} characters")
+        else:
+            log("Skipped empty video group content")
         trace_out()
     
     def has_action_response(self) -> bool:

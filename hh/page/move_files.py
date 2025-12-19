@@ -132,7 +132,7 @@ def move_files() -> bool:
     # Perform move
     if not is_error() and target_page is not None:
         log(f"Moving {len(file_instances)} files from page {source_page_id} to page {target_page_id}")
-        success = target_page.move_files(file_instances, target_rank=target_rank_int)
+        success = target_page.move_media_items("file", file_instances, target_rank=target_rank_int)
         if not success:
             warn(f"Failed to move files from page {source_page_id} to page {target_page_id}")
             report_error("action", f"Failed to move files from page {source_page_id} to page {target_page_id}")

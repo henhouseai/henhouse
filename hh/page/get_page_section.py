@@ -53,7 +53,7 @@ def get_page_section_action() -> bool:
             trace_out()
             return False
 
-        if section not in ["images", "children", "files"]:
+        if section not in ["images", "children", "files", "audio", "video"]:
             warn(f"Invalid section: {section}")
             report_error("action", f"Invalid section: {section}")
             trace_out()
@@ -71,6 +71,7 @@ def get_page_section_action() -> bool:
         view_type = gateway.get_arg("view_type")
         if not view_type:
             # Default: HTTP backend = tile for images/children, parser = table
+            # Audio and video always use table view
             if gateway.backend == "http" and section in ["images", "children"]:
                 view_type = "tile"
             else:
@@ -234,6 +235,172 @@ def get_page_section_action() -> bool:
             else:
                 warn(f"No children found for class '{class_name}'")
                 dom_content = ""
+        elif section == "files":
+            # Files section - render as table
+            files_data = page.get_files_data()
+            if files_data:
+                from hh.render.render import FieldConfig, TableData, render_block
+                from hh.render.config.config import safe_str
+                files_rows = TableData()
+                files_rows.add_row(
+                    'files_header',
+                    label='Files',
+                    rank='Rank',
+                    id='ID',
+                    name='Name',
+                    description='Description',
+                    uploaded='Uploaded',
+                    size='Size',
+                    path='Path',
+                )
+                for file_entry in files_data:
+                    file_id = file_entry.get('id')
+                    size_bytes = file_entry.get('size_bytes')
+                    size_display = f"{size_bytes:,} B" if isinstance(size_bytes, int) else 'N/A'
+                    file_path = file_entry.get('file_path') or ''
+                    files_rows.add_row(
+                        'file_item',
+                        rank=str(file_entry.get('file_rank', 'N/A')),
+                        id=str(file_id) if file_id is not None else 'N/A',
+                        name=safe_str(file_entry.get('file_name', 'unnamed')),
+                        description=safe_str(file_entry.get('description', '')),
+                        uploaded=safe_str(file_entry.get('uploaded', 'N/A')),
+                        size=size_display,
+                        path=safe_str(file_path),
+                    )
+                    if file_id is not None:
+                        files_rows.add_file_link_to_column('name', file_id)
+                        files_rows.add_file_link_to_column('path', file_id)
+                
+                if files_rows.num_rows() > 0:
+                    page_id_str = str(page_id)
+                    content_id = f"{wrapper_id_prefix}pageFileGroup_{page_id_str}"
+                    dom_content = render_block(
+                        files_rows,
+                        FieldConfig()
+                            .add_header('files_header')
+                            .add_simple(['file_item']),
+                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
+                        block_type='files',
+                        backend='http',  # Force HTTP for MCP
+                        wrapper_id=content_id,
+                        wrapper_extra_classes=wrapper_extra_classes
+                    )
+        elif section == "audio":
+            # Audio section - render as table
+            audio_data = page.get_audio_data()
+            if audio_data:
+                from hh.render.render import FieldConfig, TableData, render_block
+                from hh.render.config.config import safe_str
+                audio_rows = TableData()
+                audio_rows.add_row(
+                    'audio_header',
+                    label='Audio',
+                    rank='Rank',
+                    id='ID',
+                    caption='Caption',
+                    uploaded='Uploaded',
+                    duration='Duration',
+                    size='Size',
+                    instances='Instances'
+                )
+                for audio_entry in audio_data:
+                    audio_id = audio_entry.get('id')
+                    max_filesize = audio_entry.get('max_filesize', 0)
+                    size_display = f"{max_filesize:,} B" if isinstance(max_filesize, int) else 'N/A'
+                    duration_seconds = audio_entry.get('duration_seconds')
+                    duration_display = f"{duration_seconds:.1f}s" if duration_seconds is not None else 'N/A'
+                    instances_count = len(audio_entry.get('instances', []))
+                    audio_rows.add_row(
+                        'audio_item',
+                        rank=str(audio_entry.get('audio_rank', 'N/A')),
+                        id=str(audio_id) if audio_id is not None else 'N/A',
+                        caption=safe_str(audio_entry.get('caption', 'untitled')),
+                        uploaded=safe_str(audio_entry.get('uploaded', 'N/A')),
+                        duration=duration_display,
+                        size=size_display,
+                        instances=str(instances_count)
+                    )
+                    if audio_id is not None:
+                        audio_rows.add_audio_link_to_column('label', audio_id)
+                        audio_rows.add_audio_link_to_column('rank', audio_id)
+                        audio_rows.add_audio_link_to_column('id', audio_id)
+                        audio_rows.add_audio_link_to_column('caption', audio_id)
+                
+                if audio_rows.num_rows() > 0:
+                    page_id_str = str(page_id)
+                    content_id = f"{wrapper_id_prefix}pageAudioGroup_{page_id_str}"
+                    dom_content = render_block(
+                        audio_rows,
+                        FieldConfig()
+                            .add_header('audio_header')
+                            .add_simple(['audio_item']),
+                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
+                        block_type='audio',
+                        backend='http',  # Force HTTP for MCP
+                        wrapper_id=content_id,
+                        wrapper_extra_classes=wrapper_extra_classes
+                    )
+        elif section == "video":
+            # Video section - render as table
+            video_data = page.get_video_data()
+            if video_data:
+                from hh.render.render import FieldConfig, TableData, render_block
+                from hh.render.config.config import safe_str
+                video_rows = TableData()
+                video_rows.add_row(
+                    'video_header',
+                    label='Video',
+                    rank='Rank',
+                    id='ID',
+                    caption='Caption',
+                    uploaded='Uploaded',
+                    dimensions='Dimensions',
+                    duration='Duration',
+                    size='Size',
+                    instances='Instances'
+                )
+                for video_entry in video_data:
+                    video_id = video_entry.get('id')
+                    max_filesize = video_entry.get('max_filesize', 0)
+                    size_display = f"{max_filesize:,} B" if isinstance(max_filesize, int) else 'N/A'
+                    width = video_entry.get('width')
+                    height = video_entry.get('height')
+                    dimensions_display = f"{width}x{height}" if width is not None and height is not None else 'N/A'
+                    duration_seconds = video_entry.get('duration_seconds')
+                    duration_display = f"{duration_seconds:.1f}s" if duration_seconds is not None else 'N/A'
+                    instances_count = len(video_entry.get('instances', []))
+                    video_rows.add_row(
+                        'video_item',
+                        rank=str(video_entry.get('video_rank', 'N/A')),
+                        id=str(video_id) if video_id is not None else 'N/A',
+                        caption=safe_str(video_entry.get('caption', 'untitled')),
+                        uploaded=safe_str(video_entry.get('uploaded', 'N/A')),
+                        dimensions=dimensions_display,
+                        duration=duration_display,
+                        size=size_display,
+                        instances=str(instances_count)
+                    )
+                    if video_id is not None:
+                        video_rows.add_video_link_to_column('label', video_id)
+                        video_rows.add_video_link_to_column('rank', video_id)
+                        video_rows.add_video_link_to_column('id', video_id)
+                        video_rows.add_video_link_to_column('caption', video_id)
+                
+                if video_rows.num_rows() > 0:
+                    page_id_str = str(page_id)
+                    content_id = f"{wrapper_id_prefix}pageVideoGroup_{page_id_str}"
+                    dom_content = render_block(
+                        video_rows,
+                        FieldConfig()
+                            .add_header('video_header')
+                            .add_simple(['video_item']),
+                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
+                        block_type='video',
+                        backend='http',  # Force HTTP for MCP
+                        wrapper_id=content_id,
+                        wrapper_extra_classes=wrapper_extra_classes
+                    )
         else:
             warn(f"Section {section} not yet implemented")
             report_error("action", f"Section {section} not yet implemented")

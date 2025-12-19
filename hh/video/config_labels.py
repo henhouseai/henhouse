@@ -1,0 +1,26 @@
+from hh.render.config.config_registry import register_label
+
+@register_label('show_video_header',                  'Video Details',                '🎬')
+@register_label('video_id',                           'Video ID:',                    '🆔')
+@register_label('video_caption',                      'Caption:',                     '📝')
+@register_label('video_mime_type',                    'MIME Type:',                   '🧾')
+@register_label('video_max_filesize',                 'Max Filesize:',                '💾')
+@register_label('video_width',                        'Width:',                       '📏')
+@register_label('video_height',                       'Height:',                      '📏')
+@register_label('video_duration_seconds',             'Duration (s):',                '⏱️')
+@register_label('video_bitrate',                      'Bitrate:',                     '📊')
+@register_label('video_num_instances',                'Instances:',                   '🎬')
+@register_label('video_file_path',                    'File Path:',                   '📁')
+@register_label('video_uploaded',                     'Uploaded:',                    '⏰')
+@register_label('video_usage_header',                 'Used By Pages:',               '🔗')
+@register_label('video_usage_item',                   'Page:',                        '📄')
+@register_label('video_instances_header',             'Video Instances:',             '🎬')
+@register_label('video_instance_item',                 'Instance:',                    '🎬')
+@register_label('video_visibility',                   'Visibility:',                  '👀')
+@register_label('video_view_count',                   'View Count:',                  '👀')
+@register_label('video_username',                     'Username:',                    '👤')
+@register_label('extra_data_video_id',                'Video ID:',                    '🆔')
+@register_label('set_video_visibility_header',        'Video Visibility Modification', '👀')
+@register_label('modify_video_caption_header',         'Video Caption Modification',   '📝')
+def _register_config():
+    pass

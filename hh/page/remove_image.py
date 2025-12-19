@@ -88,7 +88,7 @@ def remove_image() -> bool:
     if not is_error() and page is not None:
         if rank_int is not None:
             log(f"Removing image {image_id} at rank {rank_int} from page {page_id}")
-            success = page.remove_image(image_id, rank_int)
+            success = page.remove_media_item("image", image_id, rank_int)
             if not success:
                 warn(f"Failed to remove image {image_id} at rank {rank_int} from page {page_id}")
                 report_error("action", f"Failed to remove image {image_id} at rank {rank_int}")
@@ -113,7 +113,7 @@ def remove_image() -> bool:
             # Remove each instance (reverse order to avoid rank shifting issues)
             for instance in sorted(instances_to_remove, key=lambda x: x['image_rank'], reverse=True):
                 if not is_error():
-                    success = page.remove_image(instance['image_id'], instance['image_rank'])
+                    success = page.remove_media_item("image", instance['image_id'], instance['image_rank'])
                     if success:
                         removed_count += 1
                     else:

@@ -345,10 +345,82 @@ def mcp_handler(path: str = ""):
 
 
 @app.route("/file/<int:file_id>", methods=["GET"])
+def show_file(file_id: int):
+    """Show file page by ID. Routes through Gateway show-file action."""
+    try:
+        import json
+        
+        # Build command: show-file --id {file_id}
+        raw_argv = ['show-file', '--id', str(file_id)]
+        
+        # Add query parameters as arguments
+        for key, value in request.args.items():
+            if value is not None:
+                k = str(key)[:64]
+                v = str(value)[:512]
+                raw_argv.extend([f'--{k}', v])
+        
+        logging.info(f"File request: {raw_argv}")
+        
+        # Call Gateway via subprocess
+        try:
+            http_script = PROJECT_ROOT / 'http_client.py'
+            cmd = ['python3', str(http_script)] + raw_argv
+            
+            acquired = _gateway_semaphore.acquire(timeout=10)
+            if not acquired:
+                logging.error("Gateway concurrency limit reached for file request")
+                return json.dumps({
+                    'error': 'Server busy, please retry'
+                }), 503, {'Content-Type': 'application/json'}
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=str(PROJECT_ROOT)
+                )
+            finally:
+                _gateway_semaphore.release()
+            
+            response = result.stdout
+            if response and response.strip():
+                if response.strip().startswith('{'):
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'application/json'}
+                else:
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                stderr_snippet = (result.stderr or '').strip()
+                logging.error(f"http_client returned {result.returncode} for file: {stderr_snippet}")
+                return json.dumps({
+                    'error': 'Error processing file request',
+                    'details': stderr_snippet
+                }), 500, {'Content-Type': 'application/json'}
+                
+        except subprocess.TimeoutExpired:
+            logging.error("http_client timeout for file")
+            return json.dumps({
+                'error': 'Request timeout'
+            }), 504, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logging.error(f"Subprocess error for file: {e}")
+            return json.dumps({
+                'error': 'Subprocess error',
+                'details': str(e)
+            }), 502, {'Content-Type': 'application/json'}
+            
+    except Exception as e:
+        logging.error(f"Error in file handler: {e}")
+        return json.dumps({
+            'error': str(e)
+        }), 500, {'Content-Type': 'application/json'}
+
+
+@app.route("/file/<int:file_id>/download", methods=["GET"])
 def download_file(file_id: int):
-    """
-    Stream a file by ID using the download backend for metadata, then serve from disk.
-    """
+    """Download a file by ID using the download backend for metadata, then serve from disk."""
     import json
 
     cmd = ['python3', str(PROJECT_ROOT / 'download_client.py'), 'get_file_info', '--id', str(file_id)]
@@ -501,6 +573,408 @@ def image_handler(image_path: str = ""):
         return json.dumps({
             'error': str(e)
         }), 500, {'Content-Type': 'application/json'}
+
+
+@app.route('/img/<int:image_id>/download', methods=['GET'])
+def download_image(image_id: int):
+    """Download an image by ID using the download backend for metadata, then serve from disk."""
+    import json
+
+    cmd = ['python3', str(PROJECT_ROOT / 'download_client.py'), 'get_image_info', '--id', str(image_id)]
+
+    acquired = _gateway_semaphore.acquire(timeout=10)
+    if not acquired:
+        logging.error("Gateway concurrency limit reached for image download request")
+        return "Server busy, please retry", 503
+
+    try:
+        env = os.environ.copy()
+        env['USER_TIER'] = TIER_SUFFIX
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+        )
+    finally:
+        _gateway_semaphore.release()
+
+    if result.returncode != 0 or not result.stdout:
+        logging.warning(
+            "download_client failed for image_id=%s, rc=%s, stdout=%s, stderr=%s",
+            image_id,
+            result.returncode,
+            (result.stdout or "").strip(),
+            (result.stderr or "").strip(),
+        )
+        return "Image not found", 404
+
+    try:
+        resp = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        logging.error(f"Invalid JSON from download_client for image_id={image_id}: {result.stdout[:200]}")
+        return "Internal error", 500
+
+    if resp.get("status") != "ok":
+        logging.info(f"Download metadata error for image_id={image_id}: {resp.get('errors')}")
+        return "Image not found", 404
+
+    image_info = (resp.get("data") or {}).get("image") or {}
+    instances = image_info.get("instances", [])
+    if not instances:
+        logging.info(f"No instances in metadata for image_id={image_id}")
+        return "Image not found", 404
+    
+    # Get full-size instance (usually the first one or largest)
+    full_instance = None
+    for instance in instances:
+        if instance.get("instance_type") == "full" or instance.get("width", 0) > 0:
+            full_instance = instance
+            break
+    
+    if not full_instance:
+        full_instance = instances[0]
+    
+    rel_path = full_instance.get("src")
+    if not rel_path:
+        logging.info(f"No src in instance metadata for image_id={image_id}")
+        return "Image not found", 404
+
+    base_path = Path(f"/srv/images/{PROJECT_NAME}")
+    abs_path = base_path / rel_path
+
+    if not abs_path.exists():
+        logging.info(f"Image path missing on disk for image_id={image_id}: {abs_path}")
+        return "Image not found", 404
+
+    download_name = image_info.get("caption") or f"image_{image_id}.jpg"
+    mime_type = "image/jpeg"  # Default, could be determined from file extension
+
+    return send_file(
+        abs_path,
+        mimetype=mime_type,
+        as_attachment=True,
+        download_name=download_name,
+        conditional=True,
+    )
+
+@app.route('/audio/<int:audio_id>', methods=['GET'])
+def show_audio(audio_id: int):
+    """Show audio page by ID. Routes through Gateway show-audio action."""
+    try:
+        import json
+        
+        # Build command: show-audio --id {audio_id}
+        raw_argv = ['show-audio', '--id', str(audio_id)]
+        
+        # Add query parameters as arguments
+        for key, value in request.args.items():
+            if value is not None:
+                k = str(key)[:64]
+                v = str(value)[:512]
+                raw_argv.extend([f'--{k}', v])
+        
+        logging.info(f"Audio request: {raw_argv}")
+        
+        # Call Gateway via subprocess
+        try:
+            http_script = PROJECT_ROOT / 'http_client.py'
+            cmd = ['python3', str(http_script)] + raw_argv
+            
+            acquired = _gateway_semaphore.acquire(timeout=10)
+            if not acquired:
+                logging.error("Gateway concurrency limit reached for audio request")
+                return json.dumps({
+                    'error': 'Server busy, please retry'
+                }), 503, {'Content-Type': 'application/json'}
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=str(PROJECT_ROOT)
+                )
+            finally:
+                _gateway_semaphore.release()
+            
+            response = result.stdout
+            if response and response.strip():
+                if response.strip().startswith('{'):
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'application/json'}
+                else:
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                stderr_snippet = (result.stderr or '').strip()
+                logging.error(f"http_client returned {result.returncode} for audio: {stderr_snippet}")
+                return json.dumps({
+                    'error': 'Error processing audio request',
+                    'details': stderr_snippet
+                }), 500, {'Content-Type': 'application/json'}
+                
+        except subprocess.TimeoutExpired:
+            logging.error("http_client timeout for audio")
+            return json.dumps({
+                'error': 'Request timeout'
+            }), 504, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logging.error(f"Subprocess error for audio: {e}")
+            return json.dumps({
+                'error': 'Subprocess error',
+                'details': str(e)
+            }), 502, {'Content-Type': 'application/json'}
+            
+    except Exception as e:
+        logging.error(f"Error in audio handler: {e}")
+        return json.dumps({
+            'error': str(e)
+        }), 500, {'Content-Type': 'application/json'}
+
+
+@app.route('/audio/<int:audio_id>/stream', methods=['GET'])
+def stream_audio(audio_id: int):
+    """Stream an audio file by ID for playback. Supports HTTP range requests for seeking."""
+    import json
+
+    cmd = ['python3', str(PROJECT_ROOT / 'download_client.py'), 'get_audio_info', '--id', str(audio_id)]
+
+    acquired = _gateway_semaphore.acquire(timeout=10)
+    if not acquired:
+        logging.error("Gateway concurrency limit reached for audio stream request")
+        return "Server busy, please retry", 503
+
+    try:
+        env = os.environ.copy()
+        env['USER_TIER'] = TIER_SUFFIX
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+        )
+    finally:
+        _gateway_semaphore.release()
+
+    if result.returncode != 0 or not result.stdout:
+        logging.warning(
+            "download_client failed for audio_id=%s, rc=%s, stdout=%s, stderr=%s",
+            audio_id,
+            result.returncode,
+            (result.stdout or "").strip(),
+            (result.stderr or "").strip(),
+        )
+        return "Audio not found", 404
+
+    try:
+        resp = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        logging.error(f"Invalid JSON from download_client for audio_id={audio_id}: {result.stdout[:200]}")
+        return "Internal error", 500
+
+    if resp.get("status") != "ok":
+        logging.info(f"Stream metadata error for audio_id={audio_id}: {resp.get('errors')}")
+        return "Audio not found", 404
+
+    audio_info = (resp.get("data") or {}).get("audio") or {}
+    instances = audio_info.get("instances", [])
+    if not instances:
+        logging.info(f"No instances in metadata for audio_id={audio_id}")
+        return "Audio not found", 404
+    
+    # Get full instance
+    full_instance = None
+    for instance in instances:
+        if instance.get("instance_type") == "full":
+            full_instance = instance
+            break
+    
+    if not full_instance:
+        full_instance = instances[0]
+    
+    rel_path = full_instance.get("file_path")
+    if not rel_path:
+        logging.info(f"No file_path in instance metadata for audio_id={audio_id}")
+        return "Audio not found", 404
+
+    base_path = Path(f"/srv/audio/{PROJECT_NAME}")
+    abs_path = base_path / rel_path
+
+    if not abs_path.exists():
+        logging.info(f"Audio path missing on disk for audio_id={audio_id}: {abs_path}")
+        return "Audio not found", 404
+
+    mime_type = full_instance.get("mime_type") or "audio/mpeg"
+
+    return send_file(
+        abs_path,
+        mimetype=mime_type,
+        as_attachment=False,
+        conditional=True,
+    )
+
+
+@app.route('/video/<int:video_id>', methods=['GET'])
+def show_video(video_id: int):
+    """Show video page by ID. Routes through Gateway show-video action."""
+    try:
+        import json
+        
+        # Build command: show-video --id {video_id}
+        raw_argv = ['show-video', '--id', str(video_id)]
+        
+        # Add query parameters as arguments
+        for key, value in request.args.items():
+            if value is not None:
+                k = str(key)[:64]
+                v = str(value)[:512]
+                raw_argv.extend([f'--{k}', v])
+        
+        logging.info(f"Video request: {raw_argv}")
+        
+        # Call Gateway via subprocess
+        try:
+            http_script = PROJECT_ROOT / 'http_client.py'
+            cmd = ['python3', str(http_script)] + raw_argv
+            
+            acquired = _gateway_semaphore.acquire(timeout=10)
+            if not acquired:
+                logging.error("Gateway concurrency limit reached for video request")
+                return json.dumps({
+                    'error': 'Server busy, please retry'
+                }), 503, {'Content-Type': 'application/json'}
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=str(PROJECT_ROOT)
+                )
+            finally:
+                _gateway_semaphore.release()
+            
+            response = result.stdout
+            if response and response.strip():
+                if response.strip().startswith('{'):
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'application/json'}
+                else:
+                    return response, 200 if result.returncode == 0 else 500, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                stderr_snippet = (result.stderr or '').strip()
+                logging.error(f"http_client returned {result.returncode} for video: {stderr_snippet}")
+                return json.dumps({
+                    'error': 'Error processing video request',
+                    'details': stderr_snippet
+                }), 500, {'Content-Type': 'application/json'}
+                
+        except subprocess.TimeoutExpired:
+            logging.error("http_client timeout for video")
+            return json.dumps({
+                'error': 'Request timeout'
+            }), 504, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logging.error(f"Subprocess error for video: {e}")
+            return json.dumps({
+                'error': 'Subprocess error',
+                'details': str(e)
+            }), 502, {'Content-Type': 'application/json'}
+            
+    except Exception as e:
+        logging.error(f"Error in video handler: {e}")
+        return json.dumps({
+            'error': str(e)
+        }), 500, {'Content-Type': 'application/json'}
+
+
+@app.route('/video/<int:video_id>/stream', methods=['GET'])
+def stream_video(video_id: int):
+    """Stream a video file by ID for playback. Supports HTTP range requests for seeking."""
+    import json
+
+    cmd = ['python3', str(PROJECT_ROOT / 'download_client.py'), 'get_video_info', '--id', str(video_id)]
+
+    acquired = _gateway_semaphore.acquire(timeout=10)
+    if not acquired:
+        logging.error("Gateway concurrency limit reached for video stream request")
+        return "Server busy, please retry", 503
+
+    try:
+        env = os.environ.copy()
+        env['USER_TIER'] = TIER_SUFFIX
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+        )
+    finally:
+        _gateway_semaphore.release()
+
+    if result.returncode != 0 or not result.stdout:
+        logging.warning(
+            "download_client failed for video_id=%s, rc=%s, stdout=%s, stderr=%s",
+            video_id,
+            result.returncode,
+            (result.stdout or "").strip(),
+            (result.stderr or "").strip(),
+        )
+        return "Video not found", 404
+
+    try:
+        resp = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        logging.error(f"Invalid JSON from download_client for video_id={video_id}: {result.stdout[:200]}")
+        return "Internal error", 500
+
+    if resp.get("status") != "ok":
+        logging.info(f"Stream metadata error for video_id={video_id}: {resp.get('errors')}")
+        return "Video not found", 404
+
+    video_info = (resp.get("data") or {}).get("video") or {}
+    instances = video_info.get("instances", [])
+    if not instances:
+        logging.info(f"No instances in metadata for video_id={video_id}")
+        return "Video not found", 404
+    
+    # Get full instance
+    full_instance = None
+    for instance in instances:
+        if instance.get("instance_type") == "full":
+            full_instance = instance
+            break
+    
+    if not full_instance:
+        full_instance = instances[0]
+    
+    rel_path = full_instance.get("file_path")
+    if not rel_path:
+        logging.info(f"No file_path in instance metadata for video_id={video_id}")
+        return "Video not found", 404
+
+    base_path = Path(f"/srv/video/{PROJECT_NAME}")
+    abs_path = base_path / rel_path
+
+    if not abs_path.exists():
+        logging.info(f"Video path missing on disk for video_id={video_id}: {abs_path}")
+        return "Video not found", 404
+
+    mime_type = full_instance.get("mime_type") or "video/mp4"
+
+    return send_file(
+        abs_path,
+        mimetype=mime_type,
+        as_attachment=False,
+        conditional=True,
+    )
+
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

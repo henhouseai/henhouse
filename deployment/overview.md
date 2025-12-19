@@ -115,7 +115,7 @@ The following diagram shows the deployment system relationships and dependencies
 - *Credential Files*: database connection files (`~/.{project_name}.cnf`) with INI format, `0o600` permissions
 - *Git Repository*: bare repo initialization (`/srv/{project_name}/git/{project_name}.git`) and initial commit with `{project_name}` branch
 - *Convenience Scripts*: `hen` wrapper scripts for all users, `gateway.py` for tier users, PATH configuration in `.profile`
-- *Directory Setup*: `/srv/images/{project_name}/` and `/srv/files/{project_name}/` with setgid bit (`0o2775`) for group write
+- *Directory Setup*: `/srv/images/{project_name}/`, `/srv/files/{project_name}/`, `/srv/audio/{project_name}/`, and `/srv/video/{project_name}/` with setgid bit (`0o2775`) for group write, each with `deleted/` subdirectory for soft deletes
 - *HTTP Basic Auth*: creates `.htpasswd_admin` and `.htpasswd_panel` files for subdomain authentication
 
 #### **Database Deployment**: MySQL database management
@@ -151,7 +151,8 @@ The following diagram shows the deployment system relationships and dependencies
 
 - *NGINX Configuration*: server blocks for main domain and subdomains (main, admin, panel)
 - *Two-Stage Deployment*: HTTP-only (Stage 1) and HTTPS (Stage 2) with HTTP-to-HTTPS redirect
-- *Static File Serving*: direct NGINX serving for whitelisted assets (JS, CSS, misc, context files)
+- *Static File Serving*: direct NGINX serving for whitelisted assets (JS, CSS, misc, context files) and images
+- *File Serving*: files served via Flask routes (`/file/<id>` and `/file/<id>/download`) for gated access
 - *Security Headers*: X-Frame-Options, HSTS (HTTPS only), rate limiting, hidden file blocking
 - *HTTP Basic Auth*: admin and panel subdomain protection using `.htpasswd` files from installation
 - *SSL/TLS*: Let's Encrypt certificate integration (default path: `/etc/letsencrypt/live/{domain}/`)

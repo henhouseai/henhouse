@@ -44,7 +44,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='create'
 )
 @register_mcp_tool(
-    tool_name='modify_caption',
+    tool_name='modify_image_caption',
     description='Modify the caption of an image. Requires admin/panel tier access with database write permissions.',
     inputSchema={
         'type': 'object',

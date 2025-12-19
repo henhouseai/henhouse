@@ -47,6 +47,14 @@ class ResponseParser(Response):
         if self.file_group:
             parts.append(self.file_group)
         
+        # Audio group
+        if self.audio_group:
+            parts.append(self.audio_group)
+        
+        # Video group
+        if self.video_group:
+            parts.append(self.video_group)
+        
         # Error output if present
         if self.error_output and "rendered" in self.error_output:
             parts.append(self.error_output["rendered"])

@@ -82,7 +82,7 @@ def remove_file() -> bool:
     removed_count: int = 0
     if not is_error() and page is not None:
         if rank_int is not None:
-            success = page.remove_file(file_id, rank_int)
+            success = page.remove_media_item("file", file_id, rank_int)
             removed_count = 1 if success else 0
         else:
             # Remove all instances
@@ -94,7 +94,7 @@ def remove_file() -> bool:
                 rank_val = inst.get("file_rank")
                 if rank_val is None:
                     continue
-                if page.remove_file(file_id, rank_val):
+                if page.remove_media_item("file", file_id, rank_val):
                     removed_count += 1
             if not instances and not is_error():
                 warn(f"No instances of file {file_id} found on page {page_id}")

@@ -31,6 +31,8 @@ from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 from hh.image.image_registry import refresh_stale_image_caches
 from hh.file.file_registry import refresh_stale_file_caches
+from hh.audio.audio_registry import refresh_stale_audio_caches
+from hh.video.video_registry import refresh_stale_video_caches
 from hh.page.page_registry import refresh_stale_page_caches
 
 __all__ = [
@@ -475,6 +477,24 @@ class Gateway:
             except Exception as e:
                 warn(f"Error refreshing file caches: {e}")
                 report_error("cache_refresh", f"Error refreshing file caches: {e}")
+        
+        # Refresh audio caches for any audio in hot cache that need updating
+        if not is_error():
+            log("Refreshing stale audio caches...")
+            try:
+                refresh_stale_audio_caches()
+            except Exception as e:
+                warn(f"Error refreshing audio caches: {e}")
+                report_error("cache_refresh", f"Error refreshing audio caches: {e}")
+        
+        # Refresh video caches for any video in hot cache that need updating
+        if not is_error():
+            log("Refreshing stale video caches...")
+            try:
+                refresh_stale_video_caches()
+            except Exception as e:
+                warn(f"Error refreshing video caches: {e}")
+                report_error("cache_refresh", f"Error refreshing video caches: {e}")
         
         # Refresh page caches for any pages in hot cache that need updating
         if not is_error():

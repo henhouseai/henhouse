@@ -296,7 +296,6 @@ def render_extra_data_section(extra_data: Dict[str, Any], lines: List[str]) -> N
 
 @register_http('show_image')
 @register_parser('show_image')
-@register_parser('modify_caption')
 def show_image() -> bool:
     trace_in()
     gateway = get_gateway()

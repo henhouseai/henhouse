@@ -7,7 +7,7 @@ from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
 
 trace_in = lambda message=None: None

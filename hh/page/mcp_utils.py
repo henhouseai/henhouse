@@ -411,6 +411,44 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Upload'
 )
 @register_mcp_tool(
+    tool_name='add_file',
+    description='Add a single file to a page from a file path. The file will be processed, renamed, and stored in the proper directory structure with hash value. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to add the file to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'file': {'type': 'string', 'description': 'The file path to add'},
+            'description': {'type': 'string', 'description': 'Optional description/caption for the file (defaults to filename if not provided)'},
+            'caption': {'type': 'string', 'description': 'Alternative parameter name for description'}
+        },
+        'required': ['target_page', 'file']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='add_files',
+    description='Add multiple files to a page from a folder. Files will be processed, renamed, and stored in the proper directory structure with hash values. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to add files to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'folder': {'type': 'string', 'description': 'The folder path containing files to add'},
+            'description': {'type': 'string', 'description': 'Optional description/caption for all files (defaults to filename if not provided)'},
+            'caption': {'type': 'string', 'description': 'Alternative parameter name for description'}
+        },
+        'required': ['target_page', 'folder']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
     tool_name='upload_files',
     description='Upload one or more files to a page from temp files. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -421,6 +459,23 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
             '_files': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Array of file paths to upload (handled by multipart/form-data)'}
         },
         'required': ['page_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='copy_file',
+    description='Copy a single file to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to copy the file to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'file_id': {'type': 'integer', 'description': 'The ID of the file to copy'},
+            'rank': {'type': 'integer', 'description': 'Optional rank position for the copied file'}
+        },
+        'required': ['target_page', 'file_id']
     },
     tiers=[3, 4],
     requires_approval=False,
@@ -446,6 +501,28 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     tiers=[3, 4],
     requires_approval=False,
     crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='move_file',
+    description='Move a single file from a source page to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'source_page': {'type': 'integer', 'description': 'The ID of the source page containing the file'},
+            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
+            'file_id': {'type': 'integer', 'description': 'The ID of the file to move'},
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to move the file to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'source_rank': {'type': 'integer', 'description': 'Optional rank of the file in the source page (auto-detected if not specified and only one instance exists)'},
+            's_rank': {'type': 'integer', 'description': 'Short form of source_rank parameter'},
+            'target_rank': {'type': 'integer', 'description': 'Optional rank position for the file in the target page'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'}
+        },
+        'required': ['source_page', 'file_id', 'target_page']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
 )
 @register_mcp_tool(
     tool_name='move_files',
@@ -546,6 +623,234 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Sort'
 )
 @register_mcp_tool(
+    tool_name='copy_audio',
+    description='Copy a single audio file to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to copy the audio to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'audio_id': {'type': 'integer', 'description': 'The ID of the audio to copy'},
+            'rank': {'type': 'integer', 'description': 'Optional rank position for the copied audio'}
+        },
+        'required': ['target_page', 'audio_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='copy_audios',
+    description='Copy multiple audio files to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to copy audio to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'audio_id': {'type': 'string', 'description': 'Comma-separated list of audio IDs to copy'},
+            'rank': {'type': 'integer', 'description': 'Optional starting rank position for the copied audio'}
+        },
+        'required': ['target_page', 'audio_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='move_audio',
+    description='Move a single audio file from a source page to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'source_page': {'type': 'integer', 'description': 'The ID of the source page containing the audio'},
+            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
+            'audio_id': {'type': 'integer', 'description': 'The ID of the audio to move'},
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to move the audio to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'source_rank': {'type': 'integer', 'description': 'Optional rank of the audio in the source page (auto-detected if not specified and only one instance exists)'},
+            's_rank': {'type': 'integer', 'description': 'Short form of source_rank parameter'},
+            'target_rank': {'type': 'integer', 'description': 'Optional rank position for the audio in the target page'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'}
+        },
+        'required': ['source_page', 'audio_id', 'target_page']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='move_audios',
+    description='Move multiple audio files from a source page to a target page. Can move all audio or specific ones by rank. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'source_page': {'type': 'integer', 'description': 'The ID of the source page containing the audio'},
+            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to move audio to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'source_rank': {'type': 'string', 'description': 'Optional comma-separated list of ranks to move (if not specified, moves all audio)'},
+            's_rank': {'type': 'string', 'description': 'Short form of source_rank parameter'},
+            'target_rank': {'type': 'integer', 'description': 'Optional starting rank position for moved audio in the target page'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'}
+        },
+        'required': ['source_page', 'target_page']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='remove_audio',
+    description='Remove an audio file from a page. Can remove a specific instance by rank or all instances. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page containing the audio file'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id'},
+            'audio_id': {'type': 'integer', 'description': 'The ID of the audio file to remove'},
+            'rank': {'type': 'integer', 'description': 'Optional rank of the specific audio file instance to remove (if omitted, removes all instances)'}
+        },
+        'required': ['page_id', 'audio_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='delete'
+)
+@register_mcp_tool(
+    tool_name='set_audio_rank',
+    description='Change the rank/position of an audio file within a page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page containing the audio file'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id'},
+            'audio_id': {'type': 'integer', 'description': 'The ID of the audio file to reorder'},
+            'target_rank': {'type': 'integer', 'description': 'The new rank position for the audio file'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'},
+            'source_rank': {'type': 'integer', 'description': 'Optional current rank of the audio file'},
+            's_rank': {'type': 'integer', 'description': 'Short form of source_rank parameter'}
+        },
+        'required': ['page_id', 'audio_id', 'target_rank']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='copy_video',
+    description='Copy a single video file to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to copy the video to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'video_id': {'type': 'integer', 'description': 'The ID of the video to copy'},
+            'rank': {'type': 'integer', 'description': 'Optional rank position for the copied video'}
+        },
+        'required': ['target_page', 'video_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='copy_videos',
+    description='Copy multiple video files to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to copy videos to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'video_id': {'type': 'string', 'description': 'Comma-separated list of video IDs to copy'},
+            'rank': {'type': 'integer', 'description': 'Optional starting rank position for the copied videos'}
+        },
+        'required': ['target_page', 'video_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='create'
+)
+@register_mcp_tool(
+    tool_name='move_video',
+    description='Move a single video file from a source page to a target page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'source_page': {'type': 'integer', 'description': 'The ID of the source page containing the video'},
+            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
+            'video_id': {'type': 'integer', 'description': 'The ID of the video to move'},
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to move the video to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'source_rank': {'type': 'integer', 'description': 'Optional rank of the video in the source page (auto-detected if not specified and only one instance exists)'},
+            's_rank': {'type': 'integer', 'description': 'Short form of source_rank parameter'},
+            'target_rank': {'type': 'integer', 'description': 'Optional rank position for the video in the target page'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'}
+        },
+        'required': ['source_page', 'video_id', 'target_page']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='move_videos',
+    description='Move multiple video files from a source page to a target page. Can move all videos or specific ones by rank. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'source_page': {'type': 'integer', 'description': 'The ID of the source page containing the videos'},
+            's_page': {'type': 'integer', 'description': 'Alternative parameter name for source_page'},
+            'target_page': {'type': 'integer', 'description': 'The ID of the target page to move videos to'},
+            't_page': {'type': 'integer', 'description': 'Alternative parameter name for target_page'},
+            'source_rank': {'type': 'string', 'description': 'Optional comma-separated list of ranks to move (if not specified, moves all videos)'},
+            's_rank': {'type': 'string', 'description': 'Short form of source_rank parameter'},
+            'target_rank': {'type': 'integer', 'description': 'Optional starting rank position for moved videos in the target page'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'}
+        },
+        'required': ['source_page', 'target_page']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
+    tool_name='remove_video',
+    description='Remove a video file from a page. Can remove a specific instance by rank or all instances. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page containing the video file'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id'},
+            'video_id': {'type': 'integer', 'description': 'The ID of the video file to remove'},
+            'rank': {'type': 'integer', 'description': 'Optional rank of the specific video file instance to remove (if omitted, removes all instances)'}
+        },
+        'required': ['page_id', 'video_id']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='delete'
+)
+@register_mcp_tool(
+    tool_name='set_video_rank',
+    description='Change the rank/position of a video file within a page. Requires admin/panel tier access with database write permissions.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer', 'description': 'The ID of the page containing the video file'},
+            'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id'},
+            'video_id': {'type': 'integer', 'description': 'The ID of the video file to reorder'},
+            'target_rank': {'type': 'integer', 'description': 'The new rank position for the video file'},
+            't_rank': {'type': 'integer', 'description': 'Short form of target_rank parameter'},
+            'source_rank': {'type': 'integer', 'description': 'Optional current rank of the video file'},
+            's_rank': {'type': 'integer', 'description': 'Short form of source_rank parameter'}
+        },
+        'required': ['page_id', 'video_id', 'target_rank']
+    },
+    tiers=[3, 4],
+    requires_approval=False,
+    crud_type='update'
+)
+@register_mcp_tool(
     tool_name='upload_files_app',
     description='Upload files to a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -554,6 +859,106 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read',
     app_action_group='files',
     app_action_label='Upload'
+)
+@register_mcp_tool(
+    tool_name='upload_audio_app',
+    description='Upload audio files to a page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='audio',
+    app_action_label='Upload'
+)
+@register_mcp_tool(
+    tool_name='upload_video_app',
+    description='Upload video files to a page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='video',
+    app_action_label='Upload'
+)
+@register_mcp_tool(
+    tool_name='copy_audio_app',
+    description='Copy audio files to a target page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='audio',
+    app_action_label='Copy'
+)
+@register_mcp_tool(
+    tool_name='move_audio_app',
+    description='Move audio files from a source page to a target page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='audio',
+    app_action_label='Move'
+)
+@register_mcp_tool(
+    tool_name='delete_audio_app',
+    description='Delete audio files from a page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='audio',
+    app_action_label='Delete'
+)
+@register_mcp_tool(
+    tool_name='sort_audio_app',
+    description='Sort/reorder audio files on a page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='audio',
+    app_action_label='Sort'
+)
+@register_mcp_tool(
+    tool_name='copy_video_app',
+    description='Copy video files to a target page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='video',
+    app_action_label='Copy'
+)
+@register_mcp_tool(
+    tool_name='move_video_app',
+    description='Move video files from a source page to a target page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='video',
+    app_action_label='Move'
+)
+@register_mcp_tool(
+    tool_name='delete_video_app',
+    description='Delete video files from a page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='video',
+    app_action_label='Delete'
+)
+@register_mcp_tool(
+    tool_name='sort_video_app',
+    description='Sort/reorder video files on a page. App action only - no MCP call.',
+    inputSchema={'type': 'object', 'properties': {}, 'required': []},
+    tiers=[7, 8],
+    requires_approval=False,
+    crud_type='read',
+    app_action_group='video',
+    app_action_label='Sort'
 )
 @register_mcp_tool(
     tool_name='get_browser',
@@ -632,6 +1037,36 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         'type': 'object',
         'properties': {
             'id': {'type': 'integer', 'description': 'The ID of the page to get images from'},
+            'page_id': {'type': 'integer', 'description': 'Alternative parameter name for id'}
+        },
+        'required': ['id']
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
+    tool_name='get_audio_group',
+    description='Get JSON data for all audio files in a page\'s audio group. Returns audio metadata including instances for use in audio viewer.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'integer', 'description': 'The ID of the page to get audio files from'},
+            'page_id': {'type': 'integer', 'description': 'Alternative parameter name for id'}
+        },
+        'required': ['id']
+    },
+    tiers=[1, 2, 3, 4],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_mcp_tool(
+    tool_name='get_video_group',
+    description='Get JSON data for all video files in a page\'s video group. Returns video metadata including instances for use in video viewer.',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'integer', 'description': 'The ID of the page to get video files from'},
             'page_id': {'type': 'integer', 'description': 'Alternative parameter name for id'}
         },
         'required': ['id']

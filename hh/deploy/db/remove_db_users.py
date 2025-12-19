@@ -25,7 +25,7 @@ def _initialize_debug():
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 # Import detect_project_context from utils
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
 def remove_database_user(project_name: str, tier: str) -> Dict[str, Any]:

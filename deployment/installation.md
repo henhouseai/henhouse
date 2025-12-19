@@ -96,9 +96,11 @@ The `install` command performs complete system initialization:
 
 10. **Directory Setup**:
     - Creates `/srv/images/{project_name}` with `deleted/` subdirectory
-    - Creates `/srv/files/{project_name}`
+    - Creates `/srv/files/{project_name}` with `deleted/` subdirectory
+    - Creates `/srv/audio/{project_name}` with `deleted/` subdirectory
+    - Creates `/srv/video/{project_name}` with `deleted/` subdirectory
     - Permissions: `0o2775` (setgid for group write), owned by `{project_name}_root:{project_name}_admin`
-    - These directories are used by the file deployment system (see `file-deployment.md`) for storing uploaded images and files
+    - These directories are used by the file deployment system (see `file-deployment.md`) for storing uploaded images, files, audio, and video
 
 11. **Group Membership**:
     - Adds current user (running install) to all project groups

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from uuid import uuid4
 
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.registry.debug import (
     get_trace_in,
     get_trace_out,
@@ -16,7 +16,7 @@ from hh.gateway.registry.debug import (
     get_warn,
     register_debug_init,
 )
-from hh.image.utils import create_date_directory
+from hh.image.image_utils import create_date_directory
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None

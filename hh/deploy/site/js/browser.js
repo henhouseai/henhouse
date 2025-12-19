@@ -12,6 +12,8 @@ export class Browser {
         this.overlay = null;
         this.selectedImages = []; // Store image data with cloned HTML
         this.selectedFiles = [];
+        this.selectedAudio = [];
+        this.selectedVideo = [];
         this.viewToggle = null; // ViewToggle instance for this browser
         this.rpc = new RPCClient();
         this.mode = options.mode;
@@ -56,6 +58,14 @@ export class Browser {
             if (this.mode === 'file' && this.selectedFiles.length > 0) {
                 contentParts.push(this.renderFileBuffer());
             }
+            // Add audio buffer if in audio mode
+            if (this.mode === 'audio' && this.selectedAudio.length > 0) {
+                contentParts.push(this.renderAudioBuffer());
+            }
+            // Add video buffer if in video mode
+            if (this.mode === 'video' && this.selectedVideo.length > 0) {
+                contentParts.push(this.renderVideoBuffer());
+            }
             // Add page sections (hide image groups in page mode)
             if (sections.path)
                 contentParts.push(sections.path);
@@ -68,6 +78,18 @@ export class Browser {
             // Only show images section if not in page mode
             if (this.mode !== 'page' && sections.images) {
                 contentParts.push(sections.images);
+            }
+            // Show audio section if in audio mode
+            if (this.mode === 'audio' && sections.audio) {
+                contentParts.push(sections.audio);
+            }
+            // Show video section if in video mode
+            if (this.mode === 'video' && sections.video) {
+                contentParts.push(sections.video);
+            }
+            // Show files section if in file mode
+            if (this.mode === 'file' && sections.files) {
+                contentParts.push(sections.files);
             }
             // Check if overlay already exists - if so, update it instead of creating new one
             if (this.overlay) {
@@ -258,13 +280,53 @@ export class Browser {
                     this.handleFileClick(fileId, this.currentPageId, sourceRank);
                 }
             },
+            // Audio links: handle audio selection (only in audio mode)
+            onAudioLink: (audioId, link) => {
+                if (this.mode === 'audio') {
+                    const row = link.closest('tr');
+                    let sourceRank = 0;
+                    if (row) {
+                        const rankCell = row.querySelector('td');
+                        if (rankCell) {
+                            const parsedRank = parseInt((rankCell.textContent || '').trim(), 10);
+                            if (!Number.isNaN(parsedRank)) {
+                                sourceRank = parsedRank;
+                            }
+                        }
+                    }
+                    this.handleAudioClick(audioId, this.currentPageId, sourceRank);
+                }
+            },
+            // Video links: handle video selection (only in video mode)
+            onVideoLink: (videoId, link) => {
+                if (this.mode === 'video') {
+                    const row = link.closest('tr');
+                    let sourceRank = 0;
+                    if (row) {
+                        const rankCell = row.querySelector('td');
+                        if (rankCell) {
+                            const parsedRank = parseInt((rankCell.textContent || '').trim(), 10);
+                            if (!Number.isNaN(parsedRank)) {
+                                sourceRank = parsedRank;
+                            }
+                        }
+                    }
+                    this.handleVideoClick(videoId, this.currentPageId, sourceRank);
+                }
+            },
             // Custom matcher for buffer tile clicks (ID-based, not href-based)
             customMatcher: (href, link) => {
-                // Buffer tiles have IDs starting with "selected_image_" or "selected_file_" and no href
+                // Buffer tiles have IDs starting with "selected_image_", "selected_file_", "selected_audio_", or "selected_video_" and no href
                 if (link.id && this.mode === 'image' && link.id.startsWith('selected_image_')) {
                     return true;
                 }
                 if (link.id && this.mode === 'file' && link.id.startsWith('selected_file_')) {
+                    return true;
+                }
+                if (link.id && this.mode === 'audio' && link.id.startsWith('selected_audio_')) {
+                    return true;
+                }
+                if (link.id && this.mode === 'video' && link.id.startsWith('selected_video_')) {
                     return true;
                 }
                 return false;
@@ -278,6 +340,14 @@ export class Browser {
                 if (link.id && link.id.startsWith('selected_file_')) {
                     const bufferIndex = parseInt(link.id.replace('selected_file_', ''), 10);
                     this.handleBufferFileClick(bufferIndex);
+                }
+                if (link.id && link.id.startsWith('selected_audio_')) {
+                    const bufferIndex = parseInt(link.id.replace('selected_audio_', ''), 10);
+                    this.handleBufferAudioClick(bufferIndex);
+                }
+                if (link.id && link.id.startsWith('selected_video_')) {
+                    const bufferIndex = parseInt(link.id.replace('selected_video_', ''), 10);
+                    this.handleBufferVideoClick(bufferIndex);
                 }
             },
             // Use browser-specific marker to avoid conflicts
@@ -364,7 +434,7 @@ export class Browser {
             result = imageResult;
             message = `${this.selectedImages.length} image${this.selectedImages.length !== 1 ? 's' : ''} selected: ${imageResult.imageIds.join(', ')}`;
         }
-        else {
+        else if (this.mode === 'file') {
             if (this.selectedFiles.length === 0) {
                 throw new Error('Please select at least one file');
             }
@@ -378,6 +448,39 @@ export class Browser {
                 }))
             };
             message = `${fileIds.length} file${fileIds.length !== 1 ? 's' : ''} selected: ${fileIds.join(', ')}`;
+        }
+        else if (this.mode === 'audio') {
+            if (this.selectedAudio.length === 0) {
+                throw new Error('Please select at least one audio file');
+            }
+            const audioIds = this.selectedAudio.map(a => a.audioId);
+            result = {
+                fileIds: audioIds,
+                fileInstances: this.selectedAudio.map(a => ({
+                    file_id: a.audioId,
+                    source_page_id: a.sourcePageId,
+                    source_rank: a.sourceRank
+                }))
+            };
+            message = `${audioIds.length} audio file${audioIds.length !== 1 ? 's' : ''} selected: ${audioIds.join(', ')}`;
+        }
+        else if (this.mode === 'video') {
+            if (this.selectedVideo.length === 0) {
+                throw new Error('Please select at least one video file');
+            }
+            const videoIds = this.selectedVideo.map(v => v.videoId);
+            result = {
+                fileIds: videoIds,
+                fileInstances: this.selectedVideo.map(v => ({
+                    file_id: v.videoId,
+                    source_page_id: v.sourcePageId,
+                    source_rank: v.sourceRank
+                }))
+            };
+            message = `${videoIds.length} video file${videoIds.length !== 1 ? 's' : ''} selected: ${videoIds.join(', ')}`;
+        }
+        else {
+            throw new Error(`Unknown browser mode: ${this.mode}`);
         }
         try {
             const submitResult = await this.onSubmit(result);
@@ -503,6 +606,10 @@ ${tableRowsHtml}
                 return 'Select Images';
             case 'file':
                 return 'Select Files';
+            case 'audio':
+                return 'Select Audio Files';
+            case 'video':
+                return 'Select Video Files';
             default:
                 return 'Browser';
         }
@@ -518,9 +625,20 @@ ${tableRowsHtml}
             const count = this.selectedImages.length;
             return count > 0 ? `Submit ${count} Image${count !== 1 ? 's' : ''}` : 'Submit';
         }
-        else {
+        else if (this.mode === 'file') {
             const count = this.selectedFiles.length;
             return count > 0 ? `Submit ${count} File${count !== 1 ? 's' : ''}` : 'Submit';
+        }
+        else if (this.mode === 'audio') {
+            const count = this.selectedAudio.length;
+            return count > 0 ? `Submit ${count} Audio File${count !== 1 ? 's' : ''}` : 'Submit';
+        }
+        else if (this.mode === 'video') {
+            const count = this.selectedVideo.length;
+            return count > 0 ? `Submit ${count} Video File${count !== 1 ? 's' : ''}` : 'Submit';
+        }
+        else {
+            return 'Submit';
         }
     }
     /**
@@ -546,5 +664,125 @@ ${tableRowsHtml}
             return;
         this.selectedFiles.splice(bufferIndex, 1);
         this.loadAndRender();
+    }
+    /**
+     * Handle audio click (adds to buffer, allows duplicates).
+     */
+    handleAudioClick(audioId, sourcePageId, sourceRank) {
+        if (this.mode !== 'audio')
+            return;
+        this.selectedAudio.push({
+            audioId,
+            sourcePageId,
+            sourceRank
+        });
+        this.loadAndRender();
+    }
+    /**
+     * Handle buffer audio click (remove from buffer).
+     */
+    handleBufferAudioClick(bufferIndex) {
+        if (this.mode !== 'audio')
+            return;
+        if (bufferIndex < 0 || bufferIndex >= this.selectedAudio.length)
+            return;
+        this.selectedAudio.splice(bufferIndex, 1);
+        this.loadAndRender();
+    }
+    /**
+     * Handle video click (adds to buffer, allows duplicates).
+     */
+    handleVideoClick(videoId, sourcePageId, sourceRank) {
+        if (this.mode !== 'video')
+            return;
+        this.selectedVideo.push({
+            videoId,
+            sourcePageId,
+            sourceRank
+        });
+        this.loadAndRender();
+    }
+    /**
+     * Handle buffer video click (remove from buffer).
+     */
+    handleBufferVideoClick(bufferIndex) {
+        if (this.mode !== 'video')
+            return;
+        if (bufferIndex < 0 || bufferIndex >= this.selectedVideo.length)
+            return;
+        this.selectedVideo.splice(bufferIndex, 1);
+        this.loadAndRender();
+    }
+    /**
+     * Render audio buffer (table).
+     */
+    renderAudioBuffer() {
+        if (this.selectedAudio.length === 0) {
+            return '';
+        }
+        const tableRowsHtml = this.selectedAudio.map((audio, idx) => {
+            return `      <tr>
+        <td>${idx + 1}</td>
+        <td><a id="selected_audio_${idx}" class="bufferTableLink">${audio.audioId}</a></td>
+        <td>${audio.sourcePageId}</td>
+        <td>${audio.sourceRank || ''}</td>
+      </tr>`;
+        }).join('\n');
+        return `<div id="browserAudioBuffer" class="content browserAudioBuffer overlay">
+  <div id="browserAudioBufferHeader" class="contentHeader overlay">
+    <h3>Selected Audio Files (${this.selectedAudio.length})</h3>
+  </div>
+  <div id="browserAudioBufferTable" class="content overlay">
+    <table class="dataTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>ID</th>
+          <th>Source Page</th>
+          <th>Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+${tableRowsHtml}
+      </tbody>
+    </table>
+  </div>
+</div>`;
+    }
+    /**
+     * Render video buffer (table).
+     */
+    renderVideoBuffer() {
+        if (this.selectedVideo.length === 0) {
+            return '';
+        }
+        const tableRowsHtml = this.selectedVideo.map((video, idx) => {
+            return `      <tr>
+        <td>${idx + 1}</td>
+        <td><a id="selected_video_${idx}" class="bufferTableLink">${video.videoId}</a></td>
+        <td>${video.sourcePageId}</td>
+        <td>${video.sourceRank || ''}</td>
+      </tr>`;
+        }).join('\n');
+        return `<div id="browserVideoBuffer" class="content browserVideoBuffer overlay">
+  <div id="browserVideoBufferHeader" class="contentHeader overlay">
+    <h3>Selected Video Files (${this.selectedVideo.length})</h3>
+  </div>
+  <div id="browserVideoBufferTable" class="content overlay">
+    <table class="dataTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>ID</th>
+          <th>Source Page</th>
+          <th>Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+${tableRowsHtml}
+      </tbody>
+    </table>
+  </div>
+</div>`;
     }
 }

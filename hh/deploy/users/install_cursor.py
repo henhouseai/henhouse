@@ -69,7 +69,7 @@ def install_cursor() -> bool:
         return False
 
 # Import detect_project_context from utils
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
 def install_cursor_for_users(project_name: str) -> List[Dict[str, Any]]:

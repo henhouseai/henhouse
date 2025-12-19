@@ -29,7 +29,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.connection.utils import deserialize_json_blob, normalize_datetime
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.page.page_registry import get_page
 
 trace_in = lambda message=None: None
@@ -387,6 +387,20 @@ class File:
         }
         trace_out()
         return data
+
+    def show_file(self) -> Dict[str, Any]:
+        trace_in()
+        file_data = self.get_file_data()
+        usage_data = self.get_usage_data()
+        
+        response_data: Dict[str, Any] = {
+            "file": file_data,
+            "usage": usage_data
+        }
+        
+        log(f"Generated complete display data for file {self.id}: {self.file_name}")
+        trace_out()
+        return response_data
 
     def get_usage_data(self) -> List[Dict[str, Any]]:
         trace_in()

@@ -147,24 +147,64 @@ The main Flask application handles HTTP requests and routes them to the Gateway 
    - Returns JSON-RPC 2.0 responses
    - Handles file uploads: saves to `/tmp` with UUID names, passes metadata via flags
 
-2. **`/img/<path:image_path>`** - Image serving:
+2. **`/img/<path:image_path>`** - Image page display:
    - Only accepts numeric image IDs (strict validation)
    - Routes to `http_client.py` with `show-image --id {id}` command
    - Returns JSON or HTML based on response content
+   - Shows image information page
 
-3. **`/` and `/<path:path>`** - Dynamic page routing:
-   - Always routes to `show-page` command
-   - **Numeric paths**: Treated as page ID (e.g., `/123` → `show-page --id 123`)
-   - **Non-numeric paths**: Treated as page name (e.g., `/Bob/Sally` → `show-page --name Bob/Sally`)
-   - Empty path defaults to page ID 1 (homepage)
-   - Routes to `http_client.py` via subprocess
+3. **`/img/<int:image_id>/download`** - Image download:
+   - Downloads full-size image file
+   - Uses download backend via `download_client.py` to get image metadata
+   - Serves image file with `Content-Disposition` header
+   - Enables gated access to full-size images
+
+4. **`/file/<int:file_id>`** - File page display:
+   - Shows file information page
+   - Routes to `http_client.py` with `show-file --id {file_id}` command
    - Returns JSON or HTML based on response content
 
-4. **`/upload-file`** - File upload handler:
-   - Accepts multipart/form-data POST requests
-   - Saves files to `/tmp` with UUID names
-   - Returns JSON with temp file paths and metadata
-   - Used by MCP tools that need file uploads
+5. **`/file/<int:file_id>/download`** - File download:
+   - Downloads file
+   - Uses download backend via `download_client.py` to get file metadata
+   - Serves file with `Content-Disposition` header
+   - All file downloads go through this route for gated access
+
+6. **`/audio/<int:audio_id>`** - Audio page display:
+   - Shows audio information page
+   - Routes to `http_client.py` with `show-audio --id {audio_id}` command
+   - Returns JSON or HTML based on response content
+
+7. **`/audio/<int:audio_id>/stream`** - Audio streaming:
+   - Streams audio file for playback in browser
+   - Uses download backend via `download_client.py` to get audio metadata
+   - Serves audio file with proper MIME type
+   - Supports HTTP range requests for seeking (via Flask's `send_file()` with `conditional=True`)
+
+8. **`/video/<int:video_id>`** - Video page display:
+   - Shows video information page
+   - Routes to `http_client.py` with `show-video --id {video_id}` command
+   - Returns JSON or HTML based on response content
+
+9. **`/video/<int:video_id>/stream`** - Video streaming:
+   - Streams video file for playback in browser
+   - Uses download backend via `download_client.py` to get video metadata
+   - Serves video file with proper MIME type
+   - Supports HTTP range requests for seeking (via Flask's `send_file()` with `conditional=True`)
+
+10. **`/` and `/<path:path>`** - Dynamic page routing:
+    - Always routes to `show-page` command
+    - **Numeric paths**: Treated as page ID (e.g., `/123` → `show-page --id 123`)
+    - **Non-numeric paths**: Treated as page name (e.g., `/Bob/Sally` → `show-page --name Bob/Sally`)
+    - Empty path defaults to page ID 1 (homepage)
+    - Routes to `http_client.py` via subprocess
+    - Returns JSON or HTML based on response content
+
+11. **`/upload-file`** - File upload handler:
+    - Accepts multipart/form-data POST requests
+    - Saves files to `/tmp` with UUID names
+    - Returns JSON with temp file paths and metadata
+    - Used by MCP tools that need file uploads
 
 **Gateway Integration**:
 - All requests routed via subprocess to `http_client.py` or `mcp_client.py`

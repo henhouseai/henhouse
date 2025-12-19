@@ -11,7 +11,7 @@ import importlib
 from pathlib import Path
 from typing import Dict, Callable, Optional, Any, List, cast
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None

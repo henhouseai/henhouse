@@ -137,7 +137,7 @@ def uninstall() -> bool:
                 debug(f"Exception for {user}: {str(e)}")
 
     # Step 2: Remove project directory (only if project highest level user doesn't exist)
-    # Note: /srv/images/{project_name} and /srv/files/{project_name} are in different locations and NOT touched
+    # Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are in different locations and NOT touched
     if not is_error():
         srv_project = Path(f'/srv/{project_name}')
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
@@ -150,7 +150,7 @@ def uninstall() -> bool:
                 # User doesn't exist (was successfully deleted or never existed) - safe to delete
                 log(f"Removing project directory: {srv_project}")
                 shutil.rmtree(srv_project)
-                log(f"Note: /srv/images/{project_name} and /srv/files/{project_name} are preserved and left untouched")
+                log(f"Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are preserved and left untouched")
 
     # Step 3: Remove project owner from group BEFORE deleting the group
     if not is_error():
@@ -455,7 +455,7 @@ def detect_project_owner(project_path: Path) -> Optional[str]:
         return None
 
 # Import detect_project_context from utils
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 
 def discover_script_names(project_name: str) -> Optional[str]:
     """Discover hen script name from tier user directory."""

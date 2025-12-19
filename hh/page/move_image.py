@@ -132,7 +132,7 @@ def move_image() -> bool:
             'source_page_id': source_page_id,
             'source_rank': source_rank_int
         }]
-        success = target_page.move_images(image_instances, target_rank=target_rank_int)
+        success = target_page.move_media_items("image", image_instances, target_rank=target_rank_int)
         if not success:
             warn(f"Failed to move image {image_id} from page {source_page_id} to page {target_page_id}")
             report_error("action", f"Failed to move image {image_id} from page {source_page_id} to page {target_page_id}")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List
 
-from hh.deploy.utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import is_error, report_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (

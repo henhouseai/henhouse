@@ -12,7 +12,9 @@ from hh.page.render_helpers import (
     render_badge_headers_section,
     render_text_section,
     render_children_by_class_section,
-    render_images_section
+    render_images_section,
+    render_audio_section,
+    render_video_section
 )
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
@@ -88,6 +90,8 @@ def get_browser() -> bool:
     page_data = page.get_page_data()
     images_data = page.get_images_data()
     files_data = page.get_files_data()
+    audio_data = page.get_audio_data()
+    video_data = page.get_video_data()
     children_by_class = page._get_children_by_class()
     badge_headers = page._add_badge_headers()
     upper_content = page._add_upper_content()
@@ -150,6 +154,84 @@ def get_browser() -> bool:
             additional_classes=additional_classes
         ) or ""
     
+    files_html = ""
+    if files_data:
+        # Files section rendering (table only, similar to audio/video)
+        from hh.render.render import FieldConfig, TableData, render_block
+        from hh.render.config.config import safe_str
+        files_rows = TableData()
+        files_rows.add_row(
+            'files_header',
+            label='Files',
+            rank='Rank',
+            id='ID',
+            name='Name',
+            description='Description',
+            uploaded='Uploaded',
+            size='Size',
+            path='Path',
+        )
+        for file_entry in files_data:
+            file_id = file_entry.get('id')
+            size_bytes = file_entry.get('size_bytes')
+            size_display = f"{size_bytes:,} B" if isinstance(size_bytes, int) else 'N/A'
+            file_path = file_entry.get('file_path') or ''
+            files_rows.add_row(
+                'file_item',
+                rank=str(file_entry.get('file_rank', 'N/A')),
+                id=str(file_id) if file_id is not None else 'N/A',
+                name=safe_str(file_entry.get('file_name', 'unnamed')),
+                description=safe_str(file_entry.get('description', '')),
+                uploaded=safe_str(file_entry.get('uploaded', 'N/A')),
+                size=size_display,
+                path=safe_str(file_path),
+            )
+            if file_id is not None:
+                files_rows.add_file_link_to_column('name', file_id)
+                files_rows.add_file_link_to_column('path', file_id)
+        
+        if files_rows.num_rows() > 0:
+            page_id_str = str(page_id)
+            content_id = f"{wrapper_id_prefix}pageFileGroup_{page_id_str}"
+            wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
+            files_block = render_block(
+                files_rows,
+                FieldConfig()
+                    .add_header('files_header')
+                    .add_simple(['file_item']),
+                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
+                block_type='files',
+                backend='http',
+                wrapper_id=content_id,
+                wrapper_extra_classes=wrapper_extra_classes
+            )
+            header_id = f"{wrapper_id_prefix}pageFileGroupHeader_{page_id_str}"
+            header_classes = 'contentHeader'
+            if additional_classes:
+                header_classes += ' ' + ' '.join(additional_classes)
+            header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="files">FILES</a>\n</div>'
+            files_html = header_html + '\n' + files_block
+    
+    audio_html = ""
+    if audio_data:
+        audio_html = render_audio_section(
+            audio_data,
+            page_id=page_id,
+            overlay_mode=overlay_mode,
+            wrapper_id_prefix=wrapper_id_prefix,
+            additional_classes=additional_classes
+        ) or ""
+    
+    video_html = ""
+    if video_data:
+        video_html = render_video_section(
+            video_data,
+            page_id=page_id,
+            overlay_mode=overlay_mode,
+            wrapper_id_prefix=wrapper_id_prefix,
+            additional_classes=additional_classes
+        ) or ""
+    
     # Build structured response
     payload: Dict[str, Any] = {
         "page_id": page_data.get("id"),
@@ -162,7 +244,9 @@ def get_browser() -> bool:
             "text": text_html,
             "children": children_html,
             "images": images_html,
-            "files": ""  # TODO: implement files section when needed
+            "files": files_html,
+            "audio": audio_html,
+            "video": video_html
         }
     }
     

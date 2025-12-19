@@ -9,6 +9,8 @@ import { PageActionsFields } from './page-actions-fields.js';
 import { PageActionsPages } from './page-actions-pages.js';
 import { PageActionsImages } from './page-actions-images.js';
 import { PageActionsFiles } from './page-actions-files.js';
+import { PageActionsAudio } from './page-actions-audio.js';
+import { PageActionsVideo } from './page-actions-video.js';
 export class PageData {
     constructor(data) {
         this.dynamicFields = {};
@@ -404,6 +406,22 @@ export class PageData {
         const handler = new UploadHandler(rpc, getSeedData());
         await handler.handle();
     }
+    /**
+     * Handle upload_audio_app: Upload audio files to current page
+     */
+    async upload_audio_app(rpc) {
+        const { UploadHandler } = await import('./upload-handler.js');
+        const handler = new UploadHandler(rpc, getSeedData(), 'audio');
+        await handler.handle();
+    }
+    /**
+     * Handle upload_video_app: Upload video files to current page
+     */
+    async upload_video_app(rpc) {
+        const { UploadHandler } = await import('./upload-handler.js');
+        const handler = new UploadHandler(rpc, getSeedData(), 'video');
+        await handler.handle();
+    }
 }
 // Base page fields that are always present
 PageData.BASE_PAGE_FIELDS = [
@@ -433,3 +451,5 @@ applyMixin(PageData, PageActionsFields);
 applyMixin(PageData, PageActionsPages);
 applyMixin(PageData, PageActionsImages);
 applyMixin(PageData, PageActionsFiles);
+applyMixin(PageData, PageActionsAudio);
+applyMixin(PageData, PageActionsVideo);

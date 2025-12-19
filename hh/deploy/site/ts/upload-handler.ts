@@ -20,7 +20,7 @@ interface FileUploadStatus {
   debugOptions: DebugOptions | null; // Debug options captured when submit was clicked
 }
 
-type UploadMode = 'image' | 'file';
+type UploadMode = 'image' | 'file' | 'audio' | 'video';
 
 export class UploadHandler {
   private rpc: RPCClient;
@@ -33,21 +33,43 @@ export class UploadHandler {
   private placeholderDiv: HTMLElement | null = null;
   private overlayWindow: HTMLElement | null = null;
   private mode: UploadMode;
-  private uploadAction: 'upload_images' | 'upload_files';
+  private uploadAction: 'upload_images' | 'upload_files' | 'upload_audio' | 'upload_video';
   private acceptFilter: string;
   private headerTitle: string;
   private placeholderText: string;
+  private mediaTypeLabel: string; // For success messages
 
   constructor(rpc: RPCClient, seedData: SeedData, mode: UploadMode = 'image') {
     this.rpc = rpc;
     this.seedData = seedData;
     this.mode = mode;
-    this.uploadAction = mode === 'file' ? 'upload_files' : 'upload_images';
-    this.acceptFilter = mode === 'file' ? '*' : 'image/*';
-    this.headerTitle = mode === 'file' ? 'Upload Files' : 'Upload Images';
-    this.placeholderText = mode === 'file'
-      ? 'No files selected. Click "Choose Files" to add files.'
-      : 'No files selected. Click "Choose Files" to add images.';
+    
+    // Set upload action based on mode
+    if (mode === 'file') {
+      this.uploadAction = 'upload_files';
+      this.acceptFilter = '*';
+      this.headerTitle = 'Upload Files';
+      this.placeholderText = 'No files selected. Click "Choose Files" to add files.';
+      this.mediaTypeLabel = 'file(s)';
+    } else if (mode === 'audio') {
+      this.uploadAction = 'upload_audio';
+      this.acceptFilter = 'audio/*';
+      this.headerTitle = 'Upload Audio';
+      this.placeholderText = 'No files selected. Click "Choose Files" to add audio files.';
+      this.mediaTypeLabel = 'audio file(s)';
+    } else if (mode === 'video') {
+      this.uploadAction = 'upload_video';
+      this.acceptFilter = 'video/*';
+      this.headerTitle = 'Upload Video';
+      this.placeholderText = 'No files selected. Click "Choose Files" to add video files.';
+      this.mediaTypeLabel = 'video file(s)';
+    } else { // mode === 'image'
+      this.uploadAction = 'upload_images';
+      this.acceptFilter = 'image/*';
+      this.headerTitle = 'Upload Images';
+      this.placeholderText = 'No files selected. Click "Choose Files" to add images.';
+      this.mediaTypeLabel = 'image(s)';
+    }
     this.fileInput = document.createElement('input');
     this.fileInput.type = 'file';
     this.fileInput.multiple = true;
@@ -234,13 +256,19 @@ export class UploadHandler {
                 if (rpcResult.debug && Array.isArray(rpcResult.debug.entries) && rpcResult.debug.entries.length > 0) {
                   hasDebugData = true;
                   // Handle debug data immediately - create overlay for each response with debug
-                  handleRPCResponseWithDebug(rpcResult, 'upload_images', params);
+                  handleRPCResponseWithDebug(rpcResult, this.uploadAction, params);
                 }
                 
                 status.processed = true;
                 // Remove pending div and add success message
                 this.removePendingDiv(status);
-                this.addSuccessMessage(`Successfully processed ${status.file.name}`);
+                
+                // For audio/video, transcoding happens in background, so show different message
+                if (this.mode === 'audio' || this.mode === 'video') {
+                  this.addSuccessMessage(`Successfully uploaded ${status.file.name} (transcoding in background)`);
+                } else {
+                  this.addSuccessMessage(`Successfully processed ${status.file.name}`);
+                }
                 
                 nextIndexToProcess++;
                 await processNext();
@@ -266,7 +294,7 @@ export class UploadHandler {
         // Return success - disable auto-fade if debug data was present
         // Use standardized redirect pattern ('self' for refresh)
         return { 
-          _showMessage: `Successfully uploaded ${this.uploadStatuses.length} ${this.mode === 'file' ? 'file(s)' : 'image(s)'}`, 
+          _showMessage: `Successfully uploaded ${this.uploadStatuses.length} ${this.mediaTypeLabel}`, 
           _autoFade: !hasDebugData, // Disable auto-fade if debug data was present
           _redirectAfterFade: hasDebugData ? null : 'self' // Only redirect if no debug data (standardized pattern)
         };
@@ -410,7 +438,7 @@ export class UploadHandler {
       }
       
       if (this.overlayWindow) {
-        const placeholderText = document.createTextNode('No files selected. Click "Choose Files" to add images.');
+        const placeholderText = document.createTextNode(this.placeholderText);
         const placeholderWrapper = document.createElement('div');
         placeholderWrapper.className = 'upload-placeholder';
         placeholderWrapper.appendChild(placeholderText);

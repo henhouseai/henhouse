@@ -43,7 +43,7 @@ def generate_nginx_static_locations(project_name: str) -> Dict:
         'css_files': len(CSS_WHITELIST),
         'misc_files': len(MISC_WHITELIST),
         'context_folders': len(CONTEXT_WHITELIST),
-        'always_static': 2  # images and files directories
+        'always_static': 1  # images directory
     }
     
     return {
@@ -55,15 +55,9 @@ def _generate_location_blocks(static_dirs: Set[str], project_name: str) -> str:
     """Generate location blocks from set of static directories."""
     blocks = []
     
-    # Always include images and files directories (from Architecture docs)
+    # Always include images directory (from Architecture docs)
     blocks.append(f"""    location /srv/images/ {{
         alias /srv/images/{project_name}/;
-        expires off;
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-    }}""")
-    
-    blocks.append(f"""    location /srv/files/ {{
-        alias /srv/files/{project_name}/;
         expires off;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }}""")

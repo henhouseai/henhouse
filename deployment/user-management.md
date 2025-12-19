@@ -36,7 +36,7 @@ The `uninstall` command safely removes all project users, groups, and deployment
 
 2. **Project Directory Removal**:
    - Only removes `/srv/{project_name}` if highest tier user doesn't exist
-   - **Preserves**: `/srv/images/{project_name}` and `/srv/files/{project_name}` are left untouched (created by installation system - see `installation.md`)
+   - **Preserves**: `/srv/images/{project_name}`, `/srv/files/{project_name}`, `/srv/audio/{project_name}`, and `/srv/video/{project_name}` are left untouched (created by installation system - see `installation.md`)
    - Safety check: Won't delete if highest tier user still exists
 
 3. **Group Cleanup**:
@@ -122,7 +122,7 @@ The user management system integrates with:
 
 3. **File Deployment** (`file-deployment.md`): 
    - The `/srv/{project_name}` directory is removed if highest tier user doesn't exist
-   - However, `/srv/images/{project_name}` and `/srv/files/{project_name}` are preserved
+   - However, `/srv/images/{project_name}`, `/srv/files/{project_name}`, `/srv/audio/{project_name}`, and `/srv/video/{project_name}` are preserved
 
 4. **Flask Application Management** (`flask.md`): 
    - Flask daemons should be stopped before uninstall (they run as tier users that will be removed)
@@ -160,7 +160,7 @@ sudo hen remove-db-users -password <root_password>
 sudo hen uninstall
 ```
 
-**Warning**: Uninstall is a destructive operation. It removes all project users, groups, and most infrastructure. Some items are preserved (image/files directories) for safety.
+**Warning**: Uninstall is a destructive operation. It removes all project users, groups, and most infrastructure. Some items are preserved (image/files/audio/video directories) for safety.
 
 **Re-installation**: After uninstall, you can run `install` again to recreate the user infrastructure.
 

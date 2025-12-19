@@ -2,7 +2,7 @@
 TABLE OF CONTENTS (Alphabetical Order)
 ======================================
 
-__init__()                    Line 147
+__init__()                    Line 226
 _add_badge_headers()          Line 534
 _add_file_to_group()          Line 559
 _add_image_to_group()         Line 512
@@ -37,49 +37,45 @@ _remove_file_from_group()      Line 429
 _remove_image_from_group()     Line 444
 _serialize_metadata()          Line 877
 _write_metadata_dict()         Line 488
-add_file()                    Line 916
-add_image()                   Line 1181
-add_page()                    Line 958
+add_file()                    Line 1145
+add_image()                   Line 1480
+add_page()                    Line 1187
 allow_class_inside()          Line 902
 allow_duplicate_names()       Line 907
 allow_inside_of()             Line 912
 allow_null_names()            Line 1038
 auto_link_name()              Line 1043
 can_move_to_page()            Line 1047
-copy_files()                  Line 1258
-copy_images()                 Line 1218
-copy_page()                   Line 1098
-delete_all_file_groups()      Line 1283
-delete_from_database()        Line 1308
-delete_page()                 Line 1325
-flag_page_modification()      Line 1364
-get_allowed_child_classes()   Line 1394
-get_child_count()             Line 1503
-get_children_data()           Line 1516
-getChildrenOf()               Line 1434
-get_files_data()              Line 1657
-get_images_data()             Line 1715
-get_page()                    Line 1593
-get_page_data()               Line 1572
-get_path()                    Line 1538
-get_prepared_text()           Line 1636
-modify_display_style()        Line 2192
-modify_name()                 Line 2208
-modify_text()                 Line 2278
-modify_visibility()           Line 2321
-move_files()                  Line 1996
-move_images()                 Line 1761
-move_page()                   Line 2159
-regex_text()                  Line 2337
-remove_file()                 Line 2051
-remove_image()                Line 1837
-reorder_files()               Line 2080
-reorder_images()              Line 1877
-set_file_rank()               Line 2111
-set_image_rank()              Line 1909
-set_metadata_value()          Line 2375
-show_page()                   Line 2384
-validate_name()               Line 2457
+copy_media_items()            Line 1410
+copy_page()                   Line 1327
+delete_all_file_groups()      Line 1593
+delete_from_database()        Line 1618
+delete_page()                 Line 1635
+flag_page_modification()      Line 1682
+get_allowed_child_classes()   Line 1712
+get_child_count()             Line 1821
+get_children_data()           Line 1834
+getChildrenOf()               Line 1752
+get_files_data()              Line 1975
+get_images_data()             Line 2033
+get_page()                    Line 1911
+get_page_data()               Line 1890
+get_path()                    Line 1856
+get_prepared_text()           Line 1954
+modify_display_style()        Line 2491
+modify_name()                 Line 2507
+modify_text()                 Line 2577
+modify_visibility()           Line 2620
+move_media_items()            Line 2266
+move_page()                   Line 2233
+regex_text()                  Line 2636
+remove_media_item()           Line 2393
+reorder_files()               Line 2202
+reorder_images()              Line 2170
+set_media_rank()              Line 2683
+set_metadata_value()          Line 2674
+show_page()                   Line 2840
+validate_name()               Line 2913
 
 """
 
@@ -99,7 +95,7 @@ from hh.tp.tp import TextProcessor
 from hh.image.image_registry import get_image
 from hh.image.image import Image
 from hh.file.file_registry import get_file
-from hh.file.utils import store_uploaded_file
+from hh.file.file_utils import store_uploaded_file
 from hh.gateway.registry.mcp_whitelist import MCPWhitelist
 
 trace_in = lambda message=None: None
@@ -140,9 +136,88 @@ class Page:
     children_by_class: Dict[str, Any]
     images: List[Any]
     files: List[Any]
+    audio: List[Any]
+    video: List[Any]
     cache_built_at: Optional[Any]
     cache_hydrated: bool
     _cache_needs_refresh: bool
+
+    # Media types supported for copy/move/remove/set_rank operations
+    MEDIA_TYPES = ["image", "audio", "video", "file"]
+
+    @staticmethod
+    def _get_media_table_name(media_type: str) -> str:
+        """Get table name for media type (e.g., 'image' -> 'image_groups')."""
+        return f"{media_type}_groups"
+
+    @staticmethod
+    def _get_media_id_field(media_type: str) -> str:
+        """Get ID field name for media type (e.g., 'image' -> 'image_id')."""
+        return f"{media_type}_id"
+
+    @staticmethod
+    def _get_media_rank_field(media_type: str) -> str:
+        """Get rank field name for media type (e.g., 'image' -> 'image_rank')."""
+        return f"{media_type}_rank"
+
+    def _get_media_data_method(self, media_type: str):
+        """Get the data retrieval method for media type."""
+        method_map = {
+            "image": self.get_images_data,
+            "audio": self.get_audio_data if hasattr(self, 'get_audio_data') else None,
+            "video": self.get_video_data if hasattr(self, 'get_video_data') else None,
+            "file": self.get_files_data,
+        }
+        return method_map.get(media_type)
+
+    def _get_add_to_group_method(self, media_type: str):
+        """Get the add-to-group method for media type."""
+        method_map = {
+            "image": self._add_image_to_group,
+            "audio": self._add_audio_to_group if hasattr(self, '_add_audio_to_group') else None,
+            "video": self._add_video_to_group if hasattr(self, '_add_video_to_group') else None,
+            "file": self._add_file_to_group,
+        }
+        return method_map.get(media_type)
+
+    def _get_reorder_method(self, media_type: str):
+        """Get the reorder method for media type."""
+        method_map = {
+            "image": self.reorder_images,
+            "audio": self.reorder_audio if hasattr(self, 'reorder_audio') else None,
+            "video": self.reorder_video if hasattr(self, 'reorder_video') else None,
+            "file": self.reorder_files,
+        }
+        return method_map.get(media_type)
+
+    def _get_flag_related_method(self, media_type: str):
+        """Get the flag-related method for media type (if exists)."""
+        method_map = {
+            "image": self._flag_related_image,
+            "file": self._flag_related_file,
+        }
+        return method_map.get(media_type)
+
+    def _get_usage_count_method(self, media_type: str):
+        """Get the usage count method for media type (if exists)."""
+        if media_type == "file":
+            return self._get_file_usage_count
+        elif media_type == "image":
+            # Images have get_usage_count on the Image object itself
+            return None
+        return None
+
+    @staticmethod
+    def _validate_media_type(media_type: str) -> str:
+        """Validate media type and return normalized version (defaults to 'file')."""
+        if not media_type:
+            return "file"
+        media_type = media_type.lower()
+        if media_type not in Page.MEDIA_TYPES:
+            warn(f"Invalid media type: {media_type}. Must be one of {Page.MEDIA_TYPES}")
+            report_error("action", f"Invalid media type: {media_type}")
+            return "file"  # Default fallback
+        return media_type
 
     def __init__(self, id: int):
         trace_in()
@@ -173,6 +248,8 @@ class Page:
         self.children_by_class = {}
         self.images = []
         self.files = []
+        self.audio = []
+        self.video = []
         self.cache_built_at = None
         self.cache_hydrated = False
         self._cache_needs_refresh = False
@@ -531,6 +608,48 @@ class Page:
         trace_out()
         return not is_error()
 
+    def _add_audio_to_group(self, audio_id: int, rank: Optional[int] = None) -> bool:
+        trace_in()
+        log(f"Adding audio {audio_id} to page {self.id} audio group")
+        if not is_error():
+            # Get next rank if not provided
+            if rank is None:
+                results = self.gateway.conn.read("SELECT COALESCE(MAX(audio_rank), 0) + 1 as next_rank FROM audio_groups WHERE page_id = %s", [self.id])
+                rank = results[0]['next_rank'] if results else 1
+            # Insert into audio_groups
+            new_id = self.gateway.conn.create("""
+                INSERT INTO audio_groups (page_id, audio_id, audio_rank)
+                VALUES (%s, %s, %s)
+            """, (self.id, audio_id, rank))
+            if new_id is not None:
+                log(f"Successfully added audio {audio_id} to page {self.id} with rank {rank}")
+            else:
+                warn(f"Failed to add audio {audio_id} to page {self.id}")
+                report_error("action", f"Failed to add audio {audio_id} to page {self.id}")
+        trace_out()
+        return not is_error()
+
+    def _add_video_to_group(self, video_id: int, rank: Optional[int] = None) -> bool:
+        trace_in()
+        log(f"Adding video {video_id} to page {self.id} video group")
+        if not is_error():
+            # Get next rank if not provided
+            if rank is None:
+                results = self.gateway.conn.read("SELECT COALESCE(MAX(video_rank), 0) + 1 as next_rank FROM video_groups WHERE page_id = %s", [self.id])
+                rank = results[0]['next_rank'] if results else 1
+            # Insert into video_groups
+            new_id = self.gateway.conn.create("""
+                INSERT INTO video_groups (page_id, video_id, video_rank)
+                VALUES (%s, %s, %s)
+            """, (self.id, video_id, rank))
+            if new_id is not None:
+                log(f"Successfully added video {video_id} to page {self.id} with rank {rank}")
+            else:
+                warn(f"Failed to add video {video_id} to page {self.id}")
+                report_error("action", f"Failed to add video {video_id} to page {self.id}")
+        trace_out()
+        return not is_error()
+
     def _add_badge_headers(self) -> Dict[str, Any]:
         badge_headers = {}
         page_data = self.get_page_data()
@@ -639,6 +758,38 @@ class Page:
         trace_out()
         return image_id
 
+    def _create_audio_record(self, caption: Optional[str] = None) -> Optional[int]:
+        trace_in()
+        # Insert audio record (no parent or rank - those are in audio_groups)
+        audio_id = None
+        if not is_error():
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
+            db_user = user_results[0]['db_user'] if user_results else 'unknown'
+        if not is_error():
+            audio_id = self.gateway.conn.create("""
+                INSERT INTO audio (caption, username, uploaded, last_modified, comments, visibility, viewCount)
+                VALUES (%s, %s, NOW(), NOW(), %s, 1, 0)
+            """, (caption, db_user, "audio created"))
+            log(f"Created audio record {audio_id}")
+        trace_out()
+        return audio_id
+
+    def _create_video_record(self, caption: Optional[str] = None) -> Optional[int]:
+        trace_in()
+        # Insert video record (no parent or rank - those are in video_groups)
+        video_id = None
+        if not is_error():
+            user_results = self.gateway.conn.read("SELECT USER() as db_user")
+            db_user = user_results[0]['db_user'] if user_results else 'unknown'
+        if not is_error():
+            video_id = self.gateway.conn.create("""
+                INSERT INTO video (caption, username, uploaded, last_modified, comments, visibility, viewCount)
+                VALUES (%s, %s, NOW(), NOW(), %s, 1, 0)
+            """, (caption, db_user, "video created"))
+            log(f"Created video record {video_id}")
+        trace_out()
+        return video_id
+
     def _delete_all_image_groups(self) -> bool:
         trace_in()
         log(f"Deleting all image_groups entries for page {self.id}")
@@ -672,6 +823,80 @@ class Page:
                         report_error("action", f"Failed to load image {image_id}")
         if not is_error():
             self.flag_page_modification("images updated")
+        trace_out()
+        return not is_error()
+
+    def _delete_all_audio_groups(self) -> bool:
+        trace_in()
+        log(f"Deleting all audio_groups entries for page {self.id}")
+        if not is_error():
+            # Get all unique audio_ids from this page's audio_groups before deleting
+            results = self.gateway.conn.read("SELECT DISTINCT audio_id FROM audio_groups WHERE page_id = %s", [self.id])
+            audio_ids = [row['audio_id'] for row in results] if results else []
+            log(f"Found {len(audio_ids)} unique audio in page {self.id} audio_groups")
+        
+        if not is_error():
+            # Delete all audio_groups entries for this page
+            affected = self.gateway.conn.delete("DELETE FROM audio_groups WHERE page_id = %s", [self.id])
+            log(f"Deleted {affected} audio_groups entries for page {self.id}")
+        
+        # Check each audio to see if it should be deleted (no longer used by any pages)
+        if not is_error() and audio_ids:
+            from hh.audio.audio_registry import get_audio
+            for audio_id in audio_ids:
+                if not is_error():
+                    audio = get_audio(audio_id)
+                    if audio:
+                        usage_count = audio.get_usage_count()
+                        if usage_count == 0:
+                            log(f"Audio {audio_id} no longer used by any pages, deleting from database")
+                            if not audio.delete_from_database():
+                                warn(f"Failed to delete unused audio {audio_id}")
+                                report_error("action", f"Failed to delete unused audio {audio_id}")
+                        else:
+                            log(f"Audio {audio_id} still used by {usage_count} pages, keeping in database")
+                    else:
+                        warn(f"Failed to load audio {audio_id} for usage check")
+                        report_error("action", f"Failed to load audio {audio_id}")
+        if not is_error():
+            self.flag_page_modification("audio updated")
+        trace_out()
+        return not is_error()
+
+    def _delete_all_video_groups(self) -> bool:
+        trace_in()
+        log(f"Deleting all video_groups entries for page {self.id}")
+        if not is_error():
+            # Get all unique video_ids from this page's video_groups before deleting
+            results = self.gateway.conn.read("SELECT DISTINCT video_id FROM video_groups WHERE page_id = %s", [self.id])
+            video_ids = [row['video_id'] for row in results] if results else []
+            log(f"Found {len(video_ids)} unique video in page {self.id} video_groups")
+        
+        if not is_error():
+            # Delete all video_groups entries for this page
+            affected = self.gateway.conn.delete("DELETE FROM video_groups WHERE page_id = %s", [self.id])
+            log(f"Deleted {affected} video_groups entries for page {self.id}")
+        
+        # Check each video to see if it should be deleted (no longer used by any pages)
+        if not is_error() and video_ids:
+            from hh.video.video_registry import get_video
+            for video_id in video_ids:
+                if not is_error():
+                    video = get_video(video_id)
+                    if video:
+                        usage_count = video.get_usage_count()
+                        if usage_count == 0:
+                            log(f"Video {video_id} no longer used by any pages, deleting from database")
+                            if not video.delete_from_database():
+                                warn(f"Failed to delete unused video {video_id}")
+                                report_error("action", f"Failed to delete unused video {video_id}")
+                        else:
+                            log(f"Video {video_id} still used by {usage_count} pages, keeping in database")
+                    else:
+                        warn(f"Failed to load video {video_id} for usage check")
+                        report_error("action", f"Failed to load video {video_id}")
+        if not is_error():
+            self.flag_page_modification("video updated")
         trace_out()
         return not is_error()
 
@@ -1156,7 +1381,7 @@ class Page:
                         # Extract image IDs in order (preserving rank order)
                         image_ids = [img['id'] for img in source_images]
                         if image_ids:
-                            if not new_page.copy_images(image_ids):
+                            if not new_page.copy_media_items("image", image_ids):
                                 warn(f"Failed to copy images from page {self.id} to page {new_page_id}")
             # Copy files if requested
             if copy_files:
@@ -1167,7 +1392,7 @@ class Page:
                         # Extract file IDs in order (preserving rank order)
                         file_ids = [f['id'] for f in source_files]
                         if file_ids:
-                            if not new_page.copy_files(file_ids):
+                            if not new_page.copy_media_items("file", file_ids):
                                 warn(f"Failed to copy files from page {self.id} to page {new_page_id}")
             # Call class-specific copy logic hook
             self._copy_page_class_information(new_page_id)
@@ -1177,6 +1402,76 @@ class Page:
             log(f"Successfully copied page {self.id} to page {new_page_id}")
         trace_out()
         return new_page_id
+
+    def copy_media_items(self, media_type: str, item_ids: List[int], target_rank: Optional[int] = None) -> bool:
+        """
+        Generalized method to copy media items (images, audio, video, files) to this page.
+        
+        Args:
+            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
+            item_ids: List of item IDs to copy
+            target_rank: Optional target rank to insert at (1-based)
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        trace_in()
+        media_type = self._validate_media_type(media_type)
+        if is_error():
+            trace_out()
+            return False
+        
+        log(f"Copying {len(item_ids)} {media_type} items to page {self.id}")
+        
+        # Get helper methods
+        get_data_method = self._get_media_data_method(media_type)
+        add_to_group_method = self._get_add_to_group_method(media_type)
+        
+        if not get_data_method or not add_to_group_method:
+            warn(f"Required methods not found for media type {media_type}")
+            report_error("action", f"Media type {media_type} not fully supported")
+            trace_out()
+            return False
+        
+        # Record original count before copying
+        original_count = len(get_data_method())
+        
+        copied_count = 0
+        for item_id in item_ids:
+            if not is_error():
+                if add_to_group_method(item_id):
+                    copied_count += 1
+                    log(f"Successfully copied {media_type} {item_id} to page {self.id}")
+                    # Flag related item if method exists
+                    flag_method = self._get_flag_related_method(media_type)
+                    if flag_method:
+                        flag_method(item_id, f"copied to page {self.id}")
+                else:
+                    warn(f"Failed to copy {media_type} {item_id} to page {self.id}")
+        
+        log(f"Successfully copied {copied_count}/{len(item_ids)} {media_type} items to page {self.id}")
+        
+        # Set ranks if target_rank is specified
+        if not is_error() and target_rank is not None and copied_count > 0:
+            log(f"Setting ranks starting from {target_rank}")
+            for i, item_id in enumerate(item_ids[:copied_count]):
+                target_rank_for_item = target_rank + i
+                # The copied items were added at the end, so their old ranks are original_count + i + 1
+                old_rank = original_count + i + 1
+                
+                log(f"Setting {media_type} {item_id} from rank {old_rank} to rank {target_rank_for_item}")
+                success = self.set_media_rank(media_type, item_id, old_rank, target_rank_for_item)
+                if not success:
+                    warn(f"Failed to set {media_type} {item_id} rank to {target_rank_for_item}")
+                    report_error("action", f"Failed to set {media_type} {item_id} rank to {target_rank_for_item}")
+        
+        if not is_error() and copied_count > 0:
+            # Rebuild hot cache immediately with the copied items
+            get_data_method(rebuild=True)
+            self.flag_page_modification(f"{media_type}s updated")
+        
+        trace_out()
+        return not is_error()
 
     def add_image(self, file_path: str, caption: Optional[str] = None) -> Optional[int]:
         trace_in()
@@ -1215,70 +1510,81 @@ class Page:
         trace_out()
         return image_id
 
-    def copy_images(self, image_ids: List[int], target_rank: Optional[int] = None) -> bool:
+    def add_audio(self, file_path: str, caption: Optional[str] = None) -> Optional[int]:
         trace_in()
-        log(f"Copying {len(image_ids)} images to page {self.id}")
-        
-        # Record original count before copying
-        original_count = len(self.get_images_data())
-        
-        copied_count = 0
-        for image_id in image_ids:
-            if not is_error():
-                # Add image to this page's group (one copy per image)
-                if self._add_image_to_group(image_id):
-                    copied_count += 1
-                    log(f"Successfully copied image {image_id} to page {self.id}")
+        log(f"Adding audio to page {self.id}: {file_path}")
+        # Use filename as default caption if no caption provided
+        if not caption:
+            caption = Path(file_path).stem  # Get filename without extension
+            log(f"Using filename as caption: {caption}")
+        # Create the audio record in a separate write transaction
+        audio_id = self._create_audio_record(caption=caption)
+        # Add audio to this page's audio group
+        if not is_error() and audio_id:
+            if not self._add_audio_to_group(audio_id):
+                warn(f"Failed to add audio {audio_id} to page group")
+                report_error("action", f"Failed to add audio {audio_id} to page group")
+        # Process the audio file
+        if not is_error() and audio_id:
+            from hh.audio.audio_registry import get_audio
+            audio = get_audio(audio_id)
+            if not audio:
+                warn(f"Audio {audio_id} not found")
+                report_error("action", f"Audio {audio_id} not found")
+            else:
+                if not audio.process_upload(uploaded_file_path=file_path, filename=f"audio_{audio_id}"):
+                    warn(f"Failed to process audio {audio_id}")
+                    report_error("action", f"Failed to process audio {audio_id}")
                 else:
-                    warn(f"Failed to copy image {image_id} to page {self.id}")
-        log(f"Successfully copied {copied_count}/{len(image_ids)} images to page {self.id}")
-        
-        # Set ranks if target_rank is specified
-        if not is_error() and target_rank is not None:
-            log(f"Setting ranks starting from {target_rank}")
-            
-            for i, image_id in enumerate(image_ids):
-                target_rank_for_image = target_rank + i
-                # The copied images were added at the end, so their old ranks are original_count + i + 1
-                old_rank = original_count + i + 1
-                
-                log(f"Setting image {image_id} from rank {old_rank} to rank {target_rank_for_image}")
-                success = self.set_image_rank(image_id, old_rank, target_rank_for_image)
-                if not success:
-                    warn(f"Failed to set image {image_id} rank to {target_rank_for_image}")
-                    report_error("action", f"Failed to set image {image_id} rank to {target_rank_for_image}")
-        
-        if not is_error() and copied_count > 0:
-            # Rebuild hot cache immediately with the copied images
-            self.get_images_data(rebuild=True)
-            self.flag_page_modification("images updated")
+                    audio.flag_audio_modification("audio uploaded")
+        if audio_id:
+            log(f"Audio creation completed successfully")
+        else:
+            log("Audio creation encountered problems")
+        if audio_id and not is_error():
+            # Rebuild hot cache immediately with the new audio
+            self.get_audio_data(rebuild=True)
+            self.flag_page_modification("audio updated")
         trace_out()
-        return not is_error()
+        return audio_id
 
-    def copy_files(self, file_ids: List[int], target_rank: Optional[int] = None) -> bool:
+    def add_video(self, file_path: str, caption: Optional[str] = None) -> Optional[int]:
         trace_in()
-        if not file_ids:
-            trace_out()
-            return True
-
-        original_count = len(self.get_files_data())
-        copied = 0
-        for file_id in file_ids:
-            if is_error():
-                break
-            if self._add_file_to_group(file_id):
-                copied += 1
-                self._flag_related_file(file_id, f"copied to page {self.id}")
-
-        if not is_error() and target_rank is not None and copied > 0:
-            for i, file_id in enumerate(file_ids[:copied], start=0):
-                self.set_file_rank(file_id, original_count + i + 1, target_rank + i)
-
-        if not is_error() and copied > 0:
-            self.get_files_data(rebuild=True)
-            self.flag_page_modification("files updated")
+        log(f"Adding video to page {self.id}: {file_path}")
+        # Use filename as default caption if no caption provided
+        if not caption:
+            caption = Path(file_path).stem  # Get filename without extension
+            log(f"Using filename as caption: {caption}")
+        # Create the video record in a separate write transaction
+        video_id = self._create_video_record(caption=caption)
+        # Add video to this page's video group
+        if not is_error() and video_id:
+            if not self._add_video_to_group(video_id):
+                warn(f"Failed to add video {video_id} to page group")
+                report_error("action", f"Failed to add video {video_id} to page group")
+        # Process the video file
+        if not is_error() and video_id:
+            from hh.video.video_registry import get_video
+            video = get_video(video_id)
+            if not video:
+                warn(f"Video {video_id} not found")
+                report_error("action", f"Video {video_id} not found")
+            else:
+                if not video.process_upload(uploaded_file_path=file_path, filename=f"video_{video_id}"):
+                    warn(f"Failed to process video {video_id}")
+                    report_error("action", f"Failed to process video {video_id}")
+                else:
+                    video.flag_video_modification("video uploaded")
+        if video_id:
+            log(f"Video creation completed successfully")
+        else:
+            log("Video creation encountered problems")
+        if video_id and not is_error():
+            # Rebuild hot cache immediately with the new video
+            self.get_video_data(rebuild=True)
+            self.flag_page_modification("video updated")
         trace_out()
-        return not is_error()
+        return video_id
 
     def delete_all_file_groups(self) -> bool:
         trace_in()
@@ -1350,6 +1656,14 @@ class Page:
                 if not self._delete_all_image_groups():
                     warn(f"Failed to delete image_groups for page {self.id}")
                     report_error("action", f"Failed to delete image_groups for page {self.id}")
+            if hasattr(self, '_delete_all_audio_groups'):
+                if not self._delete_all_audio_groups():
+                    warn(f"Failed to delete audio_groups for page {self.id}")
+                    report_error("action", f"Failed to delete audio_groups for page {self.id}")
+            if hasattr(self, '_delete_all_video_groups'):
+                if not self._delete_all_video_groups():
+                    warn(f"Failed to delete video_groups for page {self.id}")
+                    report_error("action", f"Failed to delete video_groups for page {self.id}")
         if not is_error():
             # Call hook to clean up class-specific data before deleting
             self._delete_page_class_information()
@@ -1752,127 +2066,102 @@ class Page:
                 report_error("backend", f"Failed to load images: {str(e)}")
         self.images = images_data
         # Only flag cache refresh if we actually found images (data changed)
-        # If we just confirmed there are no images (empty array), no need to refresh
-        if images_data:
+        if images_data:  # Only flag if actual images were loaded
             self._flag_cache_refresh()
         trace_out()
         return images_data
 
-    def move_images(self, image_instances: List[Dict[str, int]], target_rank: Optional[int] = None) -> bool:
+    def get_audio_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
         trace_in()
-        log(f"Moving {len(image_instances)} specific image instances to page {self.id}")
-        
-        # Record original count before moving
-        original_count = len(self.get_images_data())
-        
-        moved_count = 0
-        source_pages_affected = set()
-        for instance in image_instances:
-            image_id = instance['image_id']
-            source_page_id = instance['source_page_id']
-            source_rank = instance['source_rank']
-            if not is_error():
-                # Verify the specific instance exists
+        # If rebuild flag is set, clear the cache to force a rebuild
+        if rebuild:
+            self.audio = []
+        # Check if field is already populated
+        if hasattr(self, 'audio') and self.audio:
+            debug(f"Page {self.id}: returning cached audio")
+            trace_out()
+            return self.audio
+        # Field is empty, need to hydrate from database
+        audio_data = []
+        if not is_error():
+            try:
+                from hh.audio.audio_registry import get_audio
                 results = self.gateway.conn.read("""
-                    SELECT COUNT(*) as count FROM image_groups 
-                    WHERE page_id = %s AND image_id = %s AND image_rank = %s
-                """, (source_page_id, image_id, source_rank))
-                if not results or results[0]['count'] == 0:
-                    warn(f"Image {image_id} (rank {source_rank}) not found in source page {source_page_id}")
-                    continue
-                # Remove this specific instance from source page
-                affected = self.gateway.conn.delete("""
-                    DELETE FROM image_groups 
-                    WHERE page_id = %s AND image_id = %s AND image_rank = %s
-                """, (source_page_id, image_id, source_rank))
-                if affected == 0:
-                    warn(f"Failed to remove image {image_id} (rank {source_rank}) from source page {source_page_id}")
-                    continue
-                self._flag_related_image(image_id, f"removed from page {source_page_id}")
-                # Add to this page
-                if self._add_image_to_group(image_id):
-                    moved_count += 1
-                    source_pages_affected.add(source_page_id)
-                    log(f"Successfully moved image {image_id} (rank {source_rank}) from page {source_page_id} to page {self.id}")
-                else:
-                    warn(f"Failed to move image {image_id} (rank {source_rank}) to page {self.id}")
-        # Reorder remaining images in all affected source pages using the same connection
-        if not is_error() and moved_count > 0:
-            for source_page_id in source_pages_affected:
-                source_page = get_page(page_id=source_page_id)
-                if source_page:
-                    if not source_page.reorder_images():
-                        warn(f"Failed to reorder images in source page {source_page_id}")
-                        report_error("action", f"Failed to reorder images in source page {source_page_id}")
-                    # Rebuild source page hot cache immediately
-                    source_page.get_images_data(rebuild=True)
-                else:
-                    warn(f"Failed to load source page {source_page_id} for reordering")
-                    report_error("action", f"Failed to load source page {source_page_id}")
-        
-        # Set ranks if target_rank is specified
-        if not is_error() and target_rank is not None and moved_count > 0:
-            log(f"Setting ranks starting from {target_rank}")
-            
-            for i, instance in enumerate(image_instances):
-                image_id = instance['image_id']
-                target_rank_for_image = target_rank + i
-                # We know exactly where we placed this image
-                old_rank = original_count + i + 1
-                
-                log(f"Setting image {image_id} from rank {old_rank} to rank {target_rank_for_image}")
-                success = self.set_image_rank(image_id, old_rank, target_rank_for_image)
-                if not success:
-                    warn(f"Failed to set image {image_id} rank to {target_rank_for_image}")
-                    report_error("action", f"Failed to set image {image_id} rank to {target_rank_for_image}")
-        
-        log(f"Successfully moved {moved_count} image instances to page {self.id}")
-        if not is_error() and moved_count > 0:
-            # Rebuild hot cache immediately with the moved images
-            self.get_images_data(rebuild=True)
-            self.flag_page_modification("images updated")
+                    SELECT a.id, ag.audio_rank 
+                    FROM audio_groups ag 
+                    JOIN audio a ON ag.audio_id = a.id 
+                    WHERE ag.page_id = %s 
+                    ORDER BY ag.audio_rank
+                """, [self.id])
+                for row in results:
+                    audio_id = row['id']
+                    audio_rank = row['audio_rank']
+                    audio = get_audio(audio_id)
+                    if audio:
+                        # Ensure instances are fully loaded before getting audio_data
+                        audio.get_instances()
+                        audio_data_item = audio.get_audio_data()
+                        audio_data_item['audio_rank'] = audio_rank  # Add rank from audio_groups
+                        audio_data.append(audio_data_item)
+                        log(f"Loaded audio {audio_id} (rank {audio_rank}): {audio_data_item.get('caption', 'untitled')}")
+                    else:
+                        warn(f"Failed to load audio {audio_id}")
+                log(f"Loaded {len(audio_data)} audio for page {self.id}")
+            except Exception as e:
+                warn(f"Failed to load audio for page {self.id}: {str(e)}")
+                report_error("backend", f"Failed to load audio: {str(e)}")
+        self.audio = audio_data
+        # Only flag cache refresh if we actually found audio (data changed)
+        if audio_data:  # Only flag if actual audio were loaded
+            self._flag_cache_refresh()
         trace_out()
-        return not is_error()
+        return audio_data
 
-    def remove_image(self, image_id: int, image_rank: int) -> bool:
+    def get_video_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
         trace_in()
-        log(f"Removing image {image_id} (rank {image_rank}) from page {self.id}")
+        # If rebuild flag is set, clear the cache to force a rebuild
+        if rebuild:
+            self.video = []
+        # Check if field is already populated
+        if hasattr(self, 'video') and self.video:
+            debug(f"Page {self.id}: returning cached video")
+            trace_out()
+            return self.video
+        # Field is empty, need to hydrate from database
+        video_data = []
         if not is_error():
-            # Remove from image_groups table
-            affected = self.gateway.conn.delete("""
-                DELETE FROM image_groups 
-                WHERE page_id = %s AND image_id = %s AND image_rank = %s
-            """, (self.id, image_id, image_rank))
-            if affected == 0:
-                warn(f"Failed to remove image {image_id} (rank {image_rank}) from page {self.id}")
-                report_error("action", f"Failed to remove image {image_id} (rank {image_rank})")
-            # Reorder remaining images in this page
-            if not is_error() and not self.reorder_images():
-                warn(f"Failed to reorder images after removing image {image_id}")
-                report_error("action", f"Failed to reorder images after removal")
-            # Rebuild hot cache immediately without the removed image
-            self.get_images_data(rebuild=True)
-        # Check if image should be deleted (no longer used by any pages)
-        if not is_error():
-            image = get_image(image_id)
-            if image:
-                usage_count = image.get_usage_count()
-                if usage_count == 0:
-                    log(f"Image {image_id} no longer used by any pages, deleting from database")
-                    if not image.delete_from_database():
-                        warn(f"Failed to delete unused image {image_id}")
-                        report_error("action", f"Failed to delete unused image {image_id}")
-                else:
-                    log(f"Image {image_id} still used by {usage_count} pages, keeping in database")
-            else:
-                warn(f"Failed to load image {image_id} for usage check")
-                report_error("action", f"Failed to load image {image_id}")
-        if not is_error():
-            log(f"Successfully removed image {image_id} (rank {image_rank}) from page {self.id}")
-            self.flag_page_modification("images updated")
-            self._flag_related_image(image_id, f"removed from page {self.id}")
+            try:
+                from hh.video.video_registry import get_video
+                results = self.gateway.conn.read("""
+                    SELECT v.id, vg.video_rank 
+                    FROM video_groups vg 
+                    JOIN video v ON vg.video_id = v.id 
+                    WHERE vg.page_id = %s 
+                    ORDER BY vg.video_rank
+                """, [self.id])
+                for row in results:
+                    video_id = row['id']
+                    video_rank = row['video_rank']
+                    video = get_video(video_id)
+                    if video:
+                        # Ensure instances are fully loaded before getting video_data
+                        video.get_instances()
+                        video_data_item = video.get_video_data()
+                        video_data_item['video_rank'] = video_rank  # Add rank from video_groups
+                        video_data.append(video_data_item)
+                        log(f"Loaded video {video_id} (rank {video_rank}): {video_data_item.get('caption', 'untitled')}")
+                    else:
+                        warn(f"Failed to load video {video_id}")
+                log(f"Loaded {len(video_data)} video for page {self.id}")
+            except Exception as e:
+                warn(f"Failed to load video for page {self.id}: {str(e)}")
+                report_error("backend", f"Failed to load video: {str(e)}")
+        self.video = video_data
+        # Only flag cache refresh if we actually found video (data changed)
+        if video_data:  # Only flag if actual video were loaded
+            self._flag_cache_refresh()
         trace_out()
-        return not is_error()
+        return video_data
 
     def reorder_images(self) -> bool:
         trace_in()
@@ -1906,177 +2195,6 @@ class Page:
         trace_out()
         return not is_error()
 
-    def set_image_rank(self, image_id: int, current_rank: int, new_rank: int) -> bool:
-        trace_in()
-        log(f"Setting image {image_id} rank from {current_rank} to {new_rank} in page {self.id}")
-        # Validate new_rank is positive integer
-        if new_rank <= 0:
-            warn(f"Invalid image rank: {new_rank} (must be positive)")
-            report_error("action", f"Invalid image rank: {new_rank} (must be positive)")
-            trace_out()
-            return False
-        # Check if no update needed
-        if new_rank == current_rank:
-            log("Image rank unchanged, no update needed")
-            trace_out()
-            return True
-            
-        if not is_error():
-            # Step 1: Delete the target row
-            affected = self.gateway.conn.delete("""
-                DELETE FROM image_groups 
-                WHERE page_id = %s AND image_id = %s AND image_rank = %s
-            """, (self.id, image_id, current_rank))
-            if affected == 0:
-                warn(f"Failed to delete image {image_id} at rank {current_rank}")
-                report_error("action", f"Failed to delete image {image_id} at rank {current_rank}")
-                trace_out()
-                return False
-            
-            # Step 2: Determine direction and reflow other images
-            if new_rank < current_rank:
-                # Moving up: scoot items DOWN (increase ranks) from current_rank-1 to new_rank (backwards)
-                log(f"Moving up: scooting items down from rank {current_rank-1} to {new_rank}")
-                for rank in range(current_rank - 1, new_rank - 1, -1):
-                    # Get the image_id at this rank
-                    results = self.gateway.conn.read("""
-                        SELECT image_id FROM image_groups 
-                        WHERE page_id = %s AND image_rank = %s
-                    """, (self.id, rank))
-                    if results:
-                        img_id = results[0]['image_id']
-                        affected = self.gateway.conn.update("""
-                            UPDATE image_groups 
-                            SET image_rank = image_rank + 1 
-                            WHERE page_id = %s AND image_id = %s AND image_rank = %s
-                        """, (self.id, img_id, rank))
-                        if affected == 0:
-                            warn(f"Failed to scoot down rank {rank}")
-                            report_error("action", f"Failed to scoot down rank {rank}")
-            else:
-                # Moving down: scoot items UP (decrease ranks) from current_rank+1 to new_rank (forwards)
-                log(f"Moving down: scooting items up from rank {current_rank+1} to {new_rank}")
-                for rank in range(current_rank + 1, new_rank + 1):
-                    # Get the image_id at this rank
-                    results = self.gateway.conn.read("""
-                        SELECT image_id FROM image_groups 
-                        WHERE page_id = %s AND image_rank = %s
-                    """, (self.id, rank))
-                    if results:
-                        img_id = results[0]['image_id']
-                        affected = self.gateway.conn.update("""
-                            UPDATE image_groups 
-                            SET image_rank = image_rank - 1 
-                            WHERE page_id = %s AND image_id = %s AND image_rank = %s
-                        """, (self.id, img_id, rank))
-                        if affected == 0:
-                            warn(f"Failed to scoot up rank {rank}")
-                            report_error("action", f"Failed to scoot up rank {rank}")
-            
-            # Step 3: Insert new row with desired rank
-            if not is_error():
-                affected = self.gateway.conn.update("""
-                    INSERT INTO image_groups (page_id, image_id, image_rank) 
-                    VALUES (%s, %s, %s)
-                """, (self.id, image_id, new_rank))
-                if affected == 0:
-                    warn(f"Failed to insert image {image_id} at rank {new_rank}")
-                    report_error("action", f"Failed to insert image {image_id} at rank {new_rank}")
-            
-            if not is_error():
-                log(f"Successfully reordered image {image_id} to rank {new_rank} in page {self.id}")
-                # Rebuild hot cache immediately with updated ranks
-                self.get_images_data(rebuild=True)
-        
-        if not is_error():
-            self.flag_page_modification("images updated")
-        trace_out()
-        return not is_error()
-
-    def move_files(
-        self,
-        file_instances: List[Dict[str, int]],
-        target_rank: Optional[int] = None,
-    ) -> bool:
-        trace_in()
-        if not file_instances:
-            trace_out()
-            return True
-
-        original_count = len(self.get_files_data())
-        moved_count = 0
-        source_pages = set()
-        for instance in file_instances:
-            if is_error():
-                break
-            file_id = instance["file_id"]
-            source_page_id = instance["source_page_id"]
-            source_rank = instance["source_rank"]
-
-            affected = self.gateway.conn.delete(
-                """
-                DELETE FROM file_groups
-                WHERE page_id = %s AND file_id = %s AND file_rank = %s
-                """,
-                (source_page_id, file_id, source_rank),
-            )
-            if affected == 0:
-                warn(f"Failed to remove file {file_id} from page {source_page_id}")
-                continue
-
-            source_pages.add(source_page_id)
-            if self._add_file_to_group(file_id):
-                moved_count += 1
-                self._flag_related_file(file_id, f"moved to page {self.id}")
-
-        if not is_error():
-            for page_id in source_pages:
-                source_page = get_page(page_id=page_id)
-                if source_page:
-                    source_page.reorder_files()
-                    # Rebuild source page hot cache immediately
-                    source_page.get_files_data(rebuild=True)
-
-        if not is_error() and target_rank is not None and moved_count > 0:
-            for i, instance in enumerate(file_instances[:moved_count]):
-                file_id = instance["file_id"]
-                self.set_file_rank(file_id, original_count + i + 1, target_rank + i)
-
-        if not is_error() and moved_count > 0:
-            self.get_files_data(rebuild=True)
-            self.flag_page_modification("files updated")
-        trace_out()
-        return not is_error()
-
-    def remove_file(self, file_id: int, file_rank: int) -> bool:
-        trace_in()
-        if not is_error():
-            affected = self.gateway.conn.delete(
-                """
-                DELETE FROM file_groups
-                WHERE page_id = %s AND file_id = %s AND file_rank = %s
-                """,
-                (self.id, file_id, file_rank),
-            )
-            if affected == 0:
-                warn(f"Failed to remove file {file_id} from page {self.id}")
-                report_error("action", f"Failed to remove file {file_id}")
-        if not is_error() and not self.reorder_files():
-            trace_out()
-            return False
-        if not is_error():
-            usage = self._get_file_usage_count(file_id)
-            if usage == 0:
-                file_obj = get_file(file_id=file_id)
-                if file_obj:
-                    file_obj.delete_from_database()
-            self._flag_related_file(file_id, f"removed from page {self.id}")
-            # Rebuild hot cache immediately without the removed file
-            self.get_files_data(rebuild=True)
-            self.flag_page_modification("files updated")
-        trace_out()
-        return not is_error()
-
     def reorder_files(self) -> bool:
         trace_in()
         try:
@@ -2102,54 +2220,6 @@ class Page:
         except Exception as exc:  # noqa: BLE001
             warn(f"Failed to reorder files for page {self.id}: {exc}")
             report_error("action", f"Failed to reorder files for page {self.id}")
-        if not is_error():
-            self.get_files_data(rebuild=True)
-            self.flag_page_modification("files updated")
-        trace_out()
-        return not is_error()
-
-    def set_file_rank(self, file_id: int, current_rank: int, new_rank: int) -> bool:
-        trace_in()
-        if new_rank <= 0:
-            warn(f"Invalid file rank: {new_rank}")
-            report_error("action", f"Invalid file rank: {new_rank}")
-            trace_out()
-            return False
-
-        if is_error():
-            trace_out()
-            return False
-
-        rows = self.gateway.conn.read(
-            """
-            SELECT file_id
-            FROM file_groups
-            WHERE page_id = %s
-            ORDER BY file_rank
-            """,
-            [self.id],
-        )
-        order = [row["file_id"] for row in rows]
-        if file_id not in order:
-            warn(f"File {file_id} not found in page {self.id}")
-            report_error("action", f"File {file_id} not found in this page")
-            trace_out()
-            return False
-
-        order.remove(file_id)
-        target_index = max(0, min(new_rank - 1, len(order)))
-        order.insert(target_index, file_id)
-
-        for idx, fid in enumerate(order, start=1):
-            self.gateway.conn.update(
-                """
-                UPDATE file_groups
-                SET file_rank = %s
-                WHERE page_id = %s AND file_id = %s
-                """,
-                (idx, self.id, fid),
-            )
-
         if not is_error():
             self.get_files_data(rebuild=True)
             self.flag_page_modification("files updated")
@@ -2186,6 +2256,231 @@ class Page:
                 if new_parent:
                     new_parent.flag_page_modification("child moved in")
             log(f"Successfully moved page {self.id} to parent {target_page_id}")
+        trace_out()
+        return not is_error()
+
+    def move_media_items(self, media_type: str, item_instances: List[Dict[str, int]], target_rank: Optional[int] = None) -> bool:
+        """
+        Generalized method to move media items (images, audio, video, files) from source pages to this page.
+        
+        Args:
+            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
+            item_instances: List of dicts with keys: {media_type}_id, source_page_id, source_rank
+            target_rank: Optional target rank to insert at (1-based)
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        trace_in()
+        media_type = self._validate_media_type(media_type)
+        if is_error():
+            trace_out()
+            return False
+        
+        if not item_instances:
+            trace_out()
+            return True
+        
+        log(f"Moving {len(item_instances)} {media_type} instances to page {self.id}")
+        
+        # Get helper methods and field names
+        get_data_method = self._get_media_data_method(media_type)
+        add_to_group_method = self._get_add_to_group_method(media_type)
+        reorder_method = self._get_reorder_method(media_type)
+        table_name = self._get_media_table_name(media_type)
+        id_field = self._get_media_id_field(media_type)
+        rank_field = self._get_media_rank_field(media_type)
+        
+        if not get_data_method or not add_to_group_method or not reorder_method:
+            warn(f"Required methods not found for media type {media_type}")
+            report_error("action", f"Media type {media_type} not fully supported")
+            trace_out()
+            return False
+        
+        # Record original count before moving
+        original_count = len(get_data_method())
+        
+        moved_count = 0
+        source_pages_affected = set()
+        for instance in item_instances:
+            if is_error():
+                break
+            
+            item_id = instance[id_field]
+            source_page_id = instance["source_page_id"]
+            source_rank = instance["source_rank"]
+            
+            if not is_error():
+                # Verify the specific instance exists
+                results = self.gateway.conn.read(f"""
+                    SELECT COUNT(*) as count FROM {table_name} 
+                    WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+                """, (source_page_id, item_id, source_rank))
+                if not results or results[0]['count'] == 0:
+                    warn(f"{media_type.capitalize()} {item_id} (rank {source_rank}) not found in source page {source_page_id}")
+                    continue
+                
+                # Remove this specific instance from source page
+                affected = self.gateway.conn.delete(f"""
+                    DELETE FROM {table_name} 
+                    WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+                """, (source_page_id, item_id, source_rank))
+                if affected == 0:
+                    warn(f"Failed to remove {media_type} {item_id} (rank {source_rank}) from source page {source_page_id}")
+                    continue
+                
+                # Flag related item if method exists
+                flag_method = self._get_flag_related_method(media_type)
+                if flag_method:
+                    flag_method(item_id, f"removed from page {source_page_id}")
+                
+                # Add to this page
+                if add_to_group_method(item_id):
+                    moved_count += 1
+                    source_pages_affected.add(source_page_id)
+                    log(f"Successfully moved {media_type} {item_id} (rank {source_rank}) from page {source_page_id} to page {self.id}")
+                    if flag_method:
+                        flag_method(item_id, f"moved to page {self.id}")
+                else:
+                    warn(f"Failed to move {media_type} {item_id} (rank {source_rank}) to page {self.id}")
+        
+        # Reorder remaining items in all affected source pages
+        if not is_error() and moved_count > 0:
+            for source_page_id in source_pages_affected:
+                source_page = get_page(page_id=source_page_id)
+                if source_page:
+                    source_reorder_method = source_page._get_reorder_method(media_type)
+                    if source_reorder_method:
+                        if not source_reorder_method():
+                            warn(f"Failed to reorder {media_type}s in source page {source_page_id}")
+                            report_error("action", f"Failed to reorder {media_type}s in source page {source_page_id}")
+                        # Rebuild source page hot cache immediately
+                        source_get_data_method = source_page._get_media_data_method(media_type)
+                        if source_get_data_method:
+                            source_get_data_method(rebuild=True)
+                else:
+                    warn(f"Failed to load source page {source_page_id} for reordering")
+                    report_error("action", f"Failed to load source page {source_page_id}")
+        
+        # Set ranks if target_rank is specified
+        if not is_error() and target_rank is not None and moved_count > 0:
+            log(f"Setting ranks starting from {target_rank}")
+            for i, instance in enumerate(item_instances[:moved_count]):
+                item_id = instance[id_field]
+                target_rank_for_item = target_rank + i
+                # We know exactly where we placed this item
+                old_rank = original_count + i + 1
+                
+                log(f"Setting {media_type} {item_id} from rank {old_rank} to rank {target_rank_for_item}")
+                success = self.set_media_rank(media_type, item_id, old_rank, target_rank_for_item)
+                if not success:
+                    warn(f"Failed to set {media_type} {item_id} rank to {target_rank_for_item}")
+                    report_error("action", f"Failed to set {media_type} {item_id} rank to {target_rank_for_item}")
+        
+        log(f"Successfully moved {moved_count} {media_type} instances to page {self.id}")
+        if not is_error() and moved_count > 0:
+            # Rebuild hot cache immediately with the moved items
+            get_data_method(rebuild=True)
+            self.flag_page_modification(f"{media_type}s updated")
+        
+        trace_out()
+        return not is_error()
+
+    def remove_media_item(self, media_type: str, item_id: int, item_rank: int) -> bool:
+        """
+        Generalized method to remove a media item (image, audio, video, file) from this page.
+        
+        Args:
+            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
+            item_id: ID of the item to remove
+            item_rank: Rank of the item to remove (1-based)
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        trace_in()
+        media_type = self._validate_media_type(media_type)
+        if is_error():
+            trace_out()
+            return False
+        
+        log(f"Removing {media_type} {item_id} (rank {item_rank}) from page {self.id}")
+        
+        # Get helper methods and field names
+        get_data_method = self._get_media_data_method(media_type)
+        reorder_method = self._get_reorder_method(media_type)
+        table_name = self._get_media_table_name(media_type)
+        id_field = self._get_media_id_field(media_type)
+        rank_field = self._get_media_rank_field(media_type)
+        
+        if not get_data_method or not reorder_method:
+            warn(f"Required methods not found for media type {media_type}")
+            report_error("action", f"Media type {media_type} not fully supported")
+            trace_out()
+            return False
+        
+        if not is_error():
+            # Remove from groups table
+            affected = self.gateway.conn.delete(f"""
+                DELETE FROM {table_name} 
+                WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+            """, (self.id, item_id, item_rank))
+            if affected == 0:
+                warn(f"Failed to remove {media_type} {item_id} (rank {item_rank}) from page {self.id}")
+                report_error("action", f"Failed to remove {media_type} {item_id} (rank {item_rank})")
+            
+            # Reorder remaining items in this page
+            if not is_error() and not reorder_method():
+                warn(f"Failed to reorder {media_type}s after removing {media_type} {item_id}")
+                report_error("action", f"Failed to reorder {media_type}s after removal")
+            
+            # Rebuild hot cache immediately without the removed item
+            get_data_method(rebuild=True)
+        
+        # Check if item should be deleted (no longer used by any pages)
+        if not is_error():
+            # Get usage count method if it exists
+            usage_count_method = self._get_usage_count_method(media_type)
+            if usage_count_method:
+                usage_count = usage_count_method(item_id)
+                if usage_count == 0:
+                    log(f"{media_type.capitalize()} {item_id} no longer used by any pages, deleting from database")
+                    # Import and delete the item object
+                    if media_type == "image":
+                        from hh.image.image_registry import get_image
+                        image_obj = get_image(item_id)
+                        if image_obj and hasattr(image_obj, 'delete_from_database'):
+                            if not image_obj.delete_from_database():
+                                warn(f"Failed to delete unused {media_type} {item_id}")
+                                report_error("action", f"Failed to delete unused {media_type} {item_id}")
+                    elif media_type == "file":
+                        from hh.file.file_registry import get_file
+                        file_obj = get_file(file_id=item_id)
+                        if file_obj and hasattr(file_obj, 'delete_from_database'):
+                            file_obj.delete_from_database()
+                    # Audio/video deletion would go here when implemented
+                else:
+                    log(f"{media_type.capitalize()} {item_id} still used by {usage_count} pages, keeping in database")
+            else:
+                # For types without usage count method, try to load and delete if possible
+                if media_type == "image":
+                    from hh.image.image_registry import get_image
+                    image_obj = get_image(item_id)
+                    if image_obj:
+                        usage_count = image_obj.get_usage_count() if hasattr(image_obj, 'get_usage_count') else 1
+                        if usage_count == 0 and hasattr(image_obj, 'delete_from_database'):
+                            if not image_obj.delete_from_database():
+                                warn(f"Failed to delete unused {media_type} {item_id}")
+                                report_error("action", f"Failed to delete unused {media_type} {item_id}")
+        
+        if not is_error():
+            log(f"Successfully removed {media_type} {item_id} (rank {item_rank}) from page {self.id}")
+            self.flag_page_modification(f"{media_type}s updated")
+            # Flag related item if method exists
+            flag_method = self._get_flag_related_method(media_type)
+            if flag_method:
+                flag_method(item_id, f"removed from page {self.id}")
+        
         trace_out()
         return not is_error()
 
@@ -2380,6 +2675,163 @@ class Page:
         result = self._write_metadata_dict(metadata)
         trace_out()
         return result
+
+    def set_media_rank(self, media_type: str, item_id: int, current_rank: int, new_rank: int) -> bool:
+        """
+        Generalized method to set the rank of a media item (image, audio, video, file) within this page.
+        Uses hybrid approach: efficient delete-and-reflow for single moves, then verifies sequential ranks.
+        
+        Args:
+            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
+            item_id: ID of the item to reorder
+            current_rank: Current rank of the item (1-based)
+            new_rank: Desired new rank of the item (1-based)
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        trace_in()
+        media_type = self._validate_media_type(media_type)
+        if is_error():
+            trace_out()
+            return False
+        
+        log(f"Setting {media_type} {item_id} rank from {current_rank} to {new_rank} in page {self.id}")
+        
+        # Validate new_rank is positive integer
+        if new_rank <= 0:
+            warn(f"Invalid {media_type} rank: {new_rank} (must be positive)")
+            report_error("action", f"Invalid {media_type} rank: {new_rank} (must be positive)")
+            trace_out()
+            return False
+        
+        # Check if no update needed
+        if new_rank == current_rank:
+            log(f"{media_type.capitalize()} rank unchanged, no update needed")
+            trace_out()
+            return True
+        
+        # Get helper methods and field names
+        get_data_method = self._get_media_data_method(media_type)
+        reorder_method = self._get_reorder_method(media_type)
+        table_name = self._get_media_table_name(media_type)
+        id_field = self._get_media_id_field(media_type)
+        rank_field = self._get_media_rank_field(media_type)
+        
+        if not get_data_method or not reorder_method:
+            warn(f"Required methods not found for media type {media_type}")
+            report_error("action", f"Media type {media_type} not fully supported")
+            trace_out()
+            return False
+        
+        if not is_error():
+            # Step 1: Delete the target row
+            affected = self.gateway.conn.delete(f"""
+                DELETE FROM {table_name} 
+                WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+            """, (self.id, item_id, current_rank))
+            if affected == 0:
+                warn(f"Failed to delete {media_type} {item_id} at rank {current_rank}")
+                report_error("action", f"Failed to delete {media_type} {item_id} at rank {current_rank}")
+                trace_out()
+                return False
+            
+            # Step 2: Determine direction and reflow other items
+            if new_rank < current_rank:
+                # Moving up: scoot items DOWN (increase ranks) from current_rank-1 to new_rank (backwards)
+                log(f"Moving up: scooting items down from rank {current_rank-1} to {new_rank}")
+                for rank in range(current_rank - 1, new_rank - 1, -1):
+                    # Get the item_id at this rank
+                    results = self.gateway.conn.read(f"""
+                        SELECT {id_field} FROM {table_name} 
+                        WHERE page_id = %s AND {rank_field} = %s
+                    """, (self.id, rank))
+                    if results:
+                        other_item_id = results[0][id_field]
+                        affected = self.gateway.conn.update(f"""
+                            UPDATE {table_name} 
+                            SET {rank_field} = {rank_field} + 1 
+                            WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+                        """, (self.id, other_item_id, rank))
+                        if affected == 0:
+                            warn(f"Failed to scoot down rank {rank}")
+                            report_error("action", f"Failed to scoot down rank {rank}")
+            else:
+                # Moving down: scoot items UP (decrease ranks) from current_rank+1 to new_rank (forwards)
+                log(f"Moving down: scooting items up from rank {current_rank+1} to {new_rank}")
+                for rank in range(current_rank + 1, new_rank + 1):
+                    # Get the item_id at this rank
+                    results = self.gateway.conn.read(f"""
+                        SELECT {id_field} FROM {table_name} 
+                        WHERE page_id = %s AND {rank_field} = %s
+                    """, (self.id, rank))
+                    if results:
+                        other_item_id = results[0][id_field]
+                        affected = self.gateway.conn.update(f"""
+                            UPDATE {table_name} 
+                            SET {rank_field} = {rank_field} - 1 
+                            WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+                        """, (self.id, other_item_id, rank))
+                        if affected == 0:
+                            warn(f"Failed to scoot up rank {rank}")
+                            report_error("action", f"Failed to scoot up rank {rank}")
+            
+            # Step 3: Insert new row with desired rank
+            if not is_error():
+                new_id = self.gateway.conn.create(f"""
+                    INSERT INTO {table_name} (page_id, {id_field}, {rank_field}) 
+                    VALUES (%s, %s, %s)
+                """, (self.id, item_id, new_rank))
+                if new_id is None:
+                    warn(f"Failed to insert {media_type} {item_id} at rank {new_rank}")
+                    report_error("action", f"Failed to insert {media_type} {item_id} at rank {new_rank}")
+            
+            # Step 4: Verify and fix any gaps (ensure sequential ranks 1, 2, 3...)
+            if not is_error():
+                log(f"Verifying sequential ranks for {media_type}s in page {self.id}")
+                # Get all items ordered by current rank
+                results = self.gateway.conn.read(f"""
+                    SELECT {id_field}, {rank_field} FROM {table_name} 
+                    WHERE page_id = %s 
+                    ORDER BY {rank_field}
+                """, [self.id])
+                
+                if results:
+                    # Check if ranks are sequential (1, 2, 3...)
+                    needs_reflow = False
+                    for i, row in enumerate(results, start=1):
+                        if row[rank_field] != i:
+                            needs_reflow = True
+                            break
+                    
+                    # If gaps found, reflow everything to ensure sequential ranks
+                    if needs_reflow:
+                        log(f"Gaps detected in {media_type} ranks, reflowing to ensure sequential order")
+                        for i, row in enumerate(results, start=1):
+                            current_db_rank = row[rank_field]
+                            if current_db_rank != i:
+                                affected = self.gateway.conn.update(f"""
+                                    UPDATE {table_name} 
+                                    SET {rank_field} = %s 
+                                    WHERE page_id = %s AND {id_field} = %s AND {rank_field} = %s
+                                """, (i, self.id, row[id_field], current_db_rank))
+                                if affected == 0:
+                                    warn(f"Failed to reflow {media_type} {row[id_field]} to rank {i}")
+                                    report_error("action", f"Failed to reflow {media_type} {row[id_field]}")
+                        log(f"Successfully reflowed {len(results)} {media_type}s to sequential ranks")
+                    else:
+                        log(f"All {len(results)} {media_type}s already have sequential ranks")
+            
+            if not is_error():
+                log(f"Successfully reordered {media_type} {item_id} to rank {new_rank} in page {self.id}")
+                # Rebuild hot cache immediately with updated ranks
+                get_data_method(rebuild=True)
+        
+        if not is_error():
+            self.flag_page_modification(f"{media_type}s updated")
+        
+        trace_out()
+        return not is_error()
 
     def show_page(self) -> Dict[str, Any]:
         trace_in()
