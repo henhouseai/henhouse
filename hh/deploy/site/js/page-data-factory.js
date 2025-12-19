@@ -6,6 +6,9 @@ import { SourceCodeFilePageData } from './page-classes/source-code-file-page-dat
 import { MCPRequestPageData } from './page-classes/mcp-request-page-data.js';
 import { MCPActionPageData } from './page-classes/mcp-action-page-data.js';
 import { WorkDocketPageData } from './page-classes/work-docket-page-data.js';
+import { AskPageData } from './page-classes/ask-page-data.js';
+import { TaskPageData } from './page-classes/task-page-data.js';
+import { StepPageData } from './page-classes/step-page-data.js';
 export class PageDataFactory {
     /**
      * Create appropriate PageData instance based on page class type.
@@ -22,6 +25,12 @@ export class PageDataFactory {
                 return new MCPActionPageData(data);
             case 'work_docket':
                 return new WorkDocketPageData(data);
+            case 'ask':
+                return new AskPageData(data);
+            case 'task':
+                return new TaskPageData(data);
+            case 'step':
+                return new StepPageData(data);
             default:
                 return new PageData(data);
         }
