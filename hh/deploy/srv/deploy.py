@@ -37,6 +37,7 @@ from hh.deploy.conf.deploy_whitelist import (
     DEPLOY_WHITELIST,
     EXTRA_DEPLOY_FILES,
     FLASK_APP_SOURCE,
+    MEDIA_SERVER_SOURCE,
     MAINTENANCE_APP_SOURCE,
 )
 from hh.deploy.flask.flask_start import run_flask_start
@@ -276,7 +277,7 @@ def deploy() -> bool:
     # Deploy media server Flask app
     if not is_error():
         try:
-            media_source = source / 'flask' / 'media_server.py'
+            media_source = source / MEDIA_SERVER_SOURCE
             if media_source.exists():
                 media_dest = dest / f'{project_name}_media.py'
                 
