@@ -66,11 +66,6 @@ def _collect_file_args(gateway) -> List[dict]:
 def upload_files() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available for upload_files")
-        trace_out()
-        return False
-
     page_id_arg = gateway.get_arg("page_id") or gateway.get_arg("id")
     if not page_id_arg:
         warn("No page ID provided")
@@ -81,6 +76,7 @@ def upload_files() -> bool:
         warn("No files provided for upload")
         report_error("action", "At least one file is required")
 
+    page_id: int = 0
     if not is_error():
         try:
             page_id = int(page_id_arg)
@@ -88,6 +84,7 @@ def upload_files() -> bool:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be an integer")
 
+    page = None
     if not is_error():
         page = get_page(page_id=page_id)
         if not page:
@@ -95,7 +92,7 @@ def upload_files() -> bool:
             report_error("action", f"Page {page_id} not found")
 
     uploaded_ids: List[int] = []
-    if not is_error():
+    if not is_error() and page is not None:
         for idx, file_entry in enumerate(files):
             temp_path = file_entry["temp_path"]
             original_name = file_entry["original_name"]
@@ -114,13 +111,14 @@ def upload_files() -> bool:
                 break
             uploaded_ids.append(new_id)
 
+    updated_page = None
     if not is_error():
         updated_page = get_page(page_id=page_id)
         if not updated_page:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
 
-    if not is_error():
+    if not is_error() and updated_page is not None:
         payload = updated_page.get_page()
         gateway.response.set_action_response(success_payload(payload))
         log(f"Uploaded {len(uploaded_ids)} file(s) to page {page_id}")

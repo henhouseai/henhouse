@@ -7,6 +7,7 @@ from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import get_data
+from typing import Mapping, cast, Any
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,14 +25,10 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def render_summary_section(source_data: Dict[str, Union[str, int]], lines: List[str]) -> None:
+def render_summary_section(source_data: Dict[str, Any], lines: List[str]) -> None:
     trace_in()
     block = 'rows'
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no(block):
         pages_count = source_data.get('pages_count', 0)
         images_count = source_data.get('images_count', 0)
@@ -71,19 +68,20 @@ def render_summary_section(source_data: Dict[str, Union[str, int]], lines: List[
 def count_pages() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
         trace_out()
         return False
-    json_data = gateway.response.get_action_response()
+    action_response = gateway.response.get_action_response()
+    if action_response is None:
+        warn("Action response is None")
+        report_error("backend", "Action response is None")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_count_pages_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(cast(Mapping[str, Any], action_response))
     log("Processing count pages data successfully")
     render_summary_section(source_data, lines)
     result = finalize_output(lines)

@@ -32,7 +32,7 @@ class HtmlTableBuilder:
         self.wrapper_extra_classes = wrapper_extra_classes  # Extra classes for wrapper div
         self.columns: Dict[str, List[str]] = {}  # column_name -> list of cell values
         self.column_order: List[str] = []  # Order of columns
-        self.config = {
+        self.config: Dict[str, Union[str, bool, int, Dict[str, int], Dict[str, str]]] = {
             'columns_order': '',
             'has_header': False,
             'column_widths': {},
@@ -67,17 +67,23 @@ class HtmlTableBuilder:
     
     def set_column_width(self, column: str, width: int) -> 'HtmlTableBuilder':
         """Store column width (not used in Phase 1, stored for future)."""
-        self.config['column_widths'][column] = width
+        col_widths = self.config.get('column_widths')
+        if isinstance(col_widths, dict):
+            col_widths[column] = width  # type: ignore[assignment,index]
         return self
     
     def set_column_overflow(self, column: str, overflow: str) -> 'HtmlTableBuilder':
         """Store column overflow setting (not used in Phase 1, stored for future)."""
-        self.config['column_overflow'][column] = overflow
+        col_overflow = self.config.get('column_overflow')
+        if isinstance(col_overflow, dict):
+            col_overflow[column] = overflow  # type: ignore[assignment,index]
         return self
     
     def set_column_align(self, column: str, align: str) -> 'HtmlTableBuilder':
         """Store column alignment (not used in Phase 1, stored for future)."""
-        self.config['column_align'][column] = align
+        col_align = self.config.get('column_align')
+        if isinstance(col_align, dict):
+            col_align[column] = align  # type: ignore[assignment,index]
         return self
     
     def apply_overrides(self, overrides: Dict[str, Union[str, int, bool]]) -> 'HtmlTableBuilder':
@@ -85,11 +91,15 @@ class HtmlTableBuilder:
         trace_in()
         # Store basic overrides in config
         if 'has_header' in overrides:
-            self.config['has_header'] = overrides['has_header']
+            self.config['has_header'] = bool(overrides['has_header'])
         if 'column_widths' in overrides:
-            self.config['column_widths'].update(overrides['column_widths'])
+            col_widths = self.config.get('column_widths')
+            if isinstance(col_widths, dict) and isinstance(overrides['column_widths'], dict):
+                col_widths.update(overrides['column_widths'])  # type: ignore[arg-type]
         if 'column_align' in overrides:
-            self.config['column_align'].update(overrides['column_align'])
+            col_align = self.config.get('column_align')
+            if isinstance(col_align, dict) and isinstance(overrides['column_align'], dict):
+                col_align.update(overrides['column_align'])  # type: ignore[arg-type]
         log(f"Applied {len(overrides)} overrides")
         trace_out()
         return self
@@ -143,8 +153,9 @@ class HtmlTableBuilder:
             return ""
         
         # Get column order
-        if self.config['columns_order']:
-            column_list = [c.strip() for c in self.config['columns_order'].split(',') if c.strip()]
+        columns_order = self.config.get('columns_order', '')
+        if columns_order and isinstance(columns_order, str):
+            column_list = [c.strip() for c in columns_order.split(',') if c.strip()]
         else:
             column_list = list(self.column_order)
         

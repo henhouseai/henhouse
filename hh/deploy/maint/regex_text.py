@@ -52,14 +52,14 @@ def regex_text() -> bool:
     if not job:
         log("No page_name_update job available")
         gateway.response.set_action_response(
-            success_payload({
-                "operation": "regex_text",
-                "job_id": None,
-                "resolution_id": None,
-                "done": True,
-                "message": "No job available",
-            })
-        )
+                success_payload({
+                    "operation": "regex_text",
+                    "job_id": None,
+                    "resolution_id": None,
+                    "done": True,
+                    "message": "No job available",
+                })
+            )
         trace_out()
         return True
     
@@ -163,7 +163,8 @@ def regex_text_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
         job_id = source_data.get("job_id")
         resolution_id = source_data.get("resolution_id")
         result = source_data.get("result")
@@ -173,7 +174,7 @@ def regex_text_parser() -> bool:
         conn = gateway.conn
         
         # Update job table if we have a job_id
-        if job_id:
+        if job_id and conn:
             if error_occurred:
                 # Set job status to error
                 update_maintenance_job(

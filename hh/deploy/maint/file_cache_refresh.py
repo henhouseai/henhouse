@@ -150,11 +150,12 @@ def file_cache_refresh_action() -> bool:
         error = rebuild_file(stale_file_id)
         files_remaining = count_stale_files()
 
+        error_msg: str | None = error.get("error") if error and isinstance(error, dict) else None
         payload = {
             "operation": "rebuild_file_cache",
             "file_id": stale_file_id,
             "processed": error is None,
-            "error": error,
+            "error": error_msg,
             "files_remaining": files_remaining,
         }
         gateway.response.set_action_response(success_payload(payload))
@@ -180,14 +181,15 @@ def file_cache_refresh_parser() -> bool:
         report_error("backend", "No gateway available")
         trace_out()
         return False
-    if not gateway.response.has_action_response():
+    if not gateway.response or not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
         trace_out()
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data) if json_data else {}
         file_id = source_data.get("file_id")
         processed = source_data.get("processed", False)
         error = source_data.get("error")

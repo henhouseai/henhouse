@@ -77,7 +77,7 @@ def agent_tree() -> bool:
         log(f"Loaded {len(runs)} agent runs for agent {agent_id}")
         for run in runs:
             ensure_iso_timestamps(run, ['started_ts', 'last_heartbeat_ts'])
-        result_data["agent_runs"] = runs
+        result_data["agent_runs"] = runs  # type: ignore[assignment]
         activity_query = """
         SELECT wm.id, wm.kind, wm.content, wm.meta, wm.occurred_ts
         FROM watercooler_messages wm
@@ -95,7 +95,7 @@ def agent_tree() -> bool:
                     activity['meta'] = json.loads(activity['meta'])
                 except:
                     pass
-        result_data["activities"] = activities
+        result_data["activities"] = activities  # type: ignore[assignment]
         subscriptions_query = """
         WITH agent_subscriptions AS (
             SELECT %s as agent_id
@@ -160,7 +160,7 @@ def agent_tree() -> bool:
         log(f"Loaded {len(subscriptions)} subscriptions for agent {agent_id}")
         for sub in subscriptions:
             ensure_iso_timestamps(sub, [])
-        result_data["subscriptions"] = subscriptions
+        result_data["subscriptions"] = subscriptions  # type: ignore[assignment]
         linked_items_query = """
         WITH agent_linked_items AS (
             SELECT %s as agent_id
@@ -241,7 +241,7 @@ def agent_tree() -> bool:
                     item['meta'] = json.loads(item['meta'])
                 except:
                     pass
-        result_data["linked_items"] = linked_items
+        result_data["linked_items"] = linked_items  # type: ignore[assignment]
         state_query = """
         SELECT mode, latch, fail_count, last_cycle_ts, last_validation_json
         FROM agent_runtime_state

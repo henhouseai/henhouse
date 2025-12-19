@@ -68,11 +68,11 @@ class TrainingMatrix:
                 data = self._parse_versioned_json(config_file.read_text(encoding="utf-8"))
                 role = data.get("role")
                 gates = data.get("gates", [])
-                if role not in role_docs:
+                if role is not None and role not in role_docs:
                     role_docs[role] = []
                 for gate in gates:
                     doc_path = gate.get("doc_path", "")
-                    if doc_path:
+                    if doc_path and role is not None:
                         all_docs.setdefault(doc_path, {"path": doc_path, "filename": Path(doc_path).name})
                         role_docs[role].append(doc_path)
             except Exception as e:

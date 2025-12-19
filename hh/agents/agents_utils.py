@@ -86,7 +86,7 @@ def render_subscription_details(subscriptions: List[SubscriptionInfo], lines: Li
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         subscriptions = subscriptions or []
         debug(f"After null check, subscriptions type: {type(subscriptions)}, length: {len(subscriptions) if subscriptions is not None else 'None'}")
@@ -131,7 +131,7 @@ def render_linked_items_details(linked_items: List[LinkedItemInfo], lines: List[
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         linked_items = linked_items or []
         debug(f"After null check, linked_items type: {type(linked_items)}, length: {len(linked_items) if linked_items is not None else 'None'}")
@@ -155,12 +155,13 @@ def render_linked_items_details(linked_items: List[LinkedItemInfo], lines: List[
                 occurred_ts = item.get('occurred_ts', '')
                 if occurred_ts:
                     try:
-                        dt = datetime.fromisoformat(occurred_ts.replace('Z', '+00:00'))
+                        occurred_ts_str = str(occurred_ts)
+                        dt = datetime.fromisoformat(occurred_ts_str.replace('Z', '+00:00'))
                         timestamp_value = dt.strftime('%Y-%m-%d %H:%M:%S')
                         log(f"Formatted timestamp: {occurred_ts} -> {timestamp_value}")
                     except:
                         log(f"Failed to parse timestamp: {occurred_ts}, using original")
-                        timestamp_value = occurred_ts
+                        timestamp_value = str(occurred_ts) if occurred_ts is not None else 'Unknown'
                 else:
                     timestamp_value = 'Unknown'
             
@@ -189,7 +190,7 @@ def render_activity_details(activities: List[ActivityInfo], lines: List[str], bl
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         activities = activities or []
         debug(f"After null check, activities type: {type(activities)}, length: {len(activities) if activities is not None else 'None'}")
@@ -233,10 +234,21 @@ def render_activity_details(activities: List[ActivityInfo], lines: List[str], bl
                 meta = activity.get('meta')
                 if meta is not None:
                     log("Rendering activity meta block")
-                    lines.append(render_block(
-                        meta,
-                        block_type='meta'
-                    ))
+                    if isinstance(meta, TableData):
+                        lines.append(render_block(
+                            meta,
+                            block_type='meta'
+                        ))
+                    else:
+                        # Convert dict to TableData if needed
+                        meta_table = TableData()
+                        if isinstance(meta, dict):
+                            for key, value in meta.items():
+                                meta_table.add_row(key, value=str(value))
+                            lines.append(render_block(
+                                meta_table,
+                                block_type='meta'
+                            ))
                 else:
                     log("No meta data to render for activity")
             break_section(lines)

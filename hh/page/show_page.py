@@ -31,30 +31,26 @@ def _initialize_debug():
 def show_page() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     # HTTP backend - use show_page logic
     if not gateway.is_set('id') and not gateway.is_set('name') and not gateway.is_set('link'):
         warn("No page identifier provided")
         report_error("action", "Page ID, name, or link is required")
+    page = None
+    page_id: int | None = None
+    search_term: str | None = None
     if not is_error():
-        page = None
-        page_id = gateway.get_arg('id')
+        page_id_arg = gateway.get_arg('id')
         page_name = gateway.get_arg('name')
         page_link = gateway.get_arg('link')
-        search_term = None
         # Determine which parameter was provided
-        if page_id:
-            log(f"Using page ID: {page_id}")
+        if page_id_arg:
+            log(f"Using page ID: {page_id_arg}")
             try:
-                page_id = int(page_id)
+                page_id = int(page_id_arg)
             except ValueError:
-                warn(f"Invalid page ID: {page_id}")
+                warn(f"Invalid page ID: {page_id_arg}")
                 report_error("action", "Page ID must be a number")
-            if not is_error():
+            if not is_error() and page_id is not None:
                 page = get_page(page_id=page_id)
                 if not page:
                     warn(f"Page {page_id} not found")
@@ -68,11 +64,11 @@ def show_page() -> bool:
                 warn(f"No page found with name/link: {search_term}")
                 report_error("action", f"No page found with name/link: {search_term}")
 
-    if not is_error():
+    if not is_error() and page is not None:
         response_data = page.show_page()
         gateway.response.set_action_response(success_payload(response_data))
         # Seed page basics in one combined payload (avoid overwriting)
-        resolved_id = page_id if page_id else getattr(page, 'id', None)
+        resolved_id = page_id if page_id is not None else getattr(page, 'id', None)
         page_block = (response_data or {}).get('page') or {}
         page_title = page_block.get('title') or page_block.get('name')
         seed_payload = {'page': {'id': str(resolved_id) if resolved_id else ''}}

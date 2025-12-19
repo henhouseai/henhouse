@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any, List, Tuple
 try:
     import msvcrt
 except Exception:
-    msvcrt = None
+    msvcrt = None  # type: ignore[assignment]
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -198,7 +198,7 @@ def _read_key_stream() -> str:
         s = input().strip().lower()
         return s[:1] if s else ''
 
-def interactive_review(h_root: Path, d_root: Path, deleted: List[str], added: List[str], modified: List[str], warnings: List[str], manifest: Dict = None) -> Tuple[List[str], List[str], List[str]]:
+def interactive_review(h_root: Path, d_root: Path, deleted: List[str], added: List[str], modified: List[str], warnings: List[str], manifest: Optional[Dict] = None) -> Tuple[List[str], List[str], List[str]]:
     accepted: List[str] = []
     skipped: List[str] = []
     warn_done: List[str] = []
@@ -357,7 +357,7 @@ def build_summary(branch_label: str, tip_sha: str, accepted: List[str], skipped:
     lines.extend(warnings or ["<none>"])
     return "\n".join(lines)
 
-def run_command(cmd, cwd=None):
+def run_command(cmd: str, cwd: Optional[str] = None) -> bool:
     try:
         result = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -375,7 +375,7 @@ def run_command(cmd, cwd=None):
         print(f"Exception: {e}")
         return False
 
-def run_command_interactive(cmd, cwd=None):
+def run_command_interactive(cmd: str, cwd: Optional[str] = None) -> bool:
     try:
         result = subprocess.run(cmd, shell=True, cwd=cwd)
         if result.returncode != 0:
@@ -387,7 +387,7 @@ def run_command_interactive(cmd, cwd=None):
         print(f"Exception: {e}")
         return False
 
-def pull_stage(args):
+def pull_stage(args: Any) -> bool:
     repo_root = Path(__file__).resolve().parent
     stage_dir = repo_root / 'stage'
     if stage_dir.exists():
@@ -504,7 +504,7 @@ def pull_stage(args):
     print("📋 Next step: Run 'python stage.py push' to review changes")
     return True
 
-def push_stage(args):
+def push_stage(args: Any) -> bool:
     print("🎭 Running stage manager (interactive mode)...")
     repo_root = Path(__file__).resolve().parent
     stage_dir = repo_root / 'stage'
@@ -573,7 +573,7 @@ def push_stage(args):
         print(f"   You may need to manually remove: {stage_dir}")
     return success
 
-def main():
+def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == '--help':
         print("""
 🏠 Henhouse - Stage Workflow Management

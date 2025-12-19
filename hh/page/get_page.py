@@ -28,29 +28,26 @@ def get_page_action() -> bool:
     """Return JSON-friendly page data (AJAX)."""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-
     if not gateway.is_set('id'):
         warn("No page id provided")
         report_error("action", "Page ID is required")
+    page_id: int = 0
     if not is_error():
-        page_id = gateway.get_arg('id')
-        log(f"Using page ID: {page_id}")
+        page_id_arg = gateway.get_arg('id')
+        log(f"Using page ID: {page_id_arg}")
         try:
-            page_id = int(page_id)
+            page_id = int(page_id_arg)
         except ValueError:
-            warn(f"Invalid page ID: {page_id}")
+            warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
-        if not is_error():
-            page_obj = get_page(page_id=page_id)
-            if not page_obj:
-                warn(f"Page {page_id} not found")
-                report_error("action", f"Page {page_id} not found")
-
+    page_obj = None
     if not is_error():
+        page_obj = get_page(page_id=page_id)
+        if not page_obj:
+            warn(f"Page {page_id} not found")
+            report_error("action", f"Page {page_id} not found")
+
+    if not is_error() and page_obj is not None:
         response_data = page_obj.get_page()
         gateway.response.set_action_response(success_payload(response_data))
         log("Successfully assembled AJAX page payload")

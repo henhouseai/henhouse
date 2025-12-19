@@ -29,14 +29,10 @@ def get_text() -> bool:
     """Get processed/parsed text for a page. Returns HTTP-rendered text processed through TextProcessor."""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     if not gateway.is_set('page_id') and not gateway.is_set('id'):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
+    page_id: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         try:
@@ -44,16 +40,15 @@ def get_text() -> bool:
         except ValueError:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
-    if not is_error():
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
-    if not is_error():
-        raw_text = ""
-        raw_text = (page.text or "") if page else ""
+    if not is_error() and page is not None:
+        raw_text = page.text if page.text is not None else ""
         log(f"Processing text for page {page_id} (length: {len(raw_text)})")
         # Use get_prepared_text() which will check cache, process if needed, and set flag
         prepared_payload = page.get_prepared_text()

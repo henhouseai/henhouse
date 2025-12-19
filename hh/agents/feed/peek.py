@@ -27,7 +27,7 @@ def _initialize_debug():
 
 @register_action('peek')
 @register_command('peek')
-def peek(args: List[str] = None) -> bool:
+def peek(args: Optional[List[str]] = None) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -60,7 +60,7 @@ def peek(args: List[str] = None) -> bool:
             combined_params = params
         rows = gateway.conn.read(combined_query, combined_params)
         log(f"Query executed: {len(rows)} rows returned")
-        messages = []
+        messages: List[Dict[str, Any]] = []
         for row in rows:
             message = dict(row)
             ensure_iso_timestamps(message, ['queued_ts', 'occurred_ts'])
@@ -100,8 +100,11 @@ def peek(args: List[str] = None) -> bool:
                     ("kind", message.get('kind'))
                 ]:
                     if value is not None:
-                        summary_message[key] = str(value) if not isinstance(value, (dict, list)) else value
-                messages.append(summary_message)
+                        if isinstance(value, (dict, list)):
+                            summary_message[key] = value  # type: ignore[assignment]
+                        else:
+                            summary_message[key] = str(value)  # type: ignore[assignment]
+                messages.append(summary_message)  # type: ignore[arg-type]
             else:
                 log(f"Processing message in deep mode: queue_id={message.get('queue_id')}")
                 filtered_message = {}

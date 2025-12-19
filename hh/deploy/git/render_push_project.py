@@ -114,7 +114,7 @@ def push_project() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_push_project_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing push project data successfully")
     
     render_push_project_section(source_data, lines)

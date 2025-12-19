@@ -20,7 +20,7 @@ def _initialize_debug():
 
 def build_subscription_options(args) -> Dict[str, Union[str, bool]]:
     trace_in()
-    opts = {}
+    opts: Dict[str, Union[str, bool]] = {}
     if getattr(args, "all_back_data", False):
         opts["all_back_data"] = True
         log("Added all_back_data option")

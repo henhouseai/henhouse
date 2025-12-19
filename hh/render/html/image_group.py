@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -31,7 +31,7 @@ def _initialize_debug():
 class ImageGroup(TileGroup):
     """Tile group for rendering images as tiles."""
     
-    def __init__(self, images_data: List[Dict[str, Any]], page_id: int, target_width: int = 300, wrapper_id: str = None, wrapper_extra_classes: str = None):
+    def __init__(self, images_data: List[Dict[str, Any]], page_id: int, target_width: int = 300, wrapper_id: Optional[str] = None, wrapper_extra_classes: Optional[str] = None):
         """Initialize image group by parsing image data and creating tiles.
         
         Args:

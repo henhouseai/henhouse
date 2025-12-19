@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Mapping, cast, Any
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -24,21 +24,21 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def render_allowed_classes_section(source_data: Dict[str, Union[str, int, List]], lines: List[str]) -> None:
+def render_allowed_classes_section(source_data: Dict[str, Any], lines: List[str]) -> None:
     trace_in()
     block = 'rows'
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     
     if not gateway.is_no(block):
         page_id = source_data.get('page_id', 0)
         parent_class = source_data.get('parent_class', 'unknown')
-        allowed_classes = source_data.get('allowed_classes', [])
+        allowed_classes_raw = source_data.get('allowed_classes', [])
         
-        log(f"Rendering allowed child classes for page {page_id} (parent_class={parent_class}): {len(allowed_classes)} classes")
+        allowed_classes_list: List[Dict[str, Any]] = []
+        if isinstance(allowed_classes_raw, list):
+            allowed_classes_list = allowed_classes_raw
+        
+        log(f"Rendering allowed child classes for page {page_id} (parent_class={parent_class}): {len(allowed_classes_list)} classes")
         
         # Create table data with header row
         table_data = TableData()
@@ -51,7 +51,7 @@ def render_allowed_classes_section(source_data: Dict[str, Union[str, int, List]]
             auto_link='Auto Link'
         )
         # Add data rows
-        for class_info in allowed_classes:
+        for class_info in allowed_classes_list:
             class_name = class_info.get('class_name', 'unknown')
             allow_null = class_info.get('allow_null_names', False)
             allow_duplicate = class_info.get('allow_duplicate_names', True)
@@ -64,7 +64,7 @@ def render_allowed_classes_section(source_data: Dict[str, Union[str, int, List]]
                 auto_link='Yes' if auto_link else 'No'
             )
         
-        if len(allowed_classes) == 0:
+        if len(allowed_classes_list) == 0:
             # Add a message row if no classes are allowed
             table_data.add_row(
                 'table_class',
@@ -90,22 +90,22 @@ def render_allowed_classes_section(source_data: Dict[str, Union[str, int, List]]
 def get_add_page_class_info() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
         trace_out()
         return False
     
-    json_data = gateway.response.get_action_response()
+    action_response = gateway.response.get_action_response()
+    if action_response is None:
+        warn("Action response is None")
+        report_error("backend", "Action response is None")
+        trace_out()
+        return False
     lines = []
     
     # Get source data
-    source_data = get_data(json_data)
+    source_data = get_data(cast(Mapping[str, Any], action_response))
     page_id = source_data.get('page_id', 0)
     parent_class = source_data.get('parent_class', 'unknown')
     

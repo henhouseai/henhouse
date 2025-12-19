@@ -5,6 +5,7 @@ Monitors job queue and stale caches, dispatches maintenance tasks.
 """
 
 from __future__ import annotations
+from typing import Any
 
 import argparse
 import json
@@ -143,7 +144,7 @@ def run_maintenance_command(command: str, with_log: bool = False, verbose_debug:
         logging.debug(f"Environment PYTHONPATH: {env.get('PYTHONPATH')}")
     
     # Windows: prevent console window from appearing
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
         "text": True,
@@ -152,7 +153,7 @@ def run_maintenance_command(command: str, with_log: bool = False, verbose_debug:
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     
-    process = subprocess.Popen(cmd, **kwargs)
+    process = subprocess.Popen(cmd, **kwargs)  # type: ignore[call-overload]
     stdout, stderr = process.communicate()
     exit_code = process.returncode
     
@@ -190,7 +191,7 @@ def run_maintenance_command_with_args(args: List[str]) -> Tuple[int, Optional[Di
     cmd = [sys.executable, str(maintenance_client_path())] + args
     
     # Windows: prevent console window from appearing
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
         "text": True,
@@ -199,7 +200,7 @@ def run_maintenance_command_with_args(args: List[str]) -> Tuple[int, Optional[Di
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     
-    process = subprocess.Popen(cmd, **kwargs)
+    process = subprocess.Popen(cmd, **kwargs)  # type: ignore[call-overload]
     stdout, stderr = process.communicate()
     exit_code = process.returncode
     

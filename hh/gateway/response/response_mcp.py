@@ -30,9 +30,9 @@ class ResponseMCP(Response):
     Outputs JSON-RPC 2.0 formatted responses.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.request_id: Optional[Any] = None  # Store request ID for JSON-RPC response
+        self.request_id: Optional[str | int] = None  # Store request ID for JSON-RPC response
     
     def set_request_id(self, request_id: Any) -> None:
         """Store the JSON-RPC request ID for response formatting."""
@@ -54,7 +54,7 @@ class ResponseMCP(Response):
             # Build generic error message
             error_message = f"{error_count} error{'s' if error_count != 1 else ''} detected"
             
-            error_response = {
+            error_response: Dict[str, Any] = {
                 "jsonrpc": "2.0",
                 "error": {
                     "code": -32603,  # Internal error
@@ -68,13 +68,20 @@ class ResponseMCP(Response):
             # Include debug output if available and has entries - add as content item with type "text"
             if (self.debug_output is not None and 
                 isinstance(self.debug_output, dict) and 
-                self.debug_output.get("entries") and 
-                len(self.debug_output.get("entries", [])) > 0):
+                "entries" in self.debug_output and
+                isinstance(self.debug_output["entries"], list) and
+                len(self.debug_output["entries"]) > 0):
                 # Add debug as a text content item in error data
-                if "content" not in error_response["error"]["data"]:
-                    error_response["error"]["data"]["content"] = []
+                error_dict = error_response["error"]
+                assert isinstance(error_dict, dict), "error should be a dict"
+                error_data = error_dict.get("data")
+                assert isinstance(error_data, dict), "error data should be a dict"
+                if "content" not in error_data:
+                    error_data["content"] = []
+                content_list = error_data["content"]
+                assert isinstance(content_list, list), "content should be a list"
                 debug_text = json.dumps(self.debug_output, default=str)
-                error_response["error"]["data"]["content"].append({
+                content_list.append({
                     "type": "text",
                     "text": debug_text
                 })
@@ -91,11 +98,13 @@ class ResponseMCP(Response):
         
         # Build success response from action response
         # action_response always has content structure from success_payload()
+        assert self.action_response is not None, "action_response should be set before get_output()"
         # Make a deep copy to avoid modifying the original
         response_data = copy.deepcopy(self.action_response)
+        assert isinstance(response_data, dict), "action_response should be a dict"
         
         # Format as JSON-RPC 2.0 response
-        jsonrpc_response = {
+        jsonrpc_response: Dict[str, Any] = {
             "jsonrpc": "2.0",
             "result": response_data
         }
@@ -103,14 +112,17 @@ class ResponseMCP(Response):
         # Include debug output if available and has entries - add as content item with type "text"
         if (self.debug_output is not None and 
             isinstance(self.debug_output, dict) and 
-            self.debug_output.get("entries") and 
-            len(self.debug_output.get("entries", [])) > 0):
+            "entries" in self.debug_output and
+            isinstance(self.debug_output["entries"], list) and
+            len(self.debug_output["entries"]) > 0):
             # Ensure content array exists
             if "content" not in response_data:
                 response_data["content"] = []
             # Add debug as a text content item with JSON-serialized value
             debug_text = json.dumps(self.debug_output, default=str)
-            response_data["content"].append({
+            content_list = response_data["content"]
+            assert isinstance(content_list, list), "content should be a list"
+            content_list.append({
                 "type": "text",
                 "text": debug_text
             })
@@ -124,19 +136,21 @@ class ResponseMCP(Response):
         result = json.dumps(jsonrpc_response, indent=2, default=str)
         
         # Post-process: if we have MCP content structure, stringify the text field
-        if (self.action_response and 
+        if (self.action_response is not None and 
             "content" in response_data and 
             isinstance(response_data["content"], list) and 
-            len(response_data["content"]) > 0 and
-            response_data["content"][0].get("type") == "text" and
-            "text" in response_data["content"][0] and
-            isinstance(response_data["content"][0]["text"], dict)):
-            # Parse the serialized response
-            parsed = json.loads(result)
-            # Stringify the text field
-            parsed["result"]["content"][0]["text"] = json.dumps(response_data["content"][0]["text"], default=str)
-            # Re-serialize
-            result = json.dumps(parsed, indent=2, default=str)
+            len(response_data["content"]) > 0):
+            first_content = response_data["content"][0]
+            if (isinstance(first_content, dict) and
+                first_content.get("type") == "text" and
+                "text" in first_content and
+                isinstance(first_content["text"], dict)):
+                # Parse the serialized response
+                parsed = json.loads(result)
+                # Stringify the text field
+                parsed["result"]["content"][0]["text"] = json.dumps(first_content["text"], default=str)
+                # Re-serialize
+                result = json.dumps(parsed, indent=2, default=str)
         log(f"MCP success response generated: {len(result)} characters")
         trace_out()
         return result

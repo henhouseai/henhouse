@@ -5,7 +5,7 @@ import importlib
 import pkgutil
 import re
 from pathlib import Path
-from typing import List, Dict, Set, Any
+from typing import List, Dict, Set, Any, Optional
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.registry.backend import BACKEND_TYPES, BACKEND_DECORATORS
 from hh.deploy.cache.cache_cleanup_registry import register_cache_cleanup, get_deployment_paths
@@ -53,7 +53,7 @@ def _scan_for_decorator(decorator_name: str) -> List[str]:
     trace_out()
     return found_files
 
-def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str]]:
+def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str | None]]:
     trace_in()
     import_results = {}
     for module_path in module_paths:
@@ -175,17 +175,19 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
     from hh.gateway.registry.registry import backend_handlers
     
     handlers = backend_handlers.get(backend_type, {})
-    registrations = {
+    registrations: Dict[str, Any] = {
         "handlers": {},
         "error_handler": None
     }
     
+    handlers_dict = registrations["handlers"]
+    assert handlers_dict is not None, "handlers should be initialized as dict"
     for handler_name, handler_info in handlers.items():
         if handler_info.function:
             module_name = handler_info.function.__module__
             function_name = handler_info.function.__name__
             action_args = getattr(handler_info, 'action_args', [])
-            registrations["handlers"][handler_name] = {
+            handlers_dict[handler_name] = {
                 "module": module_name,
                 "function": function_name,
                 "action_args": action_args,
@@ -195,11 +197,13 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
             log(f"Found {backend_type} handler: {handler_name} -> {module_name} (action_args={action_args})")
     
     # Process failed imports for this backend type
+    handlers_dict = registrations["handlers"]
+    assert handlers_dict is not None, "handlers should be initialized as dict"
     for module_path, result in import_results.items():
         if result["status"] == "failed":
             handler_name = module_path.split(".")[-1]
-            if handler_name not in registrations["handlers"]:  # Only add if not already registered
-                registrations["handlers"][handler_name] = {
+            if handler_name not in handlers_dict:  # Only add if not already registered
+                handlers_dict[handler_name] = {
                     "module": module_path,
                     "function": handler_name,
                     "action_args": [],
@@ -236,7 +240,9 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
     try:
         with open(cache_file, 'w') as f:
             json.dump(registrations, f, indent=2)
-        log(f"Cached {backend_type} registrations: {len(registrations['handlers'])} handlers")
+        handlers_dict = registrations.get('handlers')
+        handler_count = len(handlers_dict) if handlers_dict is not None else 0
+        log(f"Cached {backend_type} registrations: {handler_count} handlers")
     except Exception as e:
         warn(f"Error caching {backend_type} registrations: {e}")
     trace_out()

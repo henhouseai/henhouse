@@ -60,11 +60,11 @@ Envelope = Union[SuccessEnvelope, ErrorEnvelope, PartialEnvelope]
 from hh.gateway.connection.utils import iso_now
 
 def _create_base_envelope(meta: Optional[Dict[str, Any]] = None) -> OrderedDict[str, Any]:
-    envelope = OrderedDict()
+    envelope: OrderedDict[str, Any] = OrderedDict()
     envelope["tim"] = iso_now()
     envelope["ver"] = ENVELOPE_VERSION
     if meta:
-        envelope["met"] = meta
+        envelope["met"] = dict(meta)
     return envelope
 
 def success_payload(
@@ -155,10 +155,13 @@ ERROR_CODES = {
 
 def resolve_error(code: str) -> tuple[str, bool, str]:
     trace_in()
-    error_info = ERROR_CODES.get(code, ERROR_CODES["sys_unk"])
-    log(f"Resolved error code: {code} -> {error_info['message'][:50]}...")
+    error_info: Dict[str, Any] = ERROR_CODES.get(code, ERROR_CODES["sys_unk"])
+    message: str = error_info.get("message", "Unknown error")
+    retryable: bool = error_info.get("retryable", False)
+    source: str = error_info.get("source", "system")
+    log(f"Resolved error code: {code} -> {message[:50]}...")
     trace_out()
-    return error_info["message"], error_info["retryable"], error_info["source"]
+    return message, retryable, source
 
 def has_error_and_data(envelope: Mapping[str, Any]) -> bool:
     if not is_error(envelope):
@@ -168,28 +171,36 @@ def has_error_and_data(envelope: Mapping[str, Any]) -> bool:
 
 def extract_error_only(envelope: Mapping[str, Any]) -> Envelope:
     if not is_error(envelope):
-        return envelope
-    return _create_error_envelope(envelope, envelope.get("err", {}))
+        # Type cast for mypy - envelope should match Envelope structure
+        return envelope  # type: ignore[return-value]
+    err_payload: Dict[str, Any] = envelope.get("err", {})
+    if not isinstance(err_payload, dict):
+        err_payload = {}
+    return _create_error_envelope(envelope, err_payload)
 
 def split_error_envelope(envelope: Mapping[str, Any]) -> tuple[Optional[Envelope], Optional[Envelope]]:
     trace_in()
     if not isinstance(envelope, dict) or not is_error(envelope):
         log("Envelope is not an error envelope, returning as-is")
         trace_out()
-        return None, envelope
-    error_payload = envelope.get("err", {})
-    if not error_payload:
+        # Type cast for mypy - envelope should match Envelope structure
+        return None, envelope  # type: ignore[return-value]
+    error_payload: Dict[str, Any] = envelope.get("err", {})
+    if not error_payload or not isinstance(error_payload, dict):
         log("No error payload found, returning as-is")
         trace_out()
-        return None, envelope
-    remaining_data = {}
+        # Type cast for mypy - envelope should match Envelope structure
+        return None, envelope  # type: ignore[return-value]
+    remaining_data: Dict[str, Any] = {}
     for key, value in envelope.items():
         if key not in {"tim", "ver", "sta", "met", "err"}:
             remaining_data[key] = value
     error_envelope = _create_error_envelope(envelope, error_payload)
-    success_envelope = None
+    success_envelope: Optional[Envelope] = None
     if remaining_data:
-        success_envelope = _create_success_envelope(envelope, remaining_data)
+        # _create_success_envelope returns Dict, but we need Envelope
+        # For now, cast it since the structure matches
+        success_envelope = _create_success_envelope(envelope, remaining_data)  # type: ignore[assignment]
         log(f"Split envelope: error + success with {len(remaining_data)} data keys")
     else:
         log("Split envelope: error only")
@@ -202,10 +213,11 @@ def _create_error_envelope(original: Mapping[str, Any], error_payload: Mapping[s
     )
     envelope["sta"] = STATUS_ERROR
     envelope["err"] = dict(error_payload)
-    return envelope
+    # Type cast for mypy - OrderedDict matches Envelope structure
+    return envelope  # type: ignore[return-value]
 
 def _create_success_envelope(original: Mapping[str, Any], data: Mapping[str, Any]) -> Dict[str, Any]:
-    envelope = {
+    envelope: Dict[str, Any] = {
         "content": [
             {
                 "type": "text",

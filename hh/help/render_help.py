@@ -5,6 +5,7 @@ from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import dc, break_section
 from hh.gateway.response.json_standard import get_data
+from typing import Mapping, cast, Any
 from hh.gateway.gateway import get_gateway
 from hh.help.help_query import HelpQuery
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -30,10 +31,6 @@ def _render_special_file_help(lines: List[str], topic: str, sections: Dict[str, 
     log(f"Rendering special file help for topic: {topic}")
     main_table_data = TableData()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no('header'):
         main_content = sections.get('main', '')
         main_table_data.add_row(
@@ -59,7 +56,7 @@ def _render_special_file_help(lines: List[str], topic: str, sections: Dict[str, 
                 .add_simple(['help_child']),
             table_overrides={
                 'margin_l': 4,
-                'column_align': {'label': 'right'},
+                'column_align': {'label': 'right'},  # type: ignore[dict-item]
                 'rule_every': 1
             },
             block_type='summary'
@@ -108,7 +105,7 @@ def _render_individual_file_table(lines: List[str], file_name: str, file_summary
                     .add_simple(['help_section_desc']),
                 table_overrides={
                     'margin_l': 4,
-                    'column_align': {'label': 'right'},
+                    'column_align': {'label': 'right'},  # type: ignore[dict-item]
                     'rule_every': 1
                 },
                 block_type='rows'
@@ -126,10 +123,6 @@ def _render_regular_help(lines: List[str], topic: str, sections: Dict[str, Any])
     log(f"Rendering regular help for topic: {topic}")
     table_data = TableData()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no('header'):
         special_section_content = sections.get(topic, '')
         table_data.add_row(
@@ -155,7 +148,7 @@ def _render_regular_help(lines: List[str], topic: str, sections: Dict[str, Any])
             .add_simple(['help_section']),
         table_overrides={
             'margin_l': 4,
-            'column_align': {'label': 'right'},
+            'column_align': {'label': 'right'},  # type: ignore[dict-item]
             'rule_every': 1
         },
         block_type='summary'
@@ -168,19 +161,19 @@ def _render_regular_help(lines: List[str], topic: str, sections: Dict[str, Any])
 def help() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend","No action response available")
         trace_out()
         return False
     
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data)
+    action_response = gateway.response.get_action_response()
+    if action_response is None:
+        warn("Action response is None")
+        report_error("backend", "Action response is None")
+        trace_out()
+        return False
+    source_data = get_data(cast(Mapping[str, Any], action_response))
     
     lines = []
     lines.append(render_header_block('l_help_header'))

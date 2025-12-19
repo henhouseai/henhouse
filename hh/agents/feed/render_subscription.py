@@ -35,6 +35,10 @@ def render_subscription_parser() -> bool:
         trace_out()
         return False
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_subscription_header'))
     actual_data = get_data(json_data)

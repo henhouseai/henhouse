@@ -28,10 +28,6 @@ def _initialize_debug():
 def remove_image() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('page_id'):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
@@ -39,19 +35,21 @@ def remove_image() -> bool:
         if not gateway.is_set('image_id'):
             warn("No image ID provided")
             report_error("action", "Image ID is required")
+    page_id: int = 0
+    image_id: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg('page_id')
-        image_id = gateway.get_arg('image_id')
+        image_id_arg = gateway.get_arg('image_id')
         rank = gateway.get_arg('rank')
         try:
             page_id = int(page_id_arg)
-            image_id = int(image_id)
+            image_id = int(image_id_arg)
         except ValueError:
-            warn(f"Invalid page ID: {page_id_arg} or image ID: {image_id}")
+            warn(f"Invalid page ID: {page_id_arg} or image ID: {image_id_arg}")
             report_error("action", "Page ID and image ID must be numbers")
     
     # Parse optional rank parameter
-    rank_int = None
+    rank_int: int | None = None
     if not is_error() and rank:
         try:
             rank_int = int(rank)
@@ -62,6 +60,7 @@ def remove_image() -> bool:
             warn(f"Invalid rank: {rank}")
             report_error("action", "Rank must be a number")
     
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
@@ -69,7 +68,7 @@ def remove_image() -> bool:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
     
-    if not is_error():
+    if not is_error() and page is not None:
         # If rank is specified, validate that the image exists at that rank
         if rank_int is not None:
             log(f"Validating image {image_id} exists at rank {rank_int} in page {page_id}")
@@ -85,13 +84,16 @@ def remove_image() -> bool:
                 warn(f"Image {image_id} not found at rank {rank_int} in page {page_id}")
                 report_error("action", f"Image {image_id} not found at rank {rank_int} in page {page_id}")
     
-    if not is_error():
+    removed_count: int = 0
+    if not is_error() and page is not None:
         if rank_int is not None:
             log(f"Removing image {image_id} at rank {rank_int} from page {page_id}")
             success = page.remove_image(image_id, rank_int)
             if not success:
                 warn(f"Failed to remove image {image_id} at rank {rank_int} from page {page_id}")
                 report_error("action", f"Failed to remove image {image_id} at rank {rank_int}")
+            else:
+                removed_count = 1
         else:
             log(f"Removing all instances of image {image_id} from page {page_id}")
             # Get all instances of this image in the page
@@ -109,7 +111,6 @@ def remove_image() -> bool:
                 report_error("action", f"No instances of image {image_id} found in page {page_id}")
             
             # Remove each instance (reverse order to avoid rank shifting issues)
-            removed_count = 0
             for instance in sorted(instances_to_remove, key=lambda x: x['image_rank'], reverse=True):
                 if not is_error():
                     success = page.remove_image(instance['image_id'], instance['image_rank'])
@@ -119,6 +120,7 @@ def remove_image() -> bool:
                         warn(f"Failed to remove image {instance['image_id']} at rank {instance['image_rank']}")
                         report_error("action", f"Failed to remove image {instance['image_id']} at rank {instance['image_rank']}")
     
+    updated_page = None
     if not is_error():
         # Reload page to get updated state
         log(f"Reloading page {page_id} to show updated state")
@@ -127,7 +129,7 @@ def remove_image() -> bool:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
     
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         
         # Add operation-specific metadata

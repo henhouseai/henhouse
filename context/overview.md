@@ -104,8 +104,10 @@ The following diagram shows the core system relationships and dependencies:
 - Manages request lifecycle through parse → execute → respond → cleanup flow
 - Same business logic serves CLI, web, API, and maintenance interfaces
 
-#### **Dispatch Flow**
-- dispatch() method orchestrates entire execution as single entry point
+#### **Initialization and Dispatch Flow**
+- Entry points call `init_gateway(raw_argv, backend)` to create and initialize Gateway
+- `Gateway.__init__()` performs all initialization, guaranteeing `request`, `response`, `conn`, and `files` are non-None
+- `dispatch()` method orchestrates execution (handlers, commit, cleanup) - initialization already complete
 - Initialization sequence: request parsing → connection setup → handler loading
 - Action execution followed by backend rendering
 - Error processing and coordinated commit/rollback across file and database operations
@@ -114,6 +116,7 @@ The following diagram shows the core system relationships and dependencies:
 #### **State Management**
 - Gateway holds all system state for single invocation lifecycle
 - Contains request, response, registry, connection, file system, process manager
+- **Type Safety**: After initialization, `request`, `response`, `conn`, and `files` are guaranteed non-None
 - Maintains handler references: action_handler, backend_handler, error_handler
 - Debug system configuration and user tier level tracking
 - Automatic cleanup and resource management after each request

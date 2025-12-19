@@ -66,7 +66,7 @@ def _find_and_tag_image(json_data: Dict[str, Any], size_value: Union[str, int, N
 
 
 @register_tp_decorator('size')
-def size_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Dict[str, Any]:
+def size_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Union[str, Dict[str, Any]]:
     """Size decorator - sets preferred size in pixels from arg0."""
     trace_in()
     if not isinstance(json_data, dict):
@@ -95,7 +95,7 @@ def size_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Dict
 
 # Special case for fullsize (uses largest available)
 @register_tp_decorator('fullsize')
-def fullsize_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Dict[str, Any]:
+def fullsize_decorator(json_data: Union[str, Dict[str, Any]], **kwargs: Any) -> Union[str, Dict[str, Any]]:
     """Fullsize decorator - sets preferred size to fullsize."""
     trace_in()
     if not isinstance(json_data, dict):

@@ -7,6 +7,7 @@ from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import get_data
+from typing import Mapping, cast, Any
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,14 +25,10 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def render_delete_section(source_data: Dict[str, Union[str, int]], lines: List[str]) -> None:
+def render_delete_section(source_data: Dict[str, Any], lines: List[str]) -> None:
     trace_in()
     block = 'summary'
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no(block):
         log("Rendering delete page data section")
         delete_data = TableData()
@@ -65,19 +62,20 @@ def render_delete_section(source_data: Dict[str, Union[str, int]], lines: List[s
 def delete_page() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
         trace_out()
         return False
-    json_data = gateway.response.get_action_response()
+    action_response = gateway.response.get_action_response()
+    if action_response is None:
+        warn("Action response is None")
+        report_error("backend", "Action response is None")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_delete_page_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(cast(Mapping[str, Any], action_response))
     log("Processing delete page data successfully")
     # Render delete data section
     render_delete_section(source_data, lines)

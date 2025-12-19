@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -38,13 +38,19 @@ def render_install_section(source_data: Dict[str, Union[str, int, bool]], lines:
         project_name = source_data.get('project_name', 'Unknown')
         git_repo = source_data.get('git_repo', 'Unknown')
         git_branch = source_data.get('git_branch', 'Unknown')
-        groups_created = source_data.get('groups_created', [])
-        users_created = source_data.get('users_created', [])
-        users_failed = source_data.get('users_failed', [])
+        groups_created_raw: Any = source_data.get('groups_created', [])
+        groups_created: List[str] = groups_created_raw if isinstance(groups_created_raw, list) else []
+        users_created_raw: Any = source_data.get('users_created', [])
+        users_created: List[str] = users_created_raw if isinstance(users_created_raw, list) else []
+        users_failed_raw: Any = source_data.get('users_failed', [])
+        users_failed: List[str] = users_failed_raw if isinstance(users_failed_raw, list) else []
         ssh_keys_generated = source_data.get('ssh_keys_generated', 0)
-        auto_scanned_keys = source_data.get('auto_scanned_keys', 0)
-        human_scripts_created = source_data.get('human_scripts_created', [])
-        root_scripts_created = source_data.get('root_scripts_created', [])
+        auto_scanned_keys_raw = source_data.get('auto_scanned_keys', 0)
+        auto_scanned_keys = int(auto_scanned_keys_raw) if isinstance(auto_scanned_keys_raw, (int, str)) else 0
+        human_scripts_created_raw: Any = source_data.get('human_scripts_created', [])
+        human_scripts_created: List[str] = human_scripts_created_raw if isinstance(human_scripts_created_raw, list) else []
+        root_scripts_created_raw: Any = source_data.get('root_scripts_created', [])
+        root_scripts_created: List[str] = root_scripts_created_raw if isinstance(root_scripts_created_raw, list) else []
         project_ownership = source_data.get('project_ownership', 'Unknown')
         
         log(f"Rendering install section for: {project_name}")
@@ -93,7 +99,7 @@ def render_install_section(source_data: Dict[str, Union[str, int, bool]], lines:
         # SSH keys
         if not gateway.is_no('ssh'):
             ssh_info = f"{ssh_keys_generated} generated"
-            if auto_scanned_keys > 0:
+            if isinstance(auto_scanned_keys, int) and auto_scanned_keys > 0:
                 ssh_info += f", {auto_scanned_keys} auto-scanned"
             init_data.add_row(
                 'ssh_keys',
@@ -146,7 +152,7 @@ def install() -> bool:
         trace_out()
         return False
     
-    if not gateway.response.has_action_response():
+    if not gateway.response or not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend","No action response available")
         trace_out()
@@ -155,7 +161,7 @@ def install() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_install_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data) if json_data else {}
     log(f"Processing install data successfully")
     
     render_install_section(source_data, lines)

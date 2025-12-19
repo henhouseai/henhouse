@@ -34,6 +34,10 @@ def calculate_column_layouts(config: TableConfig, columns: List[str], table_data
         natural_widths[c] = max_line_width + config.default_padl + config.default_padr
         log(f"Column {c}: natural_width={natural_widths[c]}, content_width={max_line_width}")
     pad_total = config.default_padl + config.default_padr
+    assert config.column_widths is not None, "column_widths should be initialized in __post_init__"
+    assert config.column_align is not None, "column_align should be initialized in __post_init__"
+    assert config.column_overflow is not None, "column_overflow should be initialized in __post_init__"
+    assert config.column_valign is not None, "column_valign should be initialized in __post_init__"
     for c in columns:
         w = config.column_widths.get(c, 0)
         if w > 0:

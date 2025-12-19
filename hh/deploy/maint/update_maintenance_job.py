@@ -120,7 +120,7 @@ def update_maintenance_job_action() -> bool:
         trace_out()
         return False
 
-    params.append(job_id)
+    params.append(str(job_id))
     sql = f"UPDATE maintenance_jobs SET {', '.join(fields)} WHERE id = %s"
     
     try:
@@ -159,7 +159,8 @@ def update_maintenance_job_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
         job_id = source_data.get("job_id")
         status = source_data.get("status")
         updated = source_data.get("updated", False)

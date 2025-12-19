@@ -83,7 +83,7 @@ def flask_status() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_flask_status_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing Flask status data")
     
     render_flask_daemons(source_data, lines)

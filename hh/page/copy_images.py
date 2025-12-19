@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -28,11 +28,6 @@ def _initialize_debug():
 def copy_images() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     if not gateway.is_set('target_page') and not gateway.is_set('t_page'):
         warn("No target page ID provided")
         report_error("action", "Target page ID is required")
@@ -40,6 +35,7 @@ def copy_images() -> bool:
         if not gateway.is_set('image_id'):
             warn("No image IDs provided")
             report_error("action", "Image IDs are required")
+    target_page_id: int = 0
     if not is_error():
         target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
         image_id_str = gateway.get_arg('image_id')
@@ -52,7 +48,7 @@ def copy_images() -> bool:
             report_error("action", "Target page ID must be a number")
     
     # Parse comma-separated image IDs
-    image_ids = []
+    image_ids: List[int] = []
     if not is_error() and image_id_str:
         try:
             image_ids = [int(id_str.strip()) for id_str in image_id_str.split(',') if id_str.strip()]
@@ -64,7 +60,7 @@ def copy_images() -> bool:
             report_error("action", "Image IDs must be comma-separated numbers")
     
     # Parse optional rank parameter
-    rank_int = None
+    rank_int: int | None = None
     if not is_error() and rank:
         try:
             rank_int = int(rank)
@@ -75,6 +71,7 @@ def copy_images() -> bool:
             warn(f"Invalid rank: {rank}")
             report_error("action", "Rank must be a number")
     
+    page = None
     if not is_error():
         log(f"Loading target page {target_page_id}")
         page = get_page(page_id=target_page_id)
@@ -91,13 +88,14 @@ def copy_images() -> bool:
                 warn(f"Image {image_id} not found")
                 report_error("action", f"Image {image_id} not found")
     
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Copying {len(image_ids)} images to target page {target_page_id}")
         success = page.copy_images(image_ids, target_rank=rank_int)
         if not success:
             warn(f"Failed to copy images to target page {target_page_id}")
             report_error("action", f"Failed to copy images to target page {target_page_id}")
     
+    updated_page = None
     if not is_error():
         # Reload page to get updated state
         log(f"Reloading target page {target_page_id} to show updated state")
@@ -106,7 +104,7 @@ def copy_images() -> bool:
             warn(f"Failed to reload target page {target_page_id}")
             report_error("action", f"Failed to reload target page {target_page_id}")
     
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         
         # Add operation-specific metadata

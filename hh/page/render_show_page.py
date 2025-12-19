@@ -250,7 +250,7 @@ def render_children_section(children_data: List[Dict[str, Union[str, int]]], pag
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block) and children_data:
         log("Rendering children data section")
         # Create header row
@@ -276,7 +276,7 @@ def render_children_section(children_data: List[Dict[str, Union[str, int]]], pag
                 num_children=str(child.get('num_children', 0))
             )
             # Add page link metadata to label, id, and name columns
-            if child_id is not None:
+            if child_id is not None and isinstance(child_id, int):
                 children_rows.add_page_link_to_column('label', child_id)
                 children_rows.add_page_link_to_column('id', child_id)
                 children_rows.add_page_link_to_column('name', child_id)
@@ -307,7 +307,7 @@ def render_files_section(files_data: List[Dict[str, Any]], page_id: Optional[int
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block) and files_data:
         log(f"Rendering files section with {len(files_data)} files")
         files_rows = TableData()
@@ -349,7 +349,7 @@ def render_files_section(files_data: List[Dict[str, Any]], page_id: Optional[int
                 FieldConfig()
                     .add_header('files_header')
                     .add_simple(['file_item']),
-                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
                 block_type=block,
                 wrapper_id=wrapper_id
             )
@@ -370,7 +370,7 @@ def render_extra_data_section(extra_data: Dict[str, Any], page_id: Optional[int]
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block) and extra_data:
         log(f"Rendering extra data section with {len(extra_data)} items")
         
@@ -456,10 +456,6 @@ def render_extra_data_section(extra_data: Dict[str, Any], page_id: Optional[int]
 def show_page() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -470,7 +466,7 @@ def show_page() -> bool:
     header_content = render_header_block('l_show_page_header', 'page_header')
     if header_content:
         gateway.response.set_content_wrapper_header(header_content)
-    source_data = get_data(json_data)
+    source_data = get_data(json_data) if json_data and isinstance(json_data, dict) else {}
     log("Processing show page data successfully")
     
     page_data = source_data.get('page', {})

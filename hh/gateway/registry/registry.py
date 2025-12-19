@@ -59,10 +59,14 @@ def create_backend_decorator(backend_type: str):
         return inner_decorator
     return decorator
 
-# Generate decorator functions
-for backend_type in BACKEND_TYPES:
-    decorator_name = f"register_{backend_type}"
-    exec(f"{decorator_name} = create_backend_decorator('{backend_type}')")
+# Generate decorator functions (explicit definitions for mypy)
+# When adding a new backend type to BACKEND_TYPES, also add a decorator definition here
+register_action = create_backend_decorator('action')
+register_parser = create_backend_decorator('parser')
+register_mcp = create_backend_decorator('mcp')
+register_http = create_backend_decorator('http')
+register_maintenance = create_backend_decorator('maintenance')
+register_download = create_backend_decorator('download')
 
 # Create unified backend_handlers structure automatically from BACKEND_TYPES
 backend_handlers = {}

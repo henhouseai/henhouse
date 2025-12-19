@@ -38,7 +38,7 @@ def clear_cache() -> bool:
     
     json_data = gateway.response.get_action_response()
     try:
-        source_data = get_data(json_data)
+        source_data = get_data(json_data if json_data is not None else {})
         success = source_data.get('success', False)
         total_items = source_data.get('total_items_cleared', 0)
         

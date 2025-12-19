@@ -39,11 +39,6 @@ def remove_file() -> bool:
     """
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-
     if not gateway.is_set("page_id") and not gateway.is_set("id"):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
@@ -52,6 +47,8 @@ def remove_file() -> bool:
             warn("No file ID provided")
             report_error("action", "File ID is required")
 
+    page_id: int = 0
+    file_id: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg("page_id") or gateway.get_arg("id")
         file_id_arg = gateway.get_arg("file_id")
@@ -63,7 +60,7 @@ def remove_file() -> bool:
             warn(f"Invalid IDs provided. Page: {page_id_arg}, File: {file_id_arg}")
             report_error("action", "IDs must be numbers")
 
-    rank_int = None
+    rank_int: int | None = None
     if not is_error() and rank_arg is not None:
         try:
             rank_int = int(rank_arg)
@@ -74,6 +71,7 @@ def remove_file() -> bool:
             report_error("action", "Rank must be a positive number")
 
     # Load page
+    page = None
     if not is_error():
         page = get_page(page_id=page_id)
         if not page:
@@ -81,8 +79,8 @@ def remove_file() -> bool:
             report_error("action", f"Page {page_id} not found")
 
     # Perform removal
-    removed_count = 0
-    if not is_error():
+    removed_count: int = 0
+    if not is_error() and page is not None:
         if rank_int is not None:
             success = page.remove_file(file_id, rank_int)
             removed_count = 1 if success else 0
@@ -103,13 +101,14 @@ def remove_file() -> bool:
                 report_error("action", f"No instances of file {file_id} found on page {page_id}")
 
     # Reload page
+    updated_page = None
     if not is_error():
         updated_page = get_page(page_id=page_id)
         if not updated_page:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
 
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         response_data.update(
             {

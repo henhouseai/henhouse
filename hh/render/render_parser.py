@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from typing import Dict, List, Union, TypedDict
+from typing import Dict, List, Union, TypedDict, Optional
 from hh.render.config.config import ic, dc, out, mc, safe_str
 from hh.render.table.table import TableBuilder
 from hh.render.text.text import get_max_width
@@ -25,7 +25,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def render_flexible_table(table_data: TableData, field_configs: FieldConfig = None, table_class: str = 'standard', table_overrides: Dict[str, Union[str, int, bool]] = None) -> str:
+def render_flexible_table(table_data: TableData, field_configs: Optional[FieldConfig] = None, table_class: str = 'standard', table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None) -> str:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -39,9 +39,10 @@ def render_flexible_table(table_data: TableData, field_configs: FieldConfig = No
         return ""
     log(f"Rendering flexible table: {len(data)} rows, table_class={table_class}")
     if field_configs is None:
-        field_configs = FieldConfig()
+        field_configs_obj = FieldConfig()
     else:
-        field_configs = field_configs.get_configs()
+        field_configs_obj = field_configs
+    field_config_list = field_configs_obj.get_configs()
     columns = []
     if data:
         first_row_keys = list(data[0].keys())
@@ -69,24 +70,29 @@ def render_flexible_table(table_data: TableData, field_configs: FieldConfig = No
         log(f"Applied table overrides: {table_overrides}")
     for row_idx, row_data in enumerate(data):
         matching_field_config = None
-        if field_configs:
-            for field_config in field_configs:
-                if row_data.get('field_type') == field_config.get('field_type'):
-                    matching_field_config = field_config
-                    break
+        if field_config_list:
+            for field_config_item in field_config_list:
+                if isinstance(field_config_item, dict):
+                    field_type = field_config_item.get('field_type')  # type: ignore[typeddict-item]
+                    if row_data.get('field_type') == field_type:
+                        matching_field_config = field_config_item
+                        break
         if not matching_field_config:
             row_values = []
             for col in columns:
                 row_values.append("")
             for i, col in enumerate(columns):
                 if col in row_data:
-                    row_values[i] = out(safe_str(row_data[col]))
-            tb.row(keys=columns, values=row_values)
+                    row_values[i] = out(safe_str(row_data[col]))  # type: ignore[typeddict-item,literal-required]
+            tb.row(keys=columns, values=row_values)  # type: ignore[arg-type]
             continue
-        if matching_field_config.get('no_flag') and gateway.is_no(matching_field_config['no_flag']):
-            continue
-        if matching_field_config.get('condition') and not matching_field_config['condition'](row_data):
-            continue
+        if matching_field_config and isinstance(matching_field_config, dict):
+            no_flag = matching_field_config.get('no_flag')  # type: ignore[typeddict-item]
+            if no_flag and gateway.is_no(no_flag):
+                continue
+            condition = matching_field_config.get('condition')  # type: ignore[typeddict-item]
+            if condition and callable(condition) and not condition(row_data):
+                continue
         row_values = []
         for col in columns:
             row_values.append("")
@@ -95,15 +101,18 @@ def render_flexible_table(table_data: TableData, field_configs: FieldConfig = No
         if not gateway.is_no('label'):
             icon = ""
             label_text = ""
-            if matching_field_config.get('icon_key'):
-                icon = ic(matching_field_config['icon_key'])
-            if matching_field_config.get('label_key'):
-                label_text = dc(matching_field_config['label_key'], True)
-                
-                # Apply color wrapping to label_text if color_key is specified
-                if matching_field_config.get('color_key') and label_text:
-                    color_name = matching_field_config['color_key']
-                    label_text = apply_color(label_text, color_name)
+            if matching_field_config and isinstance(matching_field_config, dict):
+                icon_key = matching_field_config.get('icon_key')  # type: ignore[typeddict-item]
+                if icon_key:
+                    icon = ic(icon_key)
+                label_key = matching_field_config.get('label_key')  # type: ignore[typeddict-item]
+                if label_key:
+                    label_text = dc(label_key, True)
+                    
+                    # Apply color wrapping to label_text if color_key is specified
+                    color_key = matching_field_config.get('color_key')  # type: ignore[typeddict-item]
+                    if color_key and label_text:
+                        label_text = apply_color(label_text, color_key)
             
             if 'label' in row_data and row_data['label'] != '':
                 first_column_content = row_data['label']
@@ -115,8 +124,8 @@ def render_flexible_table(table_data: TableData, field_configs: FieldConfig = No
         start_idx = 1 if not gateway.is_no('label') else 0
         for i, col in enumerate(columns[start_idx:], start_idx):
             if col in row_data:
-                row_values[i] = out(safe_str(row_data[col]))
-        tb.row(keys=columns, values=row_values)
+                row_values[i] = out(safe_str(row_data[col]))  # type: ignore[typeddict-item,literal-required]
+        tb.row(keys=columns, values=row_values)  # type: ignore[arg-type]
     result = tb.render()
     log(f"Rendered flexible table with {len(data)} rows")
     trace_out()
@@ -124,9 +133,9 @@ def render_flexible_table(table_data: TableData, field_configs: FieldConfig = No
 
 def render_meta_table(
     table_data: TableData, 
-    field_configs: FieldConfig = None, 
+    field_configs: Optional[FieldConfig] = None, 
     table_class: str = 'div', 
-    table_overrides: Dict[str, Union[str, int, bool]] = None,
+    table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None,
     block_type: str = 'div'
 ) -> str:
     trace_in()
@@ -167,11 +176,11 @@ def render_meta_table(
             else:
                 nested_content = render_simple_value(value)
             meta_table_data.add_row('meta', key=key, value=nested_content)
-        modified_overrides = table_overrides.copy() if table_overrides else {}
-        modified_overrides['column_widths'] = {'value': max_sub_meta_width}
-        modified_overrides['column_align'] = {'label': 'right', 'key': 'center'}
+        modified_overrides: Dict[str, Union[str, int, bool, Dict[str, Union[str, int]]]] = table_overrides.copy() if table_overrides else {}  # type: ignore[assignment]
+        modified_overrides['column_widths'] = {'value': max_sub_meta_width}  # type: ignore[index]
+        modified_overrides['column_align'] = {'label': 'right', 'key': 'center'}  # type: ignore[index]
         from hh.render.render import render_block
-        result = render_block(meta_table_data, field_configs, 'double', modified_overrides, 'div')
+        result = render_block(meta_table_data, field_configs, 'double', modified_overrides, 'div')  # type: ignore[arg-type]
         log(f"Rendered meta table with {meta_table_data.num_rows()} rows")
         trace_out()
         return result
@@ -211,9 +220,9 @@ def render_simple_value(value: Union[str, int, bool, None]) -> str:
 
 def render_list_contents(
     value_list: List[Union[Dict, List, str, int, bool]], 
-    field_configs: FieldConfig = None, 
+    field_configs: Optional[FieldConfig] = None, 
     table_class: str = 'div',
-    table_overrides: Dict[str, Union[str, int, bool]] = None,
+    table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None,
     block_type: str = 'div'
 ) -> str:
     gateway = get_gateway()
@@ -241,17 +250,17 @@ def render_list_contents(
         else:
             nested_content = render_simple_value(item)
         list_table_data.add_row('meta', value=nested_content)
-    sub_meta_overrides = {'has_header': 0, 'column_widths': {'value': max_sub_meta_width}}
+    sub_meta_overrides: Dict[str, Union[str, int, bool, Dict[str, int]]] = {'has_header': 0, 'column_widths': {'value': max_sub_meta_width}}  # type: ignore[assignment]
     if table_overrides:
-        sub_meta_overrides.update(table_overrides)
+        sub_meta_overrides.update(table_overrides)  # type: ignore[arg-type]
     from hh.render.render import render_block
-    return render_block(list_table_data, field_configs, table_class, sub_meta_overrides, block_type)
+    return render_block(list_table_data, field_configs, table_class, sub_meta_overrides, block_type)  # type: ignore[arg-type]
 
 def render_dict_contents(
     value_dict: Dict[str, Union[Dict, List, str, int, bool]], 
-    field_configs: FieldConfig = None, 
+    field_configs: Optional[FieldConfig] = None, 
     table_class: str = 'div',
-    table_overrides: Dict[str, Union[str, int, bool]] = None,
+    table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None,
     block_type: str = 'div'
 ) -> str:
     gateway = get_gateway()
@@ -279,11 +288,11 @@ def render_dict_contents(
         else:
             nested_content = render_simple_value(value)
         dict_table_data.add_row('meta', key=key, value=nested_content)
-    sub_meta_overrides = {'has_header': 0, 'column_widths': {'value': max_sub_meta_width}}
+    sub_meta_overrides: Dict[str, Union[str, int, bool, Dict[str, int]]] = {'has_header': 0, 'column_widths': {'value': max_sub_meta_width}}  # type: ignore[assignment]
     if table_overrides:
-        sub_meta_overrides.update(table_overrides)
+        sub_meta_overrides.update(table_overrides)  # type: ignore[arg-type]
     from hh.render.render import render_block
-    return render_block(dict_table_data, field_configs, table_class, sub_meta_overrides, block_type)
+    return render_block(dict_table_data, field_configs, table_class, sub_meta_overrides, block_type)  # type: ignore[arg-type]
 
 
 def render_parser_header(subheader_key: str, header_id: str) -> str:

@@ -162,6 +162,10 @@ def _render_promote_parser() -> bool:
         return False
     
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     source_data = get_data(json_data)
     
     lines = []

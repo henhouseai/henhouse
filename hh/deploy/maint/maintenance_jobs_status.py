@@ -190,7 +190,8 @@ def maintenance_jobs_status_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
         stale_pages = source_data.get("stale_pages", 0)
         stale_images = source_data.get("stale_images", 0)
         stale_files = source_data.get("stale_files", 0)

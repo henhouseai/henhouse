@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, List
 from hh.gateway.debug.debug_table import DebugTable
+from hh.render.render import TableData, FieldConfig
 
 def debug_print(message: str) -> None:
     """Debug print function that can be easily enabled/disabled"""
@@ -16,9 +17,9 @@ class DebugTrace(DebugTable):
         
         # INDEPENDENT COUNTING LOGIC - BEFORE TREE BUILDING
         max_depth = 0
-        call_count_by_depth = {}
-        leaf_count_by_depth = {}
-        call_stack = []
+        call_count_by_depth: dict[int, int] = {}
+        leaf_count_by_depth: dict[int, int] = {}
+        call_stack: List[str] = []
 
         shared_data = self._get_shared_store().captured_data
         debug_print(f"debug_trace.process_extra_data() - shared_data length: {len(shared_data)}")
@@ -48,7 +49,7 @@ class DebugTrace(DebugTable):
             debug_print(f"debug_trace.process_extra_data() -   Depth {depth}: {leaf_count_by_depth[depth]} leaf calls")
         
         # NOW do the tree building (existing logic)
-        trace_structure = {}
+        trace_structure: dict[str, Any] = {}
         call_stack = []
         
         # Count and validate trace entries
@@ -130,9 +131,13 @@ class DebugTrace(DebugTable):
         # Show the raw trace structure as formatted JSON for debugging
         import json
         json_dump = f"TRACE STRUCTURE DEBUG OUTPUT:\n{json.dumps(trace_structure, indent=2)}"
+        # Convert trace_structure dict to TableData for rendering
+        table_data = TableData()
+        for key, value in trace_structure.items():
+            table_data.add_row('meta', meta=str(key), sub_meta=str(value))
         meta_table = render_meta_table(
-            trace_structure,
-            field_configs=[],
+            table_data,
+            field_configs=FieldConfig(),
             table_class='div',
             table_overrides={'margin_l': 2, 'margin_r': 2, 'margin_t': 1, 'margin_b': 1},
             block_type='meta'

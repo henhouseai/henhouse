@@ -2,8 +2,11 @@
 User info display - shows login information for admin/root tiers.
 """
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from hh.gateway.gateway import get_gateway
+
+if TYPE_CHECKING:
+    from hh.gateway.response.response_http import ResponseHTTP
 
 
 def populate_user_info(username: Optional[str] = None) -> None:
@@ -13,6 +16,11 @@ def populate_user_info(username: Optional[str] = None) -> None:
     """
     gateway = get_gateway()
     if not gateway or not gateway.response:
+        return
+    
+    # Type check - set_user_info is only available on ResponseHTTP
+    from hh.gateway.response.response_http import ResponseHTTP
+    if not isinstance(gateway.response, ResponseHTTP):
         return
     
     # Get username from seed_data if not provided

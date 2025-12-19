@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict
+from typing import List, Dict, Any, Union
 from hh.gateway.debug.debug_safe import Debug, DebugEntry, DOCUMENT_ROOT, trim_document_root
 from hh.render.text.color import COLORS, COLOR_NAMES, RESET_COLOR, apply_color_to_multiline, get_color
 from hh.render.render import FieldConfig, TableData
@@ -93,10 +93,11 @@ class DebugTable(Debug):
             field_config.add_simple_color('warn', 'orange')
             for config in field_config.get_configs():
                 if config['field_type'] == field_type and 'color_key' in config:
-                    color_key = config['color_key']
-                    message_color = get_color(color_key)
-                    if message_color:
-                        break
+                    color_key = config.get('color_key')  # type: ignore[typeddict-item]
+                    if color_key is not None:
+                        message_color = get_color(color_key)
+                        if message_color:
+                            break
             colored_message = entry.message
             if message_color:
                 colored_message = apply_color_to_multiline(entry.message, message_color)
@@ -107,7 +108,7 @@ class DebugTable(Debug):
                 function=colored_function,
                 message=colored_message
             )
-        overrides: Dict[str, object] = {
+        overrides: Dict[str, Any] = {
             'margin_l': 2,
             'margin_r': 2,
             'margin_t': 1,

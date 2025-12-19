@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -96,10 +96,13 @@ def render_progress_section(source_data: Dict[str, Union[str, int, bool]], lines
         progress_data = TableData()
         log(f"Rendering progress section for agent {source_data.get('agent_id')}")
         
-        progress = source_data.get('progress', {})
+        progress: Dict[str, Any] = {}
+        progress_raw: Any = source_data.get('progress', {})
+        if isinstance(progress_raw, dict):
+            progress = progress_raw
         if progress:
-            coffees = progress.get('coffees', [0, 0])
-            exams = progress.get('exams', [0, 0])
+            coffees = progress.get('coffees', [0, 0]) if isinstance(progress.get('coffees'), list) else [0, 0]
+            exams = progress.get('exams', [0, 0]) if isinstance(progress.get('exams'), list) else [0, 0]
             
             progress_data.add_row(
                 'coffees_done',
@@ -187,6 +190,10 @@ def _render_answer_parser() -> bool:
         return False
     
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     source_data = get_data(json_data)
     
     lines = []

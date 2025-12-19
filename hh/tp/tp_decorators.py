@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Union
 from hh.tp.tp_decorator_registry import register_tp_decorator
 from hh.render.text.color import apply_color, RESET_COLOR
 from hh.render.render import TableData, FieldConfig, render_block
@@ -109,7 +109,7 @@ def parser_decorator(json_data: Dict[str, Any], **kwargs: Any) -> str:
         return ''
 
 
-def _select_image_instance(instances: List[Dict[str, Any]], preferred_size: Any = None, preferred_size_pixels: int = None) -> Dict[str, Any]:
+def _select_image_instance(instances: List[Dict[str, Any]], preferred_size: Any = None, preferred_size_pixels: Optional[int] = None) -> Dict[str, Any]:
     """Select appropriate image instance based on size preferences."""
     if not instances:
         return {}
@@ -119,7 +119,7 @@ def _select_image_instance(instances: List[Dict[str, Any]], preferred_size: Any 
         return max(instances, key=lambda x: x.get('width', 0))
     
     # Determine target width
-    target_width = None
+    target_width: Optional[Union[int, float]] = None
     if preferred_size_pixels is not None:
         target_width = preferred_size_pixels
     elif preferred_size == 'fullsize':

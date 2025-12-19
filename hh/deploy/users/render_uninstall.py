@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -37,15 +37,20 @@ def render_uninstall_section(source_data: Dict[str, Union[str, int, bool]], line
         uninstall_data = TableData()
         project_name = source_data.get('project_name', 'Unknown')
         project_owner = source_data.get('project_owner', 'Unknown')
-        users_removed = source_data.get('users_removed', [])
-        users_skipped = source_data.get('users_skipped', [])
+        users_removed_raw: Any = source_data.get('users_removed', [])
+        users_removed: List[str] = users_removed_raw if isinstance(users_removed_raw, list) else []
+        users_skipped_raw: Any = source_data.get('users_skipped', [])
+        users_skipped: List[str] = users_skipped_raw if isinstance(users_skipped_raw, list) else []
         users_total_attempted = source_data.get('users_total_attempted', 0)
         project_directory_removed = source_data.get('project_directory_removed', False)
         project_directory_path = source_data.get('project_directory_path', 'Unknown')
-        groups_deleted = source_data.get('groups_deleted', [])
+        groups_deleted_raw: Any = source_data.get('groups_deleted', [])
+        groups_deleted: List[str] = groups_deleted_raw if isinstance(groups_deleted_raw, list) else []
         groups_total_attempted = source_data.get('groups_total_attempted', 0)
-        human_scripts_removed = source_data.get('human_scripts_removed', [])
-        root_scripts_removed = source_data.get('root_scripts_removed', [])
+        human_scripts_removed_raw: Any = source_data.get('human_scripts_removed', [])
+        human_scripts_removed: List[str] = human_scripts_removed_raw if isinstance(human_scripts_removed_raw, list) else []
+        root_scripts_removed_raw: Any = source_data.get('root_scripts_removed', [])
+        root_scripts_removed: List[str] = root_scripts_removed_raw if isinstance(root_scripts_removed_raw, list) else []
         safety_checks_passed = source_data.get('safety_checks_passed', 0)
         safety_checks_failed = source_data.get('safety_checks_failed', 0)
         
@@ -155,7 +160,7 @@ def uninstall() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_uninstall_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing uninstall data successfully")
     
     render_uninstall_section(source_data, lines)

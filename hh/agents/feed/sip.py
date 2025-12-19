@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from hh.gateway.connection.utils import ensure_iso_timestamps
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -27,7 +27,7 @@ def _initialize_debug():
 
 @register_action('sip')
 @register_command('sip')
-def sip(args: List[str] = None) -> bool:
+def sip(args: Optional[List[str]] = None) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -83,7 +83,7 @@ def sip(args: List[str] = None) -> bool:
         rows = gateway.conn.read(combined_query, combined_params)
         log(f"Query executed: {len(rows)} rows returned")
         messages = []
-        queue_ids_by_channel = {}
+        queue_ids_by_channel: Dict[str, List[int]] = {}
         for row in rows:
             message = dict(row)
             channel_name = message['channel_name']

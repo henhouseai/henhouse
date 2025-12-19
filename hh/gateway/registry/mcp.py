@@ -35,7 +35,7 @@ def _mcp_wrapper_template(tool_name: str) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
-        warn("No gateway available")
+        warn("No gateway or response available")
         trace_out()
         return False
     if not gateway.response.has_action_response():
@@ -52,7 +52,7 @@ def _mcp_wrapper_template(tool_name: str) -> bool:
 # This exec block will be discovered by the registry system when this module is imported
 # Get all tools from all tiers to generate wrappers
 _wrapper_code = ""
-all_tools = set()
+all_tools: set[str] = set()
 for tier in HENHOUSE_TIERS:
     try:
         tier_whitelist = MCPWhitelist._load_tier_whitelist(tier)

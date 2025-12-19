@@ -24,10 +24,6 @@ def get_page() -> bool:
     """Pass-through renderer: emit action_response JSON as backend output."""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")

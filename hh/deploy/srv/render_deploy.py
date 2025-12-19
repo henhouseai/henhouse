@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -41,14 +41,22 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
         destination = source_data.get('destination', 'Unknown')
         code_deployed = source_data.get('code_deployed', False)
         deployment_cleaned = source_data.get('deployment_cleaned', False)
-        cache_cleaned = source_data.get('cache_cleaned', {})
-        flask_deployed = source_data.get('flask_deployed', [])
-        flask_restart = source_data.get('flask_restart', {})
-        maintenance_restart = source_data.get('maintenance_restart', {})
-        context_deployed = source_data.get('context_deployed', [])
-        js_count = source_data.get('js_count', 0)
-        css_count = source_data.get('css_count', 0)
-        misc_count = source_data.get('misc_count', 0)
+        cache_cleaned_raw: Any = source_data.get('cache_cleaned', {})
+        cache_cleaned: Dict[str, Any] = cache_cleaned_raw if isinstance(cache_cleaned_raw, dict) else {}
+        flask_deployed_raw: Any = source_data.get('flask_deployed', [])
+        flask_deployed: List[str] = flask_deployed_raw if isinstance(flask_deployed_raw, list) else []
+        flask_restart_raw: Any = source_data.get('flask_restart', {})
+        flask_restart: Dict[str, Any] = flask_restart_raw if isinstance(flask_restart_raw, dict) else {}
+        maintenance_restart_raw: Any = source_data.get('maintenance_restart', {})
+        maintenance_restart: Dict[str, Any] = maintenance_restart_raw if isinstance(maintenance_restart_raw, dict) else {}
+        context_deployed_raw: Any = source_data.get('context_deployed', [])
+        context_deployed: List[str] = context_deployed_raw if isinstance(context_deployed_raw, list) else []
+        js_count_raw = source_data.get('js_count', 0)
+        js_count = int(js_count_raw) if isinstance(js_count_raw, (int, str)) else 0
+        css_count_raw = source_data.get('css_count', 0)
+        css_count = int(css_count_raw) if isinstance(css_count_raw, (int, str)) else 0
+        misc_count_raw = source_data.get('misc_count', 0)
+        misc_count = int(misc_count_raw) if isinstance(misc_count_raw, (int, str)) else 0
         ownership_set = source_data.get('ownership_set', False)
         cache_permissions_set = source_data.get('cache_permissions_set', False)
         
@@ -221,7 +229,7 @@ def deploy() -> bool:
         trace_out()
         return False
     
-    if not gateway.response.has_action_response():
+    if not gateway.response or not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend","No action response available")
         trace_out()
@@ -230,7 +238,7 @@ def deploy() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_deploy_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data) if json_data else {}
     log(f"Processing deploy data successfully")
     
     render_deploy_section(source_data, lines)

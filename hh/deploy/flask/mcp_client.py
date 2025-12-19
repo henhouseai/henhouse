@@ -145,42 +145,28 @@ def handle_tools_call(params: dict, request_id) -> dict:
             argv.extend(query_params)
         
         # Initialize gateway and dispatch
-        gateway = get_gateway()
+        from hh.gateway.gateway import init_gateway
+        gateway = init_gateway(argv, "mcp")
         
         # Store request ID for response formatting
         if hasattr(gateway.response, 'set_request_id'):
             gateway.response.set_request_id(request_id)
         
         # Dispatch with mcp backend
-        result = gateway.dispatch(argv, "mcp")
+        result = gateway.dispatch()
         
         # Get output from gateway response
-        if gateway and gateway.response:
-            output = gateway.response.get_output()
-            
-            # Try to parse as JSON-RPC response
-            try:
-                output_data = json.loads(output)
-                if isinstance(output_data, dict) and "jsonrpc" in output_data:
-                    # Ensure request ID is set correctly
-                    output_data["id"] = request_id
-                    return output_data
-                else:
-                    # Wrap in MCP tools/call result format
-                    return {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": output
-                                }
-                            ]
-                        }
-                    }
-            except json.JSONDecodeError:
-                # Plain text output
+        output = gateway.response.get_output()
+        
+        # Try to parse as JSON-RPC response
+        try:
+            output_data = json.loads(output)
+            if isinstance(output_data, dict) and "jsonrpc" in output_data:
+                # Ensure request ID is set correctly
+                output_data["id"] = request_id
+                return output_data
+            else:
+                # Wrap in MCP tools/call result format
                 return {
                     "jsonrpc": "2.0",
                     "id": request_id,
@@ -193,6 +179,20 @@ def handle_tools_call(params: dict, request_id) -> dict:
                         ]
                     }
                 }
+        except json.JSONDecodeError:
+            # Plain text output
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": output
+                        }
+                    ]
+                }
+            }
         
         # Fallback error
         return {

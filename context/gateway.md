@@ -72,14 +72,19 @@ The central orchestrator and state manager for the entire Henhouse system. It ma
 
 ### Gateway Class
 
-**Singleton Pattern**: Always use `get_gateway()`, never instantiate directly.
+**Singleton Pattern**: Use `init_gateway(raw_argv, backend)` to create and initialize, then `get_gateway()` to access. Never instantiate directly.
+
+**Initialization**: Gateway is initialized via `init_gateway(raw_argv, backend)` which:
+- Creates the Gateway singleton instance
+- Calls `Gateway.__init__(raw_argv, backend)` which performs all initialization
+- Guarantees that `request`, `response`, `conn`, and `files` are non-None after initialization completes
 
 **Core State Management**:
-- `request`: Parsed command-line arguments and flags
-- `response`: Output buffer and response management
+- `request`: Parsed command-line arguments and flags (guaranteed non-None after init)
+- `response`: Output buffer and response management (guaranteed non-None after init)
 - `registry`: Command and backend handler discovery
-- `conn`: Database connection instance (Connection, MySQLConnection, or RootConnection)
-- `files`: FileSystem instance for file operations
+- `conn`: Database connection instance (Connection, MySQLConnection, or RootConnection) (guaranteed non-None after init)
+- `files`: FileSystem instance for file operations (guaranteed non-None after init)
 - `os`: ProcessManager instance for cross-platform process management
 - `action_handler`: Business logic execution function
 - `backend_handler`: Presentation logic execution function
@@ -89,30 +94,34 @@ The central orchestrator and state manager for the entire Henhouse system. It ma
 
 ### Execution Flow
 
-1. `dispatch()`: Main entry point
-2. `_initialize()`: Sets up all subsystems in proper order
-   - `_initialize_debug_module()`: Configures debugging based on request flags
-   - `_initialize_command()`: Extracts command from parsed request (with defaults for http/parser backends)
-   - `_initialize_connection()`: Initializes database connection and returns user tier level
-   - `_initialize_response()`: Initializes backend-specific Response subclass
-   - `_initialize_action()`: Loads and validates action handler
-   - `_initialize_backend()`: Loads and validates backend handler
-   - `_configure_debug_module()`: Applies debug filter overrides
-3. `action_handler()`: Executes business logic
-4. `backend_handler()`: Executes presentation logic
-5. `_process_errors()`: Processes errors and runs error handler if available
-6. `_commit()`: Commits file operations, refreshes caches, and commits database transactions
-7. `flush_debug()`: Outputs debug information
+1. **Entry Point**: `init_gateway(raw_argv, backend)` creates and initializes Gateway
+2. **Initialization** (in `Gateway.__init__()`):
+   - `_initialize()`: Sets up all subsystems in proper order
+     - `_initialize_debug_module()`: Configures debugging based on request flags
+     - `_initialize_command()`: Extracts command from parsed request (with defaults for http/parser backends)
+     - `_initialize_connection()`: Initializes database connection and returns user tier level
+     - `_initialize_response()`: Initializes backend-specific Response subclass
+     - `_initialize_action()`: Loads and validates action handler
+     - `_initialize_backend()`: Loads and validates backend handler
+     - `_configure_debug_module()`: Applies debug filter overrides
+3. **Dispatch** (in `dispatch()`):
+   - `action_handler()`: Executes business logic
+   - `backend_handler()`: Executes presentation logic
+   - `_process_errors()`: Processes errors and runs error handler if available
+   - `_commit()`: Commits file operations, refreshes caches, and commits database transactions
+   - `flush_debug()`: Outputs debug information
 
 ### Critical Methods
 
-- `get_arg(name)`: Access command arguments
-- `is_no(flag)`: Check if flags are disabled
-- `is_set(name)`: Check if argument is set
-- `gateway.response.set_action_response(data)`: Actions store results via response
-- `gateway.response.add_output(text)`: Backends add output via response
+- `get_arg(name)`: Access command arguments (via `gateway.request`, guaranteed non-None)
+- `is_no(flag)`: Check if flags are disabled (via `gateway.request`, guaranteed non-None)
+- `is_set(name)`: Check if argument is set (via `gateway.request`, guaranteed non-None)
+- `gateway.response.set_action_response(data)`: Actions store results via response (guaranteed non-None)
+- `gateway.response.add_output(text)`: Backends add output via response (guaranteed non-None)
 - `report_error(type, content)`: Report errors via error_store module
 - `is_error()`: Check error state via error_store module
+
+**Note:** After Gateway initialization, `gateway.request`, `gateway.response`, `gateway.conn`, and `gateway.files` are guaranteed to be non-None. No null checks are needed when accessing these attributes in action handlers, backend handlers, or parser functions.
 
 ### Connection Management
 

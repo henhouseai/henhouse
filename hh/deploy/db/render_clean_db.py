@@ -73,7 +73,7 @@ def clean_db() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_clean_db_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing db cleanup data successfully")
     render_clean_db_section(source_data, lines)
     result = finalize_output(lines)

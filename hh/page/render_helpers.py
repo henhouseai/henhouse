@@ -34,7 +34,7 @@ def render_path_section(
     page_id: Optional[int] = None,
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """
     Render the breadcrumb path section.
@@ -132,7 +132,7 @@ def render_badge_headers_section(
     page_id: Optional[int] = None,
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """
     Render badge headers section.
@@ -203,7 +203,7 @@ def render_page_summary_badge(
     page_id: Optional[int] = None,
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """Render page summary badge."""
     trace_in()
@@ -349,7 +349,7 @@ def render_generic_badge(
     page_id: Optional[int] = None,
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """Render generic badge."""
     trace_in()
@@ -414,7 +414,7 @@ def render_text_section(
     page_data: Dict[str, Union[str, int]],
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """
     Render text content section.
@@ -496,10 +496,10 @@ def render_text_section(
 
 def render_children_by_class_section(
     children_by_class: Dict[str, Dict[str, Any]],
-    page_id: int = None,
+    page_id: Optional[int] = None,
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """
     Render children by class section.
@@ -710,10 +710,10 @@ def render_children_by_class_section(
 
 def render_images_section(
     images_data: List[Dict[str, Any]],
-    page_id: int = None,
+    page_id: Optional[int] = None,
     overlay_mode: bool = False,
     wrapper_id_prefix: str = '',
-    additional_classes: List[str] = None
+    additional_classes: Optional[List[str]] = None
 ) -> Optional[str]:
     """
     Render images section.
@@ -781,7 +781,7 @@ def render_images_section(
                 FieldConfig()
                     .add_header('images_header')
                     .add_simple(['image_item']),
-                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
                 block_type=block,
                 wrapper_extra_classes=wrapper_extra_classes
             )

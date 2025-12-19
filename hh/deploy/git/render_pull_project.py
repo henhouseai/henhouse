@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -42,7 +42,8 @@ def render_pull_project_section(source_data: Dict[str, Union[str, int, bool]], l
         short_hash = source_data.get('short_hash', 'Unknown')
         commit_message = source_data.get('commit_message', 'Unknown')
         time_ago = source_data.get('time_ago', 'Unknown')
-        cache_cleared = source_data.get('cache_cleared', [])
+        cache_cleared_raw: Any = source_data.get('cache_cleared', [])
+        cache_cleared: List[str] = cache_cleared_raw if isinstance(cache_cleared_raw, list) else []
         
         log(f"Rendering pull project section for: {project_name}")
         debug(f"Source data keys: {list(source_data.keys())}")
@@ -135,7 +136,7 @@ def pull_project() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_pull_project_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing pull project data successfully")
     
     render_pull_project_section(source_data, lines)

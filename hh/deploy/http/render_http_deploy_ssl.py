@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -77,13 +77,15 @@ def render_http_deploy_ssl_section(source_data: Dict[str, Union[str, int, bool]]
         
         # Subdomains - separate row for each
         if not gateway.is_no('subdomains'):
-            subdomains = source_data.get('subdomains', [])
+            subdomains_raw: Any = source_data.get('subdomains', [])
+            subdomains: List[str] = subdomains_raw if isinstance(subdomains_raw, list) else []
             for subdomain in subdomains:
                 http_data.add_row('subdomain', value=safe_str(subdomain))
         
         # Whitelist summary
         if not gateway.is_no('whitelist'):
-            whitelist = source_data.get('whitelist_summary', {})
+            whitelist_raw: Any = source_data.get('whitelist_summary', {})
+            whitelist: Dict[str, Any] = whitelist_raw if isinstance(whitelist_raw, dict) else {}
             if whitelist.get('js_files', 0) > 0:
                 http_data.add_row('js_whitelist', value=safe_str(f"{whitelist.get('js_files')} files"))
             if whitelist.get('css_files', 0) > 0:
@@ -137,7 +139,7 @@ def http_deploy_ssl() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_http_deploy_ssl_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing HTTP deploy SSL data successfully")
     
     render_http_deploy_ssl_section(source_data, lines)

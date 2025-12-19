@@ -65,8 +65,13 @@ def uninstall() -> bool:
     users_to_remove.extend(additional_users)
     
     # Remove duplicates
-    seen = set()
-    users_to_remove = [user for user in users_to_remove if not (user in seen or seen.add(user))]
+    seen: set[str] = set()
+    deduplicated: list[str] = []
+    for user in users_to_remove:
+        if user not in seen:
+            seen.add(user)
+            deduplicated.append(user)
+    users_to_remove = deduplicated
     
     log(f"Users to remove: {users_to_remove}")
 
@@ -388,8 +393,9 @@ def validate_user_for_deletion(user: str, project_name: str, gateway) -> bool:
         trace_out()
         return False
 
-def cleanup_existing_users(project_name: str, additional_users: List[str] = None) -> None:
+def cleanup_existing_users(project_name: str, additional_users: Optional[List[str]] = None) -> None:
     trace_in()
+    gateway = get_gateway()
     log("Cleaning up existing users")
     
     # Get dynamic project users
@@ -401,15 +407,20 @@ def cleanup_existing_users(project_name: str, additional_users: List[str] = None
         users_to_remove.extend(additional_users)
     
     # Remove duplicates while preserving order
-    seen = set()
-    users_to_remove = [user for user in users_to_remove if not (user in seen or seen.add(user))]
+    seen: set[str] = set()
+    deduplicated: list[str] = []
+    for user in users_to_remove:
+        if user not in seen:
+            seen.add(user)
+            deduplicated.append(user)
+    users_to_remove = deduplicated
     
     log(f"Users to remove: {users_to_remove}")
     
     for user in users_to_remove:
         try:
             # Safety validation before deletion
-            if not validate_user_for_deletion(user, project_name):
+            if not validate_user_for_deletion(user, project_name, gateway):
                 warn(f"Skipping deletion of user {user} - failed safety checks")
                 continue
             
@@ -518,15 +529,15 @@ def reset_project_group_ownership(project_name: str, project_path: Path) -> None
                 warn(f"Could not resolve owner for uid {owner_uid}")
             else:
                 owner_name = owner_info["name"]
-            
-            # Get the owner's primary group
-            group_info = gateway.os.get_group_by_gid(owner_info["gid"]) if gateway and gateway.os else None
-            if group_info:
-                primary_group = group_info["name"]
-                subprocess.run(['chgrp', '-R', primary_group, str(project_path)], check=True, capture_output=True)
-                log(f"Reset group ownership of {project_path} to {primary_group} (owner: {owner_name})")
-            else:
-                warn(f"Could not resolve group for gid {owner_info['gid']}")
+                
+                # Get the owner's primary group
+                group_info = gateway.os.get_group_by_gid(owner_info["gid"]) if gateway and gateway.os else None
+                if group_info:
+                    primary_group = group_info["name"]
+                    subprocess.run(['chgrp', '-R', primary_group, str(project_path)], check=True, capture_output=True)
+                    log(f"Reset group ownership of {project_path} to {primary_group} (owner: {owner_name})")
+                else:
+                    warn(f"Could not resolve group for gid {owner_info['gid']}")
         except subprocess.CalledProcessError as e:
             warn(f"Failed to reset group ownership: {e.stderr.decode()}")
         except Exception as e:

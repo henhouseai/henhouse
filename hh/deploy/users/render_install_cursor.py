@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -37,9 +37,12 @@ def render_install_cursor_section(source_data: Dict[str, Union[str, int, bool]],
         cursor_data = TableData()
         project_name = source_data.get('project_name', 'Unknown')
         users_processed = source_data.get('users_processed', 0)
-        users_successful = source_data.get('users_successful', 0)
-        users_failed = source_data.get('users_failed', 0)
-        cursor_results = source_data.get('cursor_results', [])
+        users_successful_raw = source_data.get('users_successful', 0)
+        users_successful = int(users_successful_raw) if isinstance(users_successful_raw, (int, str)) else 0
+        users_failed_raw = source_data.get('users_failed', 0)
+        users_failed = int(users_failed_raw) if isinstance(users_failed_raw, (int, str)) else 0
+        cursor_results_raw: Any = source_data.get('cursor_results', [])
+        cursor_results: List[Dict[str, Any]] = cursor_results_raw if isinstance(cursor_results_raw, list) else []
         
         log(f"Rendering cursor installation results for: {project_name}")
         debug(f"Users processed: {users_processed}, successful: {users_successful}, failed: {users_failed}")
@@ -71,6 +74,8 @@ def render_install_cursor_section(source_data: Dict[str, Union[str, int, bool]],
         
         # Individual user results
         for result in cursor_results:
+            if not isinstance(result, dict):
+                continue
             username = result.get('username', 'Unknown')
             status = result.get('status', 'unknown')
             error = result.get('error', '')
@@ -112,7 +117,7 @@ def install_cursor() -> bool:
         trace_out()
         return False
     
-    if not gateway.response.has_action_response():
+    if not gateway.response or not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend","No action response available")
         trace_out()
@@ -121,7 +126,7 @@ def install_cursor() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_install_cursor_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data) if json_data else {}
     log(f"Processing cursor installation data successfully")
     
     render_install_cursor_section(source_data, lines)

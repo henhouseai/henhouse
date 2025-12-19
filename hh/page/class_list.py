@@ -8,6 +8,7 @@ from hh.page.page_class_registry import discover_page_classes, _page_class_regis
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import break_section
 from hh.gateway.response.json_standard import get_data
+from typing import Mapping, cast, Any
 from hh.render.config.config import safe_str
 
 trace_in = lambda message=None: None
@@ -32,10 +33,6 @@ def class_list() -> bool:
     """Force rebuild page class cache and report all classes with their status."""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
 
     try:
         # Force a complete rebuild of the page class cache
@@ -97,10 +94,6 @@ def class_list_parser() -> bool:
     """Render page class list with status and errors."""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -108,7 +101,13 @@ def class_list_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         total_classes = source_data.get("total_classes", 0)
         loaded_classes = source_data.get("loaded_classes", 0)
         failed_classes = source_data.get("failed_classes", 0)

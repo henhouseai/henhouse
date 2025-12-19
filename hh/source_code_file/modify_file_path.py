@@ -56,7 +56,7 @@ def modify_file_path() -> bool:
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Modifying page {page_id} file path to '{new_path}'")
         success = page.modify_file_path(new_path)
         if not success:

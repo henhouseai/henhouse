@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Mapping, cast
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload, get_data
@@ -28,10 +28,6 @@ def _initialize_debug():
 def set_image_rank() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('page_id'):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
@@ -43,21 +39,24 @@ def set_image_rank() -> bool:
         if not gateway.is_set('target_rank') and not gateway.is_set('t_rank'):
             warn("No target rank provided")
             report_error("action", "Target rank is required")
+    page_id: int = 0
+    image_id: int = 0
+    target_rank: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg('page_id')
-        image_id = gateway.get_arg('image_id')
+        image_id_arg = gateway.get_arg('image_id')
         target_rank_arg = gateway.get_arg('target_rank') or gateway.get_arg('t_rank')
         source_rank = gateway.get_arg('source_rank') or gateway.get_arg('s_rank')
         try:
             page_id = int(page_id_arg)
-            image_id = int(image_id)
+            image_id = int(image_id_arg)
             target_rank = int(target_rank_arg)
         except ValueError:
-            warn(f"Invalid page ID: {page_id_arg}, image ID: {image_id}, or target rank: {target_rank_arg}")
+            warn(f"Invalid page ID: {page_id_arg}, image ID: {image_id_arg}, or target rank: {target_rank_arg}")
             report_error("action", "Page ID, image ID, and target rank must be numbers")
     
     # Parse optional source_rank parameter
-    source_rank_int = None
+    source_rank_int: int | None = None
     if not is_error() and source_rank:
         try:
             source_rank_int = int(source_rank)
@@ -68,6 +67,7 @@ def set_image_rank() -> bool:
             warn(f"Invalid source rank: {source_rank}")
             report_error("action", "Source rank must be a number")
     
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
@@ -75,7 +75,7 @@ def set_image_rank() -> bool:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
     
-    if not is_error():
+    if not is_error() and page is not None:
         # Get current images to validate the image exists and check for duplicates
         current_images = page.get_images_data()
         image_instances = []
@@ -90,9 +90,11 @@ def set_image_rank() -> bool:
             warn(f"Image {image_id} not found in page {page_id}")
             report_error("action", f"Image {image_id} not found in page {page_id}")
     
-    if not is_error():
+    if not is_error() and page is not None:
         # Check for duplicates if source_rank not specified
         if source_rank_int is None:
+            current_images = page.get_images_data()
+            image_instances = [img for img in current_images if img['id'] == image_id]
             if len(image_instances) > 1:
                 warn(f"Image {image_id} appears {len(image_instances)} times in page {page_id}. Source rank must be specified.")
                 report_error("action", f"Image {image_id} appears {len(image_instances)} times in page {page_id}. Source rank must be specified.")
@@ -102,6 +104,8 @@ def set_image_rank() -> bool:
                 log(f"Using current rank {source_rank_int} for image {image_id}")
         else:
             # Validate that the specified source_rank exists for this image
+            current_images = page.get_images_data()
+            image_instances = [img for img in current_images if img['id'] == image_id]
             source_rank_found = any(inst['image_rank'] == source_rank_int for inst in image_instances)
             if not source_rank_found:
                 warn(f"Image {image_id} not found at rank {source_rank_int} in page {page_id}")
@@ -113,13 +117,14 @@ def set_image_rank() -> bool:
             warn(f"Invalid target rank: {target_rank} (must be positive)")
             report_error("action", "Target rank must be a positive number")
     
-    if not is_error():
+    if not is_error() and page is not None and source_rank_int is not None:
         log(f"Setting image {image_id} rank from {source_rank_int} to {target_rank} in page {page_id}")
         success = page.set_image_rank(image_id, source_rank_int, target_rank)
         if not success:
             warn(f"Failed to set image {image_id} rank from {source_rank_int} to {target_rank}")
             report_error("action", f"Failed to set image {image_id} rank from {source_rank_int} to {target_rank}")
     
+    updated_page = None
     if not is_error():
         # Reload page to get updated state
         log(f"Reloading page {page_id} to get updated state")
@@ -128,7 +133,7 @@ def set_image_rank() -> bool:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
     
-    if not is_error():
+    if not is_error() and updated_page is not None:
         # Get updated images list with current ranks
         updated_images = updated_page.get_images_data(rebuild=True)
         
@@ -160,11 +165,6 @@ def set_image_rank() -> bool:
 def set_image_rank_parser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("backend", "No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -172,7 +172,13 @@ def set_image_rank_parser() -> bool:
         return False
     
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         page_id = source_data.get("page_id")
         image_id = source_data.get("image_id")
         source_rank = source_data.get("source_rank")

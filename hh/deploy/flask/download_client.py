@@ -4,20 +4,20 @@ from __future__ import annotations
 import io
 import sys
 
-from hh.gateway.gateway import get_gateway
+from hh.gateway.gateway import init_gateway
 from hh.gateway.error.error_store import is_error
 
 
 def main(argv=None) -> int:
     argv = argv or sys.argv[1:]
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stdout, "reconfigure") and callable(getattr(sys.stdout, "reconfigure", None)):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     else:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    gateway = get_gateway()
-    gateway.dispatch(argv, "download")
+    gateway = init_gateway(argv, "download")
+    gateway.dispatch()
     output = gateway.response.get_output()
     if output:
         print(output)

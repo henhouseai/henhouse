@@ -63,12 +63,13 @@ def modify_work_status() -> bool:
             report_error("action", f"Page {page_id} not found")
     if not is_error():
         log(f"Modifying page {page_id} status to '{new_status}'")
-        success = page.modify_work_status(new_status)
-        if not success:
-            warn("Page status modification failed")
-            report_error("action", "Page status modification failed")
-        response_data = page.show_page()
-        gateway.response.set_action_response(success_payload(response_data))
+        if page:
+            success = page.modify_work_status(new_status)
+            if not success:
+                warn("Page status modification failed")
+                report_error("action", "Page status modification failed")
+            response_data = page.show_page()
+            gateway.response.set_action_response(success_payload(response_data))
         # Calculate total children from children_by_class
         total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
         log(f"Successfully modified page {page_id} status to '{new_status}' with {total_children} children")

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Any
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -95,8 +96,11 @@ def command_list() -> bool:
         
         command_infos.sort(key=get_sort_key)
         data["commands"] = command_infos
-        loaded_count = sum(1 for cmd in data['commands'] if cmd['is_loaded'])
-        log(f"Successfully created command list with {len(data['commands'])} commands ({loaded_count} loaded, {len(available_commands) - loaded_count} available)")
+        commands_list = data.get('commands', [])
+        assert isinstance(commands_list, list), "commands should be a list"
+        loaded_count = sum(1 for cmd in commands_list if isinstance(cmd, dict) and cmd.get('is_loaded'))
+        commands_count = len(commands_list)
+        log(f"Successfully created command list with {commands_count} commands ({loaded_count} loaded, {len(available_commands) - loaded_count} available)")
         gateway.response.set_action_response(success_payload(data))
         trace_out()
         return True
@@ -119,19 +123,23 @@ def backend_list() -> bool:
         current_backend = gateway.backend
         backend_list = list(BACKEND_TYPES)
         log(f"Listing {len(backend_list)} registered backends")
-        data = {
+        data: Dict[str, Any] = {
             "type": "backend_list",
             "count": len(backend_list),
             "backends": []
         }
+        backends_list = data["backends"]
+        assert isinstance(backends_list, list), "backends should be a list"
         for backend_name in sorted(backend_list):
             is_loaded = backend_name == current_backend
-            data["backends"].append({
+            backends_list.append({
                 "name": backend_name,
                 "module_path": f"hh.gateway.registry.{backend_name}",
                 "is_loaded": is_loaded
             })
-        log(f"Successfully created backend list with {len(data['backends'])} backends (current: {current_backend})")
+        backends_list = data.get('backends', [])
+        backends_count = len(backends_list) if isinstance(backends_list, list) else 0
+        log(f"Successfully created backend list with {backends_count} backends (current: {current_backend})")
         gateway.response.set_action_response(success_payload(data))
         trace_out()
         return True

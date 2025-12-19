@@ -150,11 +150,12 @@ def image_cache_refresh_action() -> bool:
         error = rebuild_image(stale_image_id)
         images_remaining = count_stale_images()
 
+        error_msg: str | None = error.get("error") if error and isinstance(error, dict) else None
         payload = {
             "operation": "rebuild_image_cache",
             "image_id": stale_image_id,
             "processed": error is None,
-            "error": error,
+            "error": error_msg,
             "images_remaining": images_remaining,
         }
         gateway.response.set_action_response(success_payload(payload))
@@ -187,7 +188,8 @@ def image_cache_refresh_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
         image_id = source_data.get("image_id")
         processed = source_data.get("processed", False)
         error = source_data.get("error")

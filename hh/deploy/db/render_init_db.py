@@ -73,7 +73,7 @@ def init_db() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_init_db_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing db initialization data successfully")
     render_init_db_section(source_data, lines)
     result = finalize_output(lines)

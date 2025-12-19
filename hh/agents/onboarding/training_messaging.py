@@ -52,7 +52,7 @@ class TrainingMessaging:
         trace_out()
         return True
     
-    def queue_completion_message(self, agent_id: int, message_type: str, badge_ts: str, role: str = None) -> bool:
+    def queue_completion_message(self, agent_id: int, message_type: str, badge_ts: str, role: Optional[str] = None) -> bool:
         trace_in()
         gateway = get_gateway()
         if not gateway or not gateway.conn:

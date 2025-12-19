@@ -57,6 +57,10 @@ def load_table_config(class_name: str) -> TableConfig:
 
 def update_column_config(config: TableConfig, columns: List[str]) -> None:
     trace_in()
+    assert config.column_widths is not None, "column_widths should be initialized in __post_init__"
+    assert config.column_align is not None, "column_align should be initialized in __post_init__"
+    assert config.column_overflow is not None, "column_overflow should be initialized in __post_init__"
+    assert config.column_valign is not None, "column_valign should be initialized in __post_init__"
     for col in columns:
         if col not in config.column_widths:
             width = _cfg_conf_int(config.class_name, f'width_{col}')
@@ -80,75 +84,115 @@ def apply_config_overrides(config: TableConfig, overrides: Dict[str, Union[str, 
         trace_out()
         return config
     if 'margin_l' in overrides:
-        config.margin_l = overrides['margin_l']
+        val = overrides['margin_l']
+        config.margin_l = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'margin_r' in overrides:
-        config.margin_r = overrides['margin_r']
+        val = overrides['margin_r']
+        config.margin_r = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'margin_t' in overrides:
-        config.margin_t = overrides['margin_t']
+        val = overrides['margin_t']
+        config.margin_t = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'margin_b' in overrides:
-        config.margin_b = overrides['margin_b']
+        val = overrides['margin_b']
+        config.margin_b = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'padl' in overrides:
-        config.default_padl = overrides['padl']
+        val = overrides['padl']
+        config.default_padl = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'padr' in overrides:
-        config.default_padr = overrides['padr']
+        val = overrides['padr']
+        config.default_padr = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'column_widths' in overrides:
-        for col, width in overrides['column_widths'].items():
-            config.column_widths[col] = width
+        val = overrides['column_widths']
+        if isinstance(val, dict):
+            for col, width in val.items():
+                config.column_widths[col] = width if isinstance(width, int) else int(width) if isinstance(width, (str, bool)) else 0
     if 'column_align' in overrides:
-        for col, align in overrides['column_align'].items():
-            config.column_align[col] = align
+        val = overrides['column_align']
+        if isinstance(val, dict):
+            for col, align in val.items():
+                config.column_align[col] = str(align) if align is not None else 'left'
     if 'column_overflow' in overrides:
-        for col, overflow in overrides['column_overflow'].items():
-            config.column_overflow[col] = overflow
+        val = overrides['column_overflow']
+        if isinstance(val, dict):
+            for col, overflow in val.items():
+                config.column_overflow[col] = str(overflow) if overflow is not None else 'wrap'
     if 'column_valign' in overrides:
-        for col, valign in overrides['column_valign'].items():
-            config.column_valign[col] = valign
+        val = overrides['column_valign']
+        if isinstance(val, dict):
+            for col, valign in val.items():
+                config.column_valign[col] = str(valign) if valign is not None else 'top'
     if 'v_left' in overrides:
-        config.v_left = overrides['v_left']
+        val = overrides['v_left']
+        config.v_left = str(val) if val is not None else ''
     if 'v_mid' in overrides:
-        config.v_mid = overrides['v_mid']
+        val = overrides['v_mid']
+        config.v_mid = str(val) if val is not None else ''
     if 'v_right' in overrides:
-        config.v_right = overrides['v_right']
+        val = overrides['v_right']
+        config.v_right = str(val) if val is not None else ''
     if 'h_top' in overrides:
-        config.h_top = overrides['h_top']
+        val = overrides['h_top']
+        config.h_top = str(val) if val is not None else ''
     if 'h_header' in overrides:
-        config.h_header = overrides['h_header']
+        val = overrides['h_header']
+        config.h_header = str(val) if val is not None else ''
     if 'h_mid' in overrides:
-        config.h_mid = overrides['h_mid']
+        val = overrides['h_mid']
+        config.h_mid = str(val) if val is not None else ''
     if 'h_bot' in overrides:
-        config.h_bot = overrides['h_bot']
+        val = overrides['h_bot']
+        config.h_bot = str(val) if val is not None else ''
     if 'top_left' in overrides:
-        config.top_left = overrides['top_left']
+        val = overrides['top_left']
+        config.top_left = str(val) if val is not None else ''
     if 'top_mid' in overrides:
-        config.top_mid = overrides['top_mid']
+        val = overrides['top_mid']
+        config.top_mid = str(val) if val is not None else ''
     if 'top_right' in overrides:
-        config.top_right = overrides['top_right']
+        val = overrides['top_right']
+        config.top_right = str(val) if val is not None else ''
     if 'mid_left' in overrides:
-        config.mid_left = overrides['mid_left']
+        val = overrides['mid_left']
+        config.mid_left = str(val) if val is not None else ''
     if 'mid_mid' in overrides:
-        config.mid_mid = overrides['mid_mid']
+        val = overrides['mid_mid']
+        config.mid_mid = str(val) if val is not None else ''
     if 'mid_right' in overrides:
-        config.mid_right = overrides['mid_right']
+        val = overrides['mid_right']
+        config.mid_right = str(val) if val is not None else ''
     if 'bot_left' in overrides:
-        config.bot_left = overrides['bot_left']
+        val = overrides['bot_left']
+        config.bot_left = str(val) if val is not None else ''
     if 'bot_mid' in overrides:
-        config.bot_mid = overrides['bot_mid']
+        val = overrides['bot_mid']
+        config.bot_mid = str(val) if val is not None else ''
     if 'bot_right' in overrides:
-        config.bot_right = overrides['bot_right']
+        val = overrides['bot_right']
+        config.bot_right = str(val) if val is not None else ''
     if 'header_left' in overrides:
-        config.header_left = overrides['header_left']
+        val = overrides['header_left']
+        config.header_left = str(val) if val is not None else ''
     if 'header_mid' in overrides:
-        config.header_mid = overrides['header_mid']
+        val = overrides['header_mid']
+        config.header_mid = str(val) if val is not None else ''
     if 'header_right' in overrides:
-        config.header_right = overrides['header_right']
+        val = overrides['header_right']
+        config.header_right = str(val) if val is not None else ''
     if 'has_header' in overrides:
-        config.has_header = overrides['has_header']
+        val = overrides['has_header']
+        config.has_header = bool(val) if isinstance(val, (bool, int, str)) else False
     if 'rule_header' in overrides:
-        config.rule_header = overrides['rule_header']
+        val = overrides['rule_header']
+        config.rule_header = bool(val) if isinstance(val, (bool, int, str)) else False
     if 'rule_every' in overrides:
-        config.rule_every = overrides['rule_every']
+        val = overrides['rule_every']
+        config.rule_every = val if isinstance(val, int) else int(val) if isinstance(val, (str, bool)) else 0
     if 'separator_after_rows' in overrides:
-        config.separator_after_rows = overrides['separator_after_rows']
+        val = overrides['separator_after_rows']
+        if isinstance(val, list):
+            config.separator_after_rows = [int(x) if isinstance(x, (str, bool)) else x if isinstance(x, int) else 0 for x in val]
+        else:
+            config.separator_after_rows = []
     log(f"Applied {len(overrides)} config overrides: {list(overrides.keys())}")
     trace_out()
     return config

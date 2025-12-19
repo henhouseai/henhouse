@@ -1,10 +1,8 @@
 from __future__ import annotations
 import random
 import time
-from typing import List, Optional, Any, Callable, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from hh.gateway.response.response import Response
+from typing import List, Optional, Any, Callable
+from hh.gateway.response.response import Response
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, is_safe_mode, set_debug_backend, resolve_get_debug_for, set_trace_flags, initialize_debug_modules, register_debug_init
 from hh.gateway.registry.debug import set_shared_debug_whitelist, set_shared_debug_graylist, set_shared_debug_blacklist, set_shared_debug_summary_limit
 from hh.gateway.debug.debug_filters import parse_list_arg
@@ -37,6 +35,7 @@ from hh.page.page_registry import refresh_stale_page_caches
 
 __all__ = [
     "get_gateway",
+    "init_gateway",
     "Gateway",
 ]
 
@@ -45,44 +44,54 @@ gateway: Optional[Gateway] = None
 def get_gateway() -> Gateway:
     global gateway
     if gateway is None:
-        gateway = Gateway()
+        raise RuntimeError("Gateway not initialized. Call init_gateway() first.")
+    return gateway
+
+def init_gateway(raw_argv: List[str], backend: str) -> Gateway:
+    global gateway
+    if gateway is None:
+        gateway = Gateway(raw_argv, backend)
     return gateway
 
 class Gateway:
-    def __init__(self) -> None:
-        self.request: Optional[Request] = None
-        self.response: Optional[Response] = None
-        self.conn: Optional[Connection] = None
-        self.files: Optional[FileSystem] = None
-        self.os: Optional[Any] = None  # ProcessManager, lazy loaded
-        self.registry: Optional[CommandRegistry] = None
+    def __init__(self, raw_argv: List[str], backend: str) -> None:
+        # Initialize all attributes (non-optional after init completes)
+        self.backend: str = backend
+        self.request: Request
+        self.response: Response
+        self.conn: Connection
+        self.files: FileSystem
+        self.os: Any  # ProcessManager, lazy loaded
+        self.registry: CommandRegistry
         self._user_tier_level: int = 0
-        self.command: Optional[str] = None
-        self.action_handler: Optional[Callable] = None
-        self.backend: Optional[str] = None
-        self.backend_handler: Optional[Callable] = None
+        self.command: str
+        self.action_handler: Callable
+        self.backend_handler: Callable
         self.error_handler: Optional[Callable] = None
         self.debug_system: str = "table"
         self.debug_module: Optional[Any] = None
         self.get_debug_func: Optional[Callable] = None
+        
+        # Perform all initialization
+        self._initialize(raw_argv, backend)
 
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
-        self.backend = backend
-        
+        # Initialize request
         if not is_error():
             self.request = Request(raw_argv)
             self._initialize_command()
         
+        # Initialize debug module
         if not is_error():
             self._initialize_debug_module()
         
+        # Initialize connection
         if not is_error():
             # Check for dry_run flag from request before initializing connection and filesystem
-            dry_run = False
-            if self.request:
-                dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
+            dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
             self._user_tier_level = self._initialize_connection(dry_run=dry_run)
         
+        # Initialize response and filesystem
         if not is_error():
             # Initialize response after connection (so we can pass tier level)
             self._initialize_response()
@@ -90,20 +99,48 @@ class Gateway:
             self.files = FileSystem(dry_run=dry_run)
             self.os = ProcessManager()
         
+        # Initialize registry
         if not is_error():
-            if self.command is None or self.backend is None:
+            if not self.command or not self.backend:
                 report_error("registry", "Command or backend missing")
             else:
                 self.registry = CommandRegistry(self.command, self.backend)
         
-        self._initialize_action()
-        self._initialize_backend()
-        self._configure_debug_module()
+        # Initialize action and backend handlers
+        if not is_error():
+            self._initialize_action()
+            self._initialize_backend()
+            self._configure_debug_module()
+        
+        # Verify initialization and load modules
+        if not is_error() and not self.request:
+            report_error("request", "No request found")
+        if not is_error() and not self.command:
+            report_error("request", "No command found")
+        if not is_error() and not self.backend:
+            report_error("registry", "No backend found.")
+        
+        # Load action module
+        if not is_error() and self.registry:
+            if self.registry.load_action_module():
+                if self.action_handler is not None:
+                    log(f"Action module loaded: {self.action_handler.__module__}")
+            else:
+                module_name = self.action_handler.__module__ if self.action_handler is not None else "unknown"
+                report_error("registry", f"Error loading action module: {module_name}")
+        
+        # Load backend module
+        if not is_error() and self.registry:
+            if self.registry.load_backend_module():
+                if self.backend_handler is not None:
+                    log(f"Backend module loaded: {self.backend_handler.__module__}")
+            else:
+                module_name = self.backend_handler.__module__ if self.backend_handler is not None else "unknown"
+                report_error("registry", f"Error loading backend module: {module_name}")
+        
+        log("Gateway initialization completed")
 
     def _initialize_debug_module(self):
-        if self.request is None:
-            return
-        assert self.request is not None
         use_trace = bool(self.request.get_arg('trace'))
         use_log = bool(self.request.get_arg('log'))
         use_debug = bool(self.request.get_arg('debug') or self.request.get_arg('log'))
@@ -111,10 +148,6 @@ class Gateway:
         initialize_debug_modules()
 
     def _initialize_command(self):
-        if not is_error() and self.request is None:
-            report_error("request", "No request found")
-        if not is_error():
-            assert self.request is not None
         if not is_error() and self.request.has_command():
             # Command was specified - use it as-is
             self.command = self.request.get_command()
@@ -136,9 +169,6 @@ class Gateway:
                 report_error("request", "No command found")
 
     def _initialize_action(self):
-        if not self.registry:
-            report_error("registry", "No registry found.")
-            return
         if not is_error() and self.registry.has_action_handler():
             self.action_handler = self.registry.get_action_handler()
         else:
@@ -146,20 +176,15 @@ class Gateway:
         if not is_error() and self.registry.has_action_args():
             action_args = self.registry.get_action_args()
             for arg in action_args:
-                if self.request:
-                    self.request.add_synthetic_arg(arg, arg)
+                self.request.add_synthetic_arg(arg, arg)
 
     def _initialize_backend(self):
-        if not self.registry:
-            report_error("registry", "No registry found.")
-            return
         if not is_error() and self.registry.has_backend_handler():
             self.backend_handler = self.registry.get_backend_handler()
         else:
             report_error("registry", "No backend handler found.")
         
     def _configure_debug_module(self):
-        assert self.request is not None
         # Check trace flag first (enables trace flags regardless of backend)
         if self.request.get_arg("trace"):
             self.debug_system = "trace"
@@ -184,7 +209,6 @@ class Gateway:
     
     def _apply_debug_filter_overrides(self):
         """Apply debug filter overrides from request arguments to shared debug store"""
-        assert self.request is not None
         try:
             # Process debug limit
             debug_limit = self.request.get_arg('debug-limit')
@@ -218,30 +242,9 @@ class Gateway:
         except Exception:
             pass
 
-    def dispatch(self, raw_argv: List[str], backend: str) -> Optional[str]:
-        self._initialize(raw_argv, backend)
-        log("Gateway initialization completed, dispatching...")
-        if not is_error() and not self.request:
-            report_error("request", "No request found")
-        if not is_error() and not self.command:
-            report_error("request", "No command found")
-        if not is_error() and not self.backend:
-            report_error("registry", "No backend found.")
-        if not is_error() and self.registry:
-            if self.registry.load_action_module():
-                if self.action_handler:
-                    log(f"Action module loaded: {self.action_handler.__module__}")
-            else:
-                module_name = self.action_handler.__module__ if self.action_handler else "unknown"
-                report_error("registry", f"Error loading action module: {module_name}")
-        if not is_error() and self.registry:
-            if self.registry.load_backend_module():
-                if self.backend_handler:
-                    log(f"Backend module loaded: {self.backend_handler.__module__}")
-            else:
-                module_name = self.backend_handler.__module__ if self.backend_handler else "unknown"
-                report_error("registry", f"Error loading backend module: {module_name}")
-        if not is_error() and self.action_handler:
+    def dispatch(self) -> Optional[str]:
+        log("Dispatching...")
+        if not is_error() and self.action_handler is not None:
             log(f"Starting action execution: {self.action_handler.__module__}.{self.action_handler.__name__}")
             start_time = time.time()
             try:
@@ -260,7 +263,7 @@ class Gateway:
             report_error("backend", "No action response found")
         proceed_to_backend = not is_error()
 
-        if proceed_to_backend and self.backend_handler:
+        if proceed_to_backend and self.backend_handler is not None:
             log(f"Starting backend execution: {self.backend_handler.__module__}.{self.backend_handler.__name__}")
             start_time = time.time()
             try:
@@ -279,21 +282,14 @@ class Gateway:
         self._commit()
         
         # Close database connections before flushing debug (so close logs are captured)
-        if self.conn:
-            log("Closing database connections...")
-            self.conn.close()
+        log("Closing database connections...")
+        self.conn.close()
         
         self.flush_debug()
-        if not self.response:
-            return "Error: Response object not initialized. Gateway initialization may have failed."
         return self.response.get_output()
 
     def get_arg(self, name: str) -> Any:
         trace_in()
-        if not self.request:
-            log("No request available")
-            trace_out()
-            return None
         result = self.request.get_arg(name)
         log(f"Retrieved arg '{name}': {result}")
         trace_out()
@@ -301,10 +297,6 @@ class Gateway:
 
     def is_no(self, flag_name: str) -> bool:
         trace_in()
-        if not self.request:
-            log("No request available")
-            trace_out()
-            return False
         result = self.request.is_no(flag_name)
         if result:
             log(f"Flag '{flag_name}' is disabled")
@@ -313,10 +305,6 @@ class Gateway:
     
     def is_set(self, name: str) -> bool:
         trace_in()
-        if not self.request:
-            log("No request available")
-            trace_out()
-            return False
         result = self.request.is_set(name)
         trace_out()
         return result
@@ -336,8 +324,6 @@ class Gateway:
     
     def flush_debug(self) -> None:
         if self.debug_system == "none" or not self.get_debug_func:
-            return
-        if not self.response:
             return
         try:
             debug_obj = self.get_debug_func()
@@ -370,7 +356,7 @@ class Gateway:
     def restore_debug_system(self) -> None:
         if self.debug_system == "debug_safe":
             try:
-                if self.request and self.request.get_arg("trace"):
+                if self.request.get_arg("trace"):
                     target_system = "trace"
                 else:
                     target_system = "table"              
@@ -386,20 +372,15 @@ class Gateway:
         trace_in()
         tier_level = 0
         
-        if self.request:
-            if self.request.get_arg('password') or self.request.get_arg('root_password'):
-                log("Root connection type requested, lazy-importing RootConnection...")
-                from hh.gateway.connection.root_connection import RootConnection
-                self.conn = RootConnection(dry_run=dry_run)
-            else:
-                log("Standard connection type selected")
-                self.conn = Connection(dry_run=dry_run)
+        if self.request.get_arg('password') or self.request.get_arg('root_password'):
+            log("Root connection type requested, lazy-importing RootConnection...")
+            from hh.gateway.connection.root_connection import RootConnection
+            self.conn = RootConnection(dry_run=dry_run)
         else:
-            log("Standard connection type selected (no request available)")
+            log("Standard connection type selected")
             self.conn = Connection(dry_run=dry_run)
         
-        if self.conn:
-            tier_level = self.conn.initialize()
+        tier_level = self.conn.initialize()
         
         trace_out()
         return tier_level
@@ -409,7 +390,7 @@ class Gateway:
         trace_in()
         try:
             # Lazy load and instantiate appropriate Response subclass based on backend
-            response_path = BACKEND_RESPONSE_MODULES.get(self.backend or "")
+            response_path = BACKEND_RESPONSE_MODULES.get(self.backend)
             if response_path is None:
                 response_path = BACKEND_RESPONSE_MODULES.get("parser")
                 log(f"Unknown backend '{self.backend}', defaulting to parser response handler")
@@ -428,7 +409,7 @@ class Gateway:
         except Exception as e:  # noqa: BLE001
             warn(f"Failed to initialize response handler: {e}")
             report_error("backend", f"Failed to initialize response handler: {e}")
-            self.response = None
+            raise
         trace_out()
     
     def _process_errors(self) -> None:
@@ -468,18 +449,14 @@ class Gateway:
             return
         
         # Always commit file operations first (will no-op if no operations)
-        if self.files:
-            log("Committing file operations...")
-            if not self.files.commit():
-                warn("File operations failed, rolling back")
-                self.files.rollback()
-                if self.conn:
-                    self.conn.rollback()
-                report_error("file_operation", "File operations failed")
-                trace_out()
-                return
-        else:
-            log("No FileSystem available, skipping file operations")
+        log("Committing file operations...")
+        if not self.files.commit():
+            warn("File operations failed, rolling back")
+            self.files.rollback()
+            self.conn.rollback()
+            report_error("file_operation", "File operations failed")
+            trace_out()
+            return
         
         # Refresh image caches for any images in hot cache that need updating
         if not is_error():
@@ -511,25 +488,19 @@ class Gateway:
         # Check for errors again after file operations and cache refresh
         if not is_error():
             # Always commit database transactions (will no-op if no transaction)
-            if self.conn:
-                log("Committing database transactions...")
-                try:
-                    self.conn.commit()
-                except Exception as e:
-                    warn(f"Database commit failed: {e}")
-                    # Rollback file operations if DB commit fails
-                    if self.files:
-                        self.files.rollback()
-                    report_error("connection", f"Database commit failed: {e}")
-            else:
-                log("No connection available, skipping database commit")
+            log("Committing database transactions...")
+            try:
+                self.conn.commit()
+            except Exception as e:
+                warn(f"Database commit failed: {e}")
+                # Rollback file operations if DB commit fails
+                self.files.rollback()
+                report_error("connection", f"Database commit failed: {e}")
         else:
             # Errors detected after file operations, rollback everything
             warn("Errors detected after file operations, rolling back")
-            if self.files:
-                self.files.rollback()
-            if self.conn:
-                self.conn.rollback()
+            self.files.rollback()
+            self.conn.rollback()
         
         log("Commit process completed")
         trace_out()

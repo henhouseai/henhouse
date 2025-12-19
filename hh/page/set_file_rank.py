@@ -39,11 +39,6 @@ def set_file_rank() -> bool:
     """
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-
     # Required args
     if not gateway.is_set("page_id") and not gateway.is_set("id"):
         warn("No page ID provided")
@@ -57,6 +52,9 @@ def set_file_rank() -> bool:
             warn("No target rank provided")
             report_error("action", "Target rank is required")
 
+    page_id: int = 0
+    file_id: int = 0
+    target_rank: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg("page_id") or gateway.get_arg("id")
         file_id_arg = gateway.get_arg("file_id")
@@ -72,7 +70,7 @@ def set_file_rank() -> bool:
             warn(f"Invalid arguments: page_id={page_id_arg}, file_id={file_id_arg}, target_rank={target_rank_arg}")
             report_error("action", "page_id, file_id, and target_rank must be positive numbers")
 
-    current_rank = None
+    current_rank: int | None = None
     if not is_error() and current_rank_arg:
         try:
             current_rank = int(current_rank_arg)
@@ -81,6 +79,7 @@ def set_file_rank() -> bool:
             report_error("action", "source_rank must be a number")
 
     # Load page
+    page = None
     if not is_error():
         page = get_page(page_id=page_id)
         if not page:
@@ -88,7 +87,7 @@ def set_file_rank() -> bool:
             report_error("action", f"Page {page_id} not found")
 
     # Perform rank update
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Setting file {file_id} rank to {target_rank} on page {page_id}")
         success = page.set_file_rank(file_id, current_rank or target_rank, target_rank)
         if not success:
@@ -96,13 +95,14 @@ def set_file_rank() -> bool:
             report_error("action", f"Failed to set rank for file {file_id} on page {page_id}")
 
     # Reload page
+    updated_page = None
     if not is_error():
         updated_page = get_page(page_id=page_id)
         if not updated_page:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
 
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         response_data.update(
             {

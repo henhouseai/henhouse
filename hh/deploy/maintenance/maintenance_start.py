@@ -136,19 +136,17 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
     running = pm.list_processes(process_filter)
     
     if running:
-        result = {
+        final_result: dict[str, str | list[int] | bool] = {
             "status": "started",
             "log_file": str(log_file),
             "pids": [p["pid"] for p in running],
             "deployed": is_deployed,
         }
         if user:
-            result["user"] = user
+            final_result["user"] = user
+        return final_result
     else:
-        result = {"status": "failed", "error": "Process not found after start"}
-    
-    trace_out()
-    return result
+        return {"status": "failed", "error": "Process not found after start"}
 
 
 def run_maintenance_start(project_name: str) -> Dict[str, Any]:

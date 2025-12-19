@@ -27,11 +27,6 @@ def _initialize_debug():
 def modify_caption() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     image_id_arg = gateway.get_arg('image_id') or gateway.get_arg('id')
     caption = gateway.get_arg('caption')
     
@@ -48,6 +43,7 @@ def modify_caption() -> bool:
             warn("Empty caption provided, use -clear to clear it")
             report_error("action", "Empty caption provided, use -clear to clear it")
 
+    image_id: int = 0
     if not is_error():
         try:
             image_id = int(image_id_arg)
@@ -55,6 +51,7 @@ def modify_caption() -> bool:
             warn(f"Invalid image ID: {image_id_arg}")
             report_error("action", "Image ID must be a number")
     
+    image = None
     if not is_error():
         log(f"Loading image {image_id}")
         image = get_image(image_id=image_id)
@@ -62,15 +59,17 @@ def modify_caption() -> bool:
             warn(f"Image {image_id} not found")
             report_error("action", f"Image {image_id} not found")
     
-    if not is_error():
+    old_caption: str = ""
+    if not is_error() and image is not None:
         log(f"Modifying caption for image {image_id} to: {caption}")
-        old_caption = image.caption
+        old_caption = image.caption if image.caption is not None else ""
         success = image.modify_caption(caption)
         if not success:
             warn(f"Failed to modify caption for image {image_id}")
             report_error("action", f"Failed to modify caption for image {image_id}")
     
     # Reload image to show updated state
+    updated_image = None
     if not is_error():
         log(f"Reloading image {image_id} to show updated state")
         updated_image = get_image(image_id=image_id)
@@ -78,7 +77,7 @@ def modify_caption() -> bool:
             warn(f"Failed to reload image {image_id}")
             report_error("action", f"Failed to reload image {image_id}")
     
-    if not is_error():
+    if not is_error() and updated_image is not None:
         response_data = updated_image.show_image()
         
         # Add operation-specific metadata

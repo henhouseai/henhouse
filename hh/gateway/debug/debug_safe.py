@@ -3,9 +3,12 @@ import inspect
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from hh.gateway.debug.debug_filters import FilterMixin, parse_list_arg
 from hh.render.text.color import COLORS, COLOR_NAMES, RESET_COLOR, get_color, apply_color_code
+
+if TYPE_CHECKING:
+    from hh.gateway.registry.debug import SharedDebugDataStore
 
 def debug_print(message: str) -> None:
     """Debug print function that can be easily enabled/disabled"""
@@ -47,17 +50,17 @@ class DebugEntry:
         self.function_count = 0
 
 class Debug(FilterMixin):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self._shared_store = None
-        self._module_colors: dict = {}
-        self._filename_colors: dict = {}
-        self._function_colors: dict = {}
+        self._shared_store: Optional[SharedDebugDataStore] = None
+        self._module_colors: dict[str, int] = {}
+        self._filename_colors: dict[tuple[str, str], int] = {}
+        self._function_colors: dict[tuple[str, str, str], int] = {}
         self._module_color_index: int = 0
         self.filtered_data: List[DebugEntry] = []
         self._next_index: int = 0
 
-    def _get_shared_store(self):
+    def _get_shared_store(self) -> SharedDebugDataStore:
         if self._shared_store is None:
             from hh.gateway.registry.debug import get_shared_debug_store
             self._shared_store = get_shared_debug_store()
@@ -138,9 +141,9 @@ class Debug(FilterMixin):
         debug_print(f"debug_safe.render() - starting render")
         self.get_arg_overrides()
         self.filtered_data = []
-        folder_counts = {}
-        file_counts = {}
-        function_counts = {}
+        folder_counts: dict[str, int] = {}
+        file_counts: dict[str, int] = {}
+        function_counts: dict[str, int] = {}
         shared_data = self._get_shared_store().captured_data
         trace_enabled = False
         try:

@@ -33,7 +33,7 @@ def render_summary_section(source_data: Dict[str, Any], lines: List[str]) -> Non
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         log(f"Rendering summary section for agent {source_data.get('agent_id')}")
         table_data = TableData()
@@ -231,6 +231,7 @@ def _render_watercooler_parser() -> bool:
         trace_out()
         return False
     
+    
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -238,6 +239,11 @@ def _render_watercooler_parser() -> bool:
         return False
     
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
+    
     source_data = get_data(json_data)
     
     lines = []

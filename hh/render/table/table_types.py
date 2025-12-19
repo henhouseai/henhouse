@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
@@ -50,11 +50,11 @@ class TableConfig:
     header_left: str = ''
     header_mid: str = ''
     header_right: str = ''
-    column_widths: Dict[str, int] = None
-    column_align: Dict[str, str] = None
-    column_overflow: Dict[str, str] = None
-    column_valign: Dict[str, str] = None
-    separator_after_rows: List[int] = None
+    column_widths: Optional[Dict[str, int]] = None
+    column_align: Optional[Dict[str, str]] = None
+    column_overflow: Optional[Dict[str, str]] = None
+    column_valign: Optional[Dict[str, str]] = None
+    separator_after_rows: Optional[List[int]] = None
     
     def __post_init__(self):
         trace_in()

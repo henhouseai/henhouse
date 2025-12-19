@@ -30,10 +30,6 @@ def _initialize_debug():
 def copy_page() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('source_page') and not gateway.is_set('s_page'):
         warn("No source page ID provided")
         report_error("action", "Source page ID is required")
@@ -41,6 +37,8 @@ def copy_page() -> bool:
         if not gateway.is_set('target_page') and not gateway.is_set('t_page'):
             warn("No target page ID provided")
             report_error("action", "Target page ID is required")
+    source_page_id: int = 0
+    target_page_id: int = 0
     if not is_error():
         source_page_arg = gateway.get_arg('source_page') or gateway.get_arg('s_page')
         target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
@@ -61,7 +59,7 @@ def copy_page() -> bool:
             recursive_bool = True
             log("Recursive copy enabled")
     # Parse max depth
-    max_depth_int = None
+    max_depth_int: int | None = None
     if not is_error() and max_depth:
         try:
             max_depth_int = int(max_depth)
@@ -75,27 +73,28 @@ def copy_page() -> bool:
         if not source_page:
             warn(f"Source page {source_page_id} not found")
             report_error("action", f"Source page {source_page_id} not found")
-    new_page_id = 0
-    if not is_error():
+    new_page_id: int = 0
+    if not is_error() and source_page is not None:
         new_page_id = source_page.copy_page(target_page_id, recursive=recursive_bool, max_depth=max_depth_int, copy_images=copy_images, copy_files=copy_files)
         if new_page_id == 0:
             warn(f"Failed to copy page {source_page_id} to {target_page_id}")
             report_error("action", f"Failed to copy page {source_page_id} to {target_page_id}")
-    if not is_error():
+    new_page = None
+    if not is_error() and new_page_id != 0:
         # Reload the new page to get updated data after copy
         new_page = get_page(page_id=new_page_id)
         if not new_page:
             warn(f"Failed to reload new page {new_page_id} after copy")
             report_error("action", f"Failed to reload new page {new_page_id} after copy")
-        else:
-            response_data = new_page.show_page()
-            response_data.update({
-                "recursive": recursive_bool,
-                "max_depth": max_depth_int,
-                "copy_images": copy_images,
-                "copy_files": copy_files
-            })
-            gateway.response.set_action_response(success_payload(response_data))
-            log(f"Successfully copied page {source_page_id} to page {new_page_id}")
+    if not is_error() and new_page is not None:
+        response_data = new_page.show_page()
+        response_data.update({
+            "recursive": recursive_bool,
+            "max_depth": max_depth_int,
+            "copy_images": copy_images,
+            "copy_files": copy_files
+        })
+        gateway.response.set_action_response(success_payload(response_data))
+        log(f"Successfully copied page {source_page_id} to page {new_page_id}")
     trace_out()
     return not is_error()

@@ -60,12 +60,13 @@ def modify_work_meta_set_pair() -> bool:
             report_error("action", f"Page {page_id} not found")
     if not is_error():
         log(f"Setting meta key '{key}' for page {page_id}")
-        success = page.modify_work_meta_set_pair(key, value)
-        if not success:
-            warn("Page meta set pair failed")
-            report_error("action", "Page meta set pair failed")
-        response_data = page.show_page()
-        gateway.response.set_action_response(success_payload(response_data))
+        if page:
+            success = page.modify_work_meta_set_pair(key, value)
+            if not success:
+                warn("Page meta set pair failed")
+                report_error("action", "Page meta set pair failed")
+            response_data = page.show_page()
+            gateway.response.set_action_response(success_payload(response_data))
         # Calculate total children from children_by_class
         total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
         log(f"Successfully set meta key '{key}' for page {page_id} with {total_children} children")

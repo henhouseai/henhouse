@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, Mapping, cast
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload, get_data
@@ -28,10 +28,6 @@ def _initialize_debug():
 def set_file_visibility() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('file_id') and not gateway.is_set('id'):
         warn("No file ID provided")
         report_error("action", "File ID is required")
@@ -39,6 +35,8 @@ def set_file_visibility() -> bool:
         if not gateway.is_set('visibility'):
             warn("No visibility value provided")
             report_error("action", "Visibility value is required")
+    file_id: int = 0
+    visibility: int = 0
     if not is_error():
         file_id_arg = gateway.get_arg('file_id') or gateway.get_arg('id')
         visibility_arg = gateway.get_arg('visibility')
@@ -49,6 +47,7 @@ def set_file_visibility() -> bool:
             warn(f"Invalid file ID: {file_id_arg} or visibility: {visibility_arg}")
             report_error("action", "File ID and visibility must be numbers")
     
+    file_obj = None
     if not is_error():
         log(f"Loading file {file_id}")
         file_obj = get_file(file_id=file_id)
@@ -56,8 +55,9 @@ def set_file_visibility() -> bool:
             warn(f"File {file_id} not found")
             report_error("action", f"File {file_id} not found")
     
-    if not is_error():
-        old_visibility = file_obj.visibility
+    old_visibility: int = 0
+    if not is_error() and file_obj is not None:
+        old_visibility = file_obj.visibility if file_obj.visibility is not None else 0
         # Check if update is needed
         if old_visibility == visibility:
             log(f"File {file_id} visibility is already {visibility}, no update needed")
@@ -87,11 +87,6 @@ def set_file_visibility() -> bool:
 def set_file_visibility_parser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("backend", "No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -99,7 +94,13 @@ def set_file_visibility_parser() -> bool:
         return False
     
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         file_id = source_data.get("file_id")
         old_visibility = source_data.get("old_visibility")
         new_visibility = source_data.get("new_visibility")

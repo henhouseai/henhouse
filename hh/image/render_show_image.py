@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any, Mapping, cast
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -85,10 +85,6 @@ def render_image_section(image_data: Dict[str, Any], lines: List[str]) -> None:
     trace_in()
     block = 'summary'
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no(block):
         log("Rendering image data section")
         
@@ -194,10 +190,6 @@ def render_instances_section(instances_data: List[Dict[str, Any]], lines: List[s
     trace_in()
     block = 'instances'
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no(block) and instances_data:
         log(f"Rendering instances section with {len(instances_data)} instances")
         
@@ -244,10 +236,6 @@ def render_extra_data_section(extra_data: Dict[str, Any], lines: List[str]) -> N
     trace_in()
     block = 'extra_data'
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_no(block) and extra_data:
         log(f"Rendering extra data section with {len(extra_data)} items")
         
@@ -312,19 +300,20 @@ def render_extra_data_section(extra_data: Dict[str, Any], lines: List[str]) -> N
 def show_image() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
         trace_out()
         return False
-    json_data = gateway.response.get_action_response()
+    action_response = gateway.response.get_action_response()
+    if action_response is None:
+        warn("Action response is None")
+        report_error("backend", "Action response is None")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_show_image_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(cast(Mapping[str, Any], action_response))
     log("Processing show image data successfully")
     # Render usage section first
     usage_data = source_data.get('usage', [])
@@ -353,11 +342,13 @@ def show_image() -> bool:
         # Create text with @large directive
         image_text = f'@large {{{{{{{image_id}}}}}}}'
         #image_text = '@pi(4)'
-        debug(f"Processing image text: {image_text}, backend: {gateway.backend}, final_decorator: {final_decorator}")
+        backend_str = gateway.backend
+        debug(f"Processing image text: {image_text}, backend: {backend_str}, final_decorator: {final_decorator}")
         processor = TextProcessor(final_decorator=final_decorator)
         processed_image = processor.process(image_text)
         # Output processed image directly
-        lines.append(safe_str(processed_image))
+        processed_str = safe_str(processed_image) if processed_image is not None else ""
+        lines.append(processed_str)
         break_section(lines)
     result = finalize_output(lines)
     gateway.response.add_output(result)

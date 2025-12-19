@@ -80,7 +80,7 @@ def flask_stop() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_flask_stop_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing Flask stop data")
     
     render_flask_daemons(source_data, lines)

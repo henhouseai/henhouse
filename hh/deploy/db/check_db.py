@@ -3,8 +3,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
-from hh.gateway.registry.registry import register_action
-from hh.gateway.registry.registry import register_command
+from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
@@ -28,7 +27,7 @@ def _initialize_debug():
 
 @register_action('check_db')
 @register_command('check_db')
-def check_db(args: List[str] = None) -> bool:
+def check_db(args: Optional[List[str]] = None) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:

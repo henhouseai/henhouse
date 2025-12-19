@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -89,7 +89,10 @@ def render_next_steps(source_data: Dict[str, Union[str, int, bool]], lines: List
                 value=safe_str(source_data.get('next_command'))
             )
         
-        first_gate = source_data.get('first_gate', {})
+        first_gate: Dict[str, Any] = {}
+        first_gate_raw: Any = source_data.get('first_gate', {})
+        if isinstance(first_gate_raw, dict):
+            first_gate = first_gate_raw
         if first_gate:
             steps_data.add_row(
                 'training_gate',
@@ -137,6 +140,10 @@ def _render_onboard_parser() -> bool:
         return False
     
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     source_data = get_data(json_data)
     
     lines = []

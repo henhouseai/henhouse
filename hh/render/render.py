@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, TypedDict, Optional
+from typing import Dict, List, Union, TypedDict, Optional, Callable
 from hh.render.config.config import ic, dc, break_section
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -25,11 +25,12 @@ class FieldConfigItem(TypedDict, total=False):
     label_key: str
     icon_key: str
     no_flag: str
-    condition: callable
+    condition: Callable
+    color_key: str  # Added for add_simple_color support
 
 
 class FieldConfig:
-    def __init__(self):
+    def __init__(self) -> None:
         self.configs: List[FieldConfigItem] = []
     
     def add_header(self, header_name: str) -> 'FieldConfig':
@@ -87,7 +88,7 @@ class TableRow(TypedDict, total=False):
     label: str
 
 class TableData:
-    def __init__(self):
+    def __init__(self) -> None:
         self.rows: List[TableRow] = []
         self.gateway = get_gateway()
     
@@ -98,8 +99,8 @@ class TableData:
         }
         # Add any extra columns
         for key, val in extra_cols.items():
-            row[key] = val
-        self.rows.append(row)
+            row[key] = val  # type: ignore[typeddict-item]
+        self.rows.append(row)  # type: ignore[arg-type]
         return self
     
     def add_page_link_to_column(self, column_name: str, page_id: int) -> 'TableData':
@@ -108,8 +109,8 @@ class TableData:
             return self
         last_row = self.rows[-1]
         if '_links' not in last_row:
-            last_row['_links'] = {}
-        last_row['_links'][column_name] = {'type': 'page', 'id': page_id}
+            last_row['_links'] = {}  # type: ignore[typeddict-item]
+        last_row['_links'][column_name] = {'type': 'page', 'id': page_id}  # type: ignore[typeddict-item]
         return self
     
     def add_image_link_to_column(self, column_name: str, image_id: int) -> 'TableData':
@@ -118,8 +119,8 @@ class TableData:
             return self
         last_row = self.rows[-1]
         if '_links' not in last_row:
-            last_row['_links'] = {}
-        last_row['_links'][column_name] = {'type': 'image', 'id': image_id}
+            last_row['_links'] = {}  # type: ignore[typeddict-item]
+        last_row['_links'][column_name] = {'type': 'image', 'id': image_id}  # type: ignore[typeddict-item]
         return self
     
     def add_image_file_link_to_column(self, column_name: str, src_path: str) -> 'TableData':
@@ -128,8 +129,8 @@ class TableData:
             return self
         last_row = self.rows[-1]
         if '_links' not in last_row:
-            last_row['_links'] = {}
-        last_row['_links'][column_name] = {'type': 'image_file', 'src_path': src_path}
+            last_row['_links'] = {}  # type: ignore[typeddict-item]
+        last_row['_links'][column_name] = {'type': 'image_file', 'src_path': src_path}  # type: ignore[typeddict-item]
         return self
     
     def add_file_link_to_column(self, column_name: str, file_id: int) -> 'TableData':
@@ -138,8 +139,8 @@ class TableData:
             return self
         last_row = self.rows[-1]
         if '_links' not in last_row:
-            last_row['_links'] = {}
-        last_row['_links'][column_name] = {'type': 'file', 'id': file_id}
+            last_row['_links'] = {}  # type: ignore[typeddict-item]
+        last_row['_links'][column_name] = {'type': 'file', 'id': file_id}  # type: ignore[typeddict-item]
         return self
     
     def num_rows(self) -> int:
@@ -161,7 +162,7 @@ def finalize_output(lines: List[str]) -> str:
     trace_out()
     return result
 
-def render_header_block(subheader_key: str, header_id: str = None) -> str:
+def render_header_block(subheader_key: str, header_id: Optional[str] = None) -> str:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -186,10 +187,10 @@ def render_header_block(subheader_key: str, header_id: str = None) -> str:
 
 def render_block(
     table_data: TableData, 
-    field_configs: FieldConfig = None, 
+    field_configs: Optional[FieldConfig] = None, 
     table_class: str = 'standard',
-    table_overrides: Dict[str, Union[str, int, bool]] = None,
-    block_type: str = None,
+    table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None,
+    block_type: Optional[str] = None,
     backend: Optional[str] = None,
     wrapper_id: Optional[str] = None,
     wrapper_extra_classes: Optional[str] = None
@@ -213,16 +214,16 @@ def render_block(
         log("Rendering meta table")
         # Lazy import parser module for meta tables
         from hh.render.render_parser import render_meta_table
-        meta_table_overrides = {'padl': 2,'padr': 2, 'column_align': {'label': 'right'}}
+        meta_table_overrides: Dict[str, Union[str, int, bool, Dict[str, str]]] = {'padl': 2,'padr': 2, 'column_align': {'label': 'right'}}  # type: ignore[assignment]
         if table_overrides:
-            meta_table_overrides.update(table_overrides)
+            meta_table_overrides.update(table_overrides)  # type: ignore[arg-type]
         result = render_meta_table(
             table_data, 
             FieldConfig()
                 .add_header('meta_header')
                 .add_simple(['meta', 'sub_meta']), 
             table_class, 
-            meta_table_overrides,
+            meta_table_overrides,  # type: ignore[arg-type]
             'div'
         )
         trace_out()

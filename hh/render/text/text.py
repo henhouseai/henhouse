@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from typing import Any, List
+from typing import Any, List, Set
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.render.text.color import strip_ansi, extract_last_color_code, is_reset_code, RESET_COLOR
 
@@ -50,7 +50,7 @@ def display_width(s: str) -> int:
         '+', '-', '|',
         '·', '•', '◦', '▪', '▫', 
     }
-    KNOWN_DOUBLE_WIDE = set()
+    KNOWN_DOUBLE_WIDE: Set[str] = set()
     if _wc is not None:
         try:
             w = _wc.wcswidth(filtered_s)

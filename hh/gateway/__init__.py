@@ -13,6 +13,7 @@ from hh.gateway.request.request import (
 )
 from hh.gateway.gateway import (
     get_gateway,
+    init_gateway,
     Gateway
 )
 
@@ -26,6 +27,7 @@ __all__ = [
     "Request",
     "NO_GROUPS",
     "get_gateway",
+    "init_gateway",
     "Gateway",
 ]
 

@@ -35,7 +35,7 @@ class SiteInfo:
 def scan_nginx_sites() -> List[SiteInfo]:
     """Scan nginx sites-available and sites-enabled directories."""
     trace_in()
-    sites = []
+    sites: list[SiteInfo] = []
     
     try:
         # Get all files in sites-available
@@ -106,7 +106,7 @@ def categorize_sites(sites: List[SiteInfo]) -> Dict[str, List[Dict[str, Any]]]:
     """Categorize sites into 4 groups."""
     trace_in()
     
-    categories = {
+    categories: Dict[str, List[Dict[str, Any]]] = {
         'active_henhouse': [],      # Enabled + has marker
         'available_henhouse': [],   # Not enabled + has marker
         'active_other': [],         # Enabled + no marker

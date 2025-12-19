@@ -255,7 +255,8 @@ def orphan_check_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
         summary = source_data.get("summary", {})
         counts = source_data.get("counts", {})
 

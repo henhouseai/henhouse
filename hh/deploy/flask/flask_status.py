@@ -29,24 +29,24 @@ def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str
     try:
         gateway = get_gateway()
         if not gateway or not gateway.files:
-            result = {'tier': tier, 'status': 'error', 'error': 'Gateway or FileSystem not available'}
+            error_result = {'tier': tier, 'status': 'error', 'error': 'Gateway or FileSystem not available'}
             trace_out()
-            return result
+            return error_result
         
         app_path = f"/srv/{project_name}/{project_name}_{tier}.py"
         
         # Check if app file exists
         if not gateway.files.file_exists(app_path):
-            result = {'tier': tier, 'status': 'not_deployed', 'error': f'App file not found: {app_path}'}
+            not_deployed_result = {'tier': tier, 'status': 'not_deployed', 'error': f'App file not found: {app_path}'}
             trace_out()
-            return result
+            return not_deployed_result
         
         # Check if process is running
         cmd = ['ps', 'aux']
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         
         # Look for the specific app
-        lines = result.stdout.split('\n')
+        lines = ps_result.stdout.split('\n')
         pids = []
         
         for line in lines:
@@ -61,25 +61,26 @@ def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str
                         pass
         
         if pids:
-            result = {
+            status_result: dict[str, str | int | list[int]] = {
                 'tier': tier, 
                 'status': 'running', 
                 'pids': pids,
                 'port': port
             }
             log(f"Flask daemon for {tier} tier is running (PIDs: {pids})")
+            trace_out()
+            return status_result
         else:
-            result = {'tier': tier, 'status': 'stopped', 'port': port}
+            stopped_result: dict[str, str | int] = {'tier': tier, 'status': 'stopped', 'port': port}
             log(f"Flask daemon for {tier} tier is stopped")
-        
-        trace_out()
-        return result
+            trace_out()
+            return stopped_result
         
     except Exception as e:
-        result = {'tier': tier, 'status': 'error', 'error': str(e)}
+        error_result = {'tier': tier, 'status': 'error', 'error': str(e)}
         warn(f"Error checking Flask daemon status for {tier}: {e}")
         trace_out()
-        return result
+        return error_result
 
 @register_action('flask_status')
 @register_command('flask_status')

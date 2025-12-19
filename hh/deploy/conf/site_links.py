@@ -16,6 +16,11 @@ def populate_site_links() -> None:
     if not gateway or not gateway.response:
         return
     
+    # Type check - add_site_link methods are only available on ResponseHTTP
+    from hh.gateway.response.response_http import ResponseHTTP
+    if not isinstance(gateway.response, ResponseHTTP):
+        return
+    
     # Create "home" group with header link
     gateway.response.add_site_link_group('home', 1, 'HOME')
     

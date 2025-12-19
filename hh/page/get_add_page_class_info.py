@@ -28,14 +28,10 @@ def get_add_page_class_info() -> bool:
     """Get allowed child page classes for a parent page."""
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     if not gateway.is_set('page_id') and not gateway.is_set('id'):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
+    page_id: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         try:
@@ -43,19 +39,20 @@ def get_add_page_class_info() -> bool:
         except ValueError:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
-    if not is_error():
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Getting allowed child classes for page {page_id}")
         allowed_classes = page.get_allowed_child_classes()
+        class_name = page.class_name if page.class_name is not None else "page"
         response_data = {
             'page_id': page_id,
-            'parent_class': page.class_name,
+            'parent_class': class_name,
             'allowed_classes': allowed_classes
         }
         gateway.response.set_action_response(success_payload(response_data))

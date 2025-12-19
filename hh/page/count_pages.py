@@ -30,10 +30,6 @@ def _initialize_debug():
 def count_pages() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway or not gateway.conn:
-        warn("No gateway or connection available")
-        trace_out()
-        return False
     try:
         # Count pages table
         pages_query = "SELECT COUNT(*) as count FROM pages"

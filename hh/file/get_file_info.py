@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Mapping, cast, Any
 
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
@@ -39,12 +40,6 @@ def _initialize_debug():
 def get_file_info_action() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("action", "No gateway available")
-        trace_out()
-        return False
-
     file_id_arg = gateway.get_arg("file_id") or gateway.get_arg("id")
     if not file_id_arg:
         warn("No file ID provided")
@@ -78,11 +73,6 @@ def get_file_info_action() -> bool:
 def get_file_info_parser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("backend", "No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -90,7 +80,13 @@ def get_file_info_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         file_data = (source_data or {}).get("file", {})
 
         lines = [render_header_block("l_file_info_header")]

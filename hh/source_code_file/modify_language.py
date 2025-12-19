@@ -56,7 +56,7 @@ def modify_language() -> bool:
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Modifying page {page_id} language to '{new_language}'")
         success = page.modify_language(new_language)
         if not success:

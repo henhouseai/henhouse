@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -32,10 +32,13 @@ def render_agents_summary(source_data: Dict[str, Union[str, int, list]], lines: 
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return None
     if not gateway.is_no(block):
         count = source_data.get('count', 0)
-        filters = source_data.get('filters', {})
+        filters_raw: Any = source_data.get('filters', {})
+        filters: Dict[str, Any] = {}
+        if isinstance(filters_raw, dict):
+            filters = filters_raw
         log(f"Rendering agents summary: count={count}, filters={filters}")
         summary_data = TableData()
         summary_data.add_row(
@@ -77,7 +80,7 @@ def render_agent_summary(agent: Dict[str, Union[str, int]], lines: List[str]) ->
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return None
     if not gateway.is_no(block): 
         table_data = TableData()
         agent_id = agent.get('id', 'Unknown')
@@ -130,7 +133,8 @@ def render_agent_summary(agent: Dict[str, Union[str, int]], lines: List[str]) ->
                 value=str(agent.get('session_id'))
             )
         if 'agent_runs' in agent:
-            runs_count = len(agent.get('agent_runs', []))
+            agent_runs: Any = agent.get('agent_runs', [])
+            runs_count = len(agent_runs) if isinstance(agent_runs, (list, tuple)) else 0
             log(f"Agent has {runs_count} agent runs")
             table_data.add_row(
                 'runs',
@@ -158,13 +162,22 @@ def render_agent_rows(agents: List[Dict[str, Union[str, int]]], lines: List[str]
     for i, agent in enumerate(agents):
         debug(f"Processing agent {i}: type={type(agent)}, keys={list(agent.keys()) if hasattr(agent, 'keys') else 'No keys'}")
         render_agent_summary(agent, lines)
-        subscriptions = agent.get('subscriptions', [])
+        subscriptions_raw: Any = agent.get('subscriptions', [])
+        subscriptions: List[Any] = []
+        if isinstance(subscriptions_raw, list):
+            subscriptions = subscriptions_raw
         debug(f"Agent {i} subscriptions type: {type(subscriptions)}, length: {len(subscriptions) if subscriptions is not None else 'None'}")
         render_subscription_details(subscriptions, lines)
-        linked_items = agent.get('linked_items', [])
+        linked_items_raw: Any = agent.get('linked_items', [])
+        linked_items: List[Any] = []
+        if isinstance(linked_items_raw, list):
+            linked_items = linked_items_raw
         debug(f"Agent {i} linked_items type: {type(linked_items)}, length: {len(linked_items) if linked_items is not None else 'None'}")
         render_linked_items_details(linked_items, lines)
-        recent_activity = agent.get('recent_activity', [])
+        recent_activity_raw: Any = agent.get('recent_activity', [])
+        recent_activity: List[Any] = []
+        if isinstance(recent_activity_raw, list):
+            recent_activity = recent_activity_raw
         debug(f"Agent {i} recent_activity type: {type(recent_activity)}, length: {len(recent_activity) if recent_activity is not None else 'None'}")
         if recent_activity:
             log(f"Rendering {len(recent_activity)} recent activities for agent")
@@ -186,6 +199,10 @@ def agent_list() -> bool:
         trace_out()
         return False   
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     debug(f"Raw action response type: {type(json_data)}")
     debug(f"Raw action response keys: {list(json_data.keys()) if hasattr(json_data, 'keys') else 'No keys method'}")
     lines = []
@@ -231,6 +248,10 @@ def agent_tree() -> bool:
         trace_out()
         return False   
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_agent_list'))
     source_data = get_data(json_data)

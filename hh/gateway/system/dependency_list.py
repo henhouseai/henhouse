@@ -132,12 +132,13 @@ def dependency_list_parser() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
-        warn("No gateway available")
+        warn("No gateway or response available")
         trace_out()
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_resp = gateway.response.get_action_response()
+        source_data = get_data(action_resp) if action_resp is not None else {}
         dependencies = source_data.get("dependencies", [])
         all_available = source_data.get("all_available", True)
         count = source_data.get("count", 0)

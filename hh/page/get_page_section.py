@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Mapping, cast
 
 from hh.gateway.error.error_store import is_error, report_error
 from hh.gateway.gateway import get_gateway, trace_in, trace_out, log, warn
@@ -29,11 +29,6 @@ from hh.render.render import (
 def get_page_section_action() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway or not gateway.conn:
-        warn("No gateway or connection available")
-        report_error("action", "No gateway or connection available")
-        trace_out()
-        return False
 
     try:
         page_id_arg = gateway.get_arg("id")
@@ -137,7 +132,7 @@ def get_page_section_action() -> bool:
                         FieldConfig()
                             .add_header('images_header')
                             .add_simple(['image_item']),
-                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},
+                        table_overrides={'margin_l': 4, 'column_align': {'rank': 'center'}},  # type: ignore[dict-item]
                         block_type='images',
                         backend='http',  # Force HTTP for MCP
                         wrapper_id=content_id,
@@ -213,7 +208,7 @@ def get_page_section_action() -> bool:
                         field_type = child.get('field_type', 'page')
                         children_rows.add_row(field_type, **data_kwargs)
                         
-                        if child_id is not None:
+                        if child_id is not None and isinstance(child_id, int):
                             children_rows.add_page_link_to_column('label', child_id)
                             if len(field_names) > 0:
                                 children_rows.add_page_link_to_column(field_names[0], child_id)
@@ -247,7 +242,7 @@ def get_page_section_action() -> bool:
 
         # Get page metadata
         page_data = page.get_page_data()
-        payload = {
+        payload: Dict[str, Any] = {
             "page_id": page_data.get("id"),
             "page_name": page_data.get("name"),
             "parent": page_data.get("parent"),
@@ -271,11 +266,6 @@ def get_page_section_action() -> bool:
 def get_page_section_parser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("backend", "No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -283,7 +273,13 @@ def get_page_section_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         page_id = source_data.get("page_id")
         page_name = source_data.get("page_name")
         parent = source_data.get("parent")

@@ -313,27 +313,27 @@ def deploy() -> bool:
         context_deployed = []
         site_deployed = []
         try:
-            for item in CONTEXT_WHITELIST:
-                source_item = source / item
+            for item_str in CONTEXT_WHITELIST:
+                source_item = source / item_str
                 if source_item.exists():
-                    dest_item = dest / 'context' / item
+                    dest_item = dest / 'context' / item_str
                     if source_item.is_dir():
                         # Handle directories
                         if dest_item.exists():
                             shutil.rmtree(dest_item)
                         shutil.copytree(source_item, dest_item, ignore=should_ignore_context_path)
-                        context_deployed.append(item)
-                        log(f"Deployed context folder: {item} -> context/{item}")
+                        context_deployed.append(item_str)
+                        log(f"Deployed context folder: {item_str} -> context/{item_str}")
                     elif source_item.is_file():
                         # Handle files
                         dest_item.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(source_item, dest_item)
-                        context_deployed.append(item)
-                        log(f"Deployed context file: {item} -> context/{item}")
+                        context_deployed.append(item_str)
+                        log(f"Deployed context file: {item_str} -> context/{item_str}")
                     else:
-                        log(f"Context item is neither file nor directory: {item}")
+                        log(f"Context item is neither file nor directory: {item_str}")
                 else:
-                    log(f"Context item not found: {item}")
+                    log(f"Context item not found: {item_str}")
             log(f"Context deployment complete: {len(context_deployed)} items")
         except Exception as e:
             warn(f"Failed to deploy context folders: {e}")

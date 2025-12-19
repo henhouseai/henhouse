@@ -157,7 +157,7 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
                 },
                 "id": None
             }), file=sys.stderr)
-            return 1
+            return True
         
         # Check for file attachments in params (can be nested in 'arguments' for tools/call)
         # Look for _files array or file_paths array in params or nested structures

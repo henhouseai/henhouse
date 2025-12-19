@@ -29,11 +29,6 @@ def _initialize_debug():
 def upload_image() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     # Get page ID (required)
     if not gateway.is_set('page_id') and not gateway.is_set('id'):
         warn("No page ID provided")
@@ -48,6 +43,7 @@ def upload_image() -> bool:
         warn("No file0_name provided")
         report_error("action", "At least one file name is required")
     
+    page_id: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         try:
@@ -56,6 +52,7 @@ def upload_image() -> bool:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
     
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
@@ -65,7 +62,7 @@ def upload_image() -> bool:
     
     # Process multiple files in ascending order (file0, file1, file2, ...)
     uploaded_image_ids = []
-    if not is_error():
+    if not is_error() and page is not None:
         file_idx = 0
         while True:
             file_path_key = f'file{file_idx}_path'
@@ -124,18 +121,19 @@ def upload_image() -> bool:
             
             file_idx += 1
     
+    updated_page = None
     if not is_error():
         log(f"Reloading page {page_id} to show new images")
         updated_page = get_page(page_id=page_id)
-        page_loaded = not is_error() and updated_page.name is not None
-        if not page_loaded:
+        if not updated_page or updated_page.name is None:
             warn(f"Failed to reload page {page_id}")
             report_error("action", f"Failed to reload page {page_id}")
     
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.get_page()
         gateway.response.set_action_response(success_payload(response_data))
-        log(f"Successfully uploaded {len(uploaded_image_ids)} image(s) to page {page_id}: {updated_page.name}")
+        page_name = updated_page.name if updated_page.name is not None else "Unknown"
+        log(f"Successfully uploaded {len(uploaded_image_ids)} image(s) to page {page_id}: {page_name}")
     
     trace_out()
     return not is_error()

@@ -93,9 +93,11 @@ def punch_in() -> bool:
             report_error("action", "Agent is already active")
             trace_out()
             return False
-        db_role = agent_data["role"]
+        db_role_raw = agent_data["role"]
+        db_role: str = str(db_role_raw) if db_role_raw is not None else ""
         log(f"Processing punch in for agent {agent_id} with role {db_role}")
-        display_name = pick_persona_name_from_badge_ts(badge_ts, db_role)
+        badge_ts_str: str = str(badge_ts) if badge_ts is not None else ""
+        display_name = pick_persona_name_from_badge_ts(badge_ts_str, db_role)
         
         # Check if agent profile exists
         exists = gateway.conn.read("SELECT 1 FROM agent_profiles WHERE agent_id=%s", (agent_id,))
@@ -108,8 +110,9 @@ def punch_in() -> bool:
                 return False
         else:
             log(f"Creating new agent profile for agent {agent_id}")
+            badge_ts_prefix = badge_ts_str[:10] if len(badge_ts_str) >= 10 else badge_ts_str
             profile_id = gateway.conn.create("INSERT INTO agent_profiles (agent_id, display_name, country, lineage_key, generation, persona_json) VALUES (%s,%s,%s,%s,%s,%s)",
-                           (agent_id, display_name, "US", f"{db_role}:{badge_ts[:10]}", 1, json.dumps(display_name)))
+                           (agent_id, display_name, "US", f"{db_role}:{badge_ts_prefix}", 1, json.dumps(display_name)))
             if profile_id is None:
                 warn(f"Failed to create agent profile for agent {agent_id}")
                 trace_out()

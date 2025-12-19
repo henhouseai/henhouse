@@ -102,7 +102,7 @@ def http_remove() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_http_remove_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing HTTP remove data successfully")
     
     render_http_remove_section(source_data, lines)

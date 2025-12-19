@@ -3,8 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from hh.gateway.registry.registry import register_action
-from hh.gateway.registry.registry import register_command
+from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
@@ -357,7 +356,7 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
     
     trace_out()
 
-def create_fresh_users(passwords: List[str], user_key: Optional[str], project_name: str, auto_scanned_keys: List[str] = None) -> List[Dict[str, Any]]:
+def create_fresh_users(passwords: List[str], user_key: Optional[str], project_name: str, auto_scanned_keys: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     trace_in()
     gateway = get_gateway()
     log("Creating fresh users")

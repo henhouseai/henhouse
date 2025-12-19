@@ -8,8 +8,9 @@ def main(argv=None) -> int:
     from hh.gateway.error.error_store import is_error
     
     argv = argv or sys.argv[1:]
-    gateway = get_gateway()
-    result = gateway.dispatch(argv, "http")
+    from hh.gateway.gateway import init_gateway
+    gateway = init_gateway(argv, "http")
+    result = gateway.dispatch()
     # Get output from gateway response
     if gateway and gateway.response:
         print(gateway.response.get_output())

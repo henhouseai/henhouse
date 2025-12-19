@@ -55,8 +55,11 @@ def render_badge_header(
             rendered_value = ''
             if data_type == 'currency':
                 try:
-                    rendered_value = f"{float(value):0.2f}"
-                except Exception:
+                    if value is not None:
+                        rendered_value = f"{float(value):0.2f}"
+                    else:
+                        rendered_value = '&nbsp;'
+                except (ValueError, TypeError):
                     rendered_value = str(value) if value is not None else '&nbsp;'
             elif data_type == 'page':
                 rendered_value = str(value) if value is not None else '&nbsp;'
@@ -64,7 +67,8 @@ def render_badge_header(
                 rendered_value = str(value) if value is not None else '&nbsp;'
             elif data_type == 'select':
                 options = field_cfg.get('selectOptions', {}) or {}
-                rendered_value = options.get(value, value)
+                option_value = options.get(value, value)
+                rendered_value = str(option_value) if option_value is not None else '&nbsp;'
             else:
                 rendered_value = '' if value is None else str(value)
 

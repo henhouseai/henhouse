@@ -37,7 +37,7 @@ def remove_logrotate(project_name: str) -> None:
         
         config_file = f'/etc/logrotate.d/{project_name}-flask'
         
-        if gateway.files and gateway.files.file_exists(config_file):
+        if gateway.files.file_exists(config_file):
             gateway.files.schedule_delete(config_file)
             subprocess.run(['systemctl', 'restart', 'logrotate.service'], check=False)
             log(f"Removed logrotate config for {project_name}")
@@ -54,9 +54,9 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
     try:
         gateway = get_gateway()
         if not gateway or not gateway.os:
-            result = {'tier': tier, 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            error_result = {'tier': tier, 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
             trace_out()
-            return result
+            return error_result
         
         # Find process running app_{tier}.py
         cmd = ['ps', 'aux']
@@ -78,10 +78,10 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
                         pass
         
         if not pids_to_kill:
-            result = {'tier': tier, 'status': 'not_running'}
+            not_running_result = {'tier': tier, 'status': 'not_running'}
             log(f"No Flask daemon found for {tier} tier")
             trace_out()
-            return result
+            return not_running_result
         
         # Kill the processes
         killed_pids = []
@@ -91,18 +91,15 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
                 log(f"Sent SIGTERM to PID {pid} (Flask {tier})")
         
         if killed_pids:
-            result = {'tier': tier, 'status': 'stopped', 'pids': killed_pids}
+            return {'tier': tier, 'status': 'stopped', 'pids': killed_pids}
         else:
-            result = {'tier': tier, 'status': 'not_found'}
-        
-        trace_out()
-        return result
+            return {'tier': tier, 'status': 'not_found'}
         
     except Exception as e:
-        result = {'tier': tier, 'status': 'error', 'error': str(e)}
+        error_result = {'tier': tier, 'status': 'error', 'error': str(e)}
         warn(f"Error stopping Flask daemon for {tier}: {e}")
         trace_out()
-        return result
+        return error_result
 
 def run_flask_stop(project_name: str) -> Dict[str, Any]:
     trace_in()

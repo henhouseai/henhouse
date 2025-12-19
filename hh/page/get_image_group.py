@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping, cast
 
 from hh.gateway.error.error_store import is_error, report_error
 from hh.gateway.gateway import get_gateway, trace_in, trace_out, log, warn
-from hh.gateway.registry.registry import (
-    register_action,
-    register_command,
-    register_parser,
-)
+from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.page.page_registry import get_page
 from hh.render.render import (
@@ -28,11 +24,6 @@ from hh.render.render import (
 def get_image_group_action() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway or not gateway.conn:
-        warn("No gateway or connection available")
-        report_error("action", "No gateway or connection available")
-        trace_out()
-        return False
 
     try:
         # Accept both 'id' and 'page_id' parameters
@@ -110,11 +101,6 @@ def get_image_group_action() -> bool:
 def get_image_group_parser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("backend", "No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -122,7 +108,13 @@ def get_image_group_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         page_id = source_data.get("page_id")
         images = source_data.get("images", [])
 

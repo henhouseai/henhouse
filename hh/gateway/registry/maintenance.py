@@ -35,7 +35,7 @@ def _maintenance_wrapper_template(tool_name: str) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
-        warn("No gateway available")
+        warn("No gateway or response available")
         trace_out()
         return False
     if not gateway.response.has_action_response():
@@ -46,7 +46,7 @@ def _maintenance_wrapper_template(tool_name: str) -> bool:
     
     # Extract flat data from MCP-wrapped action_response
     action_response = gateway.response.get_action_response()
-    if "content" in action_response and action_response["content"]:
+    if action_response is not None and isinstance(action_response, dict) and "content" in action_response and action_response["content"]:
         content_item = action_response["content"][0]
         if content_item.get("type") == "text" and "text" in content_item:
             flat_data = content_item["text"]

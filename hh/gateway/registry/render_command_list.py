@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, TypedDict, Dict
+from typing import List, TypedDict, Dict, Any
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -96,8 +96,9 @@ def render_commands_section(source_data: CommandListData, lines: List[str]) -> b
                 field_type = 'found'
             if has_load_failures:
                 load_error = command.get('load_error', '')
+                load_error_str = str(load_error) if load_error is not None else ''
                 if load_status == 'failed':
-                    load_status_text = load_error[:50] + ('...' if len(load_error) > 50 else '')
+                    load_status_text = load_error_str[:50] + ('...' if len(load_error_str) > 50 else '')
                 else:
                     load_status_text = ''
                 table_data.add_row(
@@ -115,8 +116,9 @@ def render_commands_section(source_data: CommandListData, lines: List[str]) -> b
                     action_args=safe_str(action_args_str)
                 )
             log(f"Added {field_type} row: {command.get('name', 'Unknown')} -> {action_args_str}")
-        separator_rows = source_data.get('separator_after_rows', [])
-        table_overrides = {'margin_l': 4}
+        separator_rows_raw = source_data.get('separator_after_rows', [])
+        separator_rows = separator_rows_raw if isinstance(separator_rows_raw, list) else []
+        table_overrides: Dict[str, Any] = {'margin_l': 4}
         if separator_rows:
             table_overrides['separator_after_rows'] = separator_rows
         rendered_block = render_block(
@@ -146,14 +148,18 @@ def render_section(source_data: CommandListData, lines: List[str]) -> bool:
     block = 'rows'
     if not gateway.is_no(block): 
         from hh.gateway.registry.backend import BACKEND_TYPES
-        sections = []
+        sections: List[Any] = []
         if 'backends' in source_data:
-            sections = source_data.get('backends', [])
+            backend_data = source_data.get('backends')
+            if isinstance(backend_data, list):
+                sections = backend_data
         else:
             for backend_type in BACKEND_TYPES:
                 key = f"{backend_type}s"
                 if key in source_data:
-                    sections = source_data.get(key, [])
+                    backend_data = source_data.get(key)
+                    if isinstance(backend_data, list):
+                        sections = backend_data
                     break
         count = len(sections)
         log(f"Rendering {count} sections")
@@ -180,8 +186,9 @@ def render_section(source_data: CommandListData, lines: List[str]) -> bool:
                 module=_get_colored_module(section.get('module_path', ''), is_loaded)
             )
             log(f"Added {field_type} row: {section.get('name', 'Unknown')} -> {action_args_str}")
-        separator_rows = source_data.get('separator_after_rows', [])
-        table_overrides = {'margin_l': 4}
+        separator_rows_raw = source_data.get('separator_after_rows', [])
+        separator_rows = separator_rows_raw if isinstance(separator_rows_raw, list) else []
+        table_overrides: Dict[str, Any] = {'margin_l': 4}
         if separator_rows:
             table_overrides['separator_after_rows'] = separator_rows
         rendered_block = render_block(
@@ -206,7 +213,7 @@ def command_list() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
-        warn("No gateway available")
+        warn("No gateway or response available")
         trace_out()
         return False
     if not gateway.response.has_action_response():
@@ -218,19 +225,25 @@ def command_list() -> bool:
     try:
         lines = []
         lines.append(render_header_block('l_command_list_header'))
-        source_data = get_data(json_data)
-        commands = source_data.get('commands', [])
+        source_data = get_data(json_data) if json_data is not None else {}
+        commands_raw = source_data.get('commands', [])
+        commands = commands_raw if isinstance(commands_raw, list) else []
         separator_rows = []
         current_folder = None
         for row_idx, command in enumerate(commands):
-            module_path = command.get("module_path", "")
+            if not isinstance(command, dict):
+                continue
+            module_path_raw = command.get("module_path", "")
+            module_path = str(module_path_raw) if module_path_raw is not None else ""
             module_parts = module_path.split('.')
             folder_path = '.'.join(module_parts[:-1]) if len(module_parts) > 1 else module_path
             if current_folder is not None and folder_path != current_folder:
                 separator_rows.append(row_idx)
             current_folder = folder_path
         source_data["separator_after_rows"] = separator_rows
-        if not render_commands_section(source_data, lines):
+        # Type cast to CommandListData for type checker
+        command_list_data: CommandListData = source_data  # type: ignore[assignment]
+        if not render_commands_section(command_list_data, lines):
             warn("Failed to render commands section")
             report_error("backend","Failed to render commands section")
             trace_out()
@@ -254,7 +267,7 @@ def parse_backend_list() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
-        warn("No gateway available")
+        warn("No gateway or response available")
         trace_out()
         return False
     if not gateway.response.has_action_response():
@@ -266,8 +279,10 @@ def parse_backend_list() -> bool:
     try:
         lines = []
         lines.append(render_header_block('l_backend_list_header'))
-        source_data = get_data(json_data)
-        if not render_section(source_data, lines):
+        source_data = get_data(json_data) if json_data is not None else {}
+        # Type cast to CommandListData for type checker
+        command_list_data: CommandListData = source_data  # type: ignore[assignment]
+        if not render_section(command_list_data, lines):
             warn("Failed to render backends section")
             report_error("backend","Failed to render backends section")
             trace_out()

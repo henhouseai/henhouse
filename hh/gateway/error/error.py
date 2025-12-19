@@ -1,6 +1,8 @@
 from __future__ import annotations
-from typing import Dict, List, Union
-from hh.gateway.registry.registry import register_parser, register_http, register_mcp, register_maintenance, register_download
+from typing import Dict, List, Union, Any
+from hh.gateway.registry.registry import (
+    register_parser, register_http, register_mcp, register_maintenance, register_download
+)
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
@@ -34,7 +36,7 @@ def render_error_details(error_list: List[Dict], error_type: str, lines: List[st
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         log(f"Rendering {len(error_list)} {error_type} errors")
         error_color = None
@@ -51,9 +53,10 @@ def render_error_details(error_list: List[Dict], error_type: str, lines: List[st
         field_config.add_simple_color('deployment_error', 'red')
         for config_item in field_config.get_configs():
             if config_item['field_type'] == f'{error_type}_error' and 'color_key' in config_item:
-                color_key = config_item['color_key']
-                error_color = get_color(color_key)
-                break
+                color_key = config_item.get('color_key')  # type: ignore[typeddict-item]
+                if color_key and isinstance(color_key, str):
+                    error_color = get_color(color_key)
+                    break
         for i, error in enumerate(error_list):
             error_info = error.get('error', {})
             table_data = TableData()
@@ -123,7 +126,7 @@ def parser_error() -> bool:
     lines.append(render_header_block('l_error'))
     
     # Group global errors by type
-    error_groups = {}
+    error_groups: Dict[str, List[Dict[str, Any]]] = {}
     for error_entry in global_errors:
         error_type = error_entry.error_type.value
         if error_type not in error_groups:
@@ -182,7 +185,7 @@ def http_error() -> bool:
     lines.append(render_header_block('l_error'))
     
     # Group global errors by type
-    error_groups = {}
+    error_groups: Dict[str, List[Dict[str, Any]]] = {}
     for error_entry in global_errors:
         error_type = error_entry.error_type.value
         if error_type not in error_groups:

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -28,11 +28,6 @@ def _initialize_debug():
 def move_images() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     if not gateway.is_set('source_page') and not gateway.is_set('s_page'):
         warn("No source page ID provided")
         report_error("action", "Source page ID is required")
@@ -40,6 +35,8 @@ def move_images() -> bool:
         if not gateway.is_set('target_page') and not gateway.is_set('t_page'):
             warn("No target page ID provided")
             report_error("action", "Target page ID is required")
+    source_page_id: int = 0
+    target_page_id: int = 0
     if not is_error():
         # Source specification
         source_page_arg = gateway.get_arg('source_page') or gateway.get_arg('s_page')
@@ -57,7 +54,7 @@ def move_images() -> bool:
             report_error("action", "All IDs must be numbers")
     
     # Parse optional target rank parameter
-    target_rank_int = None
+    target_rank_int: int | None = None
     if not is_error() and target_rank:
         try:
             target_rank_int = int(target_rank)
@@ -69,6 +66,7 @@ def move_images() -> bool:
             report_error("action", "Target rank must be a number")
     
     # Load source page
+    source_page = None
     if not is_error():
         log(f"Loading source page {source_page_id}")
         source_page = get_page(page_id=source_page_id)
@@ -77,6 +75,7 @@ def move_images() -> bool:
             report_error("action", f"Source page {source_page_id} not found")
     
     # Load target page
+    target_page = None
     if not is_error():
         log(f"Loading target page {target_page_id}")
         target_page = get_page(page_id=target_page_id)
@@ -85,8 +84,9 @@ def move_images() -> bool:
             report_error("action", f"Target page {target_page_id} not found")
     
     # Get source images to determine what to move
-    image_instances = []
-    if not is_error():
+    image_instances: List[Dict[str, Any]] = []
+    source_ranks: List[int] = []
+    if not is_error() and source_page is not None:
         log(f"Getting images from source page {source_page_id}")
         source_images = source_page.get_images_data()
         
@@ -102,18 +102,19 @@ def move_images() -> bool:
                 report_error("action", "Source ranks must be comma-separated numbers")
             
             # Build image instances for specified ranks
-            for rank in source_ranks:
-                for img in source_images:
-                    if img.get('image_rank') == rank:
-                        image_instances.append({
-                            'image_id': img['id'],
-                            'source_page_id': source_page_id,
-                            'source_rank': rank
-                        })
-                        break
-                else:
-                    warn(f"Image not found at rank {rank} in source page {source_page_id}")
-                    report_error("action", f"Image not found at rank {rank} in source page {source_page_id}")
+            if not is_error():
+                for rank in source_ranks:
+                    for img in source_images:
+                        if img.get('image_rank') == rank:
+                            image_instances.append({
+                                'image_id': img['id'],
+                                'source_page_id': source_page_id,
+                                'source_rank': rank
+                            })
+                            break
+                    else:
+                        warn(f"Image not found at rank {rank} in source page {source_page_id}")
+                        report_error("action", f"Image not found at rank {rank} in source page {source_page_id}")
         else:
             # Move all images
             log(f"Moving all images from source page {source_page_id}")
@@ -129,7 +130,7 @@ def move_images() -> bool:
         report_error("action", "No images to move")
     
     # Perform the move operation
-    if not is_error():
+    if not is_error() and target_page is not None:
         log(f"Moving {len(image_instances)} images from page {source_page_id} to page {target_page_id}")
         success = target_page.move_images(image_instances, target_rank=target_rank_int)
         if not success:
@@ -137,6 +138,7 @@ def move_images() -> bool:
             report_error("action", f"Failed to move images from page {source_page_id} to page {target_page_id}")
     
     # Reload target page to show updated state
+    updated_page = None
     if not is_error():
         log(f"Reloading target page {target_page_id} to show updated state")
         updated_page = get_page(page_id=target_page_id)
@@ -144,7 +146,7 @@ def move_images() -> bool:
             warn(f"Failed to reload target page {target_page_id}")
             report_error("action", f"Failed to reload target page {target_page_id}")
     
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         
         # Add operation-specific metadata
@@ -155,7 +157,6 @@ def move_images() -> bool:
         })
         
         if source_ranks_str:
-            source_ranks = [int(rank_str.strip()) for rank_str in source_ranks_str.split(',') if rank_str.strip()]
             response_data.update({
                 "source_ranks": source_ranks
             })

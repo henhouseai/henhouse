@@ -69,7 +69,7 @@ def _scan_for_config_registrations() -> List[str]:
     trace_out()
     return found_files
 
-def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str]]:
+def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str | None]]:
     """Import modules and return import results"""
     trace_in()
     import_results = {}
@@ -201,7 +201,7 @@ def discover_config_registrations(force_regenerate: bool = False) -> Dict[str, D
     trace_out()
     return cache_data
 
-def register_label(name: str, label_value: str, icon_value: str = None):
+def register_label(name: str, label_value: str, icon_value: Optional[str] = None):
     """Decorator for registering a label and optionally an icon
     
     Args:
@@ -259,11 +259,13 @@ def get_label(name: str) -> Optional[str]:
     if label_info:
         # Handle both old format (string) and new format (dict with value/module)
         if isinstance(label_info, dict):
-            label_value = label_info.get('value')
-            label_module = label_info.get('module', 'unknown')
+            label_value_raw = label_info.get('value')
+            label_value = str(label_value_raw) if label_value_raw is not None else ''
+            module_val = label_info.get('module', 'unknown')
+            label_module = str(module_val) if module_val is not None else 'unknown'
         else:
             # Old format - just a string
-            label_value = label_info
+            label_value = str(label_info) if label_info is not None else ''
             label_module = 'unknown'
         
         if label_value:
@@ -277,10 +279,12 @@ def get_label(name: str) -> Optional[str]:
     label_info_alt = cache_data.get('labels', {}).get(f'l_{k}')
     if label_info_alt:
         if isinstance(label_info_alt, dict):
-            label_value = label_info_alt.get('value')
-            label_module = label_info_alt.get('module', 'unknown')
+            label_value_raw = label_info_alt.get('value')
+            label_value = str(label_value_raw) if label_value_raw is not None else ''
+            module_val = label_info_alt.get('module', 'unknown')
+            label_module = str(module_val) if module_val is not None else 'unknown'
         else:
-            label_value = label_info_alt
+            label_value = str(label_info_alt) if label_info_alt is not None else ''
             label_module = 'unknown'
         
         if label_value:
@@ -328,11 +332,13 @@ def get_icon(name: str) -> Optional[str]:
     if icon_info:
         # Handle both old format (string) and new format (dict with value/module)
         if isinstance(icon_info, dict):
-            icon_value = icon_info.get('value')
-            icon_module = icon_info.get('module', 'unknown')
+            icon_value_raw = icon_info.get('value')
+            icon_value = str(icon_value_raw) if icon_value_raw is not None else ''
+            module_val = icon_info.get('module', 'unknown')
+            icon_module = str(module_val) if module_val is not None else 'unknown'
         else:
             # Old format - just a string
-            icon_value = icon_info
+            icon_value = str(icon_info) if icon_info is not None else ''
             icon_module = 'unknown'
         
         if icon_value:

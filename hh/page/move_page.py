@@ -30,10 +30,6 @@ def _initialize_debug():
 def move_page() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('source_page') and not gateway.is_set('s_page'):
         warn("No source page ID provided")
         report_error("action", "Source page ID is required")
@@ -41,6 +37,8 @@ def move_page() -> bool:
         if not gateway.is_set('target_page') and not gateway.is_set('t_page'):
             warn("No target page ID provided")
             report_error("action", "Target page ID is required")
+    source_page_id: int = 0
+    target_page_id: int = 0
     if not is_error():
         source_page_arg = gateway.get_arg('source_page') or gateway.get_arg('s_page')
         target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
@@ -50,27 +48,29 @@ def move_page() -> bool:
         except ValueError:
             warn(f"Invalid source page ID: {source_page_arg} or target page ID: {target_page_arg}")
             report_error("action", "Source page ID and target page ID must be numbers")
+    source_page = None
     if not is_error():
         source_page = get_page(page_id=source_page_id)
         if not source_page:
             warn(f"Source page {source_page_id} not found")
             report_error("action", f"Source page {source_page_id} not found")
-    if not is_error():
+    if not is_error() and source_page is not None:
         # Perform the move operation
         success = source_page.move_page(target_page_id)
         if not success:
             warn(f"Failed to move page {source_page_id} to target {target_page_id}")
             report_error("action", f"Failed to move page {source_page_id} to target {target_page_id}")
+    updated_page = None
     if not is_error():
         # Get updated page data for response
         updated_page = get_page(page_id=source_page_id)
-        if updated_page:
-            response_data = updated_page.show_page()
-            response_data["message"] = f"Page {source_page_id} successfully moved to parent {target_page_id}"
-            gateway.response.set_action_response(success_payload(response_data))
-            log(f"Successfully moved page {source_page_id} to parent {target_page_id}")
-        else:
+        if not updated_page:
             warn(f"Failed to reload page {source_page_id} after move")
             report_error("action", f"Failed to reload page {source_page_id} after move")
+    if not is_error() and updated_page is not None:
+        response_data = updated_page.show_page()
+        response_data["message"] = f"Page {source_page_id} successfully moved to parent {target_page_id}"
+        gateway.response.set_action_response(success_payload(response_data))
+        log(f"Successfully moved page {source_page_id} to parent {target_page_id}")
     trace_out()
     return not is_error()

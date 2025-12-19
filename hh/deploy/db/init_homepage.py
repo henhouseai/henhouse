@@ -74,7 +74,7 @@ def create_homepage(project_name: str) -> Dict[str, Any]:
         VALUES (1, 0, %s, NULL, 'page', 'Hello, World!', %s, %s, 1, 1)
     """
     try:
-        new_page_id = gateway.conn.create(query, (project_name, now, db_user))
+        new_page_id = gateway.conn.create(query, (project_name, now, str(db_user)))  # type: ignore[arg-type]
         log(f"Created homepage: id=1, name='{project_name}', parent=0")
         result = {
             "homepage_id": 1,

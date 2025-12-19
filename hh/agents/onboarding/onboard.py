@@ -33,10 +33,11 @@ def create_training_agent(default_role: str = "apprentice") -> Tuple[int, str]:
         trace_out()
         raise Exception("No gateway or connection available")
     badge_ts = dt.datetime.now().time()
+    badge_ts_str = str(badge_ts)
     agent_id = gateway.conn.create("""
         INSERT INTO agents (agent_key, role, badge_ts, status)
         VALUES (%s, %s, %s, 'inactive')
-    """, (str(badge_ts), default_role, badge_ts))
+    """, (badge_ts_str, default_role, badge_ts_str))  # type: ignore[arg-type]
     if agent_id is None:
         warn("Failed to create training agent")
         trace_out()

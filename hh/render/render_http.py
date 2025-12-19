@@ -21,7 +21,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def render_html_table(table_data: TableData, field_configs: FieldConfig = None, table_class: str = 'standard', table_overrides: Dict[str, Union[str, int, bool]] = None, wrapper_id: Optional[str] = None, wrapper_extra_classes: Optional[str] = None) -> str:
+def render_html_table(table_data: TableData, field_configs: Optional[FieldConfig] = None, table_class: str = 'standard', table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None, wrapper_id: Optional[str] = None, wrapper_extra_classes: Optional[str] = None) -> str:
     """HTML renderer - renders tables as HTML for web output."""
     trace_in()
     gateway = get_gateway()

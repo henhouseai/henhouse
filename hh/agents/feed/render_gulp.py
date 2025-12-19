@@ -38,6 +38,10 @@ def gulp(data: Dict[str, Union[str, int, List[str], Dict[str, Union[str, int, Li
         trace_out()
         return False
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     source_data = get_data(json_data)
     
     lines = []

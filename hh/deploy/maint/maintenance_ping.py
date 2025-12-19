@@ -107,7 +107,7 @@ def build_error_summary(errors: List[Dict]) -> Dict[str, Any]:
         return {"total": 0, "by_type": {}, "duplicates": []}
     
     by_type = defaultdict(list)
-    seen = defaultdict(int)
+    seen: dict[tuple[str, str], int] = defaultdict(int)
     
     for err in errors:
         err_type = err.get("type", "unknown")
@@ -149,7 +149,7 @@ def build_debug_summary(entries: List[Dict]) -> Dict[str, Any]:
 
 def build_level_tree(entries: List[Dict]) -> Dict[str, Any]:
     """Build nested tree: module -> file -> function with timestamps."""
-    tree = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    tree: dict[str, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     module_times = defaultdict(list)
     file_times = defaultdict(list)
     

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -61,8 +61,8 @@ class PageGroup(TileGroup):
         page_id: int,
         class_name: str,
         target_width: int = 300,
-        wrapper_id: str = None,
-        wrapper_extra_classes: str = None
+        wrapper_id: Optional[str] = None,
+        wrapper_extra_classes: Optional[str] = None
     ):
         """Initialize page group by parsing page data and creating tiles.
         

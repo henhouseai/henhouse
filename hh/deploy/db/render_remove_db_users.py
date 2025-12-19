@@ -84,7 +84,7 @@ def parse_remove_db_users() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_remove_db_users_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log(f"Processing database user removal data successfully")
     
     render_db_user_remove_section(source_data, lines)

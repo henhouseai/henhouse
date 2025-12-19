@@ -30,10 +30,6 @@ def _initialize_debug():
 def modify_text() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('page_id') and not gateway.is_set('id'):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
@@ -41,6 +37,8 @@ def modify_text() -> bool:
         if not gateway.is_set('text'):
             warn("No new text provided")
             report_error("action", "New text is required")
+    page_id: int = 0
+    new_text: str = ""
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         new_text = gateway.get_arg('text')
@@ -52,20 +50,20 @@ def modify_text() -> bool:
         except ValueError:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
-    if not is_error():
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Modifying page {page_id} text content")
         success = page.modify_text(new_text)
         if not success:
             warn("Page text modification failed")
             report_error("action", "Page text modification failed")
-    if not is_error():
+    if not is_error() and page is not None:
         response_data = page.show_page()
         gateway.response.set_action_response(success_payload(response_data))
         # Calculate total children from children_by_class

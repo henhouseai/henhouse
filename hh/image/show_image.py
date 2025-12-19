@@ -27,30 +27,29 @@ def _initialize_debug():
 def show_image() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    image_id = gateway.get_arg('id')
-    if not image_id:
+    image_id_arg = gateway.get_arg('id')
+    if not image_id_arg:
         warn("No image ID provided")
         report_error("action", "Image ID is required")
+    image_id: int = 0
     if not is_error():
         try:
-            image_id = int(image_id)
+            image_id = int(image_id_arg)
         except ValueError:
-            warn(f"Invalid image ID: {image_id}")
+            warn(f"Invalid image ID: {image_id_arg}")
             report_error("action", "Image ID must be a number")
+    image = None
     if not is_error():
         log(f"Loading image {image_id}")
         image = get_image(image_id=image_id)
         if not image:
             warn(f"Image {image_id} not found")
             report_error("action", f"Image {image_id} not found")
-    if not is_error():
+    if not is_error() and image is not None:
         # Get complete image display data using the unified show_image method
         response_data = image.show_image()
         gateway.response.set_action_response(success_payload(response_data))
-        log(f"Successfully loaded image {image_id}: {image.caption}")
+        caption = image.caption if image.caption is not None else "Unknown"
+        log(f"Successfully loaded image {image_id}: {caption}")
     trace_out()
     return not is_error()

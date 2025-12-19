@@ -43,7 +43,7 @@ def validate_agent_identity(agent_id: int, badge_ts: str) -> Optional[Dict[str, 
         trace_out()
         return None
 
-def process_answer(agent_id: int, badge_ts: str, answer: str = None, ack_read: bool = False) -> Dict[str, Any]:
+def process_answer(agent_id: int, badge_ts: str, answer: Optional[str] = None, ack_read: bool = False) -> Dict[str, Any]:
     """Process agent's answer and queue next training message."""
     trace_in()
     gateway = get_gateway()

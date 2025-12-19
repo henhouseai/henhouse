@@ -29,7 +29,7 @@ def _initialize_debug():
 
 @register_action('gulp')
 @register_command('gulp')
-def gulp(args: List[str] = None) -> bool:
+def gulp(args: Optional[List[str]] = None) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:

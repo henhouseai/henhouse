@@ -56,12 +56,13 @@ def modify_work_sort_order() -> bool:
             report_error("action", f"Page {page_id} not found")
     if not is_error():
         log(f"Modifying page {page_id} sort_order to {sort_order_int}")
-        success = page.modify_work_sort_order(sort_order_int)
-        if not success:
-            warn("Page sort_order modification failed")
-            report_error("action", "Page sort_order modification failed")
-        response_data = page.show_page()
-        gateway.response.set_action_response(success_payload(response_data))
+        if page:
+            success = page.modify_work_sort_order(sort_order_int)
+            if not success:
+                warn("Page sort_order modification failed")
+                report_error("action", "Page sort_order modification failed")
+            response_data = page.show_page()
+            gateway.response.set_action_response(success_payload(response_data))
         # Calculate total children from children_by_class
         total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
         log(f"Successfully modified page {page_id} sort_order to {sort_order_int} with {total_children} children")

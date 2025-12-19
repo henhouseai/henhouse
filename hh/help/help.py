@@ -1,7 +1,6 @@
 from __future__ import annotations
 from hh.gateway.response.json_standard import success_payload
-from hh.gateway.registry.registry import register_action
-from hh.gateway.registry.registry import register_command
+from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.help.help_query import HelpQuery
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init

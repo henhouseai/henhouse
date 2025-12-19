@@ -25,9 +25,9 @@ def _initialize_debug():
 
 def render_html_flexible_table(
     table_data: TableData, 
-    field_configs: FieldConfig = None, 
+    field_configs: Optional[FieldConfig] = None, 
     table_class: str = 'standard', 
-    table_overrides: Dict[str, Union[str, int, bool]] = None,
+    table_overrides: Optional[Dict[str, Union[str, int, bool]]] = None,
     wrapper_id: Optional[str] = None,
     wrapper_extra_classes: Optional[str] = None
 ) -> str:
@@ -48,9 +48,10 @@ def render_html_flexible_table(
     log(f"Rendering HTML flexible table: {len(data)} rows, table_class={table_class}")
     
     if field_configs is None:
-        field_configs = FieldConfig()
+        field_configs_obj = FieldConfig()
     else:
-        field_configs = field_configs.get_configs()
+        field_configs_obj = field_configs
+    field_config_list = field_configs_obj.get_configs()
     
     # Extract columns from first row
     columns = []
@@ -93,11 +94,13 @@ def render_html_flexible_table(
         matching_field_config = None
         
         # Find matching field config
-        if field_configs:
-            for field_config in field_configs:
-                if row_data.get('field_type') == field_config.get('field_type'):
-                    matching_field_config = field_config
-                    break
+        if field_config_list:
+            for field_config_item in field_config_list:
+                if isinstance(field_config_item, dict):
+                    field_type = field_config_item.get('field_type')  # type: ignore[typeddict-item]
+                    if row_data.get('field_type') == field_type:
+                        matching_field_config = field_config_item
+                        break
         
         # Handle rows without field config
         if not matching_field_config:
@@ -106,14 +109,14 @@ def render_html_flexible_table(
                 row_values.append("")
             
             # Check for link metadata
-            links = row_data.get('_links', {})
+            links = row_data.get('_links', {})  # type: ignore[typeddict-item]
             
             for i, col in enumerate(columns):
                 if col in row_data:
-                    cell_content = out(safe_str(row_data[col]))
+                    cell_content = out(safe_str(row_data[col]))  # type: ignore[typeddict-item,literal-required]
                     
                     # Wrap with link if metadata present
-                    if col in links:
+                    if isinstance(links, dict) and col in links:
                         link_info = links[col]
                         link_type = link_info.get('type')
                         link_id = link_info.get('id')
@@ -134,12 +137,15 @@ def render_html_flexible_table(
             continue
         
         # Check no_flag
-        if matching_field_config.get('no_flag') and gateway.is_no(matching_field_config['no_flag']):
-            continue
-        
-        # Check condition
-        if matching_field_config.get('condition') and not matching_field_config['condition'](row_data):
-            continue
+        if matching_field_config and isinstance(matching_field_config, dict):
+            no_flag = matching_field_config.get('no_flag')  # type: ignore[typeddict-item]
+            if no_flag and gateway.is_no(no_flag):
+                continue
+            
+            # Check condition
+            condition = matching_field_config.get('condition')  # type: ignore[typeddict-item]
+            if condition and callable(condition) and not condition(row_data):
+                continue
         
         # Build row values
         row_values = []
@@ -150,15 +156,18 @@ def render_html_flexible_table(
         if not gateway.is_no('label'):
             icon = ""
             label_text = ""
-            if matching_field_config.get('icon_key'):
-                icon = ic(matching_field_config['icon_key'])
-            if matching_field_config.get('label_key'):
-                label_text = dc(matching_field_config['label_key'], True)
-                
-                # Apply color wrapping to label_text if color_key is specified
-                if matching_field_config.get('color_key') and label_text:
-                    color_name = matching_field_config['color_key']
-                    label_text = apply_color(label_text, color_name)
+            if matching_field_config and isinstance(matching_field_config, dict):
+                icon_key = matching_field_config.get('icon_key')  # type: ignore[typeddict-item]
+                if icon_key:
+                    icon = ic(icon_key)
+                label_key = matching_field_config.get('label_key')  # type: ignore[typeddict-item]
+                if label_key:
+                    label_text = dc(label_key, True)
+                    
+                    # Apply color wrapping to label_text if color_key is specified
+                    color_key = matching_field_config.get('color_key')  # type: ignore[typeddict-item]
+                    if color_key and label_text:
+                        label_text = apply_color(label_text, color_key)
             
             if 'label' in row_data and row_data['label'] != '':
                 first_column_content = row_data['label']
@@ -169,8 +178,8 @@ def render_html_flexible_table(
                 cell_content = out(safe_str(first_column_content))
                 
                 # Check for link metadata on label column and wrap if present
-                links = row_data.get('_links', {})
-                if 'label' in links:
+                links = row_data.get('_links', {})  # type: ignore[typeddict-item]
+                if isinstance(links, dict) and 'label' in links:
                     link_info = links['label']
                     link_type = link_info.get('type')
                     link_id = link_info.get('id')
@@ -195,11 +204,11 @@ def render_html_flexible_table(
         start_idx = 1 if not gateway.is_no('label') else 0
         for i, col in enumerate(columns[start_idx:], start_idx):
             if col in row_data:
-                cell_content = out(safe_str(row_data[col]))
+                cell_content = out(safe_str(row_data[col]))  # type: ignore[typeddict-item,literal-required]
                 
                 # Check for link metadata and wrap if present
-                links = row_data.get('_links', {})
-                if col in links:
+                links = row_data.get('_links', {})  # type: ignore[typeddict-item]
+                if isinstance(links, dict) and col in links:
                     link_info = links[col]
                     link_type = link_info.get('type')
                     link_id = link_info.get('id')

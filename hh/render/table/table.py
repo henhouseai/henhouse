@@ -154,18 +154,22 @@ class TableBuilder:
         return self
 
     def set_column_width(self, column: str, width: int) -> 'TableBuilder':
+        assert self.config.column_widths is not None, "column_widths should be initialized in __post_init__"
         self.config.column_widths[column] = width
         return self
 
     def set_column_align(self, column: str, align: str) -> 'TableBuilder':
+        assert self.config.column_align is not None, "column_align should be initialized in __post_init__"
         self.config.column_align[column] = align
         return self
 
     def set_column_overflow(self, column: str, overflow: str) -> 'TableBuilder':
+        assert self.config.column_overflow is not None, "column_overflow should be initialized in __post_init__"
         self.config.column_overflow[column] = overflow
         return self
 
     def set_column_valign(self, column: str, valign: str) -> 'TableBuilder':
+        assert self.config.column_valign is not None, "column_valign should be initialized in __post_init__"
         self.config.column_valign[column] = valign
         return self
 
@@ -262,6 +266,8 @@ class TableBuilder:
                 header_border = build_header_border(glyphs, column_layouts, order)
                 if header_border:
                     lines_out.append((' ' * self.config.margin_l) + header_border + (' ' * self.config.margin_r))
+        assert self.config.separator_after_rows is not None, "separator_after_rows should be initialized in __post_init__"
+        assert self.config.separator_after_rows is not None, "separator_after_rows should be initialized in __post_init__"
         for r in range(start_row, num_rows):
             row_lines = self._render_data_row(r, order, column_layouts, glyphs)
             lines_out.extend([(' ' * self.config.margin_l) + ln + (' ' * self.config.margin_r) for ln in row_lines])

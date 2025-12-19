@@ -85,6 +85,10 @@ def render_operations_section(source_data: Dict[str, Union[str, int, list]], lin
             log("No operations to render in purge section")
             trace_out()
             return True
+        if not isinstance(operations, list):
+            warn(f"Operations is not a list: {type(operations)}")
+            trace_out()
+            return True
         log(f"Rendering {len(operations)} purge operations")
         for i, operation in enumerate(operations):
             operation_data = TableData()
@@ -128,6 +132,10 @@ def agent_purge() -> bool:
         trace_out()
         return False    
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_purge_header'))
     source_data = get_data(json_data)

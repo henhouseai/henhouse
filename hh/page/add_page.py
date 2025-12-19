@@ -31,13 +31,10 @@ def _initialize_debug():
 def add_page() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('target_page') and not gateway.is_set('t_page'):
         warn("No target page ID provided")
         report_error("action", "Target page ID is required")
+    target_page_id: int = 0
     if not is_error():
         target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
         try:
@@ -45,10 +42,15 @@ def add_page() -> bool:
         except ValueError:
             warn(f"Invalid target page ID: {target_page_arg}")
             report_error("action", "Target page ID must be a number")
+    target_page = None
     if not is_error():
         log(f"Loading target page {target_page_id}")
         target_page = get_page(page_id=target_page_id)
-    if not is_error():
+        if not target_page:
+            warn(f"Target page {target_page_id} not found")
+            report_error("action", f"Target page {target_page_id} not found")
+    page_class: str = 'page'
+    if not is_error() and target_page is not None:
         # Get optional page class (defaults to 'page')
         page_class = gateway.get_arg('class') or 'page'
         # Check if this page class allows null names before requiring name
@@ -61,7 +63,8 @@ def add_page() -> bool:
             if not gateway.is_set('name'):
                 warn("No page name provided")
                 report_error("action", "Page name is required")
-    if not is_error():
+    new_page_id: int | None = None
+    if not is_error() and target_page is not None:
         name = gateway.get_arg('name')
         log(f"Creating new page '{name}' under target {target_page_id} with class '{page_class}'")
         new_page_id = target_page.add_page(page_class=page_class, name=name)
@@ -69,7 +72,8 @@ def add_page() -> bool:
         if not page_created:
             warn("Page creation failed")
             report_error("action", "Page creation failed")
-    if not is_error():
+    new_page = None
+    if not is_error() and new_page_id is not None:
         log(f"Loading newly created page {new_page_id}")
         new_page = get_page(page_id=new_page_id)
         if not new_page:
@@ -83,11 +87,12 @@ def add_page() -> bool:
                 if new_page.name is None:
                     warn(f"Newly created page {new_page_id} has no name but class '{page_class}' requires one")
                     report_error("action", f"Newly created page {new_page_id} has no name but class '{page_class}' requires one")
-    if not is_error():
+    if not is_error() and new_page is not None:
         response_data = new_page.show_page()
         gateway.response.set_action_response(success_payload(response_data))
         # Calculate total children from children_by_class
         total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
-        log(f"Successfully created and loaded page {new_page_id}: {new_page.name} with {total_children} children")
+        page_name = new_page.name if new_page.name is not None else "Unknown"
+        log(f"Successfully created and loaded page {new_page_id}: {page_name} with {total_children} children")
     trace_out()
     return not is_error()

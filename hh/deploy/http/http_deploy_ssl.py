@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -45,7 +45,7 @@ def detect_project_name() -> str:
     except Exception:
         return "henhouse"
 
-def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: str = None) -> str:
+def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None) -> str:
     """Generate Nginx SSL configuration for the domain and its subdomains (Stage 2)."""
     trace_in()
     try:
@@ -131,7 +131,7 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: st
         trace_out()
         return ""
 
-def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: str = None) -> bool:
+def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None) -> bool:
     """Create Nginx SSL configuration file and enable site."""
     trace_in()
     try:

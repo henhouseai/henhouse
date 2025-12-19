@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List
+from typing import Dict, List, Any
 from hh.gateway.debug.debug_safe import Debug, DebugEntry, trim_document_root
 
 def debug_print(message: str) -> None:
@@ -12,14 +12,14 @@ def debug_print(message: str) -> None:
 class DebugMCP(Debug):
     """Debug module for MCP backend - outputs JSON structure instead of ANSI text."""
     
-    def render(self) -> Dict[str, List[Dict]]:
+    def render(self) -> Dict[str, List[Dict[str, Any]]]:  # type: ignore[override]
         """Render debug output as JSON structure for MCP responses."""
         debug_print(f"debug_mcp.render() - starting render")
         self.get_arg_overrides()
         self.filtered_data = []
-        folder_counts = {}
-        file_counts = {}
-        function_counts = {}
+        folder_counts: dict[str, int] = {}
+        file_counts: dict[str, int] = {}
+        function_counts: dict[str, int] = {}
         shared_data = self._get_shared_store().captured_data
         debug_print(f"debug_mcp.render() - shared_data length: {len(shared_data)}")
         

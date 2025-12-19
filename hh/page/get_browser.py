@@ -37,11 +37,6 @@ def _initialize_debug():
 def get_browser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-    
     # Get page identifier
     if not gateway.is_set('id') and not gateway.is_set('name') and not gateway.is_set('link'):
         warn("No page identifier provided")
@@ -50,22 +45,23 @@ def get_browser() -> bool:
         return False
     
     page = None
-    page_id = gateway.get_arg('id')
+    page_id: int | None = None
+    page_id_arg = gateway.get_arg('id')
     page_name = gateway.get_arg('name')
     page_link = gateway.get_arg('link')
-    search_term = None
+    search_term: str | None = None
     
     # Determine which parameter was provided
-    if page_id:
-        log(f"Using page ID: {page_id}")
+    if page_id_arg:
+        log(f"Using page ID: {page_id_arg}")
         try:
-            page_id = int(page_id)
+            page_id = int(page_id_arg)
         except ValueError:
-            warn(f"Invalid page ID: {page_id}")
+            warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
             trace_out()
             return False
-        if not is_error():
+        if not is_error() and page_id is not None:
             page = get_page(page_id=page_id)
             if not page:
                 warn(f"Page {page_id} not found")
@@ -82,9 +78,9 @@ def get_browser() -> bool:
             report_error("action", f"No page found with name/link: {search_term}")
             trace_out()
             return False
-        page_id = page.id
+        page_id = page.id if page.id is not None else None
     
-    if is_error():
+    if is_error() or page is None or page_id is None:
         trace_out()
         return False
     
@@ -155,7 +151,7 @@ def get_browser() -> bool:
         ) or ""
     
     # Build structured response
-    payload = {
+    payload: Dict[str, Any] = {
         "page_id": page_data.get("id"),
         "page_name": page_data.get("name"),
         "parent": page_data.get("parent"),
@@ -180,11 +176,6 @@ def get_browser() -> bool:
 def get_browser_parser() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        report_error("backend", "No gateway available")
-        trace_out()
-        return False
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
@@ -194,8 +185,15 @@ def get_browser_parser() -> bool:
     try:
         from hh.gateway.response.json_standard import get_data
         from hh.render.render import FieldConfig, TableData, render_block, render_header_block, finalize_output
+        from typing import Mapping, cast, Any
         
-        source_data = get_data(gateway.response.get_action_response())
+        action_response = gateway.response.get_action_response()
+        if action_response is None:
+            warn("Action response is None")
+            report_error("backend", "Action response is None")
+            trace_out()
+            return False
+        source_data = get_data(cast(Mapping[str, Any], action_response))
         page_id = source_data.get("page_id")
         page_name = source_data.get("page_name")
         parent = source_data.get("parent")
@@ -219,7 +217,9 @@ def get_browser_parser() -> bool:
         # Add horizontal rules after Class (row 3) and after each HTML section (rows 4-7)
         # Row indices: 0=header, 1=page_id, 2=page_name, 3=page_parent, 4=page_class, 
         #              5=path_html, 6=badges_html, 7=text_html, 8=children_html, 9=images_html
-        separator_after_rows = [4, 5, 6, 7, 8]  # After Class and each HTML section
+        separator_after_rows: list[int] = [4, 5, 6, 7, 8]  # After Class and each HTML section
+        
+        table_overrides: Dict[str, Any] = {"margin_l": 4, "separator_after_rows": separator_after_rows}
         
         lines.append(
             render_block(
@@ -238,7 +238,7 @@ def get_browser_parser() -> bool:
                         "images_html",
                     ]),
                 block_type="maintenance",
-                table_overrides={"margin_l": 4, "separator_after_rows": separator_after_rows}
+                table_overrides=table_overrides
             )
         )
         

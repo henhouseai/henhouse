@@ -251,9 +251,11 @@ def agent_list() -> bool:
             }
         }
         if limit and result_data.get("agents"):
-            result_data["agents"] = result_data["agents"][:limit]
-            result_data["count"] = len(result_data["agents"])
-            log(f"Applied limit of {limit}, final count: {result_data['count']}")
+            agents_list = result_data["agents"]
+            if isinstance(agents_list, list):
+                result_data["agents"] = agents_list[:limit]
+                result_data["count"] = len(agents_list[:limit])
+                log(f"Applied limit of {limit}, final count: {result_data['count']}")
         
         log(f"Agent list operation completed successfully with {result_data['count']} agents")
         gateway.response.set_action_response(success_payload(result_data))

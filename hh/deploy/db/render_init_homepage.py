@@ -31,7 +31,7 @@ def render_success_section(source_data: Dict[str, Union[str, int]], lines: List[
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         log("Rendering success section for homepage creation")
         summary_data = TableData()
@@ -83,7 +83,7 @@ def render_error_section(source_data: Dict[str, Union[str, int]], lines: List[st
     if not gateway:
         warn("No gateway available")
         trace_out()
-        return False
+        return
     if not gateway.is_no(block):
         error_message = source_data.get('error', 'Unknown error occurred')
         log(f"Rendering error section: {error_message}")
@@ -124,7 +124,7 @@ def init_homepage() -> bool:
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_init_homepage_header'))
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     log("Processing init homepage data successfully")
     # Check if response contains error
     if 'error' in source_data:

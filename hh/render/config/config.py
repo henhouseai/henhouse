@@ -265,7 +265,11 @@ def ic(name: str) -> str:
         return ''
     
     # Get caller file for hierarchical lookup
-    caller_file = inspect.currentframe().f_back.f_code.co_filename
+    frame = inspect.currentframe()
+    if frame is None or frame.f_back is None:
+        trace_out()
+        return ''
+    caller_file = frame.f_back.f_code.co_filename
     result = get_str(name, caller_file)
     
     if result:
@@ -293,7 +297,10 @@ def dc(name: str, add_tc: bool = False) -> str:
         return ''
     
     # Get caller file for hierarchical lookup
-    caller_file = inspect.currentframe().f_back.f_code.co_filename
+    frame = inspect.currentframe()
+    if frame is None or frame.f_back is None:
+        return ''
+    caller_file = frame.f_back.f_code.co_filename
     result = get_str(name, caller_file)
     
     if result:
@@ -312,7 +319,11 @@ def mc(name: str) -> int:
     trace_in()
     try:
         # Get caller file for hierarchical lookup
-        caller_file = inspect.currentframe().f_back.f_code.co_filename
+        frame = inspect.currentframe()
+        if frame is None or frame.f_back is None:
+            trace_out()
+            return 0
+        caller_file = frame.f_back.f_code.co_filename
         val = get_int(name, caller_file)
         result = val if val >= 0 else 0
         log(f"Max count retrieved: {name}={result}")
@@ -326,7 +337,11 @@ def mc(name: str) -> int:
 def tc(repeat: int = 1, mode: Optional[int] = None) -> str:
     trace_in()
     # Get caller file for hierarchical lookup
-    caller_file = inspect.currentframe().f_back.f_code.co_filename
+    frame = inspect.currentframe()
+    if frame is None or frame.f_back is None:
+        trace_out()
+        return ''
+    caller_file = frame.f_back.f_code.co_filename
     base = get_str('tab', caller_file)
     blank = get_str('blank_emoji', caller_file)
     if repeat <= 1:
@@ -349,7 +364,7 @@ def tc(repeat: int = 1, mode: Optional[int] = None) -> str:
         log(f"Tab character repeated: repeat={repeat}, mode=None, result={result}")
         trace_out()
         return result
-    segs: List[str] = []
+    segs = []
     if mode in (2, 4):
         segs.append(blank)
     for i in range(repeat):
@@ -367,7 +382,11 @@ def cc(name: str) -> str:
     trace_in()
     try:
         # Get caller file for hierarchical lookup
-        caller_file = inspect.currentframe().f_back.f_code.co_filename
+        frame = inspect.currentframe()
+        if frame is None or frame.f_back is None:
+            trace_out()
+            return ''
+        caller_file = frame.f_back.f_code.co_filename
         val = get_str(name, caller_file)
         log(f"Config value retrieved: {name}={val}")
         trace_out()

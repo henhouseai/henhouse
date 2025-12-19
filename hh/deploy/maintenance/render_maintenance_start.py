@@ -99,7 +99,7 @@ def maintenance_start() -> bool:
         return False
 
     json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data)
+    source_data = get_data(json_data if json_data is not None else {})
     lines = [render_header_block("l_maintenance_start_header")]
     render_maintenance_block(source_data, lines)
     result = finalize_output(lines)

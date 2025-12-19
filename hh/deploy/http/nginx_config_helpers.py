@@ -1,5 +1,5 @@
 """Common Nginx configuration helpers for HTTP and HTTPS deployments."""
-from typing import List
+from typing import List, Optional
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 def get_security_headers() -> List[str]:
@@ -82,7 +82,7 @@ def get_flask_proxy_block(port: int) -> List[str]:
     ]
 
 def generate_server_block(server_names: List[str], port: int, static_locations: str, 
-                         label: str = "", extra_blocks: List[str] = None, project_name: str = "henhouse") -> List[str]:
+                         label: str = "", extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse") -> List[str]:
     """Generate a complete Nginx server block.
     
     Args:
@@ -173,7 +173,7 @@ def detect_flask_ports(project_name: str) -> dict:
     
     return ports
 
-def get_server_configs(domain: str, project_name: str = None) -> List[dict]:
+def get_server_configs(domain: str, project_name: Optional[str] = None) -> List[dict]:
     """Get server configuration definitions for a domain.
     
     Returns list of dicts with:
@@ -222,7 +222,7 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
 
 def generate_https_server_block(server_names: List[str], port: int, static_locations: str,
                                certificate_path: str, label: str = "", rate_limit: str = "general",
-                               extra_blocks: List[str] = None, project_name: str = "henhouse") -> List[str]:
+                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse") -> List[str]:
     """Generate a complete Nginx HTTPS server block.
     
     Args:

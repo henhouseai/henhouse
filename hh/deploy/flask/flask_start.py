@@ -66,9 +66,9 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
     try:
         gateway = get_gateway()
         if not gateway or not gateway.os:
-            result = {'tier': tier, 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            error_result = {'tier': tier, 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
             trace_out()
-            return result
+            return error_result
         
         user = f"{project_name}_{tier}"
         app_path = f"/srv/{project_name}/{project_name}_{tier}.py"
@@ -124,17 +124,17 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
         
         if f'{project_name}_{tier}.py' in check_result.stdout:
             result_status = 'restarted' if killed_any else 'started'
-            result = {'tier': tier, 'status': result_status, 'port': port, 'user': user}
+            start_result: dict[str, str | int] = {'tier': tier, 'status': result_status, 'port': port, 'user': user}
             log(f"Started Flask daemon for {tier} tier on port {port}")
         else:
-            result = {'tier': tier, 'status': 'failed', 'error': 'Process not found running'}
+            start_result = {'tier': tier, 'status': 'failed', 'error': 'Process not found running'}
             warn(f"Flask daemon for {tier} tier failed to start")
         
         trace_out()
-        return result
+        return start_result
         
     except Exception as e:
-        result = {'tier': tier, 'status': 'error', 'error': str(e)}
+        error_result = {'tier': tier, 'status': 'error', 'error': str(e)}
         warn(f"Error starting Flask daemon for {tier}: {e}")
         trace_out()
         return result

@@ -19,6 +19,11 @@ class ResponseHTTP(Response):
     Dynamically generates CSS and JS includes from whitelists.
     """
     
+    def __init__(self) -> None:
+        super().__init__()
+        self._site_link_groups: dict[str, List[tuple[int, str]]] = {}
+        self._application_action_groups: dict[str, List[tuple[str, str]]] = {}
+    
     def get_output(self) -> str:
         """Return HTTP output - wraps body content in full HTML document."""
         # Populate menu content based on tier level
@@ -312,15 +317,11 @@ class ResponseHTTP(Response):
     
     def add_site_link_group(self, group_name: str, page_id: int, link_text: str) -> None:
         """Create a new site link group with header link."""
-        if not hasattr(self, '_site_link_groups'):
-            self._site_link_groups: dict[str, List[tuple[int, str]]] = {}
         # First link in group is the header
         self._site_link_groups[group_name] = [(page_id, link_text)]
     
     def add_site_link(self, group_name: str, page_id: int, link_text: str) -> None:
         """Add a site link to an existing group."""
-        if not hasattr(self, '_site_link_groups'):
-            self._site_link_groups: dict[str, List[tuple[int, str]]] = {}
         if group_name not in self._site_link_groups:
             # Group doesn't exist, create it (first link becomes header)
             self._site_link_groups[group_name] = [(page_id, link_text)]
@@ -330,15 +331,11 @@ class ResponseHTTP(Response):
     
     def add_application_action_group(self, group_name: str, header_text: str) -> None:
         """Create a new application action group with header text."""
-        if not hasattr(self, '_application_action_groups'):
-            self._application_action_groups: dict[str, List[tuple[str, str]]] = {}
         # First item in group is header (empty action_id marks it as header)
         self._application_action_groups[group_name] = [('', header_text)]
     
     def add_application_action_link(self, group_name: str, action_id: str, label: str) -> None:
         """Add an application action link to an existing group."""
-        if not hasattr(self, '_application_action_groups'):
-            self._application_action_groups: dict[str, List[tuple[str, str]]] = {}
         if group_name not in self._application_action_groups:
             # Group doesn't exist, create it (first item becomes header with empty action_id)
             self._application_action_groups[group_name] = [('', group_name)]

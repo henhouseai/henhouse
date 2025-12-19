@@ -5,6 +5,7 @@ from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
+from hh.gateway.response.json_standard import get_data
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
@@ -112,6 +113,10 @@ def _render_punch_parser(operation: str) -> bool:
         trace_out()
         return False
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     lines = []
     lines.append(render_header_block('l_timeclock_header'))
     source_data = get_data(json_data)

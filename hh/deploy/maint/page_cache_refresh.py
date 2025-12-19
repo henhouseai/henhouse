@@ -151,11 +151,12 @@ def page_cache_refresh_action() -> bool:
         error = rebuild_page(stale_page_id)
         pages_remaining = count_stale_pages()
 
+        error_msg: str | None = error.get("error") if error and isinstance(error, dict) else None
         payload = {
             "operation": "rebuild_page_cache",
             "page_id": stale_page_id,
             "processed": error is None,
-            "error": error,
+            "error": error_msg,
             "pages_remaining": pages_remaining,
         }
         gateway.response.set_action_response(success_payload(payload))
@@ -188,7 +189,8 @@ def page_cache_refresh_parser() -> bool:
         return False
 
     try:
-        source_data = get_data(gateway.response.get_action_response())
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
         page_id = source_data.get("page_id")
         processed = source_data.get("processed", False)
         error = source_data.get("error")

@@ -31,13 +31,10 @@ def _initialize_debug():
 def modify_name() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('page_id') and not gateway.is_set('id'):
         warn("No page ID provided")
         report_error("action", "Page ID is required")
+    page_id: int = 0
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         try:
@@ -45,18 +42,20 @@ def modify_name() -> bool:
         except ValueError:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
+    page = None
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
-    if not is_error():
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
-    if not is_error():
+    new_name: str | None = None
+    if not is_error() and page is not None:
         # Get the name argument (could be boolean True, empty string, or actual string)
         name_arg = gateway.get_arg('name') if gateway.is_set('name') else None
         # Check if this page class allows null names
-        PageClass = get_page_class(page.class_name)
+        class_name = page.class_name if page.class_name is not None else "page"
+        PageClass = get_page_class(class_name)
         allows_null = PageClass.allow_null_names() if PageClass else False
         
         # Normalize the name: if it's boolean True or empty string, treat as None (if class allows it)
@@ -77,13 +76,13 @@ def modify_name() -> bool:
         else:
             # It's a non-empty string
             new_name = str(name_arg) if not isinstance(name_arg, str) else name_arg
-    if not is_error():
+    if not is_error() and page is not None:
         log(f"Modifying page {page_id} name to '{new_name}'")
         success = page.modify_name(new_name)
         if not success:
             warn("Page name modification failed")
             report_error("action", "Page name modification failed")
-    if not is_error():
+    if not is_error() and page is not None:
         response_data = page.show_page()
         gateway.response.set_action_response(success_payload(response_data))
         # Calculate total children from children_by_class

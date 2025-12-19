@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from hh.help.help_registry import Registry
 from hh.help.help_section_index import get_content_from_file, find_sibling_files
 from hh.help.help_utils import get_default_paths
@@ -131,7 +131,7 @@ class HelpQuery:
 
     def json_output(self) -> str:
         trace_in()
-        result = {}
+        result: Dict[str, Any] = {}
         result[self.topic] = {}
         main_content = self.sections.get(self.topic, '')
         has_special = any(
@@ -241,8 +241,8 @@ class HelpQuery:
             trace_out()
             return json.dumps({"error": f"Help file '{topic}' not found. Available files: {available}"})
         sections = entry['sections']
-        combined_json = {}
-        main_sections = {}
+        combined_json: Dict[str, str] = {}
+        main_sections: Dict[str, Dict[str, str]] = {}
         log(f"Processing {len(sections)} sections")
         for section_key, range_info in sections.items():
             section, sub_section = section_key.split('.', 1)

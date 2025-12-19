@@ -215,7 +215,7 @@ def http_status() -> bool:
     
     json_data = gateway.response.get_action_response()
     try:
-        source_data = get_data(json_data)
+        source_data = get_data(json_data if json_data is not None else {})
     except Exception as e:
         warn(f"Failed to parse action response: {str(e)}")
         report_error("backend", f"Failed to parse action response: {str(e)}")

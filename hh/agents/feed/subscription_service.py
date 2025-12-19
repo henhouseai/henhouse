@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, TypedDict
+from typing import Dict, List, Union, TypedDict, Optional, Any
 from hh.agents.feed.feed_utils import bulk_add_to_queue, bulk_remove_from_queue
 from hh.agents.feed.subscription_spec import SubscriptionSpec, SUBSCRIPTION_SPECS
 from hh.gateway.gateway import get_gateway
@@ -25,8 +25,9 @@ class TargetInfo(TypedDict):
     target_type: str
     target_title: str
 
-class QueueResult(TypedDict):
+class QueueResult(TypedDict, total=False):
     messages_queued: int
+    messages_removed: int
     total_characters: int
 
 class SubscriptionResponse(TypedDict, total=False):
@@ -42,7 +43,7 @@ class SubscriptionResponse(TypedDict, total=False):
     error: str
     message: str
 
-def _require_target(spec: SubscriptionSpec, target_id: int) -> Union[TargetInfo, Dict[str, str]]:
+def _require_target(spec: SubscriptionSpec, target_id: int) -> Union[TargetInfo, Dict[str, Union[str, int]]]:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -57,7 +58,7 @@ def _require_target(spec: SubscriptionSpec, target_id: int) -> Union[TargetInfo,
         trace_out()
         return {
             "error": f"{spec.key}_not_found",
-            "target_id": target_id,
+            "target_id": target_id,  # type: ignore[dict-item]
             "target_type": spec.key,
             "target_title": "Unknown"
         }
@@ -111,7 +112,7 @@ def _collect_message_ids(spec: SubscriptionSpec, target_id: int, options: Dict[s
         trace_out()
         raise ValueError("No gateway or connection available")
     if spec.message_query_factory:
-        message_query = spec.message_query_factory(target_id)
+        message_query = spec.message_query_factory(str(target_id))
         log("Using custom message query factory")
     else:
         message_query = f"""
@@ -121,10 +122,12 @@ def _collect_message_ids(spec: SubscriptionSpec, target_id: int, options: Dict[s
             WHERE wl.{spec.link_id_field} = %s
         """
         log("Using default message query")
-    params = [target_id]
+    params: List[Union[str, int]] = [target_id]
     if options.get("since_timestamp"):
-        message_query += " AND wm.occurred_ts >= %s"
-        params.append(options["since_timestamp"])
+        since_ts = options["since_timestamp"]
+        if isinstance(since_ts, str):
+            message_query += " AND wm.occurred_ts >= %s"
+            params.append(since_ts)
         log(f"Added since_timestamp filter: {options['since_timestamp']}")
     elif options.get("new_only"):
         message_query += " AND wm.occurred_ts > NOW() - INTERVAL 1 HOUR"
@@ -157,36 +160,58 @@ def _delete_subscription(spec: SubscriptionSpec, agent_id: int, target_id: int) 
         log(f"Deleted subscription: agent {agent_id} -> {spec.key} {target_id}")
     trace_out()
 
-def _success_payload(operation: str, spec: SubscriptionSpec, target: TargetInfo, queue_result: QueueResult) -> SubscriptionResponse:
+def _success_payload(operation: str, spec: SubscriptionSpec, target: Union[TargetInfo, Dict[str, Union[str, int]]], queue_result: Union[QueueResult, Dict[str, Any]]) -> SubscriptionResponse:
     trace_in()
+    # Extract target info safely
+    if isinstance(target, dict):
+        target_id_val = target.get("target_id", 0)
+        target_type_val_raw = target.get("target_type", "unknown")
+        target_type_val = str(target_type_val_raw) if target_type_val_raw is not None else "unknown"
+        target_title_val_raw = target.get("target_title", "Unknown")
+        target_title_val = str(target_title_val_raw) if target_title_val_raw is not None else "Unknown"
+    else:
+        target_id_val = target["target_id"]
+        target_type_val = target["target_type"]
+        target_title_val = target["target_title"]
+    
+    # Extract queue result info safely
+    if isinstance(queue_result, dict):
+        messages_queued_val = queue_result.get("messages_queued", 0)
+        messages_removed_val = queue_result.get("messages_removed", 0)
+        total_characters_val = queue_result.get("total_characters", 0)
+    else:
+        messages_queued_val = getattr(queue_result, "messages_queued", 0)
+        messages_removed_val = getattr(queue_result, "messages_removed", 0)
+        total_characters_val = getattr(queue_result, "total_characters", 0)
+    
     if operation == "subscription_created":
-        result = {
+        result: SubscriptionResponse = {
             "subscription_created": True,
-            "target_id": target["target_id"],
-            "target_type": target["target_type"],
-            "target_title": target["target_title"],
-            "messages_queued": queue_result["messages_queued"],
-            "total_characters": queue_result["total_characters"],
+            "target_id": target_id_val,  # type: ignore[typeddict-item]
+            "target_type": target_type_val,
+            "target_title": target_title_val,
+            "messages_queued": messages_queued_val,
+            "total_characters": total_characters_val,
             "queue_table": spec.queue_table
         }
-        log(f"Created subscription payload: {target['target_type']} {target['target_id']}, {queue_result['messages_queued']} messages")
+        log(f"Created subscription payload: {target_type_val} {target_id_val}, {messages_queued_val} messages")
     elif operation == "subscription_removed":
         result = {
             "subscription_removed": True,
-            "target_id": target["target_id"],
-            "target_type": target["target_type"],
-            "target_title": target["target_title"],
-            "messages_removed": queue_result["messages_removed"],
-            "total_characters": queue_result["total_characters"],
+            "target_id": target_id_val,  # type: ignore[typeddict-item]
+            "target_type": target_type_val,
+            "target_title": target_title_val,
+            "messages_removed": messages_removed_val,
+            "total_characters": total_characters_val,
             "queue_table": spec.queue_table
         }
-        log(f"Removed subscription payload: {target['target_type']} {target['target_id']}, {queue_result['messages_removed']} messages")
+        log(f"Removed subscription payload: {target_type_val} {target_id_val}, {messages_removed_val} messages")
     else:
         warn(f"Unknown operation: {operation}")
         trace_out()
         raise ValueError(f"Unknown operation: {operation}")
     trace_out()
-    return result
+    return result  # type: ignore[return-value]
 
 def subscribe(spec_key: str, *, agent_id: int, target_id: int, options: Dict[str, Union[str, bool]]) -> SubscriptionResponse:
     trace_in()
@@ -198,9 +223,9 @@ def subscribe(spec_key: str, *, agent_id: int, target_id: int, options: Dict[str
         spec = SUBSCRIPTION_SPECS[spec_key]
         log(f"Subscribing agent {agent_id} to {spec_key} {target_id}")
         target = _require_target(spec, target_id)
-        if "error" in target:
+        if isinstance(target, dict) and "error" in target:
             trace_out()
-            return target
+            return target  # type: ignore[return-value]
         _ensure_subscription(spec, agent_id, target_id)
         message_ids = _collect_message_ids(spec, target_id, options)
         log(f"Adding {len(message_ids)} messages to queue")
@@ -213,9 +238,10 @@ def subscribe(spec_key: str, *, agent_id: int, target_id: int, options: Dict[str
         error_str = str(e)
         warn(f"Subscription failed: {error_str}")
         if "Duplicate entry" in error_str and "for key" in error_str:
-            spec = SUBSCRIPTION_SPECS.get(spec_key, None)
-            target_type = spec.key if spec else spec_key
-            target_title = target.get("target_title", "Unknown") if "target" in locals() else "Unknown"
+            duplicate_spec: Optional[SubscriptionSpec] = SUBSCRIPTION_SPECS.get(spec_key, None)
+            target_type = duplicate_spec.key if duplicate_spec else spec_key
+            target_title_raw = target.get("target_title", "Unknown") if isinstance(target, dict) and "target" in locals() else "Unknown"
+            target_title: str = str(target_title_raw) if target_title_raw is not None else "Unknown"
             log(f"Duplicate subscription detected: {target_type} {target_id}")
             trace_out()
             return {
@@ -239,20 +265,21 @@ def unsubscribe(spec_key: str, *, agent_id: int, target_id: int) -> Subscription
         spec = SUBSCRIPTION_SPECS[spec_key]
         log(f"Unsubscribing agent {agent_id} from {spec_key} {target_id}")
         target = _require_target(spec, target_id)
-        if "error" in target:
+        if isinstance(target, dict) and "error" in target:
             trace_out()
-            return target
+            return target  # type: ignore[return-value]
         try:
             _assert_subscription_exists(spec, agent_id, target_id)
         except ValueError as e:
             if str(e) == "not_subscribed":
                 warn(f"Not subscribed: agent {agent_id} -> {spec.key} {target_id}")
                 trace_out()
+                target_title_str = str(target["target_title"]) if isinstance(target, dict) else target["target_title"]
                 return {
                     "error": "not_subscribed",
                     "target_id": target_id,
                     "target_type": spec.key,
-                    "target_title": target["target_title"],
+                    "target_title": target_title_str,
                     "message": f"Not subscribed to {spec.key} {target_id}. Nothing to unsubscribe from."
                 }
             else:

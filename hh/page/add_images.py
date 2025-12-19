@@ -57,7 +57,7 @@ def is_valid_image_file(file_path: str) -> bool:
 def scan_folder_for_images(folder_path: str) -> List[str]:
     trace_in()
     log(f"Scanning folder for images: {folder_path}")
-    valid_images = []
+    valid_images: List[str] = []
     try:
         folder = Path(folder_path)
         if not folder.exists():
@@ -86,10 +86,6 @@ def scan_folder_for_images(folder_path: str) -> List[str]:
 def add_images() -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
     if not gateway.is_set('target_page') and not gateway.is_set('t_page') and not gateway.is_set('id'):
         warn("No target page ID provided")
         report_error("action", "Target page ID is required")
@@ -97,6 +93,8 @@ def add_images() -> bool:
         if not gateway.is_set('folder'):
             warn("No folder path provided")
             report_error("action", "Folder path is required")
+    target_page_id: int = 0
+    folder_path: str = ""
     if not is_error():
         target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page') or gateway.get_arg('id')
         folder_path = gateway.get_arg('folder')
@@ -106,23 +104,26 @@ def add_images() -> bool:
         except ValueError:
             warn(f"Invalid target page ID: {target_page_arg}")
             report_error("action", "Target page ID must be a number")
+    page = None
     if not is_error():
         log(f"Loading target page {target_page_id}")
         page = get_page(page_id=target_page_id)
         if not page:
             warn(f"Target page {target_page_id} not found")
             report_error("action", f"Target page {target_page_id} not found")
-    if not is_error():
+    image_files: List[str] = []
+    if not is_error() and page is not None:
         # Scan folder for valid image files
         image_files = scan_folder_for_images(folder_path)
         if not image_files:
             warn(f"No valid image files found in folder: {folder_path}")
             report_error("action", f"No valid image files found in folder: {folder_path}")
-    if not is_error():
+    processed_images: List[Dict[str, Any]] = []
+    failed_images: List[Dict[str, Any]] = []
+    if not is_error() and page is not None:
         log(f"Processing {len(image_files)} image files from folder: {folder_path}")
         # Process each image file
-        processed_images = []
-        failed_images = []
+        caption = gateway.get_arg('caption')
         for i, image_file in enumerate(image_files, 1):
             log(f"Processing image {i}/{len(image_files)}: {Path(image_file).name}")
             # Use filename as default caption if no caption provided
@@ -150,14 +151,14 @@ def add_images() -> bool:
                 if is_error():
                     # Reset error state - this is a bit of a hack but needed for batch processing
                     pass
+    updated_page = None
     if not is_error():
         log(f"Reloading page {target_page_id} to show new images")
         updated_page = get_page(page_id=target_page_id)
-        page_loaded = not is_error() and updated_page.name is not None
-        if not page_loaded:
+        if not updated_page or updated_page.name is None:
             warn(f"Failed to reload page {target_page_id}")
             report_error("action", f"Failed to reload page {target_page_id}")
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         response_data.update({
             "processed_images": processed_images,
@@ -167,6 +168,7 @@ def add_images() -> bool:
             "total_failed": len(failed_images)
         })
         gateway.response.set_action_response(success_payload(response_data))
-        log(f"Successfully processed {len(processed_images)}/{len(image_files)} images for page {target_page_id}: {updated_page.name}")
+        page_name = updated_page.name if updated_page.name is not None else "Unknown"
+        log(f"Successfully processed {len(processed_images)}/{len(image_files)} images for page {target_page_id}: {page_name}")
     trace_out()
     return not is_error()

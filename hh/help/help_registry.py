@@ -105,7 +105,7 @@ class Registry:
         log("Cleared existing command index")
         from hh.help.help_markdown_parser import parse_markdown_file
         from hh.help.help_section_index import index_sections
-        seen_titles = {}
+        seen_titles: Dict[str, str] = {}
         md_files = list(self.help_dir.rglob('*.md'))
         log(f"Found {len(md_files)} markdown files to process")
         for md_file in sorted(md_files):

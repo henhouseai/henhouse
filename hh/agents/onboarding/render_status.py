@@ -164,7 +164,7 @@ def render_answers_section(source_data: Dict[str, Any], lines: List[str]) -> Non
             answers_data = TableData()
             
             # Group answers by gate
-            gate_answers = {}
+            gate_answers: Dict[int, List[Dict[str, Any]]] = {}
             for answer in answers:
                 gate_num = answer.get('gate_number', 0)
                 if gate_num not in gate_answers:
@@ -313,6 +313,10 @@ def _render_status_parser() -> bool:
         return False
     
     json_data = gateway.response.get_action_response()
+    if json_data is None:
+        warn("No action response data available")
+        trace_out()
+        return False
     source_data = get_data(json_data)
     
     lines = []

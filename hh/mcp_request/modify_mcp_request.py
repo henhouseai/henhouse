@@ -116,7 +116,7 @@ def modify_mcp_request() -> bool:
         warn("No MCP request fields specified to modify")
         report_error("action", "No MCP request fields specified")
 
-    if not is_error():
+    if not is_error() and page is not None:
         success = page.update_request(**update_kwargs)
         if not success:
             warn("Failed to update MCP request")

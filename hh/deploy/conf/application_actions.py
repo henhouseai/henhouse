@@ -4,10 +4,11 @@ Groups are created explicitly with names, then actions are added to specific gro
 Actions have DOM IDs for JavaScript event handlers (no hrefs).
 """
 from __future__ import annotations
+from typing import Optional
 from hh.gateway.gateway import get_gateway
 
 
-def populate_application_action_links(page_id: int = None) -> None:
+def populate_application_action_links(page_id: Optional[int] = None) -> None:
     """
     Populate application action links in the response.
     Groups are created explicitly with names, then actions are added to specific groups.

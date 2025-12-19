@@ -41,11 +41,6 @@ def move_files() -> bool:
     """
     trace_in()
     gateway = get_gateway()
-    if not gateway:
-        warn("No gateway available")
-        trace_out()
-        return False
-
     # Required arguments
     if not gateway.is_set("source_page") and not gateway.is_set("s_page"):
         warn("No source page ID provided")
@@ -55,6 +50,8 @@ def move_files() -> bool:
             warn("No target page ID provided")
             report_error("action", "Target page ID is required")
 
+    source_page_id: int = 0
+    target_page_id: int = 0
     if not is_error():
         source_page_arg = gateway.get_arg("source_page") or gateway.get_arg("s_page")
         target_page_arg = gateway.get_arg("target_page") or gateway.get_arg("t_page")
@@ -67,7 +64,7 @@ def move_files() -> bool:
             warn(f"Invalid IDs provided. Source: {source_page_arg}, Target: {target_page_arg}")
             report_error("action", "All IDs must be numbers")
 
-    target_rank_int = None
+    target_rank_int: int | None = None
     if not is_error() and target_rank_arg:
         try:
             target_rank_int = int(target_rank_arg)
@@ -78,11 +75,13 @@ def move_files() -> bool:
             report_error("action", "Target rank must be a positive number")
 
     # Load pages
+    source_page = None
     if not is_error():
         source_page = get_page(page_id=source_page_id)
         if not source_page:
             warn(f"Source page {source_page_id} not found")
             report_error("action", f"Source page {source_page_id} not found")
+    target_page = None
     if not is_error():
         target_page = get_page(page_id=target_page_id)
         if not target_page:
@@ -90,8 +89,9 @@ def move_files() -> bool:
             report_error("action", f"Target page {target_page_id} not found")
 
     # Determine file instances to move
-    file_instances: List[Dict[str, int]] = []
-    if not is_error():
+    file_instances: List[Dict[str, int | None]] = []
+    source_ranks: List[int] = []
+    if not is_error() and source_page is not None:
         files = source_page.get_files_data()
         if source_ranks_str:
             try:
@@ -130,7 +130,7 @@ def move_files() -> bool:
         report_error("action", "No files to move")
 
     # Perform move
-    if not is_error():
+    if not is_error() and target_page is not None:
         log(f"Moving {len(file_instances)} files from page {source_page_id} to page {target_page_id}")
         success = target_page.move_files(file_instances, target_rank=target_rank_int)
         if not success:
@@ -138,13 +138,14 @@ def move_files() -> bool:
             report_error("action", f"Failed to move files from page {source_page_id} to page {target_page_id}")
 
     # Reload target page and respond
+    updated_page = None
     if not is_error():
         updated_page = get_page(page_id=target_page_id)
         if not updated_page:
             warn(f"Failed to reload target page {target_page_id}")
             report_error("action", f"Failed to reload target page {target_page_id}")
 
-    if not is_error():
+    if not is_error() and updated_page is not None:
         response_data = updated_page.show_page()
         response_data.update(
             {

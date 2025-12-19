@@ -2,8 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
-from hh.gateway.registry.registry import register_action
-from hh.gateway.registry.registry import register_command
+from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -27,7 +26,7 @@ def _initialize_debug():
 
 @register_action('clean_db')
 @register_command('clean_db')
-def clean_db(args: List[str] = None) -> bool:
+def clean_db(args: Optional[List[str]] = None) -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway or not gateway.conn or not gateway.conn.main:
@@ -105,6 +104,10 @@ def clean_db(args: List[str] = None) -> bool:
     if not is_error():
         try:
             # Use gateway's cache connection (RootConnection provides root access to cache)
+            if gateway.conn.cache is None:
+                warn("Cache connection not available")
+                trace_out()
+                return False
             with gateway.conn.cache.cursor() as cursor:
                 cursor.execute("SHOW TABLES")
                 cache_remaining_tables = cursor.fetchall()
