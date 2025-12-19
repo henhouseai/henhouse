@@ -98,6 +98,8 @@ Core files in `hh/deploy/site/ts/`:
 - `seed.ts` - Seed data reader
 - Action handlers: `page-actions-fields.ts`, `page-actions-pages.ts`, `page-actions-images.ts`
 - `image-viewer.ts` - Zoomable image viewer (uses `mode: 'zoomable'`, width-only sizing, intrinsic dimensions set on images, caption links to `/img/{id}`)
+- `audio-viewer.ts` - Audio playback viewer overlay
+- `video-viewer.ts` - Video playback viewer overlay
 
 **Potential refactors / future work**
 - Extract a reusable sortable helper (for image/file group sorters) instead of duplicating logic in `image-group-sorter.ts` and the planned file-group sorter; overlay remains mode-based, helper would wire Sortable setup + rank commit loop.
@@ -741,9 +743,87 @@ Specialized browser extension for sorting images within a page's image group.
 - Submit triggers optimized sorting algorithm
 - Page refreshes after successful sort
 
-## 11. File Upload
+## 11. Image Viewer
 
-The upload handler provides image file upload functionality with progress tracking and sequential processing.
+The image viewer provides a full-screen viewing experience for images in a page's image group, with pan/zoom capabilities and keyboard navigation.
+
+### ImageViewer Class
+
+**File**: `image-viewer.ts`
+
+Full-screen image viewer overlay that opens when clicking images in a page's image group. Supports pan, zoom, touch gestures, and keyboard navigation.
+
+**Initialization**: See `image-viewer.ts` - `ImageViewer` constructor:
+- `pageId: number` - Page ID containing the image group
+- `initialImageId?: number` - Optional image ID to start viewing (defaults to first image)
+
+**Entry Point**: See `image-viewer.ts` - `openFromImageLink()` static method:
+```typescript
+static async openFromImageLink(pageId: number, imageId?: number): Promise<void>
+```
+- Static method for opening viewer from image links
+- Creates viewer instance and calls `show()`
+
+**Overlay Integration**: See `image-viewer.ts` - `renderOverlay()` method:
+- Uses `OverlayManager.getInstance().show()` with `mode: 'zoomable'`
+- Sets `imageViewerMode: true` for special overlay behavior
+- Provides `footerContent` for caption display (link to `/img/{id}`)
+- Header shows "Image Viewer" with Cancel button
+- Middle button shows "More Info" linking to image page
+
+**Zoom States**: See `image-viewer.ts` - `getZoomState()` method:
+- **State 1 (zoomedOut)**: Image fully visible, centered, no panning allowed
+- **State 2 (between)**: First axis fills viewport, single-axis panning enabled
+- **State 3 (zoomedIn)**: Image fills entire viewport, both X and Y panning enabled
+
+**Sizing Approach**: See `image-viewer.ts` - `initializeBaseSizes()` method:
+- Width-only control: Only sets width on overlay window, lets height auto-calculate
+- Avoids complex height calculations accounting for header, footer, padding, borders
+- Reads `offsetHeight` after rendering for inflection calculations
+- Images set intrinsic width/height to avoid first-load mis-measurements
+
+**Event Handling**: See `image-viewer.ts` - `bindEvents()` method:
+- **Mouse Wheel**: Zoom in/out with detent at inflection points
+- **Mouse Drag**: Pan image when zoomed (state-based constraints)
+- **Touch Pinch**: Zoom in/out with max-scale clamp
+- **Touch Drag**: Pan image when zoomed
+- **Touch Swipe**: Navigate between images when at default scale
+- **Keyboard**: Arrow Left/Right navigate between images, Escape closes (handled by overlay)
+
+**Navigation**: See `image-viewer.ts` - `navigate()` method:
+- Moves to next/previous image in group
+- Resets zoom and pan state when navigating
+- Updates image content and caption
+
+**Data Loading**: See `image-viewer.ts` - `loadAndRender()` method:
+- Calls `get_image_group` MCP tool to fetch all images and instances
+- Receives JSON with image metadata and instance data
+- Finds initial image index if `initialImageId` provided
+- Renders overlay with first image
+
+**MCP Tool**: `get_image_group`
+- Returns JSON data for all images in a page's image group
+- Includes image metadata (id, caption, visibility, viewCount)
+- Includes instance data (width, height, filesize, src) sorted by width (smallest first)
+- Used by ImageViewer to load image data
+
+**Overlay Mode Details**: See `overlay.ts` - zoomable mode:
+- `mode: 'zoomable'` triggers special behavior:
+  - No debug options section rendered
+  - Raw content mode (no `div.content` wrapper)
+  - Footer support for caption
+  - Touch handling: `touch-action: none` on window/backdrop
+  - Explicit pinch handlers prevent default browser behavior
+
+**CSS Classes**: See `overlay.css`:
+- `.overlay-window.zoomable` - Zoomable overlay window styling
+- `.overlay-window.zoomable .contentWrapper` - Content wrapper styling
+- `.overlay-window.zoomable .image-viewer-box` - Image container styling
+- All overlay CSS uses `.overlay-window` class selector (not `#overlayWindow` ID) for z-stacking support
+
+---
+
+## 12. File Upload
 
 ### UploadHandler
 
@@ -886,8 +966,10 @@ The TypeScript system provides client-side functionality for the Henhouse HTTP i
 - **Overlay System**: Component-based modal dialogs with array-based content structure
 - **PageData Architecture**: Field management and form processing with automatic MCP tool selection
 - **RPC Integration**: MCP JSON-RPC wrapper with automatic debug handling
-- **Browser System**: Hierarchical navigation and selection within overlays for pages and images
+- **Browser System**: Hierarchical navigation and selection within overlays for pages, images, files, audio, and video
 - **View Toggle System**: Hot-swapping between table and tile views for page sections
+- **ImageViewer**: Full-screen image viewer with pan/zoom capabilities, touch gestures, and keyboard navigation
+- **Audio/Video Viewers**: Playback viewers with streaming support
 - **Standardized Patterns**: Consistent handler patterns, field registration, and error handling
 - **Debug Integration**: Debug system integrated with overlay UI
 

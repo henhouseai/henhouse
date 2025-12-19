@@ -15,19 +15,25 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
    - [Page Registry](#page-registry)
    - [Page Class Registry](#page-class-registry)
 2. [Image Module](#2-image-module)
-3. [Text Processor Module](#3-text-processor-module)
+3. [File Module](#3-file-module)
+4. [Audio Module](#4-audio-module)
+5. [Video Module](#5-video-module)
+6. [Generalized Media Operations](#6-generalized-media-operations)
+7. [Text Processor Module](#7-text-processor-module)
 
 ## Agent Quick Reference
 
-- **Core Modules**: `page/` (hierarchical content), `image/` (media management), `tp/` (markup parsing)
+- **Core Modules**: `page/` (hierarchical content), `image/` (image management), `file/` (file management), `audio/` (audio management), `video/` (video management), `tp/` (markup parsing)
 - **Architecture**: Page class provides comprehensive functionality with direct database access via `self.gateway.conn`
 - **Extensibility**: Base Page class designed for inheritance; derived classes override validation functions, hooks, and display methods
-- **Cache System**: Five derived fields (display_name, prepared_text, children_by_class, images, files) plus main DB metadata cached in separate cache database
+- **Cache System**: Five derived fields (display_name, prepared_text, children_by_class, images, files) plus main DB metadata cached in separate cache database. Audio and video also cached with instances and pages/usage data.
 - **Page Registry**: Hot cache system with automatic cache refresh during gateway commit
 - **Page Class Registry**: Dynamic subclass loading based on page class field
 - **Markup Language**: `[[page_links]]`, `{{image_embeds}}`, decorator-based processing
 - **Page Hierarchy**: Parent-child relationships with automatic breadcrumb generation
-- **Image Instances**: Automatic multi-size generation and management
+- **Image Instances**: Automatic multi-size generation and management (huge, large, small, tn)
+- **Audio/Video Instances**: Multi-quality tier transcoding (full, standard, high, medium, low) via background maintenance jobs
+- **Generalized Media Operations**: Unified copy/move/remove/set_rank methods work across all media types (image, file, audio, video)
 - **Text Processing**: Decorator-based parsing with configurable decorator registry
 
 ## Agent Training Notes
@@ -35,6 +41,9 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
 ### Module Integration
 - **Page Objects**: Actions create Page instances via `get_page(page_id)` from page registry
 - **Image Objects**: Actions create Image instances for media operations
+- **File Objects**: Actions create File instances for file operations
+- **Audio Objects**: Actions create Audio instances for audio operations
+- **Video Objects**: Actions create Video instances for video operations
 - **Text Processing**: Page content parsed through TextProcessor with decorator registry
 - **Page Methods**: Pages provide comprehensive methods for all operations
 - **Display Methods**: Call `show_page()` for formatted output data
@@ -42,6 +51,10 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
 ### Common Usage Patterns
 - **Page Creation**: `get_page(page_id)` loads from hot cache or database
 - **Image Management**: `Image(image_id)` handles multi-size instances automatically
+- **File Management**: `File(file_id)` handles file storage and usage tracking
+- **Audio Management**: `Audio(audio_id)` handles audio transcoding and quality tiers
+- **Video Management**: `Video(video_id)` handles video transcoding and quality tiers
+- **Media Operations**: Use generalized methods (`copy_media_items()`, `move_media_items()`, `remove_media_item()`, `set_media_rank()`) with `media_type` parameter
 - **Content Parsing**: TextProcessor decorators parse custom markup syntax
 - **Data Retrieval**: All modules load from database via `gateway.conn` methods
 
@@ -489,7 +502,7 @@ See `Image._refresh_cached_image()` in `hh/image/image.py` for cache refresh imp
 
 **Files**: `hh/file/*.py`
 
-The file management system with CRUD operations and display logic. Follows the same patterns as Image but even simpler.
+The file management system with CRUD operations and display logic. Follows the same patterns as Image but simpler (no multi-size processing).
 
 ### File Class
 
@@ -524,7 +537,151 @@ See `File._refresh_cached_file()` in `hh/file/file.py` for cache refresh impleme
 
 ---
 
-## 4. Text Processor Module
+## 4. Audio Module
+
+**Files**: `hh/audio/*.py`
+
+The audio management system with CRUD operations, transcoding support, and display logic. Follows the same patterns as Image and File but with audio-specific processing.
+
+### Audio Class
+
+The Audio class follows the same architecture as Image and Page:
+- Provides comprehensive functionality organized into focused areas
+- Has registry system (`audio_registry.py`) with hot cache
+- Uses cache database for derived fields (instances, pages/usage) plus metadata backup
+- Supports multiple quality tiers (full, standard, high, medium, low) via transcoding
+
+#### Key Differences from Image
+
+- **Audio Instances**: Audio files support multiple quality tiers (full original, standard, high, medium, low) in AAC format
+- **Transcoding**: Background maintenance job (`audio_transcode`) creates all quality tiers automatically
+- **Metadata Extraction**: Uses `mutagen` library for audio file validation and metadata extraction (duration, bitrate, channels, sample_rate)
+- **No Hierarchy**: Audio files don't have parent-child relationships
+- **Usage Tracking**: Audio tracks which pages use them (via `audio_groups` table)
+- **File Storage**: Audio stored in `/srv/audio/{project}/{date}/` with date-based organization
+- **Soft Deletes**: Deleted audio moved to deleted subdirectory
+
+#### Registry Pattern
+
+Same as Image and File:
+- `get_audio(audio_id)` - Gets from hot cache or loads from database
+- `refresh_stale_audio_caches()` - Refreshes cache during gateway commit
+- Hot cache: `_audio_cache: Dict[int, Audio]`
+
+#### Cache System
+
+Audio caches two derived fields plus metadata:
+- `instances`: Multi-quality audio instance data (JSON)
+- `pages`: Usage data - which pages use this audio (JSON)
+- `metadata`: Backup of main DB fields (caption, username, uploaded, last_modified, comments, visibility, viewCount)
+
+See `Audio._refresh_cached_audio()` in `hh/audio/audio.py` for cache refresh implementation.
+
+---
+
+## 5. Video Module
+
+**Files**: `hh/video/*.py`
+
+The video management system with CRUD operations, transcoding support, and display logic. Follows the same patterns as Audio but with video-specific processing.
+
+### Video Class
+
+The Video class follows the same architecture as Audio and Image:
+- Provides comprehensive functionality organized into focused areas
+- Has registry system (`video_registry.py`) with hot cache
+- Uses cache database for derived fields (instances, pages/usage) plus metadata backup
+- Supports multiple quality tiers (full, standard, high, medium, low) via transcoding
+
+#### Key Differences from Audio
+
+- **Video Instances**: Video files support multiple quality tiers (full original, standard, high, medium, low) in MP4 (H.264) format
+- **Transcoding**: Background maintenance job (`video_transcode`) creates all quality tiers automatically
+- **Metadata Extraction**: Uses `ffprobe` for video file validation and metadata extraction (width, height, duration, bitrate)
+- **No Hierarchy**: Video files don't have parent-child relationships
+- **Usage Tracking**: Video tracks which pages use them (via `video_groups` table)
+- **File Storage**: Video stored in `/srv/video/{project}/{date}/` with date-based organization
+- **Soft Deletes**: Deleted video moved to deleted subdirectory
+
+#### Registry Pattern
+
+Same as Audio and Image:
+- `get_video(video_id)` - Gets from hot cache or loads from database
+- `refresh_stale_video_caches()` - Refreshes cache during gateway commit
+- Hot cache: `_video_cache: Dict[int, Video]`
+
+#### Cache System
+
+Video caches two derived fields plus metadata:
+- `instances`: Multi-quality video instance data (JSON)
+- `pages`: Usage data - which pages use this video (JSON)
+- `metadata`: Backup of main DB fields (caption, username, uploaded, last_modified, comments, visibility, viewCount)
+
+See `Video._refresh_cached_video()` in `hh/video/video.py` for cache refresh implementation.
+
+---
+
+## 6. Generalized Media Operations
+
+The Page class provides unified media operations that work across all media types (images, files, audio, video) through a `media_type` parameter. This eliminates code duplication and ensures consistent behavior.
+
+### Generalized Methods
+
+**`copy_media_items(media_type: str, item_ids: List[int], target_rank: Optional[int] = None) -> bool`**
+- Copies media items to the current page
+- Supports all media types: `"image"`, `"file"`, `"audio"`, `"video"`
+- Uses dynamic helper methods to resolve table names, field names, and methods based on `media_type`
+- Returns `True` on success, `False` on failure
+
+**`move_media_items(media_type: str, item_instances: List[Dict[str, int]], target_rank: Optional[int] = None) -> bool`**
+- Moves media items from source pages to the current page
+- Handles removal from source page and addition to target page
+- Reorders affected pages automatically
+- `item_instances` format: `[{"item_id": 123, "source_page_id": 456, "source_rank": 1}, ...]`
+
+**`remove_media_item(media_type: str, item_id: int, item_rank: int) -> bool`**
+- Removes a media item from the current page
+- Reorders the page to eliminate gaps
+- Conditionally deletes the underlying media object if no longer used (soft delete)
+
+**`set_media_rank(media_type: str, item_id: int, current_rank: int, new_rank: int) -> bool`**
+- Sets the rank of a media item within a page's media group
+- Implements hybrid approach: efficient "delete-and-reflow" for single moves, with final verification to ensure sequential ranks and no gaps
+- Returns `True` on success, `False` on failure
+
+### Dynamic Helper Methods
+
+The Page class includes helper methods that dynamically resolve database entities and methods based on `media_type`:
+
+- `_get_media_table_name(media_type: str)` - Returns table name (e.g., `"image_groups"`, `"audio_groups"`)
+- `_get_media_id_field(media_type: str)` - Returns ID field name (e.g., `"image_id"`, `"audio_id"`)
+- `_get_media_rank_field(media_type: str)` - Returns rank field name (e.g., `"image_rank"`, `"audio_rank"`)
+- `_get_media_data_method(media_type: str)` - Returns data retrieval method (e.g., `get_images_data`, `get_audio_data`)
+- `_get_add_to_group_method(media_type: str)` - Returns add method (e.g., `_add_image_to_group`, `_add_audio_to_group`)
+- `_get_reorder_method(media_type: str)` - Returns reorder method (e.g., `_reorder_images`, `_reorder_audio`)
+- `_validate_media_type(media_type: str)` - Validates media type is supported
+
+### Page Integration
+
+All media types are integrated into pages via group tables:
+- `image_groups` - Links images to pages with ranks
+- `file_groups` - Links files to pages with ranks
+- `audio_groups` - Links audio to pages with ranks
+- `video_groups` - Links video to pages with ranks
+
+The `show_page()` method includes all media types in its response:
+- `images`: Image association data
+- `files`: File association data
+- `audio`: Audio association data
+- `video`: Video association data
+
+### Action Scripts
+
+Individual action scripts (e.g., `copy_images.py`, `copy_audio.py`, `move_video.py`) call the generalized methods directly with the appropriate `media_type` parameter. This ensures consistent behavior across all media types while maintaining clear, dedicated action handlers.
+
+---
+
+## 8. Text Processor Module
 
 **Files**: `hh/tp/*.py` and `hh/tp/*.ini`
 
@@ -542,24 +699,25 @@ The custom markup parsing system for page content. Implements decorator-based pr
 ## Integration with Other Systems
 
 ### With Gateway (see gateway.md)
-- Actions create Page/Image/File instances and call their methods
+- Actions create Page/Image/File/Audio/Video instances and call their methods
 - Actions return JSON via `gateway.response.set_action_response()`
-- Backends receive Page/Image/File JSON data for formatting
-- Cache refresh happens during gateway commit via `refresh_stale_page_caches()`, `refresh_stale_image_caches()`, `refresh_stale_file_caches()`
+- Backends receive Page/Image/File/Audio/Video JSON data for formatting
+- Cache refresh happens during gateway commit via `refresh_stale_page_caches()`, `refresh_stale_image_caches()`, `refresh_stale_file_caches()`, `refresh_stale_audio_caches()`, `refresh_stale_video_caches()`
 
 ### With Registry (see registry.md)
-- Page/Image/File actions use `@register_action` decorator
+- Page/Image/File/Audio/Video actions use `@register_action` decorator
 - Backends use appropriate `@register_parser`/`@register_http`/`@register_mcp` decorators
 - Handlers auto-discovered and registered
 
 ### With Render System (see render.md)
-- Backends use render functions to format Page/Image/File data
-- Page/Image/File display data structure compatible with render system
+- Backends use render functions to format Page/Image/File/Audio/Video data
+- Page/Image/File/Audio/Video display data structure compatible with render system
 - `FieldConfig` used for table formatting
 - `render_show_page()` handles page display rendering for parser/HTTP backends
 - Tile rendering system (`TileGroup`, `ImageGroup`, `PageGroup`) provides alternative grid layout for images and children
 - View type support (`view_type` parameter) enables dynamic switching between table and tile views
 - Wrapper ID support in `render_block()` enables DOM targeting for view toggle system
+- Audio and video sections support table view (tile view not yet implemented)
 
 ### With MCP Backend (see mcp.md)
 - Page operations exposed as MCP tools via `mcp_utils.py`
@@ -569,6 +727,17 @@ The custom markup parsing system for page content. Implements decorator-based pr
 
 ### Database Access Pattern
 - All modules use `gateway.conn` methods directly
-- Page/Image/File classes call `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
+- Page/Image/File/Audio/Video classes call `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
 - Cache operations use `gateway.conn.read_cache()`, `gateway.conn.create_cache()`, `gateway.conn.update_cache()`
 - Tier-based credentials loaded from `~/.project.cnf` files
+
+### Media Operations Consistency
+
+All media types (images, files, audio, video) support consistent operations:
+- **Copy**: `copy_media_items()` - Copy items to a target page
+- **Move**: `move_media_items()` - Move items from source to target page
+- **Remove**: `remove_media_item()` - Remove item from page (with soft delete if unused)
+- **Set Rank**: `set_media_rank()` - Reorder items within a page's media group
+- **Add**: Type-specific methods (`add_image()`, `add_file()`, `add_audio()`, `add_video()`) handle file processing and group association
+
+All operations are available via both singular and plural action scripts (e.g., `copy_image.py` and `copy_images.py`, `move_audio.py` and `move_audios.py`), ensuring consistent API across all media types.

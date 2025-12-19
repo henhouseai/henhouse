@@ -67,11 +67,15 @@ The following diagram shows the core system relationships and dependencies:
 - *TextProcessor*: markup parsing for page content
 - *Cache System*: two-tier caching (hot cache + cache database)
 
-#### **Image and File Systems**: media and attachment management
+#### **Media Systems**: images, files, audio, and video management
 
 - Follow same patterns as Page system (registry, cache)
-- Multi-size image instances with automatic generation
-- Usage tracking via image_groups/file_groups tables
+- **Images**: Multi-size instances with automatic generation (huge, large, small, tn)
+- **Files**: Simple file storage with date-based organization
+- **Audio**: Multi-quality tier transcoding (full, standard, high, medium, low) in AAC format via background maintenance jobs
+- **Video**: Multi-quality tier transcoding (full, standard, high, medium, low) in MP4 (H.264) format via background maintenance jobs
+- Usage tracking via group tables (image_groups, file_groups, audio_groups, video_groups)
+- **Generalized Media Operations**: Unified `copy_media_items()`, `move_media_items()`, `remove_media_item()`, and `set_media_rank()` methods in Page class work across all media types via `media_type` parameter, eliminating code duplication
 
 #### **Render System**: output formatting
 
@@ -251,23 +255,27 @@ TextProcessor provides custom markup parsing for page content, handling wiki-sty
 
 #### **Two-Tier Caching**
 
-- Hot cache (in-memory Page/Image/File instances) for request lifetime
-- Cache database storing 5 derived fields (display_name, prepared_text, children_by_class, images, files) plus main DB metadata backup
+- Hot cache (in-memory Page/Image/File/Audio/Video instances) for request lifetime
+- Cache database storing 5 derived fields (display_name, prepared_text, children_by_class, images, files) plus main DB metadata backup for pages
 - All main database fields (name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount, metadata) stored in cache for full hydration capability
 - Lazy computation with automatic cache refresh during gateway commit
 - On-demand resource loading with automatic invalidation
-- Same caching pattern used for Images (instances, pages/usage) and Files (pages/usage)
+- Same caching pattern used for Images (instances, pages/usage), Files (pages/usage), Audio (instances, pages/usage), and Video (instances, pages/usage)
 
-#### **Image and File Processing**
+#### **Media Processing**
 
-- Multi-size image instances with automatic generation and management (huge, large, small, tn)
-- Image groups with ranking system for primary image selection
-- Automatic file path management and instance cleanup
-- Simple file association management with ranking system
-- Usage tracking via image_groups/file_groups tables
+- **Images**: Multi-size instances with automatic generation and management (huge, large, small, tn)
+- **Files**: Simple file storage with automatic path management
+- **Audio**: Multi-quality tier transcoding to AAC format via background maintenance jobs
+- **Video**: Multi-quality tier transcoding to MP4 (H.264) format via background maintenance jobs
+- All media types support groups with ranking systems for ordering
+- Generalized media operations (copy, move, remove, set_rank) unified across all types
+- Usage tracking via group tables (image_groups, file_groups, audio_groups, video_groups)
 - Soft deletes (moved to deleted subdirectory, not permanently removed)
-- Date-based file storage organization (/srv/images/{project}/{date}/, /srv/files/{project}/{date}/)
+- Date-based file storage organization (/srv/images/{project}/{date}/, /srv/files/{project}/{date}/, /srv/audio/{project}/{date}/, /srv/video/{project}/{date}/)
 - Storage directories created during deployment installation with proper permissions and group ownership
+- Audio metadata extraction via `mutagen` library (duration, bitrate, channels, sample_rate)
+- Video metadata extraction via `ffprobe` (width, height, duration, bitrate)
 
 #### **Database Structure**
 
@@ -334,6 +342,10 @@ The HTTP backend provides web-based interface for content management, combining 
 - MCP JSON-RPC wrapper with automatic debug option capture from overlay UI
 - CRUD operation handlers live in PageData classes (base or derived), registered via app.ts from available_actions
 - Debug options UI in overlay footer, automatic debug data extraction and display in separate overlay windows
+- Browser component for hierarchical page/image/file/audio/video selection within overlays
+- View toggle system for hot-swapping between table and tile views for page sections
+- Image viewer with pan/zoom capabilities, touch gestures, and keyboard navigation
+- Audio and video viewers for playback with streaming support
 
 ---
 
