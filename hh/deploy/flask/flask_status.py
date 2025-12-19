@@ -82,6 +82,65 @@ def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str
         trace_out()
         return error_result
 
+def get_media_server_status(project_name: str, port: int) -> Dict[str, Any]:
+    """Get status of media server Flask daemon."""
+    trace_in()
+    try:
+        gateway = get_gateway()
+        if not gateway or not gateway.files:
+            error_result = {'tier': 'media', 'status': 'error', 'error': 'Gateway or FileSystem not available'}
+            trace_out()
+            return error_result
+        
+        app_path = f"/srv/{project_name}/{project_name}_media.py"
+        
+        # Check if app file exists
+        if not gateway.files.file_exists(app_path):
+            not_deployed_result = {'tier': 'media', 'status': 'not_deployed', 'error': f'Media server app file not found: {app_path}'}
+            trace_out()
+            return not_deployed_result
+        
+        # Check if process is running
+        cmd = ['ps', 'aux']
+        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        
+        # Look for the media server app
+        lines = ps_result.stdout.split('\n')
+        pids = []
+        
+        for line in lines:
+            if f'{project_name}_media.py' in line and 'python' in line:
+                parts = line.split()
+                # PID is typically the 2nd column
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        pids.append(pid)
+                    except ValueError:
+                        pass
+        
+        if pids:
+            status_result: dict[str, str | int | list[int]] = {
+                'tier': 'media', 
+                'status': 'running', 
+                'pids': pids,
+                'port': port
+            }
+            log(f"Media Server Flask daemon is running (PIDs: {pids})")
+            trace_out()
+            return status_result
+        else:
+            stopped_result: dict[str, str | int] = {'tier': 'media', 'status': 'stopped', 'port': port}
+            log(f"Media Server Flask daemon is stopped")
+            trace_out()
+            return stopped_result
+        
+    except Exception as e:
+        error_result = {'tier': 'media', 'status': 'error', 'error': str(e)}
+        warn(f"Error checking Media Server Flask daemon status: {e}")
+        trace_out()
+        return error_result
+
 @register_action('flask_status')
 @register_command('flask_status')
 def flask_status() -> bool:
@@ -105,6 +164,11 @@ def flask_status() -> bool:
         result = get_flask_daemon_status(project_name, tier, port)
         results.append(result)
     
+    # Get status for media server
+    media_port = start_port + len(HENHOUSE_TIERS)
+    media_result = get_media_server_status(project_name, media_port)
+    results.append(media_result)
+    
     # Build summary
     running_count = sum(1 for r in results if r.get('status') == 'running')
     stopped_count = sum(1 for r in results if r.get('status') == 'stopped')
@@ -115,7 +179,7 @@ def flask_status() -> bool:
         "project_name": project_name,
         "daemons": results,
         "summary": {
-            "total": len(HENHOUSE_TIERS),
+            "total": len(HENHOUSE_TIERS) + 1,  # +1 for media server
             "running": running_count,
             "stopped": stopped_count,
             "not_deployed": not_deployed_count,

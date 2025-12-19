@@ -145,7 +145,7 @@ def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
     try:
         gateway = get_gateway()
         if not gateway or not gateway.os:
-            error_result = {'type': 'media', 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            error_result = {'tier': 'media', 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
             trace_out()
             return error_result
         
@@ -155,13 +155,13 @@ def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
         
         # Check if app file exists
         if not gateway.files or not gateway.files.file_exists(app_path):
-            result = {'type': 'media', 'status': 'not_found', 'error': f'Media server app file not found: {app_path}'}
+            result = {'tier': 'media', 'status': 'not_found', 'error': f'Media server app file not found: {app_path}'}
             trace_out()
             return result
         
         # Check if user exists
         if not gateway.os.user_exists(user):
-            result = {'type': 'media', 'status': 'user_not_found', 'error': f'User not found: {user}'}
+            result = {'tier': 'media', 'status': 'user_not_found', 'error': f'User not found: {user}'}
             trace_out()
             return result
         
@@ -201,17 +201,17 @@ def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
         
         if f'{project_name}_media.py' in check_result.stdout:
             result_status = 'restarted' if killed_any else 'started'
-            start_result: dict[str, str | int] = {'type': 'media', 'status': result_status, 'port': port, 'user': user}
+            start_result: dict[str, str | int] = {'tier': 'media', 'status': result_status, 'port': port, 'user': user}
             log(f"Started Media Server Flask daemon on port {port}")
         else:
-            start_result = {'type': 'media', 'status': 'failed', 'error': 'Process not found running'}
+            start_result = {'tier': 'media', 'status': 'failed', 'error': 'Process not found running'}
             warn(f"Media Server Flask daemon failed to start")
         
         trace_out()
         return start_result
         
     except Exception as e:
-        error_result = {'type': 'media', 'status': 'error', 'error': str(e)}
+        error_result = {'tier': 'media', 'status': 'error', 'error': str(e)}
         warn(f"Error starting Media Server Flask daemon: {e}")
         trace_out()
         return error_result

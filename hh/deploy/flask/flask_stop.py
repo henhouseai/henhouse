@@ -107,7 +107,7 @@ def stop_media_server(project_name: str) -> Dict[str, Any]:
     try:
         gateway = get_gateway()
         if not gateway or not gateway.os:
-            error_result = {'type': 'media', 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            error_result = {'tier': 'media', 'status': 'error', 'error': 'Gateway or ProcessManager not available'}
             trace_out()
             return error_result
         
@@ -129,7 +129,7 @@ def stop_media_server(project_name: str) -> Dict[str, Any]:
                         pass
         
         if not pids_to_kill:
-            not_running_result = {'type': 'media', 'status': 'not_running'}
+            not_running_result = {'tier': 'media', 'status': 'not_running'}
             log(f"No Media Server Flask daemon found")
             trace_out()
             return not_running_result
@@ -142,12 +142,12 @@ def stop_media_server(project_name: str) -> Dict[str, Any]:
                 log(f"Sent SIGTERM to PID {pid} (Media Server)")
         
         if killed_pids:
-            return {'type': 'media', 'status': 'stopped', 'pids': killed_pids}
+            return {'tier': 'media', 'status': 'stopped', 'pids': killed_pids}
         else:
-            return {'type': 'media', 'status': 'not_found'}
+            return {'tier': 'media', 'status': 'not_found'}
         
     except Exception as e:
-        error_result = {'type': 'media', 'status': 'error', 'error': str(e)}
+        error_result = {'tier': 'media', 'status': 'error', 'error': str(e)}
         warn(f"Error stopping Media Server Flask daemon: {e}")
         trace_out()
         return error_result
