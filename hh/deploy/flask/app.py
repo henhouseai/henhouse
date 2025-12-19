@@ -191,14 +191,13 @@ def mcp_handler(path: str = ""):
         form_argv = []
         if request.form:
             for key in request.form.keys():
-                value: str | None = None
                 try:
-                    value = request.form.get(key)
+                    form_value = request.form.get(key)
                 except Exception:
-                    value = None
+                    form_value = None
                 k = str(key)[:64]
-                if value is not None:
-                    v = str(value)[:131072]  # allow large text fields
+                if form_value is not None:
+                    v = str(form_value)[:131072]  # allow large text fields
                     form_argv.extend([f'--{k}', v])
 
         # Handle file uploads: save to /tmp and pass file metadata via flags
