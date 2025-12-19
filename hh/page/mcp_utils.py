@@ -43,11 +43,13 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
 )
 @register_mcp_tool(
     tool_name='get_app_actions',
-    description='Get available app actions for the current user tier level. Returns list of app actions that can be triggered from the web interface.',
+    description='Get available app actions for the current user tier level and page. Returns list of app actions that can be triggered from the web interface.',
     inputSchema={
         'type': 'object',
-        'properties': {},
-        'required': []
+        'properties': {
+            'id': {'type': 'integer', 'description': 'The ID of the page to get app actions for'}
+        },
+        'required': ['id']
     },
     tiers=[1, 2, 3, 4],
     requires_approval=False,
