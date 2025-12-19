@@ -7,7 +7,7 @@ DEPLOY_WHITELIST: List[str] = [
     'cache',      # Cache cleanup registry and utilities
     'conf',       # Configuration whitelists (CSS/JS includes)
     'maint',      # Maintenance helpers shared with deployment scripts
-    'utils.py'    # General deployment utilities (used by cache and other modules)
+    'deploy_utils.py'    # General deployment utilities (used by cache and other modules)
 ]
 
 # Flask app source file (deployed with tier-specific modifications)
