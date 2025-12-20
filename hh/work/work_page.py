@@ -420,6 +420,51 @@ class WorkPage(Page):
         trace_out()
         return not is_error()
     
+    def _modify_work_sort_order_internal(self, page_id: int, new_sort_order: int) -> bool:
+        """Helper method to update a single page's sort_order using JSON_SET()."""
+        trace_in()
+        log(f"Updating page {page_id} sort_order to {new_sort_order} using JSON_SET")
+        
+        # Check current value first to handle "already correct" case
+        current_result = self.gateway.conn.read(
+            "SELECT COALESCE(CAST(JSON_EXTRACT(metadata, '$.sort_order') AS UNSIGNED), 0) AS current_sort FROM pages WHERE id = %s",
+            [page_id]
+        )
+        
+        if not current_result:
+            warn(f"Page {page_id} not found")
+            report_error("action", f"Page {page_id} not found")
+            trace_out()
+            return False
+        
+        current_sort = current_result[0].get('current_sort', 0)
+        if current_sort == new_sort_order:
+            log(f"Page {page_id} already has sort_order {new_sort_order}, skipping update")
+            trace_out()
+            return True
+        
+        affected = self.gateway.conn.update(
+            "UPDATE pages SET metadata = JSON_SET(COALESCE(metadata, '{}'), '$.sort_order', %s) WHERE id = %s",
+            (new_sort_order, page_id),
+        )
+        
+        if affected == 0:
+            warn(f"Failed to update sort_order for page {page_id} (expected {new_sort_order}, got {current_sort})")
+            report_error("action", f"Failed to update sort_order for page {page_id}")
+            trace_out()
+            return False
+        
+        # Mark this page as stale (use "child page modified" to prevent recursive parent flagging)
+        page_obj = get_page(page_id=page_id)
+        if page_obj:
+            page_obj.flag_page_modification("child page modified")
+        else:
+            warn(f"Could not get page {page_id} to flag modification")
+        
+        log(f"Successfully updated page {page_id} sort_order from {current_sort} to {new_sort_order}")
+        trace_out()
+        return True
+    
     def modify_work_sort_order(self, sort_order: int) -> bool:
         """Modify the sort_order of this work entity, reflowing all siblings within the same parent."""
         trace_in()
@@ -437,8 +482,13 @@ class WorkPage(Page):
         
         if not is_error() and parent_id:
             class_name = self.class_name
+            # Order siblings by sort_order from metadata, not by id
             siblings = self.gateway.conn.read(
-                "SELECT id, metadata FROM pages WHERE parent = %s AND class = %s ORDER BY id",
+                """SELECT id, metadata, 
+                   COALESCE(CAST(JSON_EXTRACT(metadata, '$.sort_order') AS UNSIGNED), 0) AS sort_order_val
+                   FROM pages 
+                   WHERE parent = %s AND class = %s 
+                   ORDER BY sort_order_val, id""",
                 [parent_id, class_name],
             )
             if not siblings:
@@ -495,24 +545,28 @@ class WorkPage(Page):
                     return True
                 
                 log(f"Reflowing {len(new_order)} siblings under parent {parent_id}")
+                # Update each affected sibling using helper method (only if sort_order changed)
                 for index, sibling in enumerate(new_order):
                     new_sort = index + 1
-                    metadata = sibling['metadata']
-                    metadata['sort_order'] = new_sort
-                    metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
-                    affected = self.gateway.conn.update(
-                        "UPDATE pages SET metadata = %s WHERE id = %s",
-                        (metadata_json, sibling['page_id']),
-                    )
-                    if affected == 0:
-                        warn(f"Failed to update sort_order for page {sibling['page_id']}")
-                        report_error("action", f"Failed to update sort_order for page {sibling['page_id']}")
-                        break
+                    old_sort = sibling.get('sort_order', 0)
+                    # Only update and flag if the sort_order actually changed
+                    if old_sort != new_sort:
+                        success = self._modify_work_sort_order_internal(sibling['page_id'], new_sort)
+                        if not success:
+                            break
                     if sibling['page_id'] == self.id:
                         self.sort_order = new_sort
+                
+                # Flag parent page as stale (use "child page modified" to prevent recursive parent flagging)
+                if not is_error():
+                    parent_page = get_page(page_id=parent_id)
+                    if parent_page:
+                        parent_page.flag_page_modification("child page modified")
+                    else:
+                        warn(f"Could not get parent page {parent_id} to flag modification")
+                
                 if not is_error():
                     log(f"Successfully updated ordering for {len(new_order)} siblings")
-                    self.flag_page_modification("sort order changed")
         
         trace_out()
         return not is_error()
