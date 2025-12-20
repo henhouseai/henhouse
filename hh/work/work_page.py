@@ -449,7 +449,23 @@ class WorkPage(Page):
         )
         
         if affected == 0:
-            warn(f"Failed to update sort_order for page {page_id} (expected {new_sort_order}, got {current_sort})")
+            # Verify if the value was actually set correctly (might be 0 rows if value was already correct)
+            verify_result = self.gateway.conn.read(
+                "SELECT COALESCE(CAST(JSON_EXTRACT(metadata, '$.sort_order') AS UNSIGNED), 0) AS verify_sort FROM pages WHERE id = %s",
+                [page_id]
+            )
+            if verify_result:
+                verify_sort = verify_result[0].get('verify_sort', 0)
+                if verify_sort == new_sort_order:
+                    log(f"Page {page_id} already had sort_order {new_sort_order} (UPDATE returned 0 rows but value is correct)")
+                    # Still mark as stale
+                    page_obj = get_page(page_id=page_id)
+                    if page_obj:
+                        page_obj.flag_page_modification("child page modified")
+                    trace_out()
+                    return True
+            
+            warn(f"Failed to update sort_order for page {page_id} (expected {new_sort_order}, got {current_sort}, verify={verify_result[0].get('verify_sort', 'unknown') if verify_result else 'no verify'})")
             report_error("action", f"Failed to update sort_order for page {page_id}")
             trace_out()
             return False
