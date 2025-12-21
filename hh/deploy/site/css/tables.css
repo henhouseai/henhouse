@@ -32,6 +32,8 @@ table.pageTableView {
 	border-collapse: collapse;
 	border-spacing: 0;
 	table-layout: auto;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
 }
 
 div.tableViewDiv + div.tableViewDiv {
@@ -82,6 +84,8 @@ table.pageTableView th {
 	color: var(--tableview-header-text, #d4d4d4);
 	word-wrap: break-word;
 	overflow-wrap: break-word;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
 }
 
 table.pageTableView td {
@@ -95,6 +99,8 @@ table.pageTableView td {
 	color: var(--tableview-text, #d4d4d4);
 	word-wrap: break-word;
 	overflow-wrap: break-word;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
 }
 
 table.pageTableView tr td.name {
