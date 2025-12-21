@@ -86,7 +86,7 @@ table.pageTableView th {
 
 table.pageTableView td {
 	border: 0;
-	font-size: 9pt;
+	font-size: 10pt;
 	font-weight: normal;
 	margin: 0;
 	padding: 2px 6px;
@@ -108,5 +108,35 @@ table.pageTableView tr td.numChildren {
 
 table.pageTableView tr td.label {
 	font-weight: normal;
+	white-space: nowrap;
+	min-width: 120px;
+}
+
+/* Narrow columns that shouldn't wrap */
+table.pageTableView td.id,
+table.pageTableView td.numChildren {
+	white-space: nowrap;
+	min-width: 60px;
+}
+
+/* Wide columns that can wrap but with constraints */
+table.pageTableView td.meta {
+	min-width: 150px;
+	max-width: 400px;
+}
+
+table.pageTableView td.name {
+	min-width: 150px;
+}
+
+/* Other common columns - prevent super narrow widths */
+table.pageTableView td.page_class,
+table.pageTableView td.class {
+	min-width: 100px;
+}
+
+table.pageTableView td.modified,
+table.pageTableView td.last_modified {
+	min-width: 120px;
 }
 

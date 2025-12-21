@@ -8,6 +8,7 @@
 
 body {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
     line-height: 1.6;
     min-height: 100vh;
     padding: 20px;
@@ -167,9 +168,8 @@ ul.path {
     text-align: center;
 }
 ul.path li {
-    display: inline;
+    display: inline-block;
     margin: 7px 2px;
-    white-space: nowrap;
 }
 ul.path li a {
     padding: 3px 6px;
@@ -179,6 +179,7 @@ ul.path li a {
     -webkit-border-radius: 5px;
     font-size: 12pt;
     text-decoration: none;
+    white-space: nowrap;
 }
 ul.path li a:hover {
     text-decoration: none;
