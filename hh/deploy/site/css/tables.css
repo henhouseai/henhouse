@@ -13,6 +13,20 @@ div.tableViewDiv {
 	color: var(--tableview-header-text, var(--text-medium-contrast, #d4d4d4));
 }
 
+/* Mobile: allow horizontal scrolling for tables */
+@media screen and (max-width: 1024px) {
+	div.tableViewDiv {
+		overflow-x: auto;
+		overflow-y: hidden;
+		-webkit-overflow-scrolling: touch;
+	}
+	
+	table.pageTableView {
+		width: auto;
+		min-width: 100%;
+	}
+}
+
 div.tableViewDiv a:link,
 div.tableViewDiv a:visited {
 	color: var(--link, #79c0ff);
