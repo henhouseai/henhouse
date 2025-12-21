@@ -109,6 +109,14 @@ h1 {
     text-align: left;
 }
 
+/* Mobile: remove min-width to allow proper scaling */
+@media screen and (max-width: 1024px) {
+    #wrapper {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
 #header {
     width: auto;
     text-align: center;
