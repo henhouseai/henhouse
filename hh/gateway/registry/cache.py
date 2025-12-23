@@ -31,7 +31,7 @@ CACHE_DIR.mkdir(exist_ok=True)
 def _scan_for_decorator(decorator_name: str) -> List[str]:
     trace_in()
     from hh.deploy.deploy_utils import scan_for_decorator
-    found_files = scan_for_decorator(decorator_name, exclude_cache=True, scan_deployed_paths=False)
+    found_files = scan_for_decorator(decorator_name, exclude_cache=True)
     trace_out()
     return found_files
 

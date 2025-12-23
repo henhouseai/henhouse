@@ -30,7 +30,7 @@ _page_class_registry: Dict[str, Optional[Type]] = {}
 def _scan_for_page_classes() -> List[str]:
     trace_in()
     from hh.deploy.deploy_utils import scan_for_decorator
-    found_files = scan_for_decorator("register_page_class", exclude_cache=True, scan_deployed_paths=False)
+    found_files = scan_for_decorator("register_page_class", exclude_cache=True)
     trace_out()
     return found_files
 

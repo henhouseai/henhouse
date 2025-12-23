@@ -104,7 +104,7 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
                 "load_status": "success",
                 "load_error": ""
             }
-            log(f"Found TP decorator: {decorator_name} -> {stored_module_path}.{decorator_func.__name__}")
+            log(f"Found TP decorator: {decorator_name} -> {module_name}.{decorator_func.__name__}")
     # Process failed imports
     for module_path, result in import_results.items():
         if result["status"] == "failed":

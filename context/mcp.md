@@ -1,3 +1,5 @@
+
+
 # Henhouse MCP System Architecture
 
 This document covers the Henhouse-specific implementation of the MCP (Model Context Protocol) integration system. It explains how MCP integrates with the Gateway architecture and how to navigate and modify the codebase.
