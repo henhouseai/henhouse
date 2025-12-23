@@ -16,3 +16,4 @@ JS_PAGE_CLASSES_WHITELIST: List[str] = [
     'work-page-data.js',
 ]
 
+

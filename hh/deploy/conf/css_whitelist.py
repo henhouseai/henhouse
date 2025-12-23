@@ -29,6 +29,6 @@ CSS_WHITELIST: List[str] = [
     'hh/deploy/site/css/overlay.css',
     'hh/deploy/site/css/image-viewer.css',
     # Infographic CSS files
-    'hh/deploy/site/infographic/infographic-viewer.css'
+    'ext/infographic/infographic-viewer.css'
 ]
 

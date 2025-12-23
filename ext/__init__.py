@@ -6,3 +6,4 @@ for the registry scanning to import modules from ext/ using standard Python impo
 mechanisms (e.g., `import ext.my_module`).
 """
 
+

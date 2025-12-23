@@ -3,3 +3,4 @@
 -- All CREATE TABLE statements must be idempotent (use CREATE TABLE IF NOT EXISTS)
 -- You can reference core tables (pages, images, etc.) via foreign keys
 
+

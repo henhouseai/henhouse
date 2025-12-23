@@ -11,3 +11,4 @@ MISC_WHITELIST: List[str] = [
     # Example: 'ext/deploy/site/custom-favicon.ico',
 ]
 
+

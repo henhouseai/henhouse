@@ -16,3 +16,4 @@ CSS_ALWAYS_INCLUDE_BLACKLIST: List[str] = [
     # Example: 'hh/deploy/site/css/site.css',
 ]
 
+

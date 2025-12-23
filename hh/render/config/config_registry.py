@@ -42,30 +42,10 @@ _last_scan_time: float = 0.0
 SCAN_THROTTLE_SECONDS = 5.0
 
 def _scan_for_config_registrations() -> List[str]:
-    """Scan hh folder tree for files containing @register_label decorators"""
+    """Scan hh/ and ext/ folders for files containing @register_label decorators"""
     trace_in()
-    found_files = []
-    try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        for py_file in hh_path.rglob("*.py"):
-            if py_file.name.startswith("cache_"):
-                continue
-            if py_file.name == "config_registry.py":
-                continue
-            try:
-                with open(py_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if "@register_label" in content:
-                        rel_path = py_file.relative_to(hh_path)
-                        module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                        module_path = "hh." + ".".join(module_parts)
-                        found_files.append(module_path)
-                        log(f"Found config registration in {module_path}")
-            except Exception as e:
-                warn(f"Error reading {py_file}: {e}")
-    except Exception as e:
-        warn(f"Error scanning for config registrations: {e}")
+    from hh.deploy.deploy_utils import scan_for_decorator
+    found_files = scan_for_decorator("register_label", exclude_cache=True)
     trace_out()
     return found_files
 

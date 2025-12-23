@@ -18,3 +18,4 @@ JS_WHITELIST: List[str] = [
     # Example: 'ext/deploy/site/js/custom-module.js',
 ]
 
+

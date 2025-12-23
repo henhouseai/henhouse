@@ -17,20 +17,20 @@ JS_WHITELIST: List[str] = [
     'hh/deploy/site/js',
     # Deploy ext/ js folder if it exists (user extensions)
     'ext/deploy/site/js',
-    # Infographic JavaScript files (individual files from different folder)
-    'hh/deploy/site/infographic/infographic-json.js',
-    'hh/deploy/site/infographic/infographic-glossary-json.js',
-    'hh/deploy/site/infographic/infographic-gateway-access-methods-json.js',
-    'hh/deploy/site/infographic/infographic-gateway-architecture-json.js',
-    'hh/deploy/site/infographic/infographic-request-response-pipeline-json.js',
-    'hh/deploy/site/infographic/infographic-http-deployment-architecture-json.js',
-    'hh/deploy/site/infographic/infographic-project-folder-hierarchy-json.js',
-    'hh/deploy/site/infographic/infographic-state.js',
-    'hh/deploy/site/infographic/infographic-glossary.js',
-    'hh/deploy/site/infographic/infographic-canvas.js',
-    'hh/deploy/site/infographic/infographic-data.js',
-    'hh/deploy/site/infographic/infographic-rendering.js',
-    'hh/deploy/site/infographic/infographic-interaction.js',
-    'hh/deploy/site/infographic/infographic-main.js'
+    # Infographic JavaScript files (individual files from ext/ folder)
+    'ext/infographic/infographic-json.js',
+    'ext/infographic/infographic-glossary-json.js',
+    'ext/infographic/infographic-gateway-access-methods-json.js',
+    'ext/infographic/infographic-gateway-architecture-json.js',
+    'ext/infographic/infographic-request-response-pipeline-json.js',
+    'ext/infographic/infographic-http-deployment-architecture-json.js',
+    'ext/infographic/infographic-project-folder-hierarchy-json.js',
+    'ext/infographic/infographic-state.js',
+    'ext/infographic/infographic-glossary.js',
+    'ext/infographic/infographic-canvas.js',
+    'ext/infographic/infographic-data.js',
+    'ext/infographic/infographic-rendering.js',
+    'ext/infographic/infographic-interaction.js',
+    'ext/infographic/infographic-main.js'
 ]
 

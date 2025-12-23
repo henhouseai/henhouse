@@ -14,3 +14,4 @@ JS_PAGE_CLASSES_WHITELIST: List[str] = [
     # Example: 'custom-page-data.js',
 ]
 
+

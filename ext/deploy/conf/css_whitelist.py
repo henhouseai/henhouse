@@ -16,3 +16,4 @@ CSS_WHITELIST: List[str] = [
     # Example: 'ext/deploy/site/css/custom-theme.css',
 ]
 
+

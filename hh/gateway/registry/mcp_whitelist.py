@@ -98,29 +98,10 @@ def register_mcp_tool(
     return decorator
 
 def _scan_for_mcp_tools() -> List[str]:
-    """Scan codebase for register_mcp_tool decorators."""
+    """Scan hh/ and ext/ folders for files containing @register_mcp_tool decorators."""
     trace_in()
-    found_files = []
-    decorator_name = "register_mcp_tool"
-    try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        for py_file in hh_path.rglob("*.py"):
-            if py_file.name.startswith("cache_"):
-                continue
-            try:
-                with open(py_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if f"@{decorator_name}" in content:
-                        rel_path = py_file.relative_to(hh_path)
-                        module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                        module_path = "hh." + ".".join(module_parts)
-                        found_files.append(module_path)
-                        log(f"Found {decorator_name} in {module_path}")
-            except Exception as e:
-                warn(f"Error reading {py_file}: {e}")
-    except Exception as e:
-        warn(f"Error scanning for MCP tools: {e}")
+    from hh.deploy.deploy_utils import scan_for_decorator
+    found_files = scan_for_decorator("register_mcp_tool", exclude_cache=True)
     trace_out()
     return found_files
 

@@ -11,3 +11,4 @@ MISC_BLACKLIST: List[str] = [
     # Example: 'hh/deploy/site/favicon.ico',
 ]
 
+
