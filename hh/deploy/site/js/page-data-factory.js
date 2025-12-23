@@ -1,38 +1,28 @@
 /**
  * PageData Factory - Creates appropriate PageData instance based on page class type.
+ * Uses dynamically generated registry from page-classes-registry.js.
  */
 import { PageData } from './page-data.js';
-import { SourceCodeFilePageData } from './page-classes/source-code-file-page-data.js';
-import { MCPRequestPageData } from './page-classes/mcp-request-page-data.js';
-import { MCPActionPageData } from './page-classes/mcp-action-page-data.js';
-import { WorkDocketPageData } from './page-classes/work-docket-page-data.js';
-import { AskPageData } from './page-classes/ask-page-data.js';
-import { TaskPageData } from './page-classes/task-page-data.js';
-import { StepPageData } from './page-classes/step-page-data.js';
+import { PAGE_CLASS_REGISTRY } from './page-classes-registry.js';
 export class PageDataFactory {
     /**
      * Create appropriate PageData instance based on page class type.
+     * Uses dynamically generated registry that includes both hh/ and ext/ page classes.
      */
     static create(data) {
         const className = data.page.class;
-        switch (className) {
-            case 'source_code_file':
-                return new SourceCodeFilePageData(data);
-            case 'mcp_request':
-                return new MCPRequestPageData(data);
-            case 'mcp_action':
-            case 'mcp_action_request':
-                return new MCPActionPageData(data);
-            case 'work_docket':
-                return new WorkDocketPageData(data);
-            case 'ask':
-                return new AskPageData(data);
-            case 'task':
-                return new TaskPageData(data);
-            case 'step':
-                return new StepPageData(data);
-            default:
-                return new PageData(data);
+        // Handle aliases (multiple class names mapping to same PageData class)
+        const aliasMap = {
+            'mcp_action_request': 'mcp_action', // mcp_action_request is alias for mcp_action
+        };
+        // Resolve alias if needed
+        const resolvedClassName = aliasMap[className] || className;
+        // Look up class in registry
+        const PageClass = PAGE_CLASS_REGISTRY[resolvedClassName];
+        if (PageClass) {
+            return new PageClass(data);
         }
+        // Fall back to base PageData if class not found in registry
+        return new PageData(data);
     }
 }

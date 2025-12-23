@@ -7,8 +7,10 @@ from typing import List, Optional
 import json
 import os
 from hh.gateway.response.response import Response
-from hh.deploy.conf.css_whitelist import CSS_ALWAYS_INCLUDE
-from hh.deploy.conf.js_whitelist import JS_ALWAYS_INCLUDE
+from hh.deploy.deploy_utils import (
+    load_whitelist_with_extensions,
+    load_dict_whitelist_with_extensions,
+)
 from hh.render.config.config import safe_str
 
 class ResponseHTTP(Response):
@@ -81,6 +83,7 @@ class ResponseHTTP(Response):
         
         # Always-include CSS files (site.css, ansi-colors.css, tables.css, etc.)
         # These come after tier CSS so they can reference the color variables
+        CSS_ALWAYS_INCLUDE = load_whitelist_with_extensions('css_whitelist', 'CSS_ALWAYS_INCLUDE')
         for css_path in CSS_ALWAYS_INCLUDE:
             # Extract filename from path like 'hh/gateway/deploy/site/css/site.css'
             filename = os.path.basename(css_path)
@@ -92,6 +95,7 @@ class ResponseHTTP(Response):
         
         # Always-include JS files (site.js)
         # TypeScript compiled files are ES6 modules, legacy files are regular scripts
+        JS_ALWAYS_INCLUDE = load_whitelist_with_extensions('js_whitelist', 'JS_ALWAYS_INCLUDE')
         module_files = {'seed.js', 'rpc-client.js', 'app.js'}
         js_scripts = []
         for js_path in JS_ALWAYS_INCLUDE:
@@ -299,8 +303,20 @@ class ResponseHTTP(Response):
         """Populate menu content (site links, app actions, user info) based on tier level."""
         # Always populate site links
         try:
-            from hh.deploy.conf.site_links import populate_site_links
-            populate_site_links()
+            SITE_LINKS = load_dict_whitelist_with_extensions('site_links', 'SITE_LINKS')
+            for group_data in SITE_LINKS:
+                group_name = group_data.get('group')
+                header_page_id = group_data.get('header_page_id')
+                header_text = group_data.get('header_text')
+                links = group_data.get('links', [])
+                
+                if group_name and header_page_id is not None and header_text:
+                    self.add_site_link_group(group_name, header_page_id, header_text)
+                    for link in links:
+                        page_id = link.get('page_id')
+                        text = link.get('text')
+                        if page_id is not None and text:
+                            self.add_site_link(group_name, page_id, text)
         except Exception:
             pass  # If site_links.py doesn't exist or fails, continue
         
@@ -311,8 +327,19 @@ class ResponseHTTP(Response):
             
             # Populate application action links (persistent from conf file)
             try:
-                from hh.deploy.conf.application_actions import populate_application_action_links
-                populate_application_action_links()
+                APPLICATION_ACTIONS = load_dict_whitelist_with_extensions('application_actions', 'APPLICATION_ACTIONS')
+                for group_data in APPLICATION_ACTIONS:
+                    group_name = group_data.get('group')
+                    group_label = group_data.get('group_label')
+                    actions = group_data.get('actions', [])
+                    
+                    if group_name and group_label:
+                        self.add_application_action_group(group_name, group_label)
+                        for action in actions:
+                            action_id = action.get('action_id')
+                            label = action.get('label')
+                            if action_id and label:
+                                self.add_application_action_link(group_name, action_id, label)
             except Exception:
                 pass
             
@@ -342,9 +369,15 @@ class ResponseHTTP(Response):
                 warn(f"Failed to populate hot-cache app actions: {e}")
             
             # Populate user info
+            # Get username from seed_data if available, otherwise use default
             try:
-                from hh.deploy.conf.user_info import populate_user_info
-                populate_user_info()
+                seed_data = self.get_seed_data()
+                username = "user"  # Default
+                if seed_data and isinstance(seed_data, dict):
+                    # Could get from page context or other seed data
+                    # For now, use default
+                    username = "user"
+                self.set_user_info(username)
             except Exception:
                 pass
     

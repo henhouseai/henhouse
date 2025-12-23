@@ -1,5 +1,6 @@
 """
 Application action links - admin/root tier CRUD operations.
+Groups listed here will be added to the base APPLICATION_ACTIONS.
 Groups are created explicitly with names, then actions are added to specific groups.
 Actions have DOM IDs for JavaScript event handlers (no hrefs).
 """
@@ -20,11 +21,10 @@ from typing import List, Dict, Any
 APPLICATION_ACTIONS: List[Dict[str, Any]] = [
     # Example (commented out):
     # {
-    #     'group': 'test',
-    #     'group_label': 'TEST',
+    #     'group': 'custom',
+    #     'group_label': 'CUSTOM',
     #     'actions': [
-    #         {'action_id': 'test_one', 'label': 'test one'},
-    #         {'action_id': 'test_two', 'label': 'test two'},
+    #         {'action_id': 'custom_one', 'label': 'custom one'},
     #     ]
     # },
 ]

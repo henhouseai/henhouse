@@ -52,6 +52,9 @@ def create_backend_decorator(backend_type: str):
             actual_name = name if name is not None else func.__name__
             info_class = globals()[info_class_name]
             info_instance = info_class(function=wrapper)
+            # Check for duplicate registration
+            if actual_name in globals()[dict_name]:
+                warn(f"Duplicate registration: '{actual_name}' - overwriting previous")
             globals()[dict_name][actual_name] = info_instance
             log(f"Registered {backend_type}: {actual_name} -> {func.__module__}.{func.__name__}")
             trace_out()
@@ -101,6 +104,9 @@ def register_command(name: Optional[str] = None, action_args: Optional[List[str]
             return func(*args, **kwargs)
         trace_in()
         actual_name = name if name is not None else func.__name__
+        # Check for duplicate registration
+        if actual_name in commands:
+            warn(f"Duplicate registration: '{actual_name}' - overwriting previous")
         log("register_command buffering '%s' from '%s' (action_args=%s)" % (actual_name, func.__module__, action_args))
         command_info = CommandInfo(function=wrapper, action_args=action_args or [])
         commands[actual_name] = command_info

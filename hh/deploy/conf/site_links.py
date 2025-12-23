@@ -3,44 +3,49 @@ Site links configuration - project-specific navigation menu.
 This file defines the site navigation links that appear in the menu sidebar.
 """
 from __future__ import annotations
-from hh.gateway.gateway import get_gateway
+from typing import List, Dict, Any
 
-
-def populate_site_links() -> None:
-    """
-    Populate site links in the response.
-    Groups are created explicitly with names, then links are added to specific groups.
-    Passes page_id and link_text - HTML rendering happens in backend.
-    """
-    gateway = get_gateway()
-    if not gateway or not gateway.response:
-        return
-    
-    # Type check - add_site_link methods are only available on ResponseHTTP
-    from hh.gateway.response.response_http import ResponseHTTP
-    if not isinstance(gateway.response, ResponseHTTP):
-        return
-    
-    # Create "home" group with header link
-    gateway.response.add_site_link_group('home', 1, 'HOME')
-    
-    # Add links to "home" group
-    gateway.response.add_site_link('home', 234, 'SOURCE CODE')
-    gateway.response.add_site_link('home', 28, 'about')
-    gateway.response.add_site_link('home', 27, 'INFOGRAPHICS')
-    gateway.response.add_site_link('home', 564, 'MCP REQUESTS')
-    
-    # Create "about" group with header link
-    gateway.response.add_site_link_group('about', 28, 'ABOUT')
-    
-    # Add links to "about" group
-    gateway.response.add_site_link('about', 35, 'pages')
-    gateway.response.add_site_link('about', 49, 'flask daemons')
-    
-    # Create "source code" group with header link
-    gateway.response.add_site_link_group('source code', 234, 'SOURCE CODE')
-    
-    # Add links to "source code" group
-    gateway.response.add_site_link('source code', 535, 'context')
-    gateway.response.add_site_link('source code', 235, 'hh')
+# Site links configuration
+# Each entry defines a group with its header (page_id and text) and list of links
+# Example structure:
+# {
+#     'group': 'home',
+#     'header_page_id': 1,
+#     'header_text': 'HOME',
+#     'links': [
+#         {'page_id': 234, 'text': 'SOURCE CODE'},
+#         {'page_id': 28, 'text': 'about'},
+#     ]
+# }
+SITE_LINKS: List[Dict[str, Any]] = [
+    {
+        'group': 'home',
+        'header_page_id': 1,
+        'header_text': 'HOME',
+        'links': [
+            {'page_id': 234, 'text': 'SOURCE CODE'},
+            {'page_id': 28, 'text': 'about'},
+            {'page_id': 27, 'text': 'INFOGRAPHICS'},
+            {'page_id': 564, 'text': 'MCP REQUESTS'},
+        ]
+    },
+    {
+        'group': 'about',
+        'header_page_id': 28,
+        'header_text': 'ABOUT',
+        'links': [
+            {'page_id': 35, 'text': 'pages'},
+            {'page_id': 49, 'text': 'flask daemons'},
+        ]
+    },
+    {
+        'group': 'source code',
+        'header_page_id': 234,
+        'header_text': 'SOURCE CODE',
+        'links': [
+            {'page_id': 535, 'text': 'context'},
+            {'page_id': 235, 'text': 'hh'},
+        ]
+    },
+]
 

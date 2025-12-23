@@ -1,13 +1,16 @@
 """Nginx whitelist generation for static file serving."""
 from pathlib import Path
 from typing import Set, List, Dict
-from hh.deploy.conf.js_whitelist import JS_WHITELIST
-from hh.deploy.conf.css_whitelist import CSS_WHITELIST
-from hh.deploy.conf.misc_whitelist import MISC_WHITELIST
-from hh.deploy.conf.context_whitelist import CONTEXT_WHITELIST
+from hh.deploy.deploy_utils import load_whitelist_with_extensions
 
 def generate_nginx_static_locations(project_name: str) -> Dict:
     """Generate Nginx location blocks for static file serving based on whitelist configuration."""
+    # Load whitelists with extension support
+    JS_WHITELIST = load_whitelist_with_extensions('js_whitelist', 'JS_WHITELIST')
+    CSS_WHITELIST = load_whitelist_with_extensions('css_whitelist', 'CSS_WHITELIST')
+    MISC_WHITELIST = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
+    CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
+    
     # Collect all directories that need static serving
     static_dirs = set()
     

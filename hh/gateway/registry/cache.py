@@ -30,26 +30,8 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 def _scan_for_decorator(decorator_name: str) -> List[str]:
     trace_in()
-    found_files = []
-    try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        for py_file in hh_path.rglob("*.py"):
-            if py_file.name.startswith("cache_"):
-                continue
-            try:
-                with open(py_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if f"@{decorator_name}" in content:
-                        rel_path = py_file.relative_to(hh_path)
-                        module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                        module_path = "hh." + ".".join(module_parts)
-                        found_files.append(module_path)
-                        log(f"Found {decorator_name} in {module_path}")
-            except Exception as e:
-                warn(f"Error reading {py_file}: {e}")
-    except Exception as e:
-        warn(f"Error scanning for {decorator_name}: {e}")
+    from hh.deploy.deploy_utils import scan_for_decorator
+    found_files = scan_for_decorator(decorator_name, exclude_cache=True, scan_deployed_paths=False)
     trace_out()
     return found_files
 

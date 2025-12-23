@@ -15,6 +15,8 @@ JS_ALWAYS_INCLUDE: List[str] = [
 JS_WHITELIST: List[str] = [
     # Deploy entire js folder (all .js files will be deployed flat to site/js/)
     'hh/deploy/site/js',
+    # Deploy ext/ js folder if it exists (user extensions)
+    'ext/deploy/site/js',
     # Infographic JavaScript files (individual files from different folder)
     'hh/deploy/site/infographic/infographic-json.js',
     'hh/deploy/site/infographic/infographic-glossary-json.js',

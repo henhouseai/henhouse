@@ -29,26 +29,8 @@ _page_class_registry: Dict[str, Optional[Type]] = {}
 
 def _scan_for_page_classes() -> List[str]:
     trace_in()
-    found_files = []
-    try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        for py_file in hh_path.rglob("*.py"):
-            if py_file.name.startswith("cache_"):
-                continue
-            try:
-                with open(py_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if "@register_page_class" in content:
-                        rel_path = py_file.relative_to(hh_path)
-                        module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                        module_path = "hh." + ".".join(module_parts)
-                        found_files.append(module_path)
-                        log(f"Found @register_page_class in {module_path}")
-            except Exception as e:
-                warn(f"Error reading {py_file}: {e}")
-    except Exception as e:
-        warn(f"Error scanning for page classes: {e}")
+    from hh.deploy.deploy_utils import scan_for_decorator
+    found_files = scan_for_decorator("register_page_class", exclude_cache=True, scan_deployed_paths=False)
     trace_out()
     return found_files
 
@@ -134,6 +116,9 @@ def discover_page_classes(force_regenerate: bool = False) -> Dict[str, Dict[str,
 
 def register_page_class(class_name: str):
     def decorator(cls: Type) -> Type:
+        # Check for duplicate registration
+        if class_name in _page_class_registry:
+            warn(f"Duplicate registration: '{class_name}' - overwriting previous")
         _page_class_registry[class_name] = cls
         log(f"Registered page class: {class_name} -> {cls.__module__}.{cls.__name__}")
         return cls

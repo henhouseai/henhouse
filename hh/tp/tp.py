@@ -676,6 +676,16 @@ class TextProcessor:
         func = get_tp_decorator(name)
         if not func:
             warn(f"Decorator '{name}' not found")
+            # If decorator doesn't exist and input is empty base, return decorator as text
+            if json_data.get("type") == "empty" and json_data.get("content") == "":
+                # Build decorator text: @name or @name(arg0, arg1, ...)
+                decorator_text = f"@{name}"
+                if args:
+                    arg_values = [str(v) for v in args.values()]
+                    decorator_text += f"({', '.join(arg_values)})"
+                log(f"Unknown decorator '{name}' on empty base, returning as text: {decorator_text}")
+                trace_out()
+                return {"type": "text", "content": decorator_text}
             trace_out()
             return json_data
         try:

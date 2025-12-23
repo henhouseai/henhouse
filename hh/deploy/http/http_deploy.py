@@ -39,7 +39,8 @@ def create_nginx_config(domain: str, project_name: str) -> str:
 
         # Add root-level mappings for files in MISC_WHITELIST (e.g., /favicon.ico)
         try:
-            from hh.deploy.conf.misc_whitelist import MISC_WHITELIST
+            from hh.deploy.deploy_utils import load_whitelist_with_extensions
+            MISC_WHITELIST = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
             from pathlib import Path as _P
             misc_blocks = []
             for item in MISC_WHITELIST:

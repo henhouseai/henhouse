@@ -27,15 +27,11 @@ def _initialize_debug():
     warn = get_warn(True)
 
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from hh.deploy.conf.context_whitelist import CONTEXT_WHITELIST
 from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
-from hh.deploy.conf.js_whitelist import JS_WHITELIST
-from hh.deploy.conf.css_whitelist import CSS_WHITELIST
-from hh.deploy.conf.py_whitelist import PY_WHITELIST
-from hh.deploy.conf.misc_whitelist import MISC_WHITELIST
+from hh.deploy.deploy_utils import (
+    load_whitelist_with_extensions,
+)
 from hh.deploy.conf.deploy_whitelist import (
-    DEPLOY_WHITELIST,
-    EXTRA_DEPLOY_FILES,
     FLASK_APP_SOURCE,
     MEDIA_SERVER_SOURCE,
     MAINTENANCE_APP_SOURCE,
@@ -71,6 +67,15 @@ def deploy() -> bool:
     else:
         project_name = Path.cwd().name
         current_path = Path.cwd()
+    
+    # Load whitelists with extension support
+    CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
+    JS_WHITELIST = load_whitelist_with_extensions('js_whitelist', 'JS_WHITELIST')
+    JS_PAGE_CLASSES_WHITELIST = load_whitelist_with_extensions('js_page_classes_whitelist', 'JS_PAGE_CLASSES_WHITELIST')
+    CSS_WHITELIST = load_whitelist_with_extensions('css_whitelist', 'CSS_WHITELIST')
+    MISC_WHITELIST = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
+    DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
+    EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXTRA_DEPLOY_FILES')
     
     # Get starting port from gateway args (default 5001)
     start_port_arg = gateway.get_arg('start_port')
@@ -381,7 +386,6 @@ def deploy() -> bool:
             
             js_count = 0
             css_count = 0
-            py_count = 0
             misc_count = 0
             
             # Deploy JS files
@@ -416,6 +420,100 @@ def deploy() -> bool:
                 else:
                     log(f"JS file/folder not found: {js_item}")
             
+            # Generate page-classes-registry.js
+            if not is_error():
+                try:
+                    log("Generating page-classes-registry.js")
+                    
+                    def kebab_to_pascal(kebab: str) -> str:
+                        """Convert kebab-case to PascalCase (e.g., 'source-code-file' -> 'SourceCodeFile')."""
+                        parts = kebab.split('-')
+                        return ''.join(word.capitalize() for word in parts)
+                    
+                    def kebab_to_snake(kebab: str) -> str:
+                        """Convert kebab-case to snake_case (e.g., 'source-code-file' -> 'source_code_file')."""
+                        return kebab.replace('-', '_')
+                    
+                    # Collect page class files from both hh/ and ext/ page-classes/ folders
+                    # Process whitelist and check if files exist in either location
+                    page_class_files: List[str] = []
+                    
+                    hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'page-classes'
+                    ext_page_classes_dir = source / 'ext' / 'deploy' / 'site' / 'js' / 'page-classes'
+                    
+                    # Check if ext/ directory exists (not an error if missing)
+                    ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
+                    if not ext_dir_exists:
+                        log(f"Extension page-classes directory not found: {ext_page_classes_dir} (this is normal if ext/ folder doesn't exist)")
+                    
+                    for filename in JS_PAGE_CLASSES_WHITELIST:
+                        # Check hh/ first
+                        hh_file = hh_page_classes_dir / filename
+                        if hh_file.exists() and hh_file.is_file():
+                            if filename not in page_class_files:
+                                page_class_files.append(filename)
+                                log(f"Found page class file in hh/: {filename}")
+                        elif ext_dir_exists:
+                            # Check ext/ if not found in hh/ and ext/ directory exists
+                            ext_file = ext_page_classes_dir / filename
+                            if ext_file.exists() and ext_file.is_file():
+                                if filename not in page_class_files:
+                                    page_class_files.append(filename)
+                                    log(f"Found page class file in ext/: {filename}")
+                            else:
+                                # File not found in either location - log but don't error
+                                log(f"Page class file not found (whitelisted but missing): {filename}")
+                        else:
+                            # File not found in hh/ and ext/ doesn't exist - log but don't error
+                            log(f"Page class file not found in hh/ and ext/ not available: {filename}")
+                    
+                    # Generate registry file
+                    if page_class_files:
+                        registry_lines: List[str] = []
+                        registry_lines.append("// Auto-generated during deployment - do not edit manually")
+                        registry_lines.append("")
+                        
+                        # Generate imports
+                        import_lines: List[str] = []
+                        registry_entries: List[str] = []
+                        
+                        for filename in sorted(page_class_files):
+                            # Remove .js extension and -page-data suffix
+                            base_name = filename.replace('.js', '')
+                            if base_name.endswith('-page-data'):
+                                base_name = base_name[:-10]  # Remove '-page-data'
+                            
+                            # Convert to PascalCase for class name
+                            class_name = kebab_to_pascal(base_name) + 'PageData'
+                            
+                            # Convert to snake_case for registry key
+                            registry_key = kebab_to_snake(base_name)
+                            
+                            # Generate import
+                            import_lines.append(f"import {{ {class_name} }} from './page-classes/{filename}';")
+                            
+                            # Generate registry entry
+                            registry_entries.append(f"  '{registry_key}': {class_name},")
+                        
+                        registry_lines.extend(import_lines)
+                        registry_lines.append("")
+                        registry_lines.append("export const PAGE_CLASS_REGISTRY = {")
+                        registry_lines.extend(registry_entries)
+                        registry_lines.append("};")
+                        
+                        # Write registry file
+                        registry_file = js_dest / 'page-classes-registry.js'
+                        registry_content = '\n'.join(registry_lines) + '\n'
+                        registry_file.write_text(registry_content, encoding='utf-8')
+                        site_deployed.append("js/page-classes-registry.js")
+                        log(f"Generated page-classes-registry.js with {len(page_class_files)} page classes")
+                    else:
+                        log("No page class files found in whitelist, skipping registry generation")
+                        
+                except Exception as e:  # noqa: BLE001
+                    log(f"Failed to generate page-classes-registry.js: {e}")
+                    # Don't error out - registry generation is optional
+            
             # Deploy CSS files
             css_dest = site_dest / 'css'
             css_dest.mkdir(exist_ok=True)
@@ -431,22 +529,6 @@ def deploy() -> bool:
                     log(f"Deployed CSS file: {css_file} -> site/css/{source_css.name}")
                 else:
                     log(f"CSS file not found: {css_file}")
-            
-            # Deploy Python files
-            py_dest = site_dest / 'py'
-            py_dest.mkdir(exist_ok=True)
-            for py_file in PY_WHITELIST:
-                source_py = source / py_file
-                if source_py.exists():
-                    dest_py = py_dest / source_py.name
-                    if dest_py.exists():
-                        dest_py.unlink()
-                    shutil.copy2(source_py, dest_py)
-                    site_deployed.append(f"py/{source_py.name}")
-                    py_count += 1
-                    log(f"Deployed Python file: {py_file} -> site/py/{source_py.name}")
-                else:
-                    log(f"Python file not found: {py_file}")
             
             # Deploy misc files (top level in site/)
             for misc_file in MISC_WHITELIST:
@@ -473,7 +555,7 @@ def deploy() -> bool:
                 else:
                     log(f"Misc file not found: {misc_file}")
             
-            log(f"Site deployment complete: {len(site_deployed)} items (JS: {js_count}, CSS: {css_count}, PY: {py_count}, MISC: {misc_count})")
+            log(f"Site deployment complete: {len(site_deployed)} items (JS: {js_count}, CSS: {css_count}, MISC: {misc_count})")
         except Exception as e:
             warn(f"Failed to deploy site folders: {e}")
             report_error("backend", f"Failed to deploy site folders: {e}")
@@ -597,7 +679,6 @@ def deploy() -> bool:
             "site_deployed": site_deployed,
             "js_count": js_count if 'js_count' in locals() else 0,
             "css_count": css_count if 'css_count' in locals() else 0,
-            "py_count": py_count if 'py_count' in locals() else 0,
             "misc_count": misc_count if 'misc_count' in locals() else 0,
             "ownership_set": ownership_set,
             "cache_permissions_set": cache_permissions_set,
@@ -655,6 +736,9 @@ def deploy_context_folders(source: Path, dest: Path) -> None:
     trace_in()
     try:
         log("Deploying context folders and files")
+        
+        # Load context whitelist with extension support
+        CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
         
         # Deploy whitelisted context items (folders and files) with blacklist filtering
         for item in CONTEXT_WHITELIST:
