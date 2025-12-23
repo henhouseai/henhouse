@@ -537,23 +537,36 @@ class WorkPage(Page):
                 
                 siblings_without_target = [s for s in siblings_with_meta if s['page_id'] != self.id]
                 
+                # Valid positions are 1 through len(siblings_without_target) + 1
+                # (1 = beginning, len+1 = end)
+                max_valid_position = len(siblings_without_target) + 1
+                
                 if sort_order <= 0:
                     new_pos = 0
                     log(f"Position {sort_order} clamped to beginning (0)")
-                elif sort_order > len(siblings_without_target):
+                elif sort_order > max_valid_position:
                     new_pos = len(siblings_without_target)
-                    log(f"Position {sort_order} clamped to end ({new_pos})")
+                    log(f"Position {sort_order} clamped to end ({new_pos}, max valid: {max_valid_position})")
                 else:
                     new_pos = sort_order - 1
-                    log(f"Position {sort_order} -> index {new_pos}")
+                    log(f"Position {sort_order} -> index {new_pos} (max valid: {max_valid_position})")
                 
                 siblings_without_target.insert(new_pos, target_entry)
                 new_order = siblings_without_target
                 
+                # Check if order of pages changed
                 order_changed = any(
                     original['page_id'] != updated['page_id']
                     for original, updated in zip(siblings_with_meta, new_order)
                 ) or (len(siblings_with_meta) != len(new_order))
+                
+                # Also check if target page's sort_order value changed
+                if not order_changed:
+                    target_new_position = new_pos + 1  # Convert 0-based index to 1-based position
+                    target_old_sort_order = target_entry.get('sort_order', 0)
+                    if target_new_position != target_old_sort_order:
+                        order_changed = True
+                        log(f"Target page sort_order changed: {target_old_sort_order} -> {target_new_position}")
                 
                 if not order_changed:
                     log("Sort order unchanged after reflow, no update needed")
