@@ -107,6 +107,11 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     run_sql_script(project_name, init_sql_path, "Main DB initialization")
     run_sql_script(cache_db_name, init_cache_sql_path, "Cache DB initialization")
     
+    # Step 4.5: Execute extension schema if it exists
+    ext_schema_path = project_path / "ext" / "deploy" / "db" / "schema_ext.sql"
+    if ext_schema_path.exists():
+        run_sql_script(project_name, ext_schema_path, "Extension schema")
+    
     # Step 5: Verify tables were created
     created_tables = []
     cache_tables = []

@@ -204,17 +204,29 @@ def load_dict_whitelist_with_extensions(
     blacklist_var_name = var_name
     
     blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
-    if blacklist is not None:
-        # Convert dict items to comparable form for blacklist matching
-        blacklisted_dicts = {tuple(sorted(d.items())) if isinstance(d, dict) else d for d in blacklist}
-        blacklisted_items = blacklisted_dicts
-        
-        # Remove blacklisted items from result
-        result = [
-            item for item in result
-            if (tuple(sorted(item.items())) if isinstance(item, dict) else item) not in blacklisted_items
-        ]
-        log(f"Applied blacklist: removed {len(blacklisted_dicts)} items, {len(result)} remaining")
+    if blacklist is not None and len(blacklist) > 0:
+        # Check if blacklist contains strings (group names) or dicts (full dict matching)
+        if isinstance(blacklist[0], str):
+            # Blacklist contains strings - match by 'group' key for site_links, application_actions, etc.
+            blacklisted_groups = set(blacklist)
+            original_count = len(result)
+            result = [
+                item for item in result
+                if isinstance(item, dict) and item.get('group') not in blacklisted_groups
+            ]
+            removed_count = original_count - len(result)
+            log(f"Applied blacklist (by group name): removed {removed_count} items, {len(result)} remaining")
+        else:
+            # Blacklist contains dicts - match by full dictionary structure
+            blacklisted_dicts = {tuple(sorted(d.items())) if isinstance(d, dict) else d for d in blacklist}
+            blacklisted_items = blacklisted_dicts
+            
+            # Remove blacklisted items from result
+            result = [
+                item for item in result
+                if (tuple(sorted(item.items())) if isinstance(item, dict) else item) not in blacklisted_items
+            ]
+            log(f"Applied blacklist (by dict match): removed {len(blacklisted_dicts)} items, {len(result)} remaining")
     
     # Step 3: Load and apply extension
     ext_file = ext_conf / f"{base_name}.py"
