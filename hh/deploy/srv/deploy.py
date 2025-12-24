@@ -519,8 +519,8 @@ def deploy() -> bool:
                             if base_name.endswith('-page-data'):
                                 base_name = base_name[:-10]  # Remove '-page-data'
                             
-                            # Convert to PascalCase for class name
-                            class_name = kebab_to_pascal(base_name) + 'PageData'
+                            # Convert to snake_case for class name (matches actual export names)
+                            class_name = kebab_to_snake(base_name) + '_page_data'
                             
                             # Convert to snake_case for registry key
                             registry_key = kebab_to_snake(base_name)
