@@ -339,22 +339,38 @@ class ResponseHTTP(Response):
         """Populate menu content (site links, app actions, user info) based on tier level."""
         # Always populate site links
         try:
+            debug("Loading site links whitelist")
             SITE_LINKS = load_dict_whitelist_with_extensions('site_links', 'SITE_LINKS')
-            for group_data in SITE_LINKS:
+            log(f"Site links loaded: {len(SITE_LINKS)} groups")
+            debug(f"Site links data: {SITE_LINKS}")
+            for idx, group_data in enumerate(SITE_LINKS):
+                debug(f"Processing site link group {idx}: {group_data}")
                 group_name = group_data.get('group')
                 header_page_id = group_data.get('header_page_id')
                 header_text = group_data.get('header_text')
                 links = group_data.get('links', [])
                 
+                debug(f"Group name: {group_name}, header_page_id: {header_page_id}, header_text: {header_text}, links count: {len(links)}")
+                
                 if group_name and header_page_id is not None and header_text:
+                    debug(f"Adding site link group: {group_name}")
                     self.add_site_link_group(group_name, header_page_id, header_text)
-                    for link in links:
+                    for link_idx, link in enumerate(links):
                         page_id = link.get('page_id')
                         text = link.get('text')
+                        debug(f"Processing link {link_idx}: page_id={page_id}, text={text}")
                         if page_id is not None and text:
+                            debug(f"Adding site link: {group_name} -> page_id={page_id}, text={text}")
                             self.add_site_link(group_name, page_id, text)
-        except Exception:
-            pass  # If site_links.py doesn't exist or fails, continue
+                        else:
+                            warn(f"Skipping invalid link in group {group_name}: page_id={page_id}, text={text}")
+                else:
+                    warn(f"Skipping invalid site link group: group_name={group_name}, header_page_id={header_page_id}, header_text={header_text}")
+            log(f"Site links populated: {len(self._site_link_groups)} groups")
+        except Exception as e:
+            warn(f"Failed to populate site links: {e}")
+            import traceback
+            debug(f"Site links exception traceback: {traceback.format_exc()}")
         
         # Only populate app actions and user info for tier > 1 (verified, admin, root)
         if self.user_tier_level > 1:
@@ -363,7 +379,9 @@ class ResponseHTTP(Response):
             
             # Populate application action links (persistent from conf file)
             try:
+                debug("Loading application actions whitelist")
                 APPLICATION_ACTIONS = load_dict_whitelist_with_extensions('application_actions', 'APPLICATION_ACTIONS')
+                log(f"Application actions loaded: {len(APPLICATION_ACTIONS)} groups")
                 for group_data in APPLICATION_ACTIONS:
                     group_name = group_data.get('group')
                     group_label = group_data.get('group_label')
@@ -376,8 +394,10 @@ class ResponseHTTP(Response):
                             label = action.get('label')
                             if action_id and label:
                                 self.add_application_action_link(group_name, action_id, label)
-            except Exception:
-                pass
+            except Exception as e:
+                warn(f"Failed to populate application actions: {e}")
+                import traceback
+                debug(f"Application actions exception traceback: {traceback.format_exc()}")
             
             # Populate hot-cache app actions (dynamic from MCP whitelist)
             try:
@@ -399,9 +419,6 @@ class ResponseHTTP(Response):
                             self.add_application_action_group(group_name, header_text)
                         self.add_application_action_link(group_name, action_id, label)
             except Exception as e:
-                # Log error but don't fail
-                from hh.gateway.registry.debug import get_warn
-                warn = get_warn(True)
                 warn(f"Failed to populate hot-cache app actions: {e}")
             
             # Populate user info
