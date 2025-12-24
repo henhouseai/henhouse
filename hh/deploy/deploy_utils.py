@@ -172,6 +172,14 @@ def load_dict_whitelist_with_extensions(
     Returns:
         Final combined list of dictionaries
     """
+
+    def _hashable(val: Any):
+        """Convert nested dict/list structures to hashable tuples for set membership checks."""
+        if isinstance(val, dict):
+            return tuple(sorted((k, _hashable(v)) for k, v in val.items()))
+        if isinstance(val, list):
+            return tuple(_hashable(v) for v in val)
+        return val
     trace_in()
     log(f"Loading dict whitelist: {base_name}.{var_name}")
     debug(f"Starting load for {base_name}.{var_name}")
@@ -275,12 +283,12 @@ def load_dict_whitelist_with_extensions(
         for idx, item in enumerate(ext_list):
             debug(f"Extension item {idx}: {item}")
         # Convert result items to comparable form for duplicate checking
-        result_keys = {tuple(sorted(r.items())) if isinstance(r, dict) else r for r in result}
+        result_keys = {_hashable(r) for r in result}
         debug(f"Before extension: {len(result)} items, result_keys: {len(result_keys)}")
         
         added_count = 0
         for item in ext_list:
-            item_key = tuple(sorted(item.items())) if isinstance(item, dict) else item
+            item_key = _hashable(item)
             if item_key in result_keys and item_key not in blacklisted_items:
                 warn(f"Duplicate item in extension (not blacklisted): {item} in {ext_file}")
                 debug(f"Duplicate detected (not blacklisted): {item}")
