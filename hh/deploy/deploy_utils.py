@@ -174,38 +174,38 @@ def load_dict_whitelist_with_extensions(
     """
     trace_in()
     log(f"Loading dict whitelist: {base_name}.{var_name}")
-    debug(f"[load_dict_whitelist_with_extensions] Starting load for {base_name}.{var_name}")
+    debug(f"Starting load for {base_name}.{var_name}")
     
     # Detect project context
     project_name, project_root = detect_project_context()
-    debug(f"[load_dict_whitelist_with_extensions] Project: {project_name}, root: {project_root}")
+    debug(f"Project: {project_name}, root: {project_root}")
     
     # Determine paths
     hh_conf = project_root / "hh" / "deploy" / "conf"
     ext_conf = project_root / "ext" / "deploy" / "conf"
-    debug(f"[load_dict_whitelist_with_extensions] HH conf path: {hh_conf}")
-    debug(f"[load_dict_whitelist_with_extensions] EXT conf path: {ext_conf}")
+    debug(f"HH conf path: {hh_conf}")
+    debug(f"EXT conf path: {ext_conf}")
     
     # Step 1: Load base whitelist
     base_file = hh_conf / f"{base_name}.py"
-    debug(f"[load_dict_whitelist_with_extensions] Loading base file: {base_file}")
+    debug(f"Loading base file: {base_file}")
     loaded_result = _load_list_from_file(base_file, var_name)
     
     result: List[Dict[str, Any]] = []
     if loaded_result is None:
         warn(f"Base whitelist {base_name}.{var_name} not found in {base_file}")
-        debug(f"[load_dict_whitelist_with_extensions] Base whitelist NOT FOUND at {base_file}")
+        debug(f"Base whitelist NOT FOUND at {base_file}")
     else:
         # Make a copy to avoid modifying the original
         if not isinstance(loaded_result, list):
             warn(f"Base whitelist {base_name}.{var_name} is not a list, got {type(loaded_result)}")
-            debug(f"[load_dict_whitelist_with_extensions] Base whitelist wrong type: {type(loaded_result)}")
+            debug(f"Base whitelist wrong type: {type(loaded_result)}")
         else:
             result = list(loaded_result)
             log(f"Loaded base whitelist: {len(result)} items")
-            debug(f"[load_dict_whitelist_with_extensions] Base whitelist loaded: {len(result)} items")
+            debug(f"Base whitelist loaded: {len(result)} items")
             for idx, item in enumerate(result):
-                debug(f"[load_dict_whitelist_with_extensions] Base item {idx}: {item}")
+                debug(f"Base item {idx}: {item}")
     
     # Track blacklisted items (for warning purposes)
     # For dicts, we'll compare by converting to a normalized form (sorted tuple of items)
@@ -213,44 +213,44 @@ def load_dict_whitelist_with_extensions(
     
     # Step 2: Load and apply blacklist
     blacklist_file = ext_conf / f"{base_name}_blacklist.py"
-    debug(f"[load_dict_whitelist_with_extensions] Checking blacklist file: {blacklist_file}")
+    debug(f"Checking blacklist file: {blacklist_file}")
     # Use same variable name - the file name already indicates it's a blacklist
     blacklist_var_name = var_name
     
     blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
     if blacklist is None:
-        debug(f"[load_dict_whitelist_with_extensions] Blacklist file not found or empty: {blacklist_file}")
+        debug(f"Blacklist file not found or empty: {blacklist_file}")
     elif len(blacklist) == 0:
-        debug(f"[load_dict_whitelist_with_extensions] Blacklist file exists but is empty: {blacklist_file}")
+        debug(f"Blacklist file exists but is empty: {blacklist_file}")
     if blacklist is not None and len(blacklist) > 0:
-        debug(f"[load_dict_whitelist_with_extensions] Blacklist loaded: {len(blacklist)} items")
+        debug(f"Blacklist loaded: {len(blacklist)} items")
         for idx, item in enumerate(blacklist):
-            debug(f"[load_dict_whitelist_with_extensions] Blacklist item {idx}: {item}")
+            debug(f"Blacklist item {idx}: {item}")
         # Check if blacklist contains strings (group names) or dicts (full dict matching)
         if isinstance(blacklist[0], str):
             # Blacklist contains strings - match by 'group' key for site_links, application_actions, etc.
-            debug(f"[load_dict_whitelist_with_extensions] Blacklist contains strings (group names)")
+            debug(f"Blacklist contains strings (group names)")
             blacklisted_groups = set(blacklist)
-            debug(f"[load_dict_whitelist_with_extensions] Blacklisted groups: {blacklisted_groups}")
+            debug(f"Blacklisted groups: {blacklisted_groups}")
             original_count = len(result)
-            debug(f"[load_dict_whitelist_with_extensions] Before blacklist: {original_count} items")
+            debug(f"Before blacklist: {original_count} items")
             result = [
                 item for item in result
                 if isinstance(item, dict) and item.get('group') not in blacklisted_groups
             ]
             removed_count = original_count - len(result)
             log(f"Applied blacklist (by group name): removed {removed_count} items, {len(result)} remaining")
-            debug(f"[load_dict_whitelist_with_extensions] After blacklist: {len(result)} items, removed {removed_count}")
+            debug(f"After blacklist: {len(result)} items, removed {removed_count}")
             for idx, item in enumerate(result):
-                debug(f"[load_dict_whitelist_with_extensions] Remaining item {idx}: {item}")
+                debug(f"Remaining item {idx}: {item}")
         else:
             # Blacklist contains dicts - match by full dictionary structure
-            debug(f"[load_dict_whitelist_with_extensions] Blacklist contains dicts (full dict matching)")
+            debug(f"Blacklist contains dicts (full dict matching)")
             blacklisted_dicts = {tuple(sorted(d.items())) if isinstance(d, dict) else d for d in blacklist}
             blacklisted_items = blacklisted_dicts
-            debug(f"[load_dict_whitelist_with_extensions] Blacklisted dicts: {len(blacklisted_dicts)} items")
+            debug(f"Blacklisted dicts: {len(blacklisted_dicts)} items")
             original_count = len(result)
-            debug(f"[load_dict_whitelist_with_extensions] Before blacklist: {original_count} items")
+            debug(f"Before blacklist: {original_count} items")
             
             # Remove blacklisted items from result
             result = [
@@ -259,42 +259,42 @@ def load_dict_whitelist_with_extensions(
             ]
             removed_count = original_count - len(result)
             log(f"Applied blacklist (by dict match): removed {removed_count} items, {len(result)} remaining")
-            debug(f"[load_dict_whitelist_with_extensions] After blacklist: {len(result)} items, removed {removed_count}")
+            debug(f"After blacklist: {len(result)} items, removed {removed_count}")
     
     # Step 3: Load and apply extension
     ext_file = ext_conf / f"{base_name}.py"
-    debug(f"[load_dict_whitelist_with_extensions] Checking extension file: {ext_file}")
+    debug(f"Checking extension file: {ext_file}")
     ext_list = _load_list_from_file(ext_file, var_name)
     
     if ext_list is None:
-        debug(f"[load_dict_whitelist_with_extensions] Extension file not found or empty: {ext_file}")
+        debug(f"Extension file not found or empty: {ext_file}")
     elif len(ext_list) == 0:
-        debug(f"[load_dict_whitelist_with_extensions] Extension file exists but is empty: {ext_file}")
+        debug(f"Extension file exists but is empty: {ext_file}")
     if ext_list is not None:
-        debug(f"[load_dict_whitelist_with_extensions] Extension loaded: {len(ext_list)} items")
+        debug(f"Extension loaded: {len(ext_list)} items")
         for idx, item in enumerate(ext_list):
-            debug(f"[load_dict_whitelist_with_extensions] Extension item {idx}: {item}")
+            debug(f"Extension item {idx}: {item}")
         # Convert result items to comparable form for duplicate checking
         result_keys = {tuple(sorted(r.items())) if isinstance(r, dict) else r for r in result}
-        debug(f"[load_dict_whitelist_with_extensions] Before extension: {len(result)} items, result_keys: {len(result_keys)}")
+        debug(f"Before extension: {len(result)} items, result_keys: {len(result_keys)}")
         
         added_count = 0
         for item in ext_list:
             item_key = tuple(sorted(item.items())) if isinstance(item, dict) else item
             if item_key in result_keys and item_key not in blacklisted_items:
                 warn(f"Duplicate item in extension (not blacklisted): {item} in {ext_file}")
-                debug(f"[load_dict_whitelist_with_extensions] Duplicate detected (not blacklisted): {item}")
+                debug(f"Duplicate detected (not blacklisted): {item}")
             if item_key not in result_keys:
                 result.append(item)
                 result_keys.add(item_key)
                 added_count += 1
-                debug(f"[load_dict_whitelist_with_extensions] Added extension item: {item}")
+                debug(f"Added extension item: {item}")
         log(f"Applied extension: added {added_count} items, final count: {len(result)}")
-        debug(f"[load_dict_whitelist_with_extensions] After extension: {len(result)} items, added {added_count}")
+        debug(f"After extension: {len(result)} items, added {added_count}")
         for idx, item in enumerate(result):
-            debug(f"[load_dict_whitelist_with_extensions] Final item {idx}: {item}")
+            debug(f"Final item {idx}: {item}")
     
-    debug(f"[load_dict_whitelist_with_extensions] Final result: {len(result)} items")
+    debug(f"Final result: {len(result)} items")
     trace_out()
     return result
 
