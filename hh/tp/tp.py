@@ -86,6 +86,27 @@ class TextProcessor:
         decorator_name = final_decorator if final_decorator is not None else self.final_decorator
         result_parts: List[str] = []
         for element in preprocessed_elements:
+            # Check if this is a cached decorator chain that needs to be re-run
+            if isinstance(element, dict) and element.get("type") == "custom":
+                value = element.get("value")
+                if isinstance(value, str):
+                    # Try to deserialize as JSON (cached decorator chain structure)
+                    import json
+                    try:
+                        decorators_structure = json.loads(value)
+                        if isinstance(decorators_structure, list):
+                            # This is a cached decorator chain, re-run it
+                            log(f"Detected cached decorator chain, reprocessing {len(decorators_structure)} decorators")
+                            reprocessed = self.reprocess(decorators_structure)
+                            # Replace element with reprocessed result
+                            element = reprocessed
+                        else:
+                            # Not a decorator chain structure, treat as regular custom
+                            warn(f"Custom value deserialized but not a list structure, treating as regular custom")
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        # Not valid JSON, treat as regular custom string
+                        log(f"Custom value is not JSON, treating as regular custom string")
+            
             result_parts.append(self._apply_final_decorator(decorator_name, element))
         result = "".join(result_parts)
         log(f"Postprocess result length: {len(result)}")
@@ -435,10 +456,27 @@ class TextProcessor:
 
 
     def _prepare_element_json(self, element: Dict[str, Any]) -> Dict[str, Any]:
+        original_element_type = element.get("type")
+        decorators = element.get("decorators", [])
+        
+        # If this is a free-floating decorator (empty base with decorators),
+        # store the decorator chain structure without running it
+        # Free-floating decorators always return custom type, so we can skip execution
+        if original_element_type == "empty" and decorators:
+            import json
+            # Convert decorators from tuples to JSON-serializable format
+            decorators_structure = [{"name": name, "args": args} for name, args in decorators]
+            # Store as custom type with serialized decorator chain structure
+            log(f"Detected free-floating decorator chain, storing structure without execution: {len(decorators)} decorators")
+            return {
+                "type": "custom",
+                "value": json.dumps(decorators_structure)
+            }
+        
+        # Normal processing for non-free-floating decorators
         base_json = self._generate_element_json(element)
         if self.first_decorator:
             base_json = self._apply_decorator(self.first_decorator, base_json, {})
-        decorators = element.get("decorators", [])
         for i, (name, args) in enumerate(reversed(decorators)):
             base_json = self._apply_decorator(name, base_json, args)
             args_str = f"({','.join(str(v) for v in args.values())})" if args else ""
@@ -449,8 +487,29 @@ class TextProcessor:
                 log(f"Chain complete: {len(decorators)} decorators applied to empty input")
             else:
                 log(f"Chain complete: {len(decorators)} decorators applied to {base_type} base element")
+        
         return base_json
 
+    def reprocess(self, decorators_structure: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Re-run a decorator chain structure to generate fresh output.
+        Takes a list of dicts with 'name' and 'args' keys, constructs an element,
+        and calls _prepare_element_json() to re-execute the decorators.
+        """
+        trace_in()
+        # Convert structure from list of dicts to list of tuples for element format
+        decorators = [(d["name"], d["args"]) for d in decorators_structure]
+        # Construct element dict with empty base and decorators
+        element = {
+            "type": "empty",
+            "content": "",
+            "decorators": decorators
+        }
+        # Call _prepare_element_json to re-run the decorators
+        result = self._prepare_element_json(element)
+        log(f"Reprocessed decorator chain with {len(decorators)} decorators, result type: {result.get('type') if isinstance(result, dict) else type(result).__name__}")
+        trace_out()
+        return result
 
     def _generate_element_json(self, element: Dict[str, Any]) -> Dict[str, Any]:
         etype = element["type"]

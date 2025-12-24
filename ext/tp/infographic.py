@@ -48,10 +48,15 @@ def infographic_decorator(text: Union[str, Dict[str, Any]], **kwargs: Any) -> Di
             }
         
         log(f"Infographic decorator called with ID: {infographic_id}")
+        debug(f"Infographic decorator: gateway.response = {gateway.response}")
+        debug(f"Infographic decorator: hasattr(gateway.response, 'add_js_link') = {hasattr(gateway.response, 'add_js_link')}")
         
         # Add CSS link
-        gateway.response.add_css_link("/site/css/infographic-viewer.css")
-        log("Added infographic CSS link via gateway")
+        try:
+            gateway.response.add_css_link("/site/css/infographic-viewer.css")
+            log("Added infographic CSS link via gateway")
+        except Exception as e:
+            warn(f"Failed to add CSS link: {e}")
         
         # Add core JS links only (no editor files, no layout.js)
         js_files = [
@@ -72,8 +77,12 @@ def infographic_decorator(text: Union[str, Dict[str, Any]], **kwargs: Any) -> Di
         ]
         
         for js_file in js_files:
-            gateway.response.add_js_link(f"/site/js/{js_file}")
-            log(f"Added infographic JS link via gateway: {js_file}")
+            try:
+                debug(f"Infographic decorator: About to call add_js_link with: /site/js/{js_file}")
+                gateway.response.add_js_link(f"/site/js/{js_file}")
+                log(f"Added infographic JS link via gateway: {js_file}")
+            except Exception as e:
+                warn(f"Failed to add JS link {js_file}: {e}")
         
         # Return minimal HTML structure (no sidebar, just canvas + zoom controls)
         # Include inline script to set the infographic ID for filtering
