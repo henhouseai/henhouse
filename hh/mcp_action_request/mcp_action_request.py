@@ -64,7 +64,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_page_class('mcp_action')
+@register_page_class('mcp_action_request')
 class McpActionRequest(Page):
     """
     A derived Page class for MCP action requests.
@@ -159,7 +159,7 @@ class McpActionRequest(Page):
     def _get_children_query(parent_id: int) -> tuple[str, list]:
         """Return query to get mcp_action children."""
         return (
-            "SELECT id FROM pages WHERE parent = %s AND class = 'mcp_action' ORDER BY id",
+            "SELECT id FROM pages WHERE parent = %s AND class = 'mcp_action_request' ORDER BY id",
             [parent_id]
         )
 

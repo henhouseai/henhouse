@@ -8,7 +8,7 @@ from typing import List
 # Files are discovered from both hh/deploy/site/js/page-classes/ and ext/deploy/site/js/page-classes/
 JS_PAGE_CLASSES_WHITELIST: List[str] = [
     'ask-page-data.js',
-    'mcp-action-page-data.js',
+    'mcp-action-request-page-data.js',
     'mcp-request-page-data.js',
     'step-page-data.js',
     'task-page-data.js',

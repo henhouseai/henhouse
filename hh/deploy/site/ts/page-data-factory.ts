@@ -14,16 +14,8 @@ export class PageDataFactory {
   static create(data: GetPageResponse): PageData {
     const className = data.page.class;
     
-    // Handle aliases (multiple class names mapping to same PageData class)
-    const aliasMap: { [key: string]: string } = {
-      'mcp_action_request': 'mcp_action',  // mcp_action_request is alias for mcp_action
-    };
-    
-    // Resolve alias if needed
-    const resolvedClassName = aliasMap[className] || className;
-    
     // Look up class in registry
-    const PageClass = PAGE_CLASS_REGISTRY[resolvedClassName];
+    const PageClass = PAGE_CLASS_REGISTRY[className];
     
     if (PageClass) {
       return new PageClass(data);

@@ -511,11 +511,11 @@ def deploy() -> bool:
                         registry_lines.extend(registry_entries)
                         registry_lines.append("};")
                         
-                        # Write registry file
-                        registry_file = js_dest / 'page-classes-registry.js'
+                        # Write registry file to placeholder location (overwrites compiled placeholder)
+                        registry_file = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
                         registry_content = '\n'.join(registry_lines) + '\n'
                         registry_file.write_text(registry_content, encoding='utf-8')
-                        site_deployed.append("js/page-classes-registry.js")
+                        site_deployed.append("js/hh/deploy/site/ts/page-classes-registry.js")
                         log(f"Generated page-classes-registry.js with {len(page_class_files)} page classes")
                     else:
                         log("No page class files found in whitelist, skipping registry generation")
