@@ -180,7 +180,7 @@ def get_tp_decorator(name: str) -> Optional[DecoratorFunction]:
             trace_out()
             return callable
     # 5. Bad decorator - not found anywhere
-    warn(f"Decorator '{name}' not found after full rebuild")
+    log(f"Decorator '{name}' not found after full rebuild")
     trace_out()
     return None
 
