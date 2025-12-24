@@ -1,15 +1,15 @@
 /**
- * AskPageData - Handles ask pages with status, meta, and sort_order fields.
- * Extends WorkPageData which provides shared work page functionality.
+ * ask_page_data - Handles ask pages with status, meta, and sort_order fields.
+ * Extends work_page_data which provides shared work page functionality.
  */
-import { WorkPageData } from './work-page-data.js';
-export class AskPageData extends WorkPageData {
+import { work_page_data } from './work-page-data.js';
+export class ask_page_data extends work_page_data {
     constructor(data) {
         super(data);
     }
     /**
      * Override to provide field mappings for ask specific fields.
-     * Base WorkPageData already provides status and sort_order mappings.
+     * Base work_page_data already provides status and sort_order mappings.
      */
     getFieldMappings() {
         return [

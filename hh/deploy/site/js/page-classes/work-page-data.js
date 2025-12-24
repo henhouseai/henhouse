@@ -1,12 +1,12 @@
 /**
- * WorkPageData - Base class for work pages (work docket, ask, task, step).
+ * work_page_data - Base class for work pages (work docket, ask, task, step).
  * Provides shared functionality for status, meta, and sort_order fields.
  * This is an abstract base class - derived classes should extend this.
  */
 import { PageData } from '../page-data.js';
 import { PageManager } from '../page-manager.js';
 import { OverlayManager } from '../overlay/overlay-manager.js';
-export class WorkPageData extends PageData {
+export class work_page_data extends PageData {
     constructor(data) {
         super(data);
     }

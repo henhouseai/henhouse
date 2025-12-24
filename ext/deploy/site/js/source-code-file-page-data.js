@@ -1,11 +1,11 @@
 /**
- * SourceCodeFilePageData - Handles source code file pages with path and language fields.
+ * source_code_file_page_data - Handles source code file pages with path and language fields.
  * Dynamic fields (file_path, language) are automatically discovered by base class.
  */
 import { PageData } from '../page-data.js';
 import { PageManager } from '../page-manager.js';
 import { OverlayManager } from '../overlay/overlay-manager.js';
-export class SourceCodeFilePageData extends PageData {
+export class source_code_file_page_data extends PageData {
     constructor(data) {
         super(data);
     }

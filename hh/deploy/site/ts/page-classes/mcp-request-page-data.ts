@@ -1,11 +1,11 @@
 /**
- * MCPRequestPageData - Handles MCP request pages with transaction fields.
+ * mcp_request_page_data - Handles MCP request pages with transaction fields.
  * Dynamic fields are automatically discovered by base class.
  */
 
 import { PageData, GetPageResponse, FieldMapping } from '../page-data.js';
 
-export class MCPRequestPageData extends PageData {
+export class mcp_request_page_data extends PageData {
   constructor(data: GetPageResponse) {
     super(data);
   }
