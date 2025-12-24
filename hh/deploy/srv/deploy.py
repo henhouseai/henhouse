@@ -443,28 +443,47 @@ def deploy() -> bool:
                     hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     
+                    debug(f"Page classes registry generation - source: {source}")
+                    debug(f"Page classes registry generation - js_dest: {js_dest}")
+                    debug(f"Page classes registry generation - hh_page_classes_dir: {hh_page_classes_dir}")
+                    debug(f"Page classes registry generation - hh_page_classes_dir exists: {hh_page_classes_dir.exists()}")
+                    debug(f"Page classes registry generation - ext_page_classes_dir: {ext_page_classes_dir}")
+                    
                     # Check if ext/ directory exists (not an error if missing)
                     ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
+                    debug(f"Page classes registry generation - ext_dir_exists: {ext_dir_exists}")
                     if not ext_dir_exists:
                         log(f"Extension page-classes directory not found: {ext_page_classes_dir} (this is normal if ext/ folder doesn't exist)")
                     
+                    debug(f"Page classes registry generation - JS_PAGE_CLASSES_WHITELIST: {JS_PAGE_CLASSES_WHITELIST}")
                     for filename in JS_PAGE_CLASSES_WHITELIST:
+                        debug(f"Page classes registry generation - Processing whitelist entry: {filename}")
                         # Check hh/ first
                         hh_file = hh_page_classes_dir / filename
+                        debug(f"Page classes registry generation - Checking hh_file: {hh_file}")
+                        debug(f"Page classes registry generation - hh_file exists: {hh_file.exists()}")
                         if hh_file.exists() and hh_file.is_file():
                             # Calculate relative path from js_dest (site/js/)
+                            debug(f"Page classes registry generation - Calculating relative path from js_dest: {js_dest}")
                             relative_path = hh_file.relative_to(js_dest)
                             relative_path_str = str(relative_path).replace('\\', '/')
+                            debug(f"Page classes registry generation - Calculated relative_path: {relative_path}")
+                            debug(f"Page classes registry generation - relative_path_str: {relative_path_str}")
                             if relative_path_str not in page_class_files:
                                 page_class_files.append(relative_path_str)
                                 log(f"Found page class file in hh/: {relative_path_str}")
+                            else:
+                                debug(f"Page classes registry generation - relative_path_str already in list, skipping")
                         elif ext_dir_exists:
                             # Check ext/ if not found in hh/ and ext/ directory exists
                             ext_file = ext_page_classes_dir / filename
+                            debug(f"Page classes registry generation - Checking ext_file: {ext_file}")
+                            debug(f"Page classes registry generation - ext_file exists: {ext_file.exists()}")
                             if ext_file.exists() and ext_file.is_file():
                                 # Calculate relative path from js_dest (site/js/)
                                 relative_path = ext_file.relative_to(js_dest)
                                 relative_path_str = str(relative_path).replace('\\', '/')
+                                debug(f"Page classes registry generation - Calculated ext relative_path_str: {relative_path_str}")
                                 if relative_path_str not in page_class_files:
                                     page_class_files.append(relative_path_str)
                                     log(f"Found page class file in ext/: {relative_path_str}")
@@ -474,6 +493,8 @@ def deploy() -> bool:
                         else:
                             # File not found in hh/ and ext/ doesn't exist - log but don't error
                             log(f"Page class file not found in hh/ and ext/ not available: {filename}")
+                    
+                    debug(f"Page classes registry generation - Final page_class_files list: {page_class_files}")
                     
                     # Generate registry file
                     if page_class_files:
@@ -514,7 +535,22 @@ def deploy() -> bool:
                         # Write registry file to placeholder location (overwrites compiled placeholder)
                         registry_file = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
                         registry_content = '\n'.join(registry_lines) + '\n'
-                        registry_file.write_text(registry_content, encoding='utf-8')
+                        debug(f"Page classes registry generation - registry_file path: {registry_file}")
+                        debug(f"Page classes registry generation - registry_file parent exists: {registry_file.parent.exists()}")
+                        debug(f"Page classes registry generation - registry_file exists before write: {registry_file.exists()}")
+                        debug(f"Page classes registry generation - registry_content length: {len(registry_content)} characters")
+                        debug(f"Page classes registry generation - registry_content preview (first 500 chars): {registry_content[:500]}")
+                        try:
+                            registry_file.write_text(registry_content, encoding='utf-8')
+                            debug(f"Page classes registry generation - Successfully wrote registry file")
+                            debug(f"Page classes registry generation - registry_file exists after write: {registry_file.exists()}")
+                            if registry_file.exists():
+                                actual_size = registry_file.stat().st_size
+                                debug(f"Page classes registry generation - registry_file size after write: {actual_size} bytes")
+                        except Exception as e:
+                            debug(f"Page classes registry generation - ERROR writing registry file: {e}")
+                            warn(f"Failed to write page-classes-registry.js: {e}")
+                            raise
                         site_deployed.append("js/hh/deploy/site/ts/page-classes-registry.js")
                         log(f"Generated page-classes-registry.js with {len(page_class_files)} page classes")
                     else:
