@@ -266,7 +266,7 @@ class ResponseHTTP(Response):
         
         if self.file_group and page_id:
             header_id = f"fileGroupHeader_{page_id}"
-            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id}" data-section="files">FILES</a>\n</div>'
+            header_html = f'<div id="{header_id}" class="contentHeader">\n  <a class="updatePageView_{page_id}" data-section="files">FILLLES</a>\n</div>'
             content_divs.append(header_html + self.file_group)
         elif self.file_group:
             content_divs.append(self.file_group)
