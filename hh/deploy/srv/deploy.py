@@ -537,8 +537,8 @@ def deploy() -> bool:
                         registry_lines.extend(registry_entries)
                         registry_lines.append("};")
                         
-                        # Write registry file to placeholder location (overwrites compiled placeholder)
-                        registry_file = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
+                        # Write registry file to placeholder location in deployment destination (overwrites compiled placeholder)
+                        registry_file = dest / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
                         registry_content = '\n'.join(registry_lines) + '\n'
                         debug(f"Page classes registry generation - registry_file path: {registry_file}")
                         debug(f"Page classes registry generation - registry_file parent exists: {registry_file.parent.exists()}")
