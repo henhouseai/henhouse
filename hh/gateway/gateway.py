@@ -287,6 +287,9 @@ class Gateway:
         log("Closing database connections...")
         self.conn.close()
         
+        # Prepare output (populates menu content, etc.) before flushing debug
+        self.response._prepare_output()
+        
         self.flush_debug()
         return self.response.get_output()
 

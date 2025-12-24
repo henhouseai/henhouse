@@ -296,6 +296,10 @@ class Response:
         """Return current user tier level (0 = unknown, 1 = guest, 2 = verified, 3 = admin, 4 = root)."""
         return self.user_tier_level
     
+    def _prepare_output(self) -> None:
+        """Hook method called before get_output() to prepare response data. Override in subclasses."""
+        pass
+    
     def get_output(self) -> str:
         if self.output_buffer:
             result = "\n".join(self.output_buffer)

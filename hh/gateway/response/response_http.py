@@ -12,6 +12,22 @@ from hh.deploy.deploy_utils import (
     load_dict_whitelist_with_extensions,
 )
 from hh.render.config.config import safe_str
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+
+trace_in = lambda message=None: None
+trace_out = lambda message=None: None
+log = lambda message: None
+debug = lambda message: None
+warn = lambda message: None
+
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
+    log = get_log(True)
+    debug = get_debug(True)
+    warn = get_warn(True)
 
 class ResponseHTTP(Response):
     """
@@ -25,11 +41,93 @@ class ResponseHTTP(Response):
         super().__init__()
         self._site_link_groups: dict[str, List[tuple[int, str]]] = {}
         self._application_action_groups: dict[str, List[tuple[str, str]]] = {}
+        self._prepared_title: str = ""
+        self._prepared_css_section: str = ""
+        self._prepared_js_section: str = ""
+        self._prepared_seed_script: str = ""
+    
+    def _prepare_output(self) -> None:
+        """Prepare HTTP output by populating menu content and building HTML sections."""
+        trace_in()
+        log("Preparing HTTP output")
+        
+        self._populate_menu_content()
+        
+        debug("Generating page title")
+        title = self.title
+        try:
+            seed_title = None
+            if self.seed_data and isinstance(self.seed_data, dict):
+                page_obj = self.seed_data.get('page') if isinstance(self.seed_data.get('page'), dict) else None
+                if page_obj and page_obj.get('title'):
+                    seed_title = page_obj.get('title')
+            if seed_title:
+                title = seed_title
+                debug(f"Using seed title: {title}")
+            else:
+                debug(f"Using default title: {title}")
+        except Exception as e:
+            warn(f"Error generating title: {e}")
+        self._prepared_title = title
+        log(f"Prepared title: {title}")
+        
+        debug("Building CSS links")
+        tier_level = self.user_tier_level
+        tier_css_map = {
+            1: 'site-guest.css',
+            2: 'site-verified.css',
+            3: 'site-admin.css',
+            4: 'site-root.css',
+        }
+        tier_css = tier_css_map.get(tier_level, 'site-guest.css')
+        debug(f"Tier level: {tier_level}, CSS: {tier_css}")
+        css_links = [f'    <link rel="stylesheet" href="/site/css/{tier_css}">']
+        
+        debug("Loading CSS whitelist")
+        CSS_ALWAYS_INCLUDE = load_whitelist_with_extensions('css_whitelist', 'CSS_ALWAYS_INCLUDE')
+        debug(f"CSS whitelist loaded: {len(CSS_ALWAYS_INCLUDE)} items")
+        for css_path in CSS_ALWAYS_INCLUDE:
+            filename = os.path.basename(css_path)
+            css_links.append(f'    <link rel="stylesheet" href="/site/css/{filename}">')
+            debug(f"Added CSS link: {filename}")
+        
+        for css_path in self.header_css_links:
+            css_links.append(f'    <link rel="stylesheet" href="{css_path}">')
+            debug(f"Added custom CSS link: {css_path}")
+        
+        self._prepared_css_section = "\n".join(css_links) if css_links else ""
+        log(f"Prepared CSS section: {len(css_links)} links")
+        
+        debug("Building JS scripts")
+        debug("Loading JS whitelist")
+        JS_ALWAYS_INCLUDE = load_whitelist_with_extensions('js_whitelist', 'JS_ALWAYS_INCLUDE')
+        debug(f"JS whitelist loaded: {len(JS_ALWAYS_INCLUDE)} items")
+        js_scripts = []
+        for js_path in JS_ALWAYS_INCLUDE:
+            if js_path.startswith('hh/deploy/site/js/'):
+                site_path = js_path.replace('hh/deploy/site/js/', '/site/js/', 1)
+            else:
+                site_path = f'/site/js/{os.path.basename(js_path)}'
+            js_scripts.append(f'    <script type="module" src="{site_path}"></script>')
+            debug(f"Added JS script: {site_path}")
+        
+        for js_path in self.header_js_links:
+            js_scripts.append(f'    <script src="{js_path}"></script>')
+            debug(f"Added custom JS link: {js_path}")
+        
+        self._prepared_js_section = "\n".join(js_scripts) if js_scripts else ""
+        log(f"Prepared JS section: {len(js_scripts)} scripts")
+        
+        debug("Building seed data JSON")
+        seed = self.seed_data or {}
+        seed_json = json.dumps(seed)
+        self._prepared_seed_script = f'    <script type="application/json" id="hh-seed-data">{seed_json}</script>'
+        debug(f"Prepared seed script: {len(seed_json)} characters")
+        log("HTTP output preparation complete")
+        trace_out()
     
     def get_output(self) -> str:
         """Return HTTP output - wraps body content in full HTML document."""
-        # Populate menu content based on tier level
-        self._populate_menu_content()
         
         # Build body content from multiple sources
         body_parts = []
@@ -56,80 +154,18 @@ class ResponseHTTP(Response):
                 body_parts.append(self.debug_output)
         
         body_content = "\n".join(body_parts)
-        
-        # Generate page title: start with explicit field default, override from seeds if present
-        title = self.title  # Default set by base class
-        try:
-            seed_title = None
-            if self.seed_data and isinstance(self.seed_data, dict):
-                page_obj = self.seed_data.get('page') if isinstance(self.seed_data.get('page'), dict) else None
-                if page_obj and page_obj.get('title'):
-                    seed_title = page_obj.get('title')
-            if seed_title:
-                title = seed_title
-        except Exception:
-            pass
-        
-        # Add tier-specific color theme CSS FIRST (before component CSS that references these variables)
-        tier_level = self.user_tier_level
-        tier_css_map = {
-            1: 'site-guest.css',    # guest
-            2: 'site-verified.css', # verified
-            3: 'site-admin.css',    # admin
-            4: 'site-root.css',     # root
-        }
-        tier_css = tier_css_map.get(tier_level, 'site-guest.css')  # Default to guest for unknown (0)
-        css_links = [f'    <link rel="stylesheet" href="/site/css/{tier_css}">']
-        
-        # Always-include CSS files (site.css, ansi-colors.css, tables.css, etc.)
-        # These come after tier CSS so they can reference the color variables
-        CSS_ALWAYS_INCLUDE = load_whitelist_with_extensions('css_whitelist', 'CSS_ALWAYS_INCLUDE')
-        for css_path in CSS_ALWAYS_INCLUDE:
-            # Extract filename from path like 'hh/gateway/deploy/site/css/site.css'
-            filename = os.path.basename(css_path)
-            css_links.append(f'    <link rel="stylesheet" href="/site/css/{filename}">')
-        
-        # Add custom CSS links (added by decorators/modules via gateway.add_css_link())
-        for css_path in self.header_css_links:
-            css_links.append(f'    <link rel="stylesheet" href="{css_path}">')
-        
-        # Always-include JS files (TypeScript compiled files are ES6 modules)
-        JS_ALWAYS_INCLUDE = load_whitelist_with_extensions('js_whitelist', 'JS_ALWAYS_INCLUDE')
-        js_scripts = []
-        for js_path in JS_ALWAYS_INCLUDE:
-            # Convert path from 'hh/deploy/site/js/...' to '/site/js/...'
-            # Preserves nested directory structure
-            if js_path.startswith('hh/deploy/site/js/'):
-                site_path = js_path.replace('hh/deploy/site/js/', '/site/js/', 1)
-            else:
-                # Fallback: just use filename if path doesn't match expected pattern
-                site_path = f'/site/js/{os.path.basename(js_path)}'
-            js_scripts.append(f'    <script type="module" src="{site_path}"></script>')
-        
-        # Add custom JS links (added by decorators/modules via gateway.add_js_link())
-        for js_path in self.header_js_links:
-            js_scripts.append(f'    <script src="{js_path}"></script>')
-        
-        # Build seed data as JSON script tag for TypeScript client
-        seed = self.seed_data or {}
-        seed_json = json.dumps(seed)
-        seed_script = f'    <script type="application/json" id="hh-seed-data">{seed_json}</script>'
-
-        # Build full HTML document
-        css_section = "\n".join(css_links) if css_links else ""
-        js_section = "\n".join(js_scripts) if js_scripts else ""
 
         # Build body structure inline
-        legacy_body = self._render_body(title=title, body_content=body_content)
+        legacy_body = self._render_body(title=self._prepared_title, body_content=body_content)
 
         html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-    <title>{title}</title>
-{css_section}
-{seed_script}
-{js_section}
+    <title>{self._prepared_title}</title>
+{self._prepared_css_section}
+{self._prepared_seed_script}
+{self._prepared_js_section}
 </head>
 <body>
 {legacy_body}
