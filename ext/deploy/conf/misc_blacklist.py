@@ -7,8 +7,7 @@ from __future__ import annotations
 from typing import List
 
 # Miscellaneous files to remove from base whitelist
-MISC_BLACKLIST: List[str] = [
+MISC_WHITELIST: List[str] = [
     # Example: 'hh/deploy/site/favicon.ico',
 ]
-
 

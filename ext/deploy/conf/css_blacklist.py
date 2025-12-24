@@ -7,12 +7,12 @@ from __future__ import annotations
 from typing import List
 
 # CSS files to remove from base whitelist
-CSS_BLACKLIST: List[str] = [
+CSS_WHITELIST: List[str] = [
     # Example: 'hh/deploy/site/css/site-guest.css',
 ]
 
 # CSS files to remove from always-include list
-CSS_ALWAYS_INCLUDE_BLACKLIST: List[str] = [
+CSS_ALWAYS_INCLUDE: List[str] = [
     # Example: 'hh/deploy/site/css/site.css',
 ]
 

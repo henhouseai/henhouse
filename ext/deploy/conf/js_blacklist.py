@@ -7,12 +7,12 @@ from __future__ import annotations
 from typing import List
 
 # JavaScript files to remove from base whitelist
-JS_BLACKLIST: List[str] = [
+JS_WHITELIST: List[str] = [
     # Example: 'hh/deploy/site/js/some-file.js',
 ]
 
 # JavaScript files to remove from always-include list
-JS_ALWAYS_INCLUDE_BLACKLIST: List[str] = [
+JS_ALWAYS_INCLUDE: List[str] = [
     # Example: 'hh/deploy/site/js/seed.js',
 ]
 

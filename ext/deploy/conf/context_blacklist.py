@@ -7,8 +7,7 @@ from __future__ import annotations
 from typing import List
 
 # Context deployment filtering - patterns to remove from base whitelist
-CONTEXT_BLACKLIST: List[str] = [
+CONTEXT_WHITELIST: List[str] = [
     # Example: 'context',
 ]
-
 

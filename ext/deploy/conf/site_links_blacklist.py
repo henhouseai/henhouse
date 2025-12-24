@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import List
 
 # Site link groups to remove from base list (by group name)
-SITE_LINKS_BLACKLIST: List[str] = [
+SITE_LINKS: List[str] = [
     # Example: 'home',
 ]
 
