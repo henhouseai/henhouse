@@ -455,14 +455,15 @@ class TextProcessor:
         return result
 
 
-    def _prepare_element_json(self, element: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_element_json(self, element: Dict[str, Any], skip_free_floating_check: bool = False) -> Dict[str, Any]:
         original_element_type = element.get("type")
         decorators = element.get("decorators", [])
         
         # If this is a free-floating decorator (empty base with decorators),
         # store the decorator chain structure without running it
         # Free-floating decorators always return custom type, so we can skip execution
-        if original_element_type == "empty" and decorators:
+        # Skip this check if called from reprocess() which needs to actually run the decorators
+        if not skip_free_floating_check and original_element_type == "empty" and decorators:
             import json
             # Convert decorators from tuples to JSON-serializable format
             decorators_structure = [{"name": name, "args": args} for name, args in decorators]
@@ -506,7 +507,8 @@ class TextProcessor:
             "decorators": decorators
         }
         # Call _prepare_element_json to re-run the decorators
-        result = self._prepare_element_json(element)
+        # Pass skip_free_floating_check=True to bypass the early return and actually run the decorators
+        result = self._prepare_element_json(element, skip_free_floating_check=True)
         log(f"Reprocessed decorator chain with {len(decorators)} decorators, result type: {result.get('type') if isinstance(result, dict) else type(result).__name__}")
         trace_out()
         return result
