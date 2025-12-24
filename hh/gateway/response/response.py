@@ -133,8 +133,6 @@ class Response:
     def add_js_link(self, js_path: str) -> None:
         """Add a JS script link to the header."""
         trace_in()
-        debug(f"add_js_link called with: {js_path}")
-        debug(f"Current header_js_links before: {self.header_js_links}")
         if not isinstance(js_path, str) or not js_path:
             warn("add_js_link called with invalid argument")
             trace_out()
@@ -142,9 +140,6 @@ class Response:
         if js_path not in self.header_js_links:
             self.header_js_links.append(js_path)
             log(f"Added JS link: {js_path}")
-            debug(f"Current header_js_links after: {self.header_js_links}")
-        else:
-            debug(f"JS link already in list: {js_path}")
         trace_out()
     
     def get_css_links(self) -> List[str]:

@@ -368,6 +368,43 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
             # Parse and output JSON-RPC response
             try:
                 response_json = response.json()
+               
+                # Enhance error messages with details from error.data.errors
+                if "error" in response_json and isinstance(response_json["error"], dict):
+                    error_obj = response_json["error"]
+                    error_data = error_obj.get("data", {})
+                    errors_list = error_data.get("errors", [])
+                    
+                    if errors_list:
+                        # Extract error messages from errors array
+                        error_messages = []
+                        for err in errors_list:
+                            error_type = err.get("type", "unknown")
+                            content = err.get("content", "")
+                            
+                            # Extract message from content (can be string or dict)
+                            if isinstance(content, str):
+                                msg = content
+                            elif isinstance(content, dict):
+                                msg = str(content.get("message") or content.get("error") or content)
+                            else:
+                                msg = str(content)
+                            
+                            # Truncate long messages for readability
+                            if len(msg) > 100:
+                                msg = msg[:97] + "..."
+                            
+                            error_messages.append(f"{error_type}: {msg}")
+                        
+                        # Enhance error message with actual error details
+                        error_count = len(errors_list)
+                        if error_count == 1:
+                            error_obj["message"] = error_messages[0]
+                        elif error_count <= 3:
+                            error_obj["message"] = f"{error_count} errors: {'; '.join(error_messages)}"
+                        else:
+                            error_obj["message"] = f"{error_count} errors: {'; '.join(error_messages[:3])} (and {error_count - 3} more)"
+                
                 print(json.dumps(response_json))
                 sys.stdout.flush()  # Ensure response is sent immediately
                 return True  # Continue to handle more requests
