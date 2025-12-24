@@ -129,7 +129,8 @@ def load_whitelist_with_extensions(
     
     # Step 2: Load and apply blacklist
     blacklist_file = ext_conf / f"{base_name}_blacklist.py"
-    blacklist_var_name = var_name.replace('WHITELIST', 'BLACKLIST').replace('ALWAYS_INCLUDE', 'ALWAYS_INCLUDE_BLACKLIST')
+    # Use same variable name - the file name already indicates it's a blacklist
+    blacklist_var_name = var_name
     
     blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
     if blacklist is not None:
@@ -199,7 +200,8 @@ def load_dict_whitelist_with_extensions(
     
     # Step 2: Load and apply blacklist
     blacklist_file = ext_conf / f"{base_name}_blacklist.py"
-    blacklist_var_name = var_name.replace('WHITELIST', 'BLACKLIST').replace('ALWAYS_INCLUDE', 'ALWAYS_INCLUDE_BLACKLIST')
+    # Use same variable name - the file name already indicates it's a blacklist
+    blacklist_var_name = var_name
     
     blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
     if blacklist is not None:

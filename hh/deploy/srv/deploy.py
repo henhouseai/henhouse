@@ -75,8 +75,10 @@ def deploy() -> bool:
     JS_PAGE_CLASSES_WHITELIST = load_whitelist_with_extensions('js_page_classes_whitelist', 'JS_PAGE_CLASSES_WHITELIST')
     CSS_WHITELIST = load_whitelist_with_extensions('css_whitelist', 'CSS_WHITELIST')
     MISC_WHITELIST = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
-    DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
-    EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXTRA_DEPLOY_FILES')
+    HH_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'HH_DEPLOY_WHITELIST')
+    EXT_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'EXT_DEPLOY_WHITELIST')
+    HH_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'HH_EXTRA_DEPLOY_FILES')
+    EXT_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXT_EXTRA_DEPLOY_FILES')
     
     # Get starting port from gateway args (default 5001)
     start_port_arg = gateway.get_arg('start_port')
@@ -163,6 +165,22 @@ def deploy() -> bool:
             warn(f"Failed to deploy code: {e}")
             report_error("backend", f"Failed to deploy code: {e}")
 
+    # Deploy ext folder (if it exists)
+    if not is_error():
+        ext_source = source / 'ext'
+        ext_dest = dest / 'ext'
+        ext_code_deployed = False
+        try:
+            if ext_source.exists() and ext_source.is_dir():
+                shutil.copytree(ext_source, ext_dest)
+                ext_code_deployed = True
+                log(f"Deployed ext code: {ext_source} -> {ext_dest}")
+            else:
+                log("Ext folder not found, skipping ext deployment")
+        except Exception as e:
+            warn(f"Failed to deploy ext code: {e}")
+            report_error("backend", f"Failed to deploy ext code: {e}")
+
     # Clean deployment directory but preserve whitelisted items
     if not is_error():
         deploy_dir = dest / 'hh' / 'deploy'
@@ -170,7 +188,7 @@ def deploy() -> bool:
         deployment_cleaned = False
         try:
             # Temporarily move whitelisted items out
-            for item_name in DEPLOY_WHITELIST:
+            for item_name in HH_DEPLOY_WHITELIST:
                 item_path = deploy_dir / item_name
                 if item_path.exists():
                     temp_path = dest / f".{project_name}_{item_name.replace('/', '_').replace('.', '_')}_tmp"
@@ -333,14 +351,22 @@ def deploy() -> bool:
     # Deploy extra top-level files (config-driven)
     if not is_error():
         try:
-            for rel_path in EXTRA_DEPLOY_FILES:
+            for rel_path in HH_EXTRA_DEPLOY_FILES:
                 src = source / rel_path
                 if src.exists():
                     dst = dest / src.name
                     shutil.copy2(src, dst)
-                    log(f"Deployed extra file: {rel_path}")
+                    log(f"Deployed HH extra file: {rel_path}")
                 else:
-                    log(f"Extra deploy file not found: {rel_path}")
+                    log(f"HH extra deploy file not found: {rel_path}")
+            for rel_path in EXT_EXTRA_DEPLOY_FILES:
+                src = source / rel_path
+                if src.exists():
+                    dst = dest / src.name
+                    shutil.copy2(src, dst)
+                    log(f"Deployed EXT extra file: {rel_path}")
+                else:
+                    log(f"EXT extra deploy file not found: {rel_path}")
         except Exception as e:
             warn(f"Failed to deploy extra files: {e}")
             report_error("backend", f"Failed to deploy extra files: {e}")
@@ -446,49 +472,30 @@ def deploy() -> bool:
                     hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     
-                    debug(f"Page classes registry generation - source: {source}")
-                    debug(f"Page classes registry generation - registry_file_dir: {registry_file_dir}")
-                    debug(f"Page classes registry generation - hh_page_classes_dir: {hh_page_classes_dir}")
-                    debug(f"Page classes registry generation - hh_page_classes_dir exists: {hh_page_classes_dir.exists()}")
-                    debug(f"Page classes registry generation - ext_page_classes_dir: {ext_page_classes_dir}")
-                    
                     # Check if ext/ directory exists (not an error if missing)
                     ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
-                    debug(f"Page classes registry generation - ext_dir_exists: {ext_dir_exists}")
                     if not ext_dir_exists:
                         log(f"Extension page-classes directory not found: {ext_page_classes_dir} (this is normal if ext/ folder doesn't exist)")
                     
-                    debug(f"Page classes registry generation - JS_PAGE_CLASSES_WHITELIST: {JS_PAGE_CLASSES_WHITELIST}")
                     for filename in JS_PAGE_CLASSES_WHITELIST:
-                        debug(f"Page classes registry generation - Processing whitelist entry: {filename}")
                         # Check hh/ first
                         hh_file = hh_page_classes_dir / filename
-                        debug(f"Page classes registry generation - Checking hh_file: {hh_file}")
-                        debug(f"Page classes registry generation - hh_file exists: {hh_file.exists()}")
                         if hh_file.exists() and hh_file.is_file():
                             # Calculate relative path from registry file directory (hh/deploy/site/ts/)
-                            debug(f"Page classes registry generation - Calculating relative path from registry_file_dir: {registry_file_dir}")
                             relative_path = hh_file.relative_to(registry_file_dir)
                             relative_path_str = str(relative_path).replace('\\', '/')
-                            debug(f"Page classes registry generation - Calculated relative_path: {relative_path}")
-                            debug(f"Page classes registry generation - relative_path_str: {relative_path_str}")
                             if relative_path_str not in page_class_files:
                                 page_class_files.append(relative_path_str)
                                 log(f"Found page class file in hh/: {relative_path_str}")
-                            else:
-                                debug(f"Page classes registry generation - relative_path_str already in list, skipping")
                         elif ext_dir_exists:
                             # Check ext/ if not found in hh/ and ext/ directory exists
                             ext_file = ext_page_classes_dir / filename
-                            debug(f"Page classes registry generation - Checking ext_file: {ext_file}")
-                            debug(f"Page classes registry generation - ext_file exists: {ext_file.exists()}")
                             if ext_file.exists() and ext_file.is_file():
                                 # Calculate relative path from registry file directory (hh/deploy/site/ts/)
                                 # Need to go up to js/ level, then into ext/ path
                                 # From: hh/deploy/site/ts/ -> Up 4 levels to js/ -> Then ext/deploy/site/ts/page-classes/
                                 relative_path = ext_file.relative_to(registry_file_dir.parent.parent.parent.parent)
                                 relative_path_str = str(relative_path).replace('\\', '/')
-                                debug(f"Page classes registry generation - Calculated ext relative_path_str: {relative_path_str}")
                                 if relative_path_str not in page_class_files:
                                     page_class_files.append(relative_path_str)
                                     log(f"Found page class file in ext/: {relative_path_str}")
@@ -498,8 +505,6 @@ def deploy() -> bool:
                         else:
                             # File not found in hh/ and ext/ doesn't exist - log but don't error
                             log(f"Page class file not found in hh/ and ext/ not available: {filename}")
-                    
-                    debug(f"Page classes registry generation - Final page_class_files list: {page_class_files}")
                     
                     # Generate registry file
                     if page_class_files:
@@ -548,20 +553,9 @@ def deploy() -> bool:
                         # Write registry file to placeholder location in deployment destination (overwrites compiled placeholder)
                         registry_file = dest / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
                         registry_content = '\n'.join(registry_lines) + '\n'
-                        debug(f"Page classes registry generation - registry_file path: {registry_file}")
-                        debug(f"Page classes registry generation - registry_file parent exists: {registry_file.parent.exists()}")
-                        debug(f"Page classes registry generation - registry_file exists before write: {registry_file.exists()}")
-                        debug(f"Page classes registry generation - registry_content length: {len(registry_content)} characters")
-                        debug(f"Page classes registry generation - registry_content preview (first 500 chars): {registry_content[:500]}")
                         try:
                             registry_file.write_text(registry_content, encoding='utf-8')
-                            debug(f"Page classes registry generation - Successfully wrote registry file")
-                            debug(f"Page classes registry generation - registry_file exists after write: {registry_file.exists()}")
-                            if registry_file.exists():
-                                actual_size = registry_file.stat().st_size
-                                debug(f"Page classes registry generation - registry_file size after write: {actual_size} bytes")
                         except Exception as e:
-                            debug(f"Page classes registry generation - ERROR writing registry file: {e}")
                             warn(f"Failed to write page-classes-registry.js: {e}")
                             raise
                         site_deployed.append("js/hh/deploy/site/ts/page-classes-registry.js")
