@@ -526,7 +526,15 @@ def deploy() -> bool:
                             registry_key = kebab_to_snake(base_name)
                             
                             # Generate import using full relative path (preserves nested structure)
-                            import_lines.append(f"import {{ {class_name} }} from './{relative_path_str}';")
+                            # For hh/ files: relative_path_str is already correct (e.g., "page-classes/ask-page-data.js")
+                            # For ext/ files: relative_path_str is from js/ level, need to add ../../../../ prefix
+                            if relative_path_str.startswith('ext/'):
+                                # Ext file: go up 4 levels from registry file (hh/deploy/site/ts/) to js/, then into ext/
+                                import_path = f"../../../../{relative_path_str}"
+                            else:
+                                # Hh file: already relative to registry file directory
+                                import_path = f"./{relative_path_str}"
+                            import_lines.append(f"import {{ {class_name} }} from '{import_path}';")
                             
                             # Generate registry entry
                             registry_entries.append(f"  '{registry_key}': {class_name},")
