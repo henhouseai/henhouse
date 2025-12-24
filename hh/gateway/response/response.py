@@ -227,7 +227,6 @@ class Response:
         trace_in()
         if content and content.strip():
             self.file_group = content
-            debug("File header triggered")
             log(f"Set file group: {len(content)} characters")
         else:
             log("Skipped empty file group content")

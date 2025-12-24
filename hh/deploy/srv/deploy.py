@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -436,10 +437,11 @@ def deploy() -> bool:
                     
                     # Collect page class files from both hh/ and ext/ page-classes/ folders
                     # Process whitelist and check if files exist in either location
+                    # Store full relative paths from js_dest (site/js/) to preserve nested structure
                     page_class_files: List[str] = []
                     
-                    hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'page-classes'
-                    ext_page_classes_dir = source / 'ext' / 'deploy' / 'site' / 'js' / 'page-classes'
+                    hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
+                    ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     
                     # Check if ext/ directory exists (not an error if missing)
                     ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
@@ -450,16 +452,22 @@ def deploy() -> bool:
                         # Check hh/ first
                         hh_file = hh_page_classes_dir / filename
                         if hh_file.exists() and hh_file.is_file():
-                            if filename not in page_class_files:
-                                page_class_files.append(filename)
-                                log(f"Found page class file in hh/: {filename}")
+                            # Calculate relative path from js_dest (site/js/)
+                            relative_path = hh_file.relative_to(js_dest)
+                            relative_path_str = str(relative_path).replace('\\', '/')
+                            if relative_path_str not in page_class_files:
+                                page_class_files.append(relative_path_str)
+                                log(f"Found page class file in hh/: {relative_path_str}")
                         elif ext_dir_exists:
                             # Check ext/ if not found in hh/ and ext/ directory exists
                             ext_file = ext_page_classes_dir / filename
                             if ext_file.exists() and ext_file.is_file():
-                                if filename not in page_class_files:
-                                    page_class_files.append(filename)
-                                    log(f"Found page class file in ext/: {filename}")
+                                # Calculate relative path from js_dest (site/js/)
+                                relative_path = ext_file.relative_to(js_dest)
+                                relative_path_str = str(relative_path).replace('\\', '/')
+                                if relative_path_str not in page_class_files:
+                                    page_class_files.append(relative_path_str)
+                                    log(f"Found page class file in ext/: {relative_path_str}")
                             else:
                                 # File not found in either location - log but don't error
                                 log(f"Page class file not found (whitelisted but missing): {filename}")
@@ -477,7 +485,9 @@ def deploy() -> bool:
                         import_lines: List[str] = []
                         registry_entries: List[str] = []
                         
-                        for filename in sorted(page_class_files):
+                        for relative_path_str in sorted(page_class_files):
+                            # Extract filename from relative path for base_name conversion
+                            filename = os.path.basename(relative_path_str)
                             # Remove .js extension and -page-data suffix
                             base_name = filename.replace('.js', '')
                             if base_name.endswith('-page-data'):
@@ -489,8 +499,8 @@ def deploy() -> bool:
                             # Convert to snake_case for registry key
                             registry_key = kebab_to_snake(base_name)
                             
-                            # Generate import
-                            import_lines.append(f"import {{ {class_name} }} from './page-classes/{filename}';")
+                            # Generate import using full relative path (preserves nested structure)
+                            import_lines.append(f"import {{ {class_name} }} from './{relative_path_str}';")
                             
                             # Generate registry entry
                             registry_entries.append(f"  '{registry_key}': {class_name},")
