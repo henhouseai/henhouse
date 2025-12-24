@@ -93,18 +93,18 @@ class ResponseHTTP(Response):
         for css_path in self.header_css_links:
             css_links.append(f'    <link rel="stylesheet" href="{css_path}">')
         
-        # Always-include JS files (site.js)
-        # TypeScript compiled files are ES6 modules, legacy files are regular scripts
+        # Always-include JS files (TypeScript compiled files are ES6 modules)
         JS_ALWAYS_INCLUDE = load_whitelist_with_extensions('js_whitelist', 'JS_ALWAYS_INCLUDE')
-        module_files = {'seed.js', 'rpc-client.js', 'app.js'}
         js_scripts = []
         for js_path in JS_ALWAYS_INCLUDE:
-            # Extract filename from path like 'hh/gateway/deploy/site/js/site.js'
-            filename = os.path.basename(js_path)
-            if filename in module_files:
-                js_scripts.append(f'    <script type="module" src="/site/js/{filename}"></script>')
+            # Convert path from 'hh/deploy/site/js/...' to '/site/js/...'
+            # Preserves nested directory structure
+            if js_path.startswith('hh/deploy/site/js/'):
+                site_path = js_path.replace('hh/deploy/site/js/', '/site/js/', 1)
             else:
-                js_scripts.append(f'    <script src="/site/js/{filename}"></script>')
+                # Fallback: just use filename if path doesn't match expected pattern
+                site_path = f'/site/js/{os.path.basename(js_path)}'
+            js_scripts.append(f'    <script type="module" src="{site_path}"></script>')
         
         # Add custom JS links (added by decorators/modules via gateway.add_js_link())
         for js_path in self.header_js_links:
