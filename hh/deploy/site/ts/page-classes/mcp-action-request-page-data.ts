@@ -1,11 +1,11 @@
 /**
- * mcp_action_page_data - Handles MCP action request pages.
+ * mcp_action_request_page_data - Handles MCP action request pages.
  * Dynamic fields are automatically discovered by base class.
  */
 
 import { PageData, GetPageResponse, FieldMapping } from '../page-data.js';
 
-export class mcp_action_page_data extends PageData {
+export class mcp_action_request_page_data extends PageData {
   constructor(data: GetPageResponse) {
     super(data);
   }
