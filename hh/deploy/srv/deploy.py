@@ -437,14 +437,17 @@ def deploy() -> bool:
                     
                     # Collect page class files from both hh/ and ext/ page-classes/ folders
                     # Process whitelist and check if files exist in either location
-                    # Store full relative paths from js_dest (site/js/) to preserve nested structure
+                    # Store relative paths from registry file location (hh/deploy/site/ts/) to page-classes files
                     page_class_files: List[str] = []
                     
+                    # Registry file will be at: source/hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js
+                    # So we calculate relative paths from: source/hh/deploy/site/js/hh/deploy/site/ts/
+                    registry_file_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts'
                     hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     
                     debug(f"Page classes registry generation - source: {source}")
-                    debug(f"Page classes registry generation - js_dest: {js_dest}")
+                    debug(f"Page classes registry generation - registry_file_dir: {registry_file_dir}")
                     debug(f"Page classes registry generation - hh_page_classes_dir: {hh_page_classes_dir}")
                     debug(f"Page classes registry generation - hh_page_classes_dir exists: {hh_page_classes_dir.exists()}")
                     debug(f"Page classes registry generation - ext_page_classes_dir: {ext_page_classes_dir}")
@@ -463,9 +466,9 @@ def deploy() -> bool:
                         debug(f"Page classes registry generation - Checking hh_file: {hh_file}")
                         debug(f"Page classes registry generation - hh_file exists: {hh_file.exists()}")
                         if hh_file.exists() and hh_file.is_file():
-                            # Calculate relative path from js_dest (site/js/)
-                            debug(f"Page classes registry generation - Calculating relative path from js_dest: {js_dest}")
-                            relative_path = hh_file.relative_to(js_dest)
+                            # Calculate relative path from registry file directory (hh/deploy/site/ts/)
+                            debug(f"Page classes registry generation - Calculating relative path from registry_file_dir: {registry_file_dir}")
+                            relative_path = hh_file.relative_to(registry_file_dir)
                             relative_path_str = str(relative_path).replace('\\', '/')
                             debug(f"Page classes registry generation - Calculated relative_path: {relative_path}")
                             debug(f"Page classes registry generation - relative_path_str: {relative_path_str}")
@@ -480,8 +483,10 @@ def deploy() -> bool:
                             debug(f"Page classes registry generation - Checking ext_file: {ext_file}")
                             debug(f"Page classes registry generation - ext_file exists: {ext_file.exists()}")
                             if ext_file.exists() and ext_file.is_file():
-                                # Calculate relative path from js_dest (site/js/)
-                                relative_path = ext_file.relative_to(js_dest)
+                                # Calculate relative path from registry file directory
+                                # For ext/ files, need to go up to js/ then into ext/ path
+                                source_js_dir = source / 'hh' / 'deploy' / 'site' / 'js'
+                                relative_path = ext_file.relative_to(source_js_dir)
                                 relative_path_str = str(relative_path).replace('\\', '/')
                                 debug(f"Page classes registry generation - Calculated ext relative_path_str: {relative_path_str}")
                                 if relative_path_str not in page_class_files:
