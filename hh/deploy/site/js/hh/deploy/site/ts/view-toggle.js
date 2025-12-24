@@ -275,9 +275,6 @@ function setupInitialImageViewerLinks() {
             if (imageGroup) {
                 viewToggleInstance.setupImageViewerLinks(imageGroup, pageId);
             }
-            else {
-                console.warn(`Image group element not found: pageImageGroup_${pageId}`);
-            }
             const audioGroup = document.getElementById(`pageAudioGroup_${pageId}`);
             if (audioGroup) {
                 viewToggleInstance.setupAudioViewerLinks(audioGroup, pageId);
