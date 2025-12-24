@@ -304,15 +304,11 @@ class ResponseHTTP(Response):
         # Always populate site links
         try:
             SITE_LINKS = load_dict_whitelist_with_extensions('site_links', 'SITE_LINKS')
-            log(f"Loaded SITE_LINKS: {len(SITE_LINKS)} groups")
-            debug(f"SITE_LINKS content: {SITE_LINKS}")
             for group_data in SITE_LINKS:
                 group_name = group_data.get('group')
                 header_page_id = group_data.get('header_page_id')
                 header_text = group_data.get('header_text')
                 links = group_data.get('links', [])
-                
-                log(f"Processing group: {group_name}, header_page_id={header_page_id}, header_text={header_text}, links={len(links)}")
                 
                 if group_name and header_page_id is not None and header_text:
                     self.add_site_link_group(group_name, header_page_id, header_text)
@@ -321,12 +317,8 @@ class ResponseHTTP(Response):
                         text = link.get('text')
                         if page_id is not None and text:
                             self.add_site_link(group_name, page_id, text)
-                            log(f"Added site link: {group_name} -> {text} (page_id={page_id})")
-        except Exception as e:
-            warn(f"Failed to load site links: {e}")
-            import traceback
-            warn(f"Traceback: {traceback.format_exc()}")
-            # If site_links.py doesn't exist or fails, continue
+        except Exception:
+            pass  # If site_links.py doesn't exist or fails, continue
         
         # Only populate app actions and user info for tier > 1 (verified, admin, root)
         if self.user_tier_level > 1:

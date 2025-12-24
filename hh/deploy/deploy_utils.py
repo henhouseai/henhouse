@@ -177,28 +177,22 @@ def load_dict_whitelist_with_extensions(
     
     # Detect project context
     project_name, project_root = detect_project_context()
-    log(f"Project context: name={project_name}, root={project_root}")
     
     # Determine paths
     hh_conf = project_root / "hh" / "deploy" / "conf"
     ext_conf = project_root / "ext" / "deploy" / "conf"
-    log(f"hh_conf path: {hh_conf}, exists: {hh_conf.exists()}")
-    log(f"ext_conf path: {ext_conf}, exists: {ext_conf.exists()}")
     
     # Step 1: Load base whitelist
     base_file = hh_conf / f"{base_name}.py"
-    log(f"Loading base file: {base_file}, exists: {base_file.exists()}")
     loaded_result = _load_list_from_file(base_file, var_name)
-    log(f"Loaded result type: {type(loaded_result)}, value: {loaded_result}")
     
+    result: List[Dict[str, Any]] = []
     if loaded_result is None:
         warn(f"Base whitelist {base_name}.{var_name} not found in {base_file}")
-        result: List[Dict[str, Any]] = []
     else:
         # Make a copy to avoid modifying the original
         if not isinstance(loaded_result, list):
             warn(f"Base whitelist {base_name}.{var_name} is not a list, got {type(loaded_result)}")
-            result: List[Dict[str, Any]] = []
         else:
             result = list(loaded_result)
             log(f"Loaded base whitelist: {len(result)} items")
