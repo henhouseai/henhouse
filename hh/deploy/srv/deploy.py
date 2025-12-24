@@ -483,10 +483,10 @@ def deploy() -> bool:
                             debug(f"Page classes registry generation - Checking ext_file: {ext_file}")
                             debug(f"Page classes registry generation - ext_file exists: {ext_file.exists()}")
                             if ext_file.exists() and ext_file.is_file():
-                                # Calculate relative path from registry file directory
-                                # For ext/ files, need to go up to js/ then into ext/ path
-                                source_js_dir = source / 'hh' / 'deploy' / 'site' / 'js'
-                                relative_path = ext_file.relative_to(source_js_dir)
+                                # Calculate relative path from registry file directory (hh/deploy/site/ts/)
+                                # Need to go up to js/ level, then into ext/ path
+                                # From: hh/deploy/site/ts/ -> Up 4 levels to js/ -> Then ext/deploy/site/ts/page-classes/
+                                relative_path = ext_file.relative_to(registry_file_dir.parent.parent.parent.parent)
                                 relative_path_str = str(relative_path).replace('\\', '/')
                                 debug(f"Page classes registry generation - Calculated ext relative_path_str: {relative_path_str}")
                                 if relative_path_str not in page_class_files:
