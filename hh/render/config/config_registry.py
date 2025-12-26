@@ -207,22 +207,12 @@ def discover_config_registrations(force_regenerate: bool = False) -> Dict[str, D
     cache_data['last_scan'] = str(current_time)
     _last_scan_time = current_time
     
-    # Atomic write: write to temp file, then rename
     try:
-        temp_file = cache_file.with_suffix('.tmp')
-        with open(temp_file, 'w') as f:
+        with open(cache_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
-        temp_file.replace(cache_file)
         log(f"Cached config registrations: {len(cache_data['icons'])} icons, {len(cache_data['labels'])} labels")
     except Exception as e:
         warn(f"Error caching config registrations: {e}")
-        # Clean up temp file if it exists
-        temp_file = cache_file.with_suffix('.tmp')
-        if temp_file.exists():
-            try:
-                temp_file.unlink()
-            except Exception:
-                pass
     
     trace_out()
     return cache_data

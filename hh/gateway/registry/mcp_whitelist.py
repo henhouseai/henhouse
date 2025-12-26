@@ -281,7 +281,7 @@ class MCPWhitelist:
         # Update in-memory scan time
         _last_whitelist_scan_time = current_time
         
-        # Save all tier whitelists to cold cache with atomic writes
+        # Save all tier whitelists to cold cache
         for rebuild_tier, rebuild_whitelist in all_tier_whitelists.items():
             tier_cache_file = cls._get_cache_file(rebuild_tier)
             try:
@@ -291,21 +291,11 @@ class MCPWhitelist:
                     'last_scan': str(current_time)
                 }
                 
-                # Atomic write: write to temp file, then rename
-                temp_file = tier_cache_file.with_suffix('.tmp')
-                with open(temp_file, 'w') as f:
+                with open(tier_cache_file, 'w') as f:
                     json.dump(cache_data, f, indent=2)
-                temp_file.replace(tier_cache_file)
                 log(f"Cached {rebuild_tier} whitelist: {len(rebuild_whitelist)} tools")
             except Exception as e:
                 warn(f"Error caching {rebuild_tier} whitelist: {e}")
-                # Clean up temp file if it exists
-                temp_file = tier_cache_file.with_suffix('.tmp')
-                if temp_file.exists():
-                    try:
-                        temp_file.unlink()
-                    except Exception:
-                        pass
         
         # Update in-memory cache for all tiers
         cls._tier_cache.update(all_tier_whitelists)

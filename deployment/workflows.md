@@ -81,7 +81,7 @@ Stage branches provide a mechanism for recovering and referencing previous worki
    ```bash
    hen push_project --message "emergency revert - {description}"
    ```
-   - Creates timestamped stage branch: `stage/linux/{timestamp}-{description}` (see `git.md`)
+   - Creates timestamped stage branch: `stage/linux/{timestamp}-{sanitized_message}` (see `git.md`)
    - Pushes current server state to remote
    - Creates `stage` signal file in repository with the message
 
@@ -146,6 +146,68 @@ Stage branches provide a mechanism for recovering and referencing previous worki
    - Deploys the changes - see `file-deployment.md`
 
 **Result**: Changes synced from development to production.
+
+## Server-to-Laptop Sync Workflow
+
+**Syncing Changes from Server to Laptop**:
+
+This workflow allows you to capture server-side changes (like database migrations, content updates, or emergency fixes) and bring them back to your development laptop for review and integration.
+
+1. **On Server - Push Current State**:
+   ```bash
+   hen push_project --message "server changes - {description}"
+   ```
+   - Creates timestamped stage branch: `stage/linux/{timestamp}-{sanitized_message}` (see `git.md`)
+   - Pushes current server state to remote repository
+   - Creates `stage` signal file in repository with the message
+
+2. **On Laptop - Pull Stage Branch**:
+   ```bash
+   stage pull
+   ```
+   - Fetches remote branches and finds the latest stage branch
+   - Materializes the stage branch contents into a local `./stage` directory
+   - Creates a `.stage_changes.json` manifest file listing all changes
+   - The `stage` signal file from the branch contains the description message
+
+   **Finding a Specific Stage Branch**:
+   ```bash
+   stage find "search term"
+   ```
+   - Searches stage branches for one containing the search term in its message
+   - Pulls the matching stage branch if found
+   - Useful when you have multiple stage branches and need a specific one
+
+3. **Review and Apply Changes**:
+   ```bash
+   stage push
+   ```
+   - Compares files in `./stage` directory with your main codebase
+   - Provides interactive review interface showing:
+     - **DELETE**: Files that exist in main but not in stage (would be deleted)
+     - **ADD**: Files that exist in stage but not in main (would be added)
+     - **EDIT**: Files that differ between stage and main (would be updated)
+     - **RENAME**: Files that were renamed (if detected in manifest)
+     - **WARNINGS**: Encoding, line ending, or indentation issues
+   - For each change, you can accept (Y) or skip (N)
+   - Accepted changes are immediately applied to your main codebase
+   - After review, the `./stage` directory is automatically cleaned up
+
+**Alternative - Manual Recovery**:
+   ```bash
+   git checkout stage/linux/{timestamp}-{sanitized_message} -- {file_path}
+   ```
+   - Restores specific files from stage branch without using the stage script
+   - Allows granular recovery without full interactive review
+
+**Result**: Server changes synced to laptop with interactive review and selective application.
+
+**Use Cases**:
+- Capturing emergency fixes made directly on the server
+- Bringing database migrations or schema changes back to development
+- Syncing content updates or configuration changes made on server
+- Recovering from accidental deletions or overwrites
+- Reviewing what changed on the server before integrating into main codebase
 
 ## Complete Workflow Summary
 
@@ -213,8 +275,9 @@ git push origin foxhouse
 **Ongoing Operations** (Repeatable):
 - **Standard Deploy**: `hen pull_project` (see `git.md`) → `sudo hen deploy` (see `file-deployment.md`)
 - **Rollback**: `git reset --hard {hash}` → `sudo hen deploy` (see `file-deployment.md`)
-- **Recovery**: `hen push_project --message "..."` (see `git.md`) → `hen pull_project` (see `git.md`) → review stage folder
-- **Development Sync**: `hen push_project --message "..."` (laptop, see `git.md`) → `hen pull_project` + `sudo hen deploy` (server, see `git.md` and `file-deployment.md`)
+- **Laptop → Server Sync**: `hen push_project --message "..."` (laptop, see `git.md`) → `hen pull_project` + `sudo hen deploy` (server, see `git.md` and `file-deployment.md`)
+- **Server → Laptop Sync**: `hen push_project --message "..."` (server, see `git.md`) → `stage pull` + `stage push` (laptop, see Server-to-Laptop Sync Workflow above)
+- **Framework Upgrade**: Clone fresh Henhouse → `hen upgrade --target /path/to/project` (see Upgrade Workflow below)
 
 **Key Benefits**:
 - **Repeatable**: Same process every time
@@ -223,11 +286,127 @@ git push origin foxhouse
 - **Recoverable**: Stage folder provides reference for agents/humans
 - **Simple**: After setup, only two commands needed for normal deployment
 
+## Upgrade Workflow
+
+**Upgrading Framework Code (`hh/` folder) in an Existing Project**:
+
+The upgrade workflow allows you to upgrade the framework code (`hh/` folder) in an existing project without affecting your customizations (`ext/` folder). This is useful when you want to pull in framework improvements from a fresh Henhouse clone.
+
+**Prerequisites**:
+- Existing project with `hh/` and optionally `ext/` folders
+- Fresh Henhouse clone from GitHub (or updated local copy)
+- Must be logged in as a user with access to both source and target directories
+
+**Upgrade Process**:
+
+1. **Clone Fresh Henhouse** (or update existing clone):
+   ```bash
+   cd ~
+   git clone https://github.com/henhouseai/henhouse.git
+   # Or if you already have a clone:
+   cd ~/henhouse
+   git pull origin main
+   ```
+
+2. **Change to Fresh Henhouse Directory**:
+   ```bash
+   cd ~/henhouse
+   ```
+   **CRITICAL**: You MUST be inside the fresh Henhouse directory when running upgrade. The upgrade command uses `detect_project_context()` which walks up from the current working directory looking for an `hh/` folder.
+
+3. **Run Upgrade Command**:
+   ```bash
+   python hen.py upgrade --target /path/to/existing/project
+   ```
+   For example, if upgrading foxhouse:
+   ```bash
+   python hen.py upgrade --target /root/foxhouse
+   ```
+
+**What the Upgrade Command Does**:
+
+1. **Validates Target**: Checks that target directory exists, contains `hh/` folder, is not the same as source, and is not a parent of source
+2. **Creates Backup**: Creates a backup of the existing `hh/` folder as `hh_backup/` (or `hh_backup_2/`, `hh_backup_3/`, etc. if backups already exist)
+3. **Copies New Framework**: Copies the entire `hh/` folder from source to target, replacing the old framework code
+4. **Cleans Cache Files**: Removes `__pycache__` directories, `.pyc` files, `.pyo` files, cache JSON files, and `.cache` directories from the new `hh/` folder
+5. **Restores Preserved Files**: If `ext/deploy/conf/upgrade_preserve.py` exists, restores any files listed in `UPGRADE_PRESERVE` from the backup to the target
+6. **Reports Results**: Shows backup location, restored files, and reminder messages
+
+**File Preservation**:
+
+If you've modified files in `hh/` directly (not recommended), you can preserve them during upgrades by creating `ext/deploy/conf/upgrade_preserve.py`:
+
+```python
+# ext/deploy/conf/upgrade_preserve.py
+UPGRADE_PRESERVE = [
+    'hh/gateway/custom.py',  # Path relative to project root
+    'hh/some/other/file.py',
+]
+```
+
+**Warning**: Preserving files in `hh/` is risky. Prefer moving customizations to `ext/` instead. Preserved files may become incompatible with framework upgrades.
+
+**After Upgrade**:
+
+1. **Test the Upgraded Project**: Verify that everything still works:
+   ```bash
+   cd /path/to/existing/project
+   fox dependency-list  # Or whatever your project command is
+   ```
+
+2. **Deploy if Needed**: If you're upgrading a production project, deploy the upgraded code:
+   ```bash
+   sudo fox deploy
+   ```
+
+3. **Clean Up Backups**: Once you've verified everything works, you can remove old backups:
+   ```bash
+   rm -rf /path/to/existing/project/hh_backup*
+   ```
+
+**Key Points**:
+- **`ext/` folder is never touched**: Your customizations in `ext/` are completely safe during upgrades
+- **Backup is created automatically**: Always creates a backup before replacing `hh/`
+- **Preserved files are optional**: Only needed if you've modified `hh/` files directly
+- **Upgrade is reversible**: You can restore from backup if something goes wrong
+
+**Example - Upgrading foxhouse from fresh henhouse clone**:
+
+```bash
+# 1. Clone fresh Henhouse
+cd ~
+git clone https://github.com/henhouseai/henhouse.git
+
+# 2. Change to fresh Henhouse directory
+cd ~/henhouse
+
+# 3. Run upgrade
+python hen.py upgrade --target /root/foxhouse
+
+# 4. Test upgraded project
+cd /root/foxhouse
+fox dependency-list
+
+# 5. Deploy if needed
+sudo fox deploy
+
+# 6. Clean up backups (after verifying everything works)
+rm -rf /root/foxhouse/hh_backup*
+```
+
+**Troubleshooting Upgrades**:
+
+- **"Target directory does not exist"**: Check that the path to your existing project is correct
+- **"Target cannot be the same as source"**: Make sure you're running upgrade from a different directory than the target
+- **"Target does not contain hh/ folder"**: Verify the target is a valid Henhouse project
+- **Preserved files not restored**: Check that `ext/deploy/conf/upgrade_preserve.py` exists and contains correct paths (relative to project root)
+
 ## Integration Points
 
 All workflows integrate with:
 
 - **Git Operations** (`git.md`): `pull_project`, `push_project` for code sync
+- **Stage Script** (`stage.py`/`stage.ps1`): Interactive tools for managing stage branches on laptop (`stage pull`, `stage push`, `stage find`)
 - **File Deployment** (`file-deployment.md`): `deploy` script for copying files
 - **Service Management**: Automatic daemon restart (Flask - see `flask.md`, maintenance - see `maintenance.md`)
 - **Cache Management** (`cache.md`): Automatic cache clearing on pull

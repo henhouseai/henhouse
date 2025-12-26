@@ -49,6 +49,10 @@ sudo mv henhouse foxhouse
 cd foxhouse
 
 # 3. Install system users and infrastructure (requires 4 passwords)
+# CRITICAL: You MUST be inside the project directory when running install
+# CRITICAL: You MUST be logged in as the user who owns the project directory
+# CRITICAL: You MUST have passwordless SSH keys set up BEFORE install
+#   (The install command scans ~/.ssh/ from the project owner's account)
 # Use -hen flag to customize command name (e.g., "fox" instead of "hen")
 sudo python hen.py install -hen fox
 
@@ -66,7 +70,10 @@ sudo fox http-deploy -domain foxhouse.ai
 sudo fox http-deploy-ssl -domain foxhouse.ai
 ```
 
-**Note**: The `install` command automatically copies SSH keys from the project owner's account (`~/.ssh/`) to all tier users, enabling passwordless access. Make sure your developer account has SSH keys set up before running install.
+**Critical Prerequisites for Install**:
+- **Must be in project directory**: The `install` command detects the project by walking up from the current working directory looking for an `hh/` folder. You MUST `cd` into the project directory before running install.
+- **Must be project owner**: You MUST be logged in as the user who owns the project directory. The install command detects the project owner from directory ownership and uses that user's SSH keys.
+- **Passwordless SSH required**: The `install` command automatically copies SSH keys from the project owner's account (`~/.ssh/`) to all tier users. You MUST have passwordless SSH keys set up in the project owner's `~/.ssh/` directory BEFORE running install. The install command scans `~/.ssh/authorized_keys` and `~/.ssh/*.pub` files from the project owner's account.
 
 **Developer Laptop Setup** (after server setup):
 
@@ -83,10 +90,73 @@ git push origin foxhouse
 # On server: fox pull-project && sudo fox deploy
 ```
 
+**Syncing Changes Between Server and Laptop**:
+
+- **Laptop → Server**: `fox push-project --message "description"` (on laptop) → `fox pull-project && sudo fox deploy` (on server)
+- **Server → Laptop**: `fox push-project --message "description"` (on server) → `stage pull` then `stage push` (on laptop) - see `deployment/workflows.md` for details
+
 For detailed deployment documentation, see the `deployment/` folder.
 
 **Development Tools:**
 - Cursor (recommended IDE for development)
+
+**Configuring Cursor IDE for MCP Access:**
+
+To enable MCP (Model Context Protocol) access in Cursor IDE, configure the MCP wrapper script:
+
+1. **Create or edit** `~/.cursor/mcp.json` (on Windows: `C:\Users\{username}\.cursor\mcp.json`)
+
+2. **Add MCP server configuration**:
+   ```json
+   {
+     "mcpServers": {
+       "{project_name}-root": {
+         "command": "python",
+         "args": ["/absolute/path/to/mcp_wrapper.py"]
+       }
+     }
+   }
+   ```
+
+   **Example for Windows:**
+   ```json
+   {
+     "mcpServers": {
+       "henhouse-root": {
+         "command": "python",
+         "args": ["C:\\Users\\lee\\Desktop\\henhouse\\mcp_wrapper.py"]
+       }
+     }
+   }
+   ```
+
+   **Example for Linux/Mac:**
+   ```json
+   {
+     "mcpServers": {
+       "henhouse-root": {
+         "command": "python",
+         "args": ["/home/user/henhouse/mcp_wrapper.py"]
+       }
+     }
+   }
+   ```
+
+3. **Ensure credentials are configured**: The wrapper reads from `~/.{project_name}.cnf` (same file as database config). Make sure it contains:
+   ```ini
+   [client]
+   user=your_username
+   password=your_password
+   host=panel.yourdomain.com
+   ```
+
+4. **Restart Cursor** to load the MCP server configuration.
+
+**File Upload Support:**
+
+The MCP wrapper supports automatic file uploads. Agents can include files in MCP tool calls using `_files` or `file_paths` parameters. Supported file types include images, audio, video, and documents. Files are automatically attached to requests as multipart/form-data.
+
+For more details, see `mcp_wrapper.py` docstring and `context/mcp.md`.
 
 ### Basic Usage
 

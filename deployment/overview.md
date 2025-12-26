@@ -214,6 +214,7 @@ The following diagram shows the deployment system relationships and dependencies
 - *Rollback Process*: git reset to previous commit and redeploy via `file-deployment.md`
 - *Stage Branch Recovery*: recovery point creation via `git.md` push operations, reference via stage folder
 - *Development Sync*: laptop push (see `git.md`) to server pull and deploy (see `git.md` and `file-deployment.md`)
+- *Framework Upgrade*: Clone fresh Henhouse → `hen upgrade --target /path/to/project` (see `workflows.md`) - upgrades `hh/` folder while preserving `ext/` customizations
 - *Initial Setup*: One-time installation (see `installation.md`), database setup (see `database.md`), HTTP configuration (see `http-nginx.md`)
 
 ### **Key Dependency Notes**
@@ -355,6 +356,11 @@ This deployment system enables Henhouse to be a self-documenting, self-deploying
 ### **Installation Architecture**
 
 The installation system creates the complete user and group infrastructure needed for a Henhouse deployment. It sets up four tier-based system users, transfers SSH keys, creates credential files, initializes git repositories, and configures convenience scripts.
+
+**Critical Prerequisites**:
+- **Must be inside project directory**: The install command uses `detect_project_context()` which walks up from the current working directory (`Path.cwd()`) looking for an `hh/` folder. You MUST `cd` into the project directory before running install.
+- **Must be logged in as project owner**: The install command detects the project owner from directory ownership (UID lookup). You MUST be logged in as the user who owns the project directory.
+- **Passwordless SSH keys required BEFORE install**: The install command scans the project owner's `~/.ssh/authorized_keys` and `~/.ssh/*.pub` files. You MUST have passwordless SSH keys configured in the project owner's account BEFORE running install.
 
 - One-time setup process with comprehensive validation
 - Project name and owner auto-detection

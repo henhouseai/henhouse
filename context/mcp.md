@@ -99,6 +99,31 @@ Handles MCP protocol methods and routes to Gateway:
 ### MCP Wrapper Script
 **File**: `mcp_wrapper.py` (project root)
 
+**Cursor IDE Configuration:**
+
+To use the MCP wrapper with Cursor IDE, add the following to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "{project_name}-root": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp_wrapper.py"]
+    }
+  }
+}
+```
+
+Replace `/absolute/path/to/mcp_wrapper.py` with the full path to `mcp_wrapper.py` in your project directory. On Windows, use forward slashes or escaped backslashes (e.g., `"C:\\Users\\username\\project\\mcp_wrapper.py"` or `"C:/Users/username/project/mcp_wrapper.py"`).
+
+**File Upload Support:**
+
+The wrapper supports automatic file uploads. Include files in MCP tool calls using:
+- `_files` parameter: Array of file paths (e.g., `["image1.jpg", "audio.mp3", "video.mp4"]`)
+- `file_paths` parameter: Alternative parameter name (same format)
+
+Files are automatically attached to HTTP requests as multipart/form-data. Supported file types include images, audio, video, and documents. File paths can be relative (to project root) or absolute (must be within project directory). The wrapper validates file paths to prevent path traversal attacks.
+
 Bridges stdio MCP to HTTP endpoint:
 - Reads JSON-RPC from stdin (newline-delimited, one request per line)
 - Auto-detects project name by finding `hh/` directory starting from script location

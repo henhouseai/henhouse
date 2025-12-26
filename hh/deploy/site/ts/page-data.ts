@@ -75,10 +75,68 @@ export interface AppAction {
   requires_fields?: string[];
 }
 
+export interface FileInfo {
+  id: number;
+  file_rank: number;
+  file_name: string | null;
+  file_path: string | null;
+  description: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  username: string | null;
+  uploaded: string | null;
+  last_modified: string | null;
+  comments: string | null;
+  visibility: number;
+  [key: string]: any;
+}
+
+export interface AudioInfo {
+  id: number;
+  audio_rank: number;
+  caption: string | null;
+  username: string | null;
+  uploaded: string | null;
+  duration_seconds: number | null;
+  max_filesize: number;
+  instances: Array<{
+    width: number;
+    height: number;
+    src: string;
+    filesize: number;
+  }>;
+  [key: string]: any;
+}
+
+export interface VideoInfo {
+  id: number;
+  video_rank: number;
+  caption: string | null;
+  username: string | null;
+  uploaded: string | null;
+  duration_seconds: number | null;
+  width: number | null;
+  height: number | null;
+  max_filesize: number;
+  instances: Array<{
+    width: number;
+    height: number;
+    src: string;
+    filesize: number;
+  }>;
+  [key: string]: any;
+}
+
 export interface GetPageResponse {
   page: PageInfo;
   images: ImageInfo[];
+  files: FileInfo[];
+  audio: AudioInfo[];
+  video: VideoInfo[];
   children_by_class: ChildrenByClass;
+  upper_content: string[];
+  lower_content: string[];
+  metadata: { [key: string]: any };
   available_actions?: AppAction[];
 }
 

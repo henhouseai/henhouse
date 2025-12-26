@@ -257,15 +257,14 @@ All metadata operations use the unified `modify_work_meta` MCP tool with a `fiel
 - **Tool Name**: `modify_work_meta`
 - **Required Parameters**:
   - `page_id`: The ID of the work page (integer)
-  - `action`: The operation to perform (`add_log`, `add`, `remove`, `set`, `set_all`)
+  - `action`: The operation to perform (`add`, `remove`, `set`, `set_all`)
   - `field`: The namespace to operate on (`log`, `files_touched`, `deviations`, `meta`) - defaults to `meta` if not specified
 - **Conditional Parameters**:
-  - `data`: JSON object string (required for `add_log`, `add`, `set`, `set_all` actions)
+  - `data`: JSON object string (required for `add`, `set`, `set_all` actions)
   - `keys`: JSON array string (required for `remove` action only)
 
 **Action Summary**:
-- `add_log`: Append log entry (only works with `field="log"`)
-- `add`: Add key-value pairs (errors if key already exists)
+- `add`: Add key-value pairs (errors if key already exists). When `field="log"`, appends a log entry with automatic timestamp.
 - `remove`: Remove keys (requires `keys` parameter)
 - `set`: Set/update key-value pairs (preserves other keys, allows overwriting)
 - `set_all`: Replace entire field (wipes out all existing entries)
@@ -285,8 +284,8 @@ All metadata operations use the unified `modify_work_meta` MCP tool with a `fiel
     }
   ],
   "files_touched": {
-    "src/parser.py": "src/parser.py",
-    "src/lexer.py": "src/lexer.py"
+    "src/parser.py": "Added parse() method with error handling",
+    "src/lexer.py": "Implemented tokenize() function with support for multi-line strings"
   },
   "deviations": {
     "schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"
@@ -320,15 +319,19 @@ The `log` namespace contains a list of dictionaries. Each log entry is a diction
 ```
 
 **MCP Tool**: Use `modify_work_meta` with:
-- `action`: `"add_log"` (only action allowed for log field)
-- `field`: `"log"` (required, cannot use other fields with add_log)
+- `action`: `"add"` (use add action with field="log" to append log entries)
+- `field`: `"log"` (required for log entries)
 - `data`: JSON object string containing log entry key-value pairs (e.g., `'{"message": "Implemented parser", "files": "src/parser.py"}'`)
 
 **Note**: Log entries are append-only. There is no remove or set operation for log entries. Each entry automatically receives a timestamp when created.
 
 ### Files Touched
 
-The `files_touched` namespace contains a dictionary where keys are file paths (strings) and values are strings (typically the same file path or a descriptive value).
+The `files_touched` namespace contains a dictionary where:
+- **Keys**: Full file paths (strings) - the complete path to the file that was modified
+- **Values**: Descriptions (strings) - what was done to that file (e.g., "Updated _load_work_metadata() method to initialize protected namespaces", "Added validation logic for log entries")
+
+**Standard Structure**: The key should always be the full file path, and the value should describe what changes were made to that file. This provides a clear audit trail of which files were touched and what work was performed on each.
 
 **MCP Tool**: Use `modify_work_meta` with:
 - `field`: `"files_touched"`
@@ -337,7 +340,7 @@ The `files_touched` namespace contains a dictionary where keys are file paths (s
   - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
   - `"set"`: Set/update key-value pairs (preserves other keys, allows overwriting)
   - `"set_all"`: Replace entire dictionary (wipes out all existing entries)
-- `data`: JSON object string containing file path key-value pairs (e.g., `'{"src/parser.py": "src/parser.py"}'`)
+- `data`: JSON object string containing file path key-value pairs where keys are full file paths and values are descriptions of what was done (e.g., `'{"src/parser.py": "Added parse() method with error handling"}'`)
 - `keys`: JSON array string containing keys to remove (e.g., `'["src/parser.py"]'`) - only required for `remove` action
 
 **Note**: `set_all` replaces all entries. To preserve existing entries while adding new ones, use `add`. To update specific entries while preserving others, use `set`.

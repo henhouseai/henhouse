@@ -5,15 +5,16 @@ This document covers the TypeScript/ES modules system that provides client-side 
 ## Table of Contents
 
 1. [System Overview](#1-system-overview)
-2. [Core Overlay System](#2-core-overlay-system)
-3. [PageData System](#3-pagedata-system)
-4. [RPC Integration](#4-rpc-integration)
-5. [Action Handlers](#5-action-handlers)
-6. [Form Patterns](#6-form-patterns)
-7. [Debug Integration](#7-debug-integration)
-8. [Derived PageData Classes](#8-derived-pagedata-classes)
-9. [File Upload](#9-file-upload)
-10. [Best Practices](#10-best-practices)
+2. [TypeScript Compilation](#2-typescript-compilation)
+3. [Core Overlay System](#3-core-overlay-system)
+4. [PageData System](#4-pagedata-system)
+5. [RPC Integration](#5-rpc-integration)
+6. [Action Handlers](#6-action-handlers)
+7. [Form Patterns](#7-form-patterns)
+8. [Debug Integration](#8-debug-integration)
+9. [Derived PageData Classes](#9-derived-pagedata-classes)
+10. [File Upload](#10-file-upload)
+11. [Best Practices](#11-best-practices)
 
 ## Agent Quick Reference
 
@@ -103,11 +104,121 @@ Core files in `hh/deploy/site/ts/`:
 
 **Potential refactors / future work**
 - Extract a reusable sortable helper (for image/file group sorters) instead of duplicating logic in `image-group-sorter.ts` and the planned file-group sorter; overlay remains mode-based, helper would wire Sortable setup + rank commit loop.
-- Consider optional overlay flags/hooks for sortable flows rather than hard-coding per overlay; today it’s handled in the sorter modules.
+- Consider optional overlay flags/hooks for sortable flows rather than hard-coding per overlay; today it's handled in the sorter modules.
 
 ---
 
-## 2. Core Overlay System
+## 2. TypeScript Compilation
+
+The TypeScript compilation process uses a top-level `tsconfig.json` that compiles TypeScript files from both `hh/deploy/site/ts/` and `ext/deploy/site/ts/` folders, weaving them together into a single output directory.
+
+### Compilation Process
+
+**Configuration**: `tsconfig.json` at project root
+
+The `tsconfig.json` file is located at the top level of the project directory and configures TypeScript compilation:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "outDir": "hh/deploy/site/js",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node"
+  },
+  "include": [
+    "hh/deploy/site/ts/**/*",
+    "ext/deploy/site/ts/**/*"
+  ],
+  "exclude": ["node_modules"]
+}
+```
+
+**Compilation Command**: Run `tsc` from project root
+
+TypeScript compilation is performed by running `tsc` from the top-level project directory:
+
+```bash
+cd /path/to/henhouse
+tsc
+```
+
+This compiles all TypeScript files from both `hh/deploy/site/ts/` and `ext/deploy/site/ts/` into `hh/deploy/site/js/`, preserving directory structure.
+
+**Output Structure**: Compiled JavaScript files mirror TypeScript source structure
+
+- `hh/deploy/site/ts/**/*.ts` → `hh/deploy/site/js/hh/deploy/site/ts/**/*.js`
+- `ext/deploy/site/ts/**/*.ts` → `hh/deploy/site/js/ext/deploy/site/ts/**/*.js`
+
+### Page Class Registry Generation
+
+During deployment, a `page-classes-registry.js` file is automatically generated that registers all page class PageData handlers based on a whitelist/blacklist system.
+
+**Whitelist/Blacklist Pattern**: `whitelist - blacklist + ext_whitelist`
+
+The system uses a three-step process to determine which page classes are registered:
+
+1. **Base Whitelist**: `hh/deploy/conf/js_page_classes_whitelist.py`
+   - Contains `JS_PAGE_CLASSES_WHITELIST` list of page class filenames
+   - Files are discovered from `hh/deploy/site/js/page-classes/` folder
+
+2. **Blacklist**: `ext/deploy/conf/js_page_classes_blacklist.py` (optional)
+   - Contains `JS_PAGE_CLASSES_WHITELIST` list of filenames to remove from base whitelist
+   - Items are subtracted from the base whitelist
+
+3. **Extension Whitelist**: `ext/deploy/conf/js_page_classes_whitelist.py` (optional)
+   - Contains `JS_PAGE_CLASSES_WHITELIST` list of additional filenames
+   - Files are discovered from `ext/deploy/site/js/page-classes/` folder
+   - Items are added to the final list (warnings if duplicates exist)
+
+**Processing Order**: See `hh/deploy/deploy_utils.py` - `load_whitelist_with_extensions()`:
+1. Load base whitelist from `hh/deploy/conf/js_page_classes_whitelist.py`
+2. Load blacklist from `ext/deploy/conf/js_page_classes_blacklist.py` (if exists)
+3. Subtract blacklist items from base
+4. Load extension whitelist from `ext/deploy/conf/js_page_classes_whitelist.py` (if exists)
+5. Add extension items to result (warn if duplicates)
+
+**Registry Generation**: See `hh/deploy/srv/deploy.py` - page class registry generation:
+- During `hen deploy`, the system scans for page class files matching the whitelist
+- Files are searched in both `hh/deploy/site/js/page-classes/` and `ext/deploy/site/js/page-classes/`
+- Registry file is generated at: `hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js`
+- Registry exports `PAGE_CLASS_REGISTRY` object mapping page class names to PageData constructors
+
+**Page Class File Discovery**:
+- Base whitelist files are searched in `hh/deploy/site/js/page-classes/` first
+- If not found in `hh/`, searched in `ext/deploy/site/js/page-classes/`
+- Files must exist as compiled `.js` files (from TypeScript compilation)
+- Missing files are logged but don't cause errors
+
+**Registry Format**: Generated registry file structure:
+```typescript
+// Auto-generated during deployment - do not edit manually
+
+import { ask_page_data } from './page-classes/ask-page-data.js';
+import { source_code_file_page_data } from '../../../../ext/deploy/site/ts/page-classes/source-code-file-page-data.js';
+// ... more imports ...
+
+export const PAGE_CLASS_REGISTRY = {
+  'ask': ask_page_data,
+  'source_code_file': source_code_file_page_data,
+  // ... more entries ...
+};
+```
+
+**File Naming Convention**: Page class files follow pattern `{page-class-name}-page-data.ts`
+- Example: `ask-page-data.ts` → compiled to `ask-page-data.js`
+- Registry key: `ask` (kebab-case converted to snake_case)
+- Class name: `ask_page_data` (kebab-case converted to snake_case with `_page_data` suffix)
+
+---
+
+## 3. Core Overlay System
 
 The overlay system provides modal dialogs for user interactions, using a component-based architecture.
 
@@ -181,7 +292,7 @@ See `overlay.ts` - `OverlayOptions` interface for complete options structure.
 
 ---
 
-## 3. PageData System
+## 4. PageData System
 
 The PageData system provides field management and form processing that handles field registration, change detection, and MCP tool selection.
 
@@ -256,7 +367,7 @@ See `page-data-factory.ts` - `create()` method:
 
 ---
 
-## 4. RPC Integration
+## 5. RPC Integration
 
 The RPC client provides an interface for making MCP JSON-RPC calls with automatic debug option handling and error management.
 
@@ -291,7 +402,7 @@ MCP JSON-RPC wrapper with debug integration and error handling.
 
 ---
 
-## 5. Action Handlers
+## 6. Action Handlers
 
 Action handlers are CRUD operation methods that live in PageData classes (base or derived). The app.ts file handles registration and routing.
 
@@ -343,7 +454,7 @@ Action handlers are registered in two ways:
 
 ---
 
-## 6. Form Patterns
+## 7. Form Patterns
 
 Forms follow standardized patterns for field registration, change detection, and submission.
 
@@ -391,7 +502,7 @@ Forms follow standardized patterns for field registration, change detection, and
 
 ---
 
-## 7. Debug Integration
+## 8. Debug Integration
 
 The debug system is integrated into the overlay and RPC systems. Users can enable debug output for MCP calls from overlay forms.
 
@@ -452,7 +563,7 @@ See `debug-helper.ts` - `handleRPCResponseWithDebug()` function:
 
 ---
 
-## 8. Derived PageData Classes
+## 9. Derived PageData Classes
 
 Derived PageData classes extend the base class to provide page-type-specific field mappings and handlers.
 
@@ -526,7 +637,7 @@ Extends `WorkPageData` to handle work docket pages. Inherits `status` and `sort_
 
 ---
 
-## 9. View Toggle System
+## 10. View Toggle System
 
 The view toggle system enables hot-swapping between table and tile views for page sections (images, children by class) via client-side DOM replacement.
 
@@ -619,7 +730,7 @@ Handles dynamic view switching for page sections. Listens for clicks on toggle l
 - `onAfterSwap`: Called after DOM replacement (for re-initialization)
 - Used by Browser system to re-intercept links after view toggles
 
-## 10. Browser System
+## 11. Browser System
 
 The browser system provides hierarchical navigation and selection within modal overlays, enabling users to select pages or images for operations like move, copy, or image selection.
 
@@ -743,7 +854,7 @@ Specialized browser extension for sorting images within a page's image group.
 - Submit triggers optimized sorting algorithm
 - Page refreshes after successful sort
 
-## 11. Image Viewer
+## 12. Image Viewer
 
 The image viewer provides a full-screen viewing experience for images in a page's image group, with pan/zoom capabilities and keyboard navigation.
 
@@ -823,7 +934,7 @@ static async openFromImageLink(pageId: number, imageId?: number): Promise<void>
 
 ---
 
-## 12. File Upload
+## 13. File Upload
 
 ### UploadHandler
 
@@ -858,7 +969,7 @@ Handles image file uploads with multi-file support.
 
 ---
 
-## 12. Best Practices
+## 14. Best Practices
 
 ### Handler Development
 

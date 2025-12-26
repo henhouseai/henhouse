@@ -21,6 +21,8 @@ Henhouse discovers code in `ext/` by scanning for decorators, just like it does 
 - `@register_maintenance_tool` - Maintenance daemon tools
 - `@register_download` - Download backend handlers
 - `@register_page_class` - Custom page classes
+- `@register_tp_decorator` - Text processor decorators (for markup transformation)
+- `@register_label` - Configuration labels (for render system)
 
 **Warning**: If you register something in `ext/` that already exists in `hh/` (and wasn't blacklisted), you'll get a warning. The `ext/` registration will take precedence.
 

@@ -41,16 +41,12 @@ def modify_work_meta() -> bool:
             report_error("action", "Action is required")
     if not is_error():
         action = gateway.get_arg('action')
-        valid_actions = ['add_log', 'add', 'remove', 'set', 'set_all']
+        valid_actions = ['add', 'remove', 'set', 'set_all']
         if action not in valid_actions:
             warn(f"Invalid action: {action}. Must be one of: {', '.join(valid_actions)}")
             report_error("action", f"Invalid action: {action}. Must be one of: {', '.join(valid_actions)}")
     if not is_error():
         field = gateway.get_arg('field') or 'meta'
-        # For log field, only allow add_log action
-        if field == 'log' and action != 'add_log':
-            warn(f"Field 'log' only supports 'add_log' action, not '{action}'")
-            report_error("action", f"Field 'log' only supports 'add_log' action")
     if not is_error():
         # For remove action, expect keys (array); for others, expect data (dict)
         if action == 'remove':
@@ -107,14 +103,15 @@ def modify_work_meta() -> bool:
     success = False
     response_data = None
     if not is_error():
-        if action == 'add_log':
-            log(f"Adding log entry for page {page_id}")
-            if page:
-                success = page.work_add_log(data_dict)
-        elif action == 'add':
-            log(f"Adding to {field} for page {page_id}")
-            if page:
-                success = page.work_add(data_dict, field)
+        if action == 'add':
+            if field == 'log':
+                log(f"Adding log entry for page {page_id}")
+                if page:
+                    success = page.work_add_log(data_dict)
+            else:
+                log(f"Adding to {field} for page {page_id}")
+                if page:
+                    success = page.work_add(data_dict, field)
         elif action == 'remove':
             log(f"Removing from {field} for page {page_id}")
             if page:

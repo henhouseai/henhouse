@@ -3,6 +3,44 @@
 MCP HTTP Wrapper Script
 Reads JSON-RPC from stdin and forwards to HTTP MCP server with Basic Auth.
 Reads credentials from ~/.{project_name}.cnf (same format as MySQL config).
+
+**Cursor IDE Configuration:**
+
+To use this wrapper with Cursor IDE, add the following to your `~/.cursor/mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "{project_name}-root": {
+      "command": "python",
+      "args": ["/path/to/mcp_wrapper.py"]
+    }
+  }
+}
+```
+
+Replace `/path/to/mcp_wrapper.py` with the absolute path to this file. On Windows, use forward slashes or escaped backslashes:
+- Windows: `"C:\\Users\\username\\project\\mcp_wrapper.py"` or `"C:/Users/username/project/mcp_wrapper.py"`
+
+**File Upload Support:**
+
+The wrapper supports automatic file uploads. Include files in your MCP tool calls using:
+- `_files` parameter: Array of file paths (e.g., `["image1.jpg", "audio.mp3"]`)
+- `file_paths` parameter: Alternative parameter name (same format)
+
+Files are automatically attached to the HTTP request as multipart/form-data. Supported file types include images, audio, video, and documents. File paths can be relative (to project root) or absolute (must be within project directory).
+
+**Configuration:**
+
+The wrapper reads credentials from `~/.{project_name}.cnf` (same file used for database connections):
+```ini
+[client]
+user=your_username
+password=your_password
+host=panel.yourdomain.com
+```
+
+The wrapper auto-detects the project name by walking up from the script location looking for an `hh/` directory.
 """
 from __future__ import annotations
 import sys

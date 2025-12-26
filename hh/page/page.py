@@ -1925,7 +1925,13 @@ class Page:
         trace_in()
         page_data = self.get_page_data()
         images_data = self.get_images_data()
+        files_data = self.get_files_data()
+        audio_data = self.get_audio_data()
+        video_data = self.get_video_data()
         children_by_class = self._get_children_by_class()
+        upper_content = self._add_upper_content()
+        lower_content = self._add_lower_content()
+        metadata = self._get_metadata_dict()
         
         # Add path data if available
         if 'path' not in page_data:
@@ -1933,11 +1939,16 @@ class Page:
             if path_data:
                 page_data['path'] = path_data
 
-        # Minimal shape; client can expand later
         result: Dict[str, Any] = {
             'page': page_data,
             'images': images_data,
+            'files': files_data,
+            'audio': audio_data,
+            'video': video_data,
             'children_by_class': children_by_class,
+            'upper_content': upper_content,
+            'lower_content': lower_content,
+            'metadata': metadata,
         }
         
         

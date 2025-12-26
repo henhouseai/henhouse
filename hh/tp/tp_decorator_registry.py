@@ -193,22 +193,12 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
     # Update in-memory scan time
     _last_scan_time = current_time
     
-    # Atomic write: write to temp file, then rename
     try:
-        temp_file = cache_file.with_suffix('.tmp')
-        with open(temp_file, 'w') as f:
+        with open(cache_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
-        temp_file.replace(cache_file)
         log(f"Cached TP decorators: {len(decorator_data)} decorators")
     except Exception as e:
         warn(f"Error caching TP decorators: {e}")
-        # Clean up temp file if it exists
-        temp_file = cache_file.with_suffix('.tmp')
-        if temp_file.exists():
-            try:
-                temp_file.unlink()
-            except Exception:
-                pass
     trace_out()
     return decorator_data
 

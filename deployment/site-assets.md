@@ -93,13 +93,23 @@ a {
 
 **Note**: JavaScript files in this directory are compiled from TypeScript source. See TypeScript documentation in context files for development details.
 
+**Compilation Process**:
+1. TypeScript source files in `hh/deploy/site/ts/` and `ext/deploy/site/ts/` are compiled using `tsc` from project root (see `tsconfig.json`)
+2. Compiled output preserves directory structure:
+   - `hh/deploy/site/ts/**/*.ts` → `hh/deploy/site/js/hh/deploy/site/ts/**/*.js`
+   - `ext/deploy/site/ts/**/*.ts` → `hh/deploy/site/js/ext/deploy/site/ts/**/*.js`
+3. The entire `hh/deploy/site/js/` directory (containing both `hh/` and `ext/` compiled output) is whitelisted for deployment
+
 **Structure**:
 - Main application files (`app.js`, `page-manager.js`, `rpc-client.js`)
 - Page data handlers (`work-page-data.js`, `mcp-request-page-data.js`, etc.)
 - Overlay system (`overlay/` subdirectory)
 - Utility files (`debug-helper.js`, `upload-handler.js`, `seed.js`)
 
-**Whitelisting**: JavaScript files are whitelisted in `hh/deploy/conf/js_whitelist.py` (see `configuration.md`) and deployed to `/srv/{project_name}/site/js/` by file deployment (see `file-deployment.md`).
+**Whitelisting**: JavaScript files are whitelisted in `hh/deploy/conf/js_whitelist.py` (see `configuration.md`):
+- **Base whitelist**: `JS_WHITELIST = ['hh/deploy/site/js']` - the entire compiled output directory
+- **Extension whitelist**: `ext/deploy/conf/js_whitelist.py` can add individual files or `'ext/deploy/site/js'` directory
+- During deployment, the deploy script recursively finds all `.js` files in whitelisted directories and copies them to `/srv/{project_name}/site/js/`, preserving subfolder structure
 
 ## Favicon and Web Assets
 
@@ -141,8 +151,11 @@ The deploy script handles site folder deployment:
 
 2. **JavaScript Deployment**:
    - Reads `JS_WHITELIST` from `hh/deploy/conf/js_whitelist.py` (see `configuration.md`)
-   - Copies whitelisted JS files to `site/js/`
-   - Preserves subdirectory structure (e.g., `overlay/`)
+   - Base whitelist includes `'hh/deploy/site/js'` (entire compiled TypeScript output directory)
+   - Extension whitelist can add `'ext/deploy/site/js'` or individual files
+   - For each whitelisted directory, recursively finds all `.js` files using `rglob('*.js')`
+   - Copies all `.js` files to `site/js/`, preserving subdirectory structure
+   - No special processing - just copies the compiled TypeScript output as-is
 
 3. **CSS Deployment**:
    - Reads `CSS_WHITELIST` from `hh/deploy/conf/css_whitelist.py` (see `configuration.md`)
