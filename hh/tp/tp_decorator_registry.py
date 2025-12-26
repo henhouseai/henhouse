@@ -4,6 +4,7 @@ import json
 import importlib
 import importlib.util
 import re
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any, Union
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -27,8 +28,51 @@ def _initialize_debug():
 CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
+# Throttling: prevent repeated scans within 1 hour
+_last_scan_time: float = 0.0
+SCAN_THROTTLE_SECONDS = 3600.0
+
 DecoratorFunction = Callable[..., Union[str, Dict[str, Any]]]
 _global_registry: Dict[str, Optional[DecoratorFunction]] = {}
+
+def _read_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
+    """Read cache file with retry logic if file is empty (another process is writing)"""
+    try:
+        # First attempt
+        if not cache_file.exists():
+            return None
+        
+        # Check if file is empty or very small (indicates write in progress)
+        file_size = cache_file.stat().st_size
+        if file_size == 0:
+            log(f"Cache file {cache_file} is empty, waiting 1 second for other process to finish...")
+            time.sleep(1.0)
+            
+            # Retry after wait
+            if not cache_file.exists():
+                return None
+            file_size = cache_file.stat().st_size
+            if file_size == 0:
+                warn(f"Cache file {cache_file} still empty after retry, treating as invalid")
+                return None
+        
+        with open(cache_file, 'r') as f:
+            cache_data = json.load(f)
+            return cache_data
+    except json.JSONDecodeError as e:
+        # If JSON decode fails, might be incomplete write - retry once
+        log(f"JSON decode error reading {cache_file}: {e}, waiting 1 second and retrying...")
+        time.sleep(1.0)
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+                return cache_data
+        except Exception as e2:
+            warn(f"Error reading cache file {cache_file} after retry: {e2}")
+            return None
+    except Exception as e:
+        warn(f"Error reading cache file {cache_file}: {e}")
+        return None
 
 def _scan_for_decorator(decorator_name: str) -> List[str]:
     trace_in()
@@ -74,17 +118,40 @@ def _validate_cached_module_path(module_path: str) -> bool:
 
 def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str, Any]]:
     trace_in()
+    global _last_scan_time
+    
     cache_file = CACHE_DIR / "tp-decorators.json"
-    # Check if cache exists and is valid
-    if cache_file.exists() and not force_regenerate:
-        try:
-            with open(cache_file, 'r') as f:
-                cache_data = json.load(f)
-                log(f"Found TP decorator cache with {len(cache_data.get('decorators', {}))} decorators")
+    current_time = time.time()
+    
+    # Always check throttle first, even if force_regenerate is True
+    if cache_file.exists():
+        cache_data = _read_cache_file_with_retry(cache_file)
+        if cache_data is not None:
+            # Check if we've scanned recently (throttle to prevent repeated scans)
+            last_scan_str = cache_data.get('last_scan', '0')
+            try:
+                last_scan_timestamp = float(last_scan_str)
+            except (ValueError, TypeError):
+                last_scan_timestamp = 0
+            
+            time_since_scan = current_time - last_scan_timestamp
+            
+            # Also check in-memory throttle
+            time_since_memory_scan = current_time - _last_scan_time
+            
+            # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
+            if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
+                log(f"Throttling: using cached TP decorators (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
                 trace_out()
                 return cache_data.get('decorators', {})
-        except Exception as e:
-            warn(f"Error reading TP decorator cache: {e}")
+            
+            # Cache exists and is old enough - check if we should use it or regenerate
+            if not force_regenerate:
+                log(f"Found TP decorator cache with {len(cache_data.get('decorators', {}))} decorators (last scan: {time_since_scan:.1f}s ago)")
+                trace_out()
+                return cache_data.get('decorators', {})
+            else:
+                log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
     log("Discovering TP decorators...")
     # Scan for @register_tp_decorator decorators
     decorator_files = _scan_for_decorator("register_tp_decorator")
@@ -117,17 +184,31 @@ def discover_tp_decorators(force_regenerate: bool = False) -> Dict[str, Dict[str
                     "load_status": "failed",
                     "load_error": result.get("error") or ""
                 }
-    # Write cache
+    # Write cache with current timestamp
     cache_data = {
         "decorators": decorator_data,
-        "last_scan": str(Path(__file__).stat().st_mtime)
+        "last_scan": str(current_time)
     }
+    
+    # Update in-memory scan time
+    _last_scan_time = current_time
+    
+    # Atomic write: write to temp file, then rename
     try:
-        with open(cache_file, 'w') as f:
+        temp_file = cache_file.with_suffix('.tmp')
+        with open(temp_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
+        temp_file.replace(cache_file)
         log(f"Cached TP decorators: {len(decorator_data)} decorators")
     except Exception as e:
         warn(f"Error caching TP decorators: {e}")
+        # Clean up temp file if it exists
+        temp_file = cache_file.with_suffix('.tmp')
+        if temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass
     trace_out()
     return decorator_data
 

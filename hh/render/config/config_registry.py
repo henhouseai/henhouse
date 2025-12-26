@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import importlib
 import importlib.util
+import time
 from pathlib import Path
 from typing import Dict, Optional, Any, List
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -40,6 +41,45 @@ _label_registry: Dict[str, Optional[tuple[str, str]]] = {}
 # Throttling: prevent repeated scans within 1 hour
 _last_scan_time: float = 0.0
 SCAN_THROTTLE_SECONDS = 3600.0
+
+def _read_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
+    """Read cache file with retry logic if file is empty (another process is writing)"""
+    try:
+        # First attempt
+        if not cache_file.exists():
+            return None
+        
+        # Check if file is empty or very small (indicates write in progress)
+        file_size = cache_file.stat().st_size
+        if file_size == 0:
+            log(f"Cache file {cache_file} is empty, waiting 1 second for other process to finish...")
+            time.sleep(1.0)
+            
+            # Retry after wait
+            if not cache_file.exists():
+                return None
+            file_size = cache_file.stat().st_size
+            if file_size == 0:
+                warn(f"Cache file {cache_file} still empty after retry, treating as invalid")
+                return None
+        
+        with open(cache_file, 'r') as f:
+            cache_data = json.load(f)
+            return cache_data
+    except json.JSONDecodeError as e:
+        # If JSON decode fails, might be incomplete write - retry once
+        log(f"JSON decode error reading {cache_file}: {e}, waiting 1 second and retrying...")
+        time.sleep(1.0)
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+                return cache_data
+        except Exception as e2:
+            warn(f"Error reading cache file {cache_file} after retry: {e2}")
+            return None
+    except Exception as e:
+        warn(f"Error reading cache file {cache_file}: {e}")
+        return None
 
 def _scan_for_config_registrations() -> List[str]:
     """Scan hh/ and ext/ folders for files containing @register_label decorators"""
@@ -82,36 +122,33 @@ def discover_config_registrations(force_regenerate: bool = False) -> Dict[str, D
     
     # Always check throttle first, even if force_regenerate is True
     if cache_file.exists():
-        try:
-            with open(cache_file, 'r') as f:
-                cache_data = json.load(f)
-                # Check if we've scanned recently (throttle to prevent repeated scans)
-                last_scan_str = cache_data.get('last_scan', '0')
-                try:
-                    last_scan_timestamp = float(last_scan_str)
-                except (ValueError, TypeError):
-                    last_scan_timestamp = 0
-                
-                time_since_scan = current_time - last_scan_timestamp
-                
-                # Also check in-memory throttle
-                time_since_memory_scan = current_time - _last_scan_time
-                
-                # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
-                if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
-                    log(f"Throttling: using cached config registry (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
-                    trace_out()
-                    return cache_data
-                
-                # Cache exists and is old enough - check if we should use it or regenerate
-                if not force_regenerate:
-                    log(f"Found config registry cache with {len(cache_data.get('icons', {}))} icons and {len(cache_data.get('labels', {}))} labels (last scan: {time_since_scan:.1f}s ago)")
-                    trace_out()
-                    return cache_data
-                else:
-                    log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
-        except Exception as e:
-            warn(f"Error reading config registry cache: {e}")
+        cache_data = _read_cache_file_with_retry(cache_file)
+        if cache_data is not None:
+            # Check if we've scanned recently (throttle to prevent repeated scans)
+            last_scan_str = cache_data.get('last_scan', '0')
+            try:
+                last_scan_timestamp = float(last_scan_str)
+            except (ValueError, TypeError):
+                last_scan_timestamp = 0
+            
+            time_since_scan = current_time - last_scan_timestamp
+            
+            # Also check in-memory throttle
+            time_since_memory_scan = current_time - _last_scan_time
+            
+            # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
+            if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
+                log(f"Throttling: using cached config registry (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
+                trace_out()
+                return cache_data
+            
+            # Cache exists and is old enough - check if we should use it or regenerate
+            if not force_regenerate:
+                log(f"Found config registry cache with {len(cache_data.get('icons', {}))} icons and {len(cache_data.get('labels', {}))} labels (last scan: {time_since_scan:.1f}s ago)")
+                trace_out()
+                return cache_data
+            else:
+                log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
     
     log("Discovering config registrations...")
     # Clear hot cache registries before importing (prevents duplicates if modules re-execute)
@@ -167,16 +204,25 @@ def discover_config_registrations(force_regenerate: bool = False) -> Dict[str, D
             log(f"Found label: {label_name} = {label_value} from {label_module}")
     
     # Write cache with current timestamp
-    import time
-    cache_data['last_scan'] = str(time.time())
-    _last_scan_time = time.time()
+    cache_data['last_scan'] = str(current_time)
+    _last_scan_time = current_time
     
+    # Atomic write: write to temp file, then rename
     try:
-        with open(cache_file, 'w') as f:
+        temp_file = cache_file.with_suffix('.tmp')
+        with open(temp_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
+        temp_file.replace(cache_file)
         log(f"Cached config registrations: {len(cache_data['icons'])} icons, {len(cache_data['labels'])} labels")
     except Exception as e:
         warn(f"Error caching config registrations: {e}")
+        # Clean up temp file if it exists
+        temp_file = cache_file.with_suffix('.tmp')
+        if temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass
     
     trace_out()
     return cache_data

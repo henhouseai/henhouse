@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import json
 import importlib
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Type, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -25,7 +26,50 @@ def _initialize_debug():
 CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
+# Throttling: prevent repeated scans within 1 hour
+_last_scan_time: float = 0.0
+SCAN_THROTTLE_SECONDS = 3600.0
+
 _page_class_registry: Dict[str, Optional[Type]] = {}
+
+def _read_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
+    """Read cache file with retry logic if file is empty (another process is writing)"""
+    try:
+        # First attempt
+        if not cache_file.exists():
+            return None
+        
+        # Check if file is empty or very small (indicates write in progress)
+        file_size = cache_file.stat().st_size
+        if file_size == 0:
+            log(f"Cache file {cache_file} is empty, waiting 1 second for other process to finish...")
+            time.sleep(1.0)
+            
+            # Retry after wait
+            if not cache_file.exists():
+                return None
+            file_size = cache_file.stat().st_size
+            if file_size == 0:
+                warn(f"Cache file {cache_file} still empty after retry, treating as invalid")
+                return None
+        
+        with open(cache_file, 'r') as f:
+            cache_data = json.load(f)
+            return cache_data
+    except json.JSONDecodeError as e:
+        # If JSON decode fails, might be incomplete write - retry once
+        log(f"JSON decode error reading {cache_file}: {e}, waiting 1 second and retrying...")
+        time.sleep(1.0)
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+                return cache_data
+        except Exception as e2:
+            warn(f"Error reading cache file {cache_file} after retry: {e2}")
+            return None
+    except Exception as e:
+        warn(f"Error reading cache file {cache_file}: {e}")
+        return None
 
 def _scan_for_page_classes() -> List[str]:
     trace_in()
@@ -59,17 +103,40 @@ def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Any]]:
 
 def discover_page_classes(force_regenerate: bool = False) -> Dict[str, Dict[str, Any]]:
     trace_in()
+    global _last_scan_time
+    
     cache_file = CACHE_DIR / "page-classes.json"
-    # Check if cache exists and is valid
-    if cache_file.exists() and not force_regenerate:
-        try:
-            with open(cache_file, 'r') as f:
-                cache_data = json.load(f)
-                log(f"Found page class cache with {len(cache_data.get('classes', {}))} classes")
+    current_time = time.time()
+    
+    # Always check throttle first, even if force_regenerate is True
+    if cache_file.exists():
+        cache_data = _read_cache_file_with_retry(cache_file)
+        if cache_data is not None:
+            # Check if we've scanned recently (throttle to prevent repeated scans)
+            last_scan_str = cache_data.get('last_scan', '0')
+            try:
+                last_scan_timestamp = float(last_scan_str)
+            except (ValueError, TypeError):
+                last_scan_timestamp = 0
+            
+            time_since_scan = current_time - last_scan_timestamp
+            
+            # Also check in-memory throttle
+            time_since_memory_scan = current_time - _last_scan_time
+            
+            # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
+            if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
+                log(f"Throttling: using cached page classes (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
                 trace_out()
                 return cache_data.get('classes', {})
-        except Exception as e:
-            warn(f"Error reading page class cache: {e}")
+            
+            # Cache exists and is old enough - check if we should use it or regenerate
+            if not force_regenerate:
+                log(f"Found page class cache with {len(cache_data.get('classes', {}))} classes (last scan: {time_since_scan:.1f}s ago)")
+                trace_out()
+                return cache_data.get('classes', {})
+            else:
+                log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
     log("Discovering page classes...")
     # Scan for @register_page_class decorators
     class_files = _scan_for_page_classes()
@@ -99,17 +166,31 @@ def discover_page_classes(force_regenerate: bool = False) -> Dict[str, Dict[str,
                     "load_status": "failed",
                     "load_error": result["error"]
                 }
-    # Write cache
+    # Write cache with current timestamp
     cache_data = {
         "classes": class_data,
-        "last_scan": str(Path(__file__).stat().st_mtime)
+        "last_scan": str(current_time)
     }
+    
+    # Update in-memory scan time
+    _last_scan_time = current_time
+    
+    # Atomic write: write to temp file, then rename
     try:
-        with open(cache_file, 'w') as f:
+        temp_file = cache_file.with_suffix('.tmp')
+        with open(temp_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
+        temp_file.replace(cache_file)
         log(f"Cached page classes: {len(class_data)} classes")
     except Exception as e:
         warn(f"Error caching page classes: {e}")
+        # Clean up temp file if it exists
+        temp_file = cache_file.with_suffix('.tmp')
+        if temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass
     trace_out()
     return class_data
 
