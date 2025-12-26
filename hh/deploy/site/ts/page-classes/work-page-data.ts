@@ -180,12 +180,12 @@ export class work_page_data extends PageData {
           <td style="padding: 4px; border: 1px solid #ddd;">
             <input type="text" class="meta-key-input" value="${this.escapeHtml(pair.key)}" 
                    style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
-                   placeholder="Key (no spaces, JSON valid)">
+                   placeholder="Key">
           </td>
           <td style="padding: 4px; border: 1px solid #ddd;">
             <input type="text" class="meta-value-input" value="${this.escapeHtml(pair.value)}" 
                    style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
-                   placeholder="Value (can be JSON string)">
+                   placeholder="Value">
           </td>
           <td style="padding: 4px; border: 1px solid #ddd; text-align: center;">
             <button type="button" class="meta-remove-btn" style="background: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 3px;">×</button>
@@ -198,7 +198,7 @@ export class work_page_data extends PageData {
           </tbody>
         </table>
         <button type="button" id="${tableId}-add-btn" style="margin-top: 10px; padding: 6px 12px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 3px;">Add Row</button>
-        <div class="overlay-form-help" style="margin-top: 10px;">Keys must be JSON valid (no spaces). Values can be strings or JSON.</div>
+        <div class="overlay-form-help" style="margin-top: 10px;">Keys and values must just be strings. No nested JSON.</div>
       </div>
     `;
 
@@ -222,12 +222,12 @@ export class work_page_data extends PageData {
           <td style="padding: 4px; border: 1px solid #ddd;">
             <input type="text" class="meta-key-input" value="" 
                    style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
-                   placeholder="Key (no spaces, JSON valid)">
+                   placeholder="Key">
           </td>
           <td style="padding: 4px; border: 1px solid #ddd;">
             <input type="text" class="meta-value-input" value="" 
                    style="width: 100%; padding: 4px; border: 1px solid #ccc; box-sizing: border-box;" 
-                   placeholder="Value (can be JSON string)">
+                   placeholder="Value">
           </td>
           <td style="padding: 4px; border: 1px solid #ddd; text-align: center;">
             <button type="button" class="meta-remove-btn" style="background: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 3px;">×</button>
@@ -286,20 +286,8 @@ export class work_page_data extends PageData {
         // Skip empty keys
         if (!key) continue;
         
-        // Validate key (no spaces, JSON valid)
-        if (key.includes(' ')) {
-          throw new Error(`Key "${key}" contains spaces. Keys must be JSON valid (no spaces).`);
-        }
-        
-        // Try to parse value as JSON, fall back to string
-        let parsedValue: any;
-        try {
-          parsedValue = JSON.parse(value);
-        } catch (e) {
-          parsedValue = value;
-        }
-        
-        pairs.push([key, parsedValue]);
+        // Values are always strings (no nested JSON)
+        pairs.push([key, value]);
       }
     }
 
