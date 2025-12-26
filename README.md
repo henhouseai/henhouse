@@ -36,13 +36,54 @@ python hen.py command-list
 
 **Server Deployment (Ubuntu):**
 
-```bash
-# Install system users and dependencies (requires 4 passwords for user creation)
-sudo python hen.py install
+First-time setup on a fresh server:
 
-# Deploy the application
-sudo hen deploy
+```bash
+# 1. Clone the repository at server root
+cd /
+sudo git clone https://github.com/henhouseai/henhouse.git
+
+# 2. (Optional) Rename to your project name (e.g., foxhouse, myproject)
+# If you keep it as "henhouse", skip this step
+sudo mv henhouse foxhouse
+cd foxhouse
+
+# 3. Install system users and infrastructure (requires 4 passwords)
+# Use -hen flag to customize command name (e.g., "fox" instead of "hen")
+sudo python hen.py install -hen fox
+
+# 4. Deploy the application
+sudo fox deploy
+
+# 5. Initialize database (one-time setup)
+sudo fox init-db --confirm -password <mysql_root_password>
+sudo fox add-db-users -password <mysql_root_password>
+fox init-homepage
+
+# 6. Configure HTTP/NGINX (one-time setup)
+sudo fox http-deploy -domain foxhouse.ai
+# After SSL certificates are installed:
+sudo fox http-deploy-ssl -domain foxhouse.ai
 ```
+
+**Note**: The `install` command automatically copies SSH keys from the project owner's account (`~/.ssh/`) to all tier users, enabling passwordless access. Make sure your developer account has SSH keys set up before running install.
+
+**Developer Laptop Setup** (after server setup):
+
+Once the server is set up, clone from the bare repository on your server:
+
+```bash
+# Clone from your server's bare repository
+git clone user@your-server:/srv/foxhouse/git/foxhouse.git
+cd foxhouse
+
+# Your origin will point to the server's bare repo
+# Work locally, then push and deploy:
+git push origin foxhouse
+# On server: fox pull-project && sudo fox deploy
+```
+
+For detailed deployment documentation, see the `deployment/` folder.
 
 **Development Tools:**
 - Cursor (recommended IDE for development)

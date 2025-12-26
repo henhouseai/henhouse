@@ -149,7 +149,60 @@ Stage branches provide a mechanism for recovering and referencing previous worki
 
 ## Complete Workflow Summary
 
-**Initial Setup** (One-time):
+**First-Time Server Setup** (One-time):
+
+1. **Clone Repository**: At server root (`/`), clone from GitHub:
+   ```bash
+   cd /
+   sudo git clone https://github.com/henhouseai/henhouse.git
+   ```
+
+2. **Rename Project** (Optional): If you want a different project name:
+   ```bash
+   sudo mv henhouse foxhouse  # or myproject, etc.
+   cd foxhouse
+   ```
+
+3. **Install Infrastructure**: Create users, groups, SSH keys, git repo:
+   ```bash
+   sudo python hen.py install -hen fox  # Use -hen to customize command name
+   ```
+   Note: The `install` command copies SSH keys from the project owner's `~/.ssh/` to all tier users.
+
+4. **Deploy Application**: Copy files to `/srv/{project_name}/`:
+   ```bash
+   sudo fox deploy
+   ```
+
+5. **Initialize Database**: Set up MySQL databases and users:
+   ```bash
+   sudo fox init-db --confirm -password <mysql_root_password>
+   sudo fox add-db-users -password <mysql_root_password>
+   fox init-homepage
+   ```
+
+6. **Configure HTTP/NGINX**: Set up web server (see `http-nginx.md`):
+   ```bash
+   sudo fox http-deploy -domain foxhouse.ai
+   # After SSL certificates are installed:
+   sudo fox http-deploy-ssl -domain foxhouse.ai
+   ```
+
+**Developer Laptop Setup** (after server setup):
+
+Clone from your server's bare repository for development:
+
+```bash
+# Clone from server's bare repo (not GitHub)
+git clone user@your-server:/srv/foxhouse/git/foxhouse.git
+cd foxhouse
+
+# Work locally, then sync to server:
+git push origin foxhouse
+# On server: fox pull-project && sudo fox deploy
+```
+
+**Initial Setup** (Alternative - if you already have a project folder):
 1. `sudo hen install` - Create users, groups, SSH keys, git repo (see `installation.md`)
 2. `sudo hen init_db` - Initialize databases (see `database.md`)
 3. `sudo hen add_db_users` - Create database users (see `database.md`)

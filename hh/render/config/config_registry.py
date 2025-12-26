@@ -37,9 +37,9 @@ CACHE_DIR.mkdir(exist_ok=True)
 _icon_registry: Dict[str, Optional[tuple[str, str]]] = {}
 _label_registry: Dict[str, Optional[tuple[str, str]]] = {}
 
-# Throttling: prevent repeated scans within 5 seconds
+# Throttling: prevent repeated scans within 1 hour
 _last_scan_time: float = 0.0
-SCAN_THROTTLE_SECONDS = 5.0
+SCAN_THROTTLE_SECONDS = 3600.0
 
 def _scan_for_config_registrations() -> List[str]:
     """Scan hh/ and ext/ folders for files containing @register_label decorators"""

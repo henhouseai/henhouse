@@ -354,27 +354,69 @@ def render_generic_badge(
     if additional_classes is None:
         additional_classes = []
     
-    # Create header row
+    if not badge_data:
+        trace_out()
+        return None
+    
+    # Import get_label for field config testing
+    from hh.render.config.config_registry import get_label
+    
+    # Create table data
     badge_rows = TableData()
+    field_config = FieldConfig()
+    field_config_list = []
+    
+    # Get first key-value pair as header row
+    first_key = next(iter(badge_data))
+    first_value = badge_data[first_key]
+    
+    # Convert first value to string
+    if isinstance(first_value, (list, dict)):
+        first_value_str = str(first_value)
+    elif first_value is None:
+        first_value_str = "None"
+    else:
+        first_value_str = str(first_value)
+    
+    # First row uses key as field config type
     badge_rows.add_row(
-        'badge_headers_header',
-        label=f'Badge: {badge_name.replace("_", " ").title()}',
-        key='Field',
-        value='Value'
+        first_key,
+        value=safe_str(first_value_str)
     )
-    # Create data rows for each badge field
-    for key, value in badge_data.items():
+    field_config.add_header(first_key)
+    field_config_list.append(first_key)
+    
+    # Process remaining rows
+    remaining_items = [(k, v) for k, v in badge_data.items() if k != first_key]
+    for key, value in remaining_items:
+        # Convert value to string
         if isinstance(value, (list, dict)):
-            value = str(value)
+            value_str = str(value)
         elif value is None:
-            value = "None"
+            value_str = "None"
         else:
-            value = str(value)
-        badge_rows.add_row(
-            'badge_headers_item',
-            key=safe_str(key),
-            value=safe_str(value)
-        )
+            value_str = str(value)
+        
+        # Test if key is a valid field config
+        label_result = get_label(f'l_{key}')
+        if label_result:  # Valid field config - use key as field_type
+            badge_rows.add_row(
+                key,
+                value=safe_str(value_str)
+            )
+            field_config_list.append(key)
+        else:  # Not a field config - explicitly set label=key
+            badge_rows.add_row(
+                'badge_headers_item',
+                label=key,
+                value=safe_str(value_str)
+            )
+            field_config_list.append('badge_headers_item')
+    
+    # Add all field types to field config
+    if field_config_list:
+        field_config.add_simple(field_config_list)
+    
     if badge_rows.num_rows() > 0:
         # Generate wrapper_id with page_id if available
         if page_id is not None:
@@ -387,9 +429,7 @@ def render_generic_badge(
         
         badge_block = render_block(
             badge_rows,
-            FieldConfig()
-                .add_header('extra_data_header')
-                .add_simple(['extra_data_item']),
+            field_config,
             table_overrides={'margin_l': 4},
             block_type='badge_headers',
             wrapper_id=wrapper_id,

@@ -28,6 +28,38 @@
 - Handles cache refresh, cleanup, and system optimization
 - Operates independently without user intervention
 
+## **Framework vs Extension Architecture**
+
+Henhouse uses a two-folder architecture to separate framework code from project-specific customizations:
+
+- **`hh/` folder**: Core Henhouse framework code (reusable across all projects)
+  - Contains all framework functionality: Gateway, Page system, Registry, Render, Debug, MCP, HTTP, Maintenance, Deployment
+  - Framework upgrades happen in `hh/` folder
+  - Shared across all projects using Henhouse
+  - Located at project root: `{project_name}/hh/`
+
+- **`ext/` folder**: Project-specific customizations (optional, per-project)
+  - Contains project-specific modules, page classes, whitelist extensions, database schema extensions, etc.
+  - Project work happens in `ext/` folder
+  - Unique to each project
+  - Located at project root: `{project_name}/ext/`
+
+**Key Distinction for Agents**:
+- **Framework Work**: Changes to `hh/` affect all projects using Henhouse. These are framework upgrades that improve the core system.
+- **Project Work**: Changes to `ext/` affect only the current project. These are project-specific implementations using the framework.
+
+**Extension System**:
+- Registry scanning (`scan_for_decorator()`) searches both `hh/` and `ext/` for decorators (e.g., `@register_action`, `@register_page_class`)
+- Page class registry discovers page classes from both `hh/` and `ext/` folders
+- Whitelist extension system allows `ext/deploy/conf/` to extend or blacklist items from base whitelists in `hh/deploy/conf/`
+- Database schema extensions via `ext/deploy/db/schema_ext.sql` executed after main schema
+- Site assets can be extended via `ext/deploy/site/` with whitelist extensions
+
+**Deployment**:
+- Both `hh/` and `ext/` folders are deployed to `/srv/{project_name}/`
+- `hh/deploy/` and `ext/deploy/` are cleaned after deployment, preserving only whitelisted items
+- Extension whitelists allow project-specific customizations without modifying framework code
+
 ## **Current State of Codebase**
 
 - In-development project with solid working foundation
@@ -36,6 +68,7 @@
 - Multiple instances can run against same database/filesystem
 - Each invocation maintains request/response/connection/filesystem state
 - Instances coordinate through database transactions and file locking
+- Framework vs extension separation enables multi-project development (Henhouse core + project A + project B)
 
 **Implementation Status:**
 
@@ -196,7 +229,7 @@ The debug system provides always-on data capture that works across all backends,
 
 #### **Registry System**
 
-The registry system manages discovery and loading of all command handlers across the system. Gateway creates a CommandRegistry instance during initialization to locate action handlers (business logic) and backend handlers (presentation logic) for each command. Action handlers throughout the codebase register themselves using @register_action and @register_command decorators, while backend handlers register using @register_parser, @register_http, @register_mcp, or @register_maintenance decorators. The registry system scans the codebase for these decorators, caches the results in JSON files, and provides Gateway with the handler information needed for command execution. All backends (Parser, HTTP, MCP, Maintenance) depend on the registry system to discover their handlers, and all action modules must register through this system to be accessible.
+The registry system manages discovery and loading of all command handlers across the system. Gateway creates a CommandRegistry instance during initialization to locate action handlers (business logic) and backend handlers (presentation logic) for each command. Action handlers throughout the codebase register themselves using @register_action and @register_command decorators, while backend handlers register using @register_parser, @register_http, @register_mcp, or @register_maintenance decorators. The registry system scans the codebase for these decorators in both `hh/` and `ext/` folders, caches the results in JSON files, and provides Gateway with the handler information needed for command execution. All backends (Parser, HTTP, MCP, Maintenance) depend on the registry system to discover their handlers, and all action modules must register through this system to be accessible. Project-specific handlers in `ext/` are automatically discovered alongside framework handlers in `hh/`.
 
 - CommandRegistry class manages command and backend handler discovery and loading
 - Cache system provides JSON-based discovery to avoid repeated filesystem scans

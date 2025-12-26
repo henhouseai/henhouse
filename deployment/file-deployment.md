@@ -56,9 +56,25 @@ The entire `/srv/{project_name}` directory is cleaned:
 Copies the entire `hh/` folder to `/srv/{project_name}/hh/`:
 - Uses `shutil.copytree()` to copy entire directory structure
 - All Python modules, subdirectories, and files are copied
-- This is the core application code
+- This is the core framework code
 
-### Step 5: Clean Deploy Folder (Preserve Whitelisted Items)
+### Step 4.5: Deploy Extension Code (if exists)
+
+Copies the entire `ext/` folder to `/srv/{project_name}/ext/` (if the folder exists):
+- Uses `shutil.copytree()` to copy entire directory structure
+- All Python modules, subdirectories, and files are copied
+- This is project-specific customization code (optional)
+- If `ext/` folder doesn't exist, this step is skipped
+
+### Step 5: Clean Extension Deploy Folder (if ext/ was deployed)
+
+**If ext/ folder was deployed**: The `ext/deploy/` folder is cleaned while preserving whitelisted items:
+- Whitelisted items from `EXT_DEPLOY_WHITELIST` are temporarily moved out
+- Entire `ext/deploy/` directory is removed
+- `ext/deploy/` directory is recreated and whitelisted items are restored
+- Base whitelist: `['conf']` (can be extended in `ext/deploy/conf/deploy_whitelist.py`)
+
+### Step 6: Clean Deploy Folder (Preserve Whitelisted Items)
 
 **Critical Process**: The `hh/deploy/` folder is cleaned while preserving essential items:
 
@@ -76,7 +92,7 @@ This ensures only essential deployment utilities remain in the deploy folder aft
 
 The whitelist is defined in `hh/deploy/conf/deploy_whitelist.py` (see `configuration.md`).
 
-### Step 6: Clean Cache Files
+### Step 7: Clean Cache Files
 
 Removes all cache files from deployment:
 - **`__pycache__` directories**: Recursively removed
@@ -86,7 +102,7 @@ Removes all cache files from deployment:
 
 This ensures clean deployment without stale cache files. The cache management system (see `cache.md`) handles cache cleanup operations.
 
-### Step 7: Deploy Flask Applications
+### Step 8: Deploy Flask Applications
 
 Creates tier-specific Flask application files:
 - **Source**: `hh/deploy/flask/app.py` (see `flask.md`)
@@ -101,7 +117,7 @@ Creates tier-specific Flask application files:
 
 These Flask applications are managed by the Flask application management system (see `flask.md`).
 
-### Step 8: Deploy Maintenance Worker
+### Step 9: Deploy Maintenance Worker
 
 Creates the maintenance worker script:
 - **Source**: `hh/deploy/maintenance/worker.py` (see `maintenance.md`)
@@ -110,7 +126,7 @@ Creates the maintenance worker script:
 
 The maintenance worker is managed by the maintenance daemon system (see `maintenance.md`).
 
-### Step 9: Deploy Extra Top-Level Files
+### Step 10: Deploy Extra Top-Level Files
 
 Copies additional files specified in `EXTRA_DEPLOY_FILES`:
 - `hh/deploy/flask/http_client.py` → `/srv/{project_name}/http_client.py` (see `flask.md`)
@@ -119,7 +135,7 @@ Copies additional files specified in `EXTRA_DEPLOY_FILES`:
 
 These are entry point scripts used by the deployed applications.
 
-### Step 10: Deploy Context Folders and Files
+### Step 11: Deploy Context Folders and Files
 
 Deploys documentation and context files for agent visibility:
 - **Destination**: `/srv/{project_name}/context/`
@@ -129,7 +145,7 @@ Deploys documentation and context files for agent visibility:
 
 The context whitelist and blacklist are defined in `hh/deploy/conf/context_whitelist.py` and `hh/deploy/conf/context_blacklist.py` (see `configuration.md`).
 
-### Step 11: Deploy Site Files
+### Step 12: Deploy Site Files
 
 Deploys static site assets to `/srv/{project_name}/site/`:
 
@@ -152,7 +168,7 @@ Deploys static site assets to `/srv/{project_name}/site/`:
 
 All whitelists are defined in `hh/deploy/conf/` (see `configuration.md` and `site-assets.md`).
 
-### Step 12: Set Ownership and Permissions
+### Step 13: Set Ownership and Permissions
 
 Sets proper Unix ownership and permissions:
 
@@ -168,7 +184,7 @@ Sets proper Unix ownership and permissions:
   - Directories: `0o770` (owner:rwx, group:rwx, others:---)
   - Files: `0o660` (owner:rw-, group:rw-, others:---)
 
-### Step 13: Set Up Cache Directory Permissions
+### Step 14: Set Up Cache Directory Permissions
 
 Configures cache directories discovered via cache registry:
 - **Discovery**: Uses `get_cache_directories()` from cache cleanup registry (see `cache.md`)
@@ -178,7 +194,7 @@ Configures cache directories discovered via cache registry:
 
 This allows all tier users (in deploy group) to write cache files via group permissions. The cache management system (see `cache.md`) uses these directories.
 
-### Step 14: Set Up Logs Directory
+### Step 15: Set Up Logs Directory
 
 Creates and configures logs directory:
 - **Path**: `/srv/{project_name}/logs/`
@@ -186,14 +202,14 @@ Creates and configures logs directory:
 - **Ownership**: `{project_name}_root:{project_name}_deploy`
 - **Purpose**: Flask daemons (see `flask.md`) and maintenance worker (see `maintenance.md`) write logs here
 
-### Step 15: Restart Daemons
+### Step 16: Restart Daemons
 
 Starts services after deployment completes:
 - **Flask daemons**: Started via `run_flask_start(project_name, start_port)` (see `flask.md`)
 - **Maintenance daemon**: Started via `run_maintenance_start(project_name)` (see `maintenance.md`)
 - Services start with new code and proper permissions in place
 
-### Step 16: Clear Registry Cache
+### Step 17: Clear Registry Cache
 
 Calls `clean_all_caches()` from cache cleanup registry (see `cache.md`):
 - Prevents permission issues from stale cache files

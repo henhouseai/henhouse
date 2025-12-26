@@ -31,64 +31,38 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_label='Modify Work Status'
 )
 @register_mcp_tool(
-    tool_name='modify_work_meta_set_pair',
-    description='Set/add/update a single key-value pair in the meta JSON field of a work page.',
+    tool_name='modify_work_meta',
+    description='Generalized tool for managing work page metadata. Supports multiple actions: add_log (append log entry), add (add key-value pairs), remove (remove keys), set (set/update key-value pairs), set_all (replace entire field). Works with protected namespaces (log, files_touched, deviations) and user-defined meta bucket. For remove action, provide keys (JSON array string). For other actions, provide data (JSON object string). Field defaults to "meta" but can be "log", "files_touched", "deviations", or "meta".',
     inputSchema={
         'type': 'object',
         'properties': {
             'page_id': {'type': 'integer', 'description': 'The ID of the work page'},
-            'key': {
+            'action': {
                 'type': 'string',
-                'description': 'The key to set in the meta JSON object'
+                'enum': ['add_log', 'add', 'remove', 'set', 'set_all'],
+                'description': 'The action to perform: add_log (append log entry), add (add key-value pairs, errors if key exists), remove (remove keys), set (set/update key-value pairs), set_all (replace entire field)'
             },
-            'value': {
+            'field': {
                 'type': 'string',
-                'description': 'The value to set for the key (can be a JSON string for nested objects/arrays)'
+                'enum': ['log', 'files_touched', 'deviations', 'meta'],
+                'description': 'The field to operate on. Defaults to "meta". Note: "log" field only supports "add_log" action.'
+            },
+            'data': {
+                'type': 'string',
+                'description': 'JSON object string containing key-value pairs. Required for add_log, add, set, and set_all actions. For add_log, contains log entry fields. For add/set/set_all, contains key-value pairs to add/update.'
+            },
+            'keys': {
+                'type': 'string',
+                'description': 'JSON array string containing keys to remove. Required for remove action.'
             }
         },
-        'required': ['page_id', 'key', 'value']
-    },
-    tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update'
-)
-@register_mcp_tool(
-    tool_name='modify_work_meta_remove_pair',
-    description='Remove a single key from the meta JSON field of a work page.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'page_id': {'type': 'integer', 'description': 'The ID of the work page'},
-            'key': {
-                'type': 'string',
-                'description': 'The key to remove from the meta JSON object'
-            }
-        },
-        'required': ['page_id', 'key']
-    },
-    tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update'
-)
-@register_mcp_tool(
-    tool_name='modify_work_meta_set_all',
-    description='Replace the entire meta JSON field of a work page with a new JSON object. Use empty JSON {} to clear all meta.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'page_id': {'type': 'integer', 'description': 'The ID of the work page'},
-            'meta': {
-                'type': 'string',
-                'description': 'The complete meta JSON object as a string (use {} to clear all meta)'
-            }
-        },
-        'required': ['page_id', 'meta']
+        'required': ['page_id', 'action']
     },
     tiers=[3, 4, 7, 8],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
-    app_action_label='Modify Meta'
+    app_action_label='Modify Work Meta'
 )
 @register_mcp_tool(
     tool_name='modify_work_sort_order',

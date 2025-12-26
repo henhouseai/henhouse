@@ -93,6 +93,7 @@ This section provides essential command patterns and key concepts you'll encount
 - Permission management with tier-based ownership
 - Deploy folder cleanup preserving essential utilities
 - Cache file removal and directory sterilization
+- **Framework vs Extension Separation**: `hh/` folder contains core framework code, `ext/` folder (optional) contains project-specific customizations
 
 ## **Flask Application Management**
 
@@ -157,6 +158,38 @@ This section provides essential command patterns and key concepts you'll encount
 - Stage branch recovery mechanisms
 - Development-to-production sync workflows
 
+## **Framework vs Extension Architecture**
+
+Henhouse uses a two-folder architecture to separate framework code from project-specific customizations:
+
+- **`hh/` folder**: Core Henhouse framework code (reusable across all projects)
+  - Contains all framework functionality: Gateway, Page system, deployment system, etc.
+  - Framework upgrades happen in `hh/` folder
+  - Shared across all projects using Henhouse
+  - Located at project root: `{project_name}/hh/`
+
+- **`ext/` folder**: Project-specific customizations (optional, per-project)
+  - Contains project-specific modules, page classes, whitelist extensions, etc.
+  - Project work happens in `ext/` folder
+  - Unique to each project
+  - Located at project root: `{project_name}/ext/`
+
+**Key Distinction for Agents**:
+- **Framework Work**: Changes to `hh/` affect all projects using Henhouse. These are framework upgrades.
+- **Project Work**: Changes to `ext/` affect only the current project. These are project-specific implementations.
+
+**Extension System**:
+- `ext/deploy/conf/` can extend whitelists (add items) or blacklist items (remove from base)
+- `ext/deploy/db/schema_ext.sql` can add project-specific database tables
+- `ext/deploy/site/` can add project-specific static assets
+- Page classes in `ext/` are automatically discovered and registered alongside `hh/` page classes
+- Registry scanning (`scan_for_decorator()`) searches both `hh/` and `ext/` for decorators
+
+**Deployment**:
+- Both `hh/` and `ext/` folders are deployed to `/srv/{project_name}/`
+- `hh/deploy/` and `ext/deploy/` are cleaned after deployment, preserving only whitelisted items
+- Whitelist extension system allows `ext/` to customize what gets deployed without modifying framework code
+
 ## **Current State of Deployment System**
 
 - Fully operational deployment infrastructure
@@ -164,6 +197,7 @@ This section provides essential command patterns and key concepts you'll encount
 - Production-ready with comprehensive error handling
 - Supports multi-tier architecture with proper isolation
 - Automated workflows reduce manual intervention to minimum
+- Framework vs extension separation enables multi-project development
 
 **Implementation Status:**
 
@@ -198,10 +232,12 @@ The following diagram shows the deployment system relationships and dependencies
 
 #### **File Deployment**: production code deployment
 
-- *Whitelisting System*: Python, JavaScript, CSS, misc, context file whitelists from `hh/deploy/conf/`
-- *File Copying*: whitelisted files to `/srv/{project_name}/` with 16-step deployment process
+- *Framework vs Extension*: `hh/` folder contains core Henhouse framework (reusable across projects), `ext/` folder (optional) contains project-specific customizations
+- *Whitelisting System*: Python, JavaScript, CSS, misc, context file whitelists from `hh/deploy/conf/` with extension support via `ext/deploy/conf/`
+- *Extension Whitelists*: `ext/deploy/conf/` can extend base whitelists (add items) or blacklist items (remove from base)
+- *File Copying*: whitelisted files to `/srv/{project_name}/` with deployment process that copies both `hh/` and `ext/` (if exists)
 - *Permission Management*: tier-based ownership (`{project_name}_root:{project_name}_deploy`) with setgid bit for cache/logs
-- *Deploy Folder Cleanup*: preserves cache/, conf/, maint/, utils.py via temporary move and restore process
+- *Deploy Folder Cleanup*: preserves cache/, conf/, maint/, utils.py in `hh/deploy/` and conf/ in `ext/deploy/` via temporary move and restore process
 - *Cache Cleanup*: removes `__pycache__`, `.pyc`, cache JSON files, then clears all registered caches
 - *Service Restart*: automatic Flask and maintenance daemon stop before deployment, start after deployment
 - *Git Preservation*: git repository preserved across deployments via temporary move and restore
@@ -256,10 +292,12 @@ The following diagram shows the deployment system relationships and dependencies
 #### **Configuration System**: whitelists and settings
 
 - *File Whitelists*: Python, JavaScript, CSS, misc, context, deploy whitelists in `hh/deploy/conf/`
+- *Extension Whitelists*: `ext/deploy/conf/` can extend base whitelists (add items via `{name}.py`) or blacklist items (remove via `{name}_blacklist.py`)
+- *Whitelist Extension Process*: Load base from `hh/deploy/conf/`, subtract blacklist from `ext/deploy/conf/`, add extension from `ext/deploy/conf/`
 - *Blacklists*: patterns excluded from deployment (context blacklist for documentation)
 - *Project Detection*: automatic project name and root discovery via `detect_project_context()` utility
 - *Tier Configuration*: four-tier user model constants (`HENHOUSE_TIERS`) used throughout deployment system
-- *Deploy Folder Preservation*: whitelist defines what survives deployment cleanup (cache/, conf/, maint/, utils.py)
+- *Deploy Folder Preservation*: whitelist defines what survives deployment cleanup (cache/, conf/, maint/, utils.py in `hh/deploy/`, conf/ in `ext/deploy/`)
 
 #### **User Management**: infrastructure lifecycle
 
@@ -290,13 +328,13 @@ The following diagram shows the deployment system relationships and dependencies
 
 - **Installation is prerequisite**: User infrastructure must exist before database, deployment, or service management. Installation creates tier users, groups, credential files, git repository, and directory structure that all other systems depend on.
 
-- **Database setup is independent**: Can be initialized separately from file deployment, but requires credential files from installation. Database users are created using passwords from credential files created during installation.
+- **Database setup is independent**: Can be initialized separately from file deployment, but requires credential files from installation. Database users are created using passwords from credential files created during installation. Extension schema (`ext/deploy/db/schema_ext.sql`) is executed after main schema if present.
 
-- **File deployment coordinates services**: Automatically stops and restarts Flask and maintenance daemons. Preserves git repository and whitelisted deploy folder items (cache/, conf/, maint/, utils.py) during cleanup.
+- **File deployment coordinates services**: Automatically stops and restarts Flask and maintenance daemons. Preserves git repository and whitelisted deploy folder items (cache/, conf/, maint/, utils.py in `hh/deploy/`, conf/ in `ext/deploy/`) during cleanup. Deploys both `hh/` and `ext/` folders if present.
 
 - **Git operations are independent**: Can sync code without affecting running services. Automatically clears caches after pull operations to prevent stale state issues.
 
-- **Configuration drives deployment**: Whitelists determine what gets deployed, blacklists exclude patterns. All file deployment decisions are driven by whitelist files in `hh/deploy/conf/`.
+- **Configuration drives deployment**: Whitelists determine what gets deployed, blacklists exclude patterns. Base whitelists in `hh/deploy/conf/` can be extended or modified via `ext/deploy/conf/` files. All file deployment decisions are driven by the combined whitelist system.
 
 - **Services depend on deployment**: Flask and maintenance daemons require deployed code to function. Flask applications are created during deployment, maintenance worker is deployed during deployment.
 
@@ -317,7 +355,8 @@ The deployment system follows a **"set it up once, deploy repeatedly"** philosop
 
 All deployment operations target `/srv/{project_name}/` as the production root:
 
-- **Code**: `hh/` folder structure deployed to `/srv/{project_name}/hh/`
+- **Framework Code**: `hh/` folder structure deployed to `/srv/{project_name}/hh/` (core Henhouse framework)
+- **Extension Code**: `ext/` folder structure deployed to `/srv/{project_name}/ext/` (project-specific customizations, optional)
 - **Site Assets**: Static files deployed to `/srv/{project_name}/site/`
 - **Logs**: Application logs in `/srv/{project_name}/logs/`
 - **Cache**: Cache directories in `/srv/{project_name}/` (various locations)
@@ -350,16 +389,20 @@ Each tier has:
 
 #### **File Whitelisting System**
 
-The deployment uses a comprehensive whitelisting system:
+The deployment uses a comprehensive whitelisting system with extension support:
 
+- **Base Whitelists**: Defined in `hh/deploy/conf/` (py_whitelist.py, js_whitelist.py, css_whitelist.py, etc.)
+- **Extension Whitelists**: `ext/deploy/conf/` can extend base whitelists by adding items via `{name}.py` files
+- **Extension Blacklists**: `ext/deploy/conf/` can remove items from base whitelists via `{name}_blacklist.py` files
+- **Processing Order**: Load base → subtract blacklist → add extension
 - **Python Files**: `py_whitelist.py` defines which Python files are deployed
-- **JavaScript Files**: `js_whitelist.py` defines which JS files are deployed
-- **CSS Files**: `css_whitelist.py` defines which stylesheets are deployed
+- **JavaScript Files**: `js_whitelist.py` defines which JS files are deployed (can be extended via `ext/deploy/conf/js_whitelist.py`)
+- **CSS Files**: `css_whitelist.py` defines which stylesheets are deployed (can be extended via `ext/deploy/conf/css_whitelist.py`)
 - **Miscellaneous Files**: `misc_whitelist.py` defines other static assets
 - **Context Files**: `context_whitelist.py` and `context_blacklist.py` control documentation deployment
-- **Deploy Folder**: `deploy_whitelist.py` defines what survives deploy folder cleanup
+- **Deploy Folder**: `deploy_whitelist.py` defines what survives deploy folder cleanup (separate whitelists for `hh/deploy/` and `ext/deploy/`)
 
-**Key Principle**: Only explicitly whitelisted files are deployed. Everything else is excluded by default.
+**Key Principle**: Only explicitly whitelisted files are deployed. Everything else is excluded by default. Extension whitelists allow project-specific customizations without modifying framework code.
 
 #### **Service Management**
 

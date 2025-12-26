@@ -2,31 +2,81 @@
 TABLE OF CONTENTS (Alphabetical Order)
 ======================================
 
-__init__()                     Line 84
-_add_page_class_information()   Line 110
-_delete_page_class_information() Line 192
-_get_child_page_data()          Line 200
-get_page_data()                 Line 209
-_load_work_metadata()           Line 228
-_sort_meta_dict()               Line 103
-allow_inside_of()               Line 98
-modify_work_meta_remove_pair()  Line 268
-modify_work_meta_set_all()      Line 296
-modify_work_meta_set_pair()     Line 328
-modify_work_sort_order()         Line 357
-modify_work_status()             Line 454
+__init__()                          Line 79
+_add_badge_headers()                Line 230
+_add_page_class_information()       Line 105
+_delete_page_class_information()    Line 187
+_get_child_page_data()               Line 216
+_get_display_name()                 Line 195
+_load_work_metadata()               Line 320
+_modify_work_sort_order_internal()   Line 464
+_sort_meta_dict()                   Line 98
+_validate_is_string()               Line 371
+allow_inside_of()                   Line 93
+finalize_response_http()             Line 302
+get_page_data()                     Line 306
+modify_work_sort_order()            Line 453
+modify_work_status()                Line 985
+work_add()                          Line 660
+work_add_log()                      Line 741
+work_remove()                       Line 784
+work_set()                          Line 861
+work_set_all()                      Line 935
 
 """
 
 from __future__ import annotations
 import json
 import datetime as dt
-from typing import Dict, Any
+from typing import Dict, Any, List
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page import Page
 from hh.page.page_registry import get_page
+
+
+def _format_relative_time(timestamp_str: str) -> str:
+    """Convert ISO timestamp to relative time string (e.g., '3 days ago')."""
+    trace_in()
+    try:
+        if not timestamp_str:
+            trace_out()
+            return ''
+        # Parse ISO timestamp
+        timestamp = dt.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        now = dt.datetime.now(timestamp.tzinfo if timestamp.tzinfo else None)
+        delta = now - timestamp
+        
+        # Calculate time differences
+        seconds = int(delta.total_seconds())
+        if seconds < 60:
+            result = 'just now' if seconds < 10 else f'{seconds} seconds ago'
+        elif seconds < 3600:
+            minutes = seconds // 60
+            result = '1 minute ago' if minutes == 1 else f'{minutes} minutes ago'
+        elif seconds < 86400:
+            hours = seconds // 3600
+            result = '1 hour ago' if hours == 1 else f'{hours} hours ago'
+        elif seconds < 604800:
+            days = seconds // 86400
+            result = '1 day ago' if days == 1 else f'{days} days ago'
+        elif seconds < 2592000:
+            weeks = seconds // 604800
+            result = '1 week ago' if weeks == 1 else f'{weeks} weeks ago'
+        elif seconds < 31536000:
+            months = seconds // 2592000
+            result = '1 month ago' if months == 1 else f'{months} months ago'
+        else:
+            years = seconds // 31536000
+            result = '1 year ago' if years == 1 else f'{years} years ago'
+        log(f"Converted timestamp '{timestamp_str}' to '{result}'")
+        trace_out()
+        return result
+    except Exception as e:
+        warn(f"Error formatting relative time for '{timestamp_str}': {e}")
+        trace_out()
+        return timestamp_str
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -228,7 +278,7 @@ class WorkPage(Page):
         return data
     
     def _add_badge_headers(self) -> Dict[str, Any]:
-        """Override to add work-specific fields to page_summary and add work_meta badge."""
+        """Override to add work-specific fields to page_summary and add separate work badges."""
         trace_in()
         # Get base badge headers from parent
         badge_headers = super()._add_badge_headers()
@@ -236,11 +286,20 @@ class WorkPage(Page):
         # Add work fields to page_summary badge (like mcp_request does with status)
         badge_headers['page_summary']['status'] = self.status if hasattr(self, 'status') else 'todo'
         badge_headers['page_summary']['sort_order'] = self.sort_order if hasattr(self, 'sort_order') else 0
-        badge_headers['page_summary']['started_ts'] = str(self.started_ts) if hasattr(self, 'started_ts') and self.started_ts else None
-        badge_headers['page_summary']['ended_ts'] = str(self.ended_ts) if hasattr(self, 'ended_ts') and self.ended_ts else None
+        if hasattr(self, 'started_ts') and self.started_ts:
+            badge_headers['page_summary']['started_ts'] = _format_relative_time(str(self.started_ts))
+        else:
+            badge_headers['page_summary']['started_ts'] = None
+        if hasattr(self, 'ended_ts') and self.ended_ts:
+            badge_headers['page_summary']['ended_ts'] = _format_relative_time(str(self.ended_ts))
+        else:
+            badge_headers['page_summary']['ended_ts'] = None
         
         # Add work meta badge as generic badge
-        # Parse meta if it's a string, otherwise use the dict
+        # Get full metadata dict to access protected namespaces
+        metadata = self._get_metadata_dict()
+        
+        # Extract meta bucket (user-defined key-value pairs)
         meta_dict = {}
         if hasattr(self, 'meta_dict') and self.meta_dict:
             meta_dict = self.meta_dict
@@ -253,22 +312,58 @@ class WorkPage(Page):
             elif isinstance(self.meta, dict):
                 meta_dict = self.meta
         
-        # For parser backend, format as pretty JSON string
-        # For HTTP backend, keep as dict for key-value rendering
-        gateway = get_gateway()
-        if gateway and hasattr(gateway, 'backend') and gateway.backend == 'parser':
-            # Parser: format as indented JSON string
-            if meta_dict:
-                meta_formatted = json.dumps(meta_dict, indent=2, ensure_ascii=False)
-            else:
-                meta_formatted = "{}"
-            badge_headers['work_meta'] = {'meta': meta_formatted}
-        else:
-            # HTTP: keep as dict for key-value pair rendering
-            if meta_dict:
-                badge_headers['work_meta'] = meta_dict
-            else:
-                badge_headers['work_meta'] = {}
+        # Extract protected namespaces from full metadata
+        log_list = metadata.get('log', [])
+        files_touched_dict = metadata.get('files_touched', {})
+        deviations_dict = metadata.get('deviations', {})
+        
+        # Create one badge per log entry, converting timestamp to relative time
+        if log_list and isinstance(log_list, list):
+            for i, log_entry in enumerate(log_list):
+                if isinstance(log_entry, dict):
+                    # Create a copy of the log entry
+                    log_entry_copy = dict(log_entry)
+                    # Extract and convert timestamp
+                    timestamp = log_entry_copy.pop('timestamp', '')
+                    relative_time = _format_relative_time(timestamp) if timestamp else ''
+                    
+                    # Sort remaining keys alphabetically
+                    sorted_keys = sorted([k for k in log_entry_copy.keys()], key=lambda x: x.lower())
+                    sorted_entry = {k: log_entry_copy[k] for k in sorted_keys}
+                    
+                    # Create badge dict with header row first (work_log field config + relative_time)
+                    badge_data = {'work_log': relative_time}
+                    # Add rest of sorted log data
+                    badge_data.update(sorted_entry)
+                    badge_headers[f'work_log_{i}'] = badge_data
+        
+        # Create separate badges for meta, files_touched, and deviations (only if non-empty)
+        if meta_dict and isinstance(meta_dict, dict) and len(meta_dict) > 0:
+            # Sort keys alphabetically
+            sorted_keys = sorted(meta_dict.keys(), key=lambda x: x.lower())
+            sorted_meta = {k: meta_dict[k] for k in sorted_keys}
+            # Create badge dict with header row first (work_meta field config + blank value)
+            badge_data = {'work_meta': ''}
+            badge_data.update(sorted_meta)
+            badge_headers['work_meta'] = badge_data
+        
+        if files_touched_dict and isinstance(files_touched_dict, dict) and len(files_touched_dict) > 0:
+            # Sort keys alphabetically
+            sorted_keys = sorted(files_touched_dict.keys(), key=lambda x: x.lower())
+            sorted_files = {k: files_touched_dict[k] for k in sorted_keys}
+            # Create badge dict with header row first (work_files_touched field config + count)
+            badge_data = {'work_files_touched': str(len(files_touched_dict))}
+            badge_data.update(sorted_files)
+            badge_headers['work_files_touched'] = badge_data
+        
+        if deviations_dict and isinstance(deviations_dict, dict) and len(deviations_dict) > 0:
+            # Sort keys alphabetically
+            sorted_keys = sorted(deviations_dict.keys(), key=lambda x: x.lower())
+            sorted_deviations = {k: deviations_dict[k] for k in sorted_keys}
+            # Create badge dict with header row first (work_deviations field config + count)
+            badge_data = {'work_deviations': str(len(deviations_dict))}
+            badge_data.update(sorted_deviations)
+            badge_headers['work_deviations'] = badge_data
         
         trace_out()
         return badge_headers
@@ -305,6 +400,16 @@ class WorkPage(Page):
         if 'meta' not in metadata or metadata['meta'] in (None, ''):
             metadata['meta'] = {}
             mutated = True
+        # Initialize protected namespaces if they don't exist
+        if 'log' not in metadata:
+            metadata['log'] = []
+            mutated = True
+        if 'files_touched' not in metadata:
+            metadata['files_touched'] = {}
+            mutated = True
+        if 'deviations' not in metadata:
+            metadata['deviations'] = {}
+            mutated = True
         self.status = metadata.get('status') or 'todo'
         self.sort_order = metadata.get('sort_order') or 0
         self.started_ts = metadata.get('started_ts')
@@ -331,94 +436,17 @@ class WorkPage(Page):
         )
         trace_out()
     
-    def modify_work_meta_remove_pair(self, key: str) -> bool:
-        """Remove a single key from the meta JSON field."""
-        trace_in()
-        log(f"Removing meta key '{key}' for page {self.id}")
-        metadata = self._get_metadata_dict()
-        current_meta = metadata.get('meta')
-        if isinstance(current_meta, str):
-            try:
-                current_meta = json.loads(current_meta)
-            except (ValueError, TypeError):
-                current_meta = {}
-        if not isinstance(current_meta, dict):
-            current_meta = {}
-        if key in current_meta:
-            meta_copy = dict(current_meta)
-            meta_copy.pop(key, None)
-            sorted_meta = self._sort_meta_dict(meta_copy)
-            metadata['meta'] = sorted_meta
-            if self._write_metadata_dict(metadata):
-                self.meta_dict = sorted_meta
-                self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
-                log(f"Successfully removed key '{key}' from page {self.id} meta")
-                self.flag_page_modification("meta updated")
-        else:
-            log(f"Key '{key}' not found in meta, nothing to remove")
-        trace_out()
-        return not is_error()
+    @staticmethod
+    def _validate_is_string(value: Any) -> bool:
+        """Validate that a value is a simple string."""
+        return isinstance(value, str)
     
-    def modify_work_meta_set_all(self, meta_json: str) -> bool:
-        """Replace the entire meta JSON field with a new JSON object."""
-        trace_in()
-        log(f"Setting entire meta for page {self.id}")
-        
-        if meta_json and isinstance(meta_json, str) and meta_json.strip():
-            try:
-                meta_dict = json.loads(meta_json)
-                if not isinstance(meta_dict, dict):
-                    warn("Provided meta JSON must describe an object")
-                    report_error("action", "Meta JSON must be an object")
-                    trace_out()
-                    return False
-            except json.JSONDecodeError as exc:
-                warn(f"Invalid JSON provided for meta: {exc}")
-                report_error("action", f"Invalid JSON for meta: {exc}")
-                trace_out()
-                return False
-        else:
-            meta_dict = {}
-        sorted_meta = self._sort_meta_dict(meta_dict)
-        
-        metadata = self._get_metadata_dict()
-        metadata['meta'] = sorted_meta
-        if self._write_metadata_dict(metadata):
-            self.meta_dict = sorted_meta
-            self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
-            log(f"Successfully updated page {self.id} meta")
-            self.flag_page_modification("meta updated")
-        trace_out()
-        return not is_error()
-    
-    def modify_work_meta_set_pair(self, key: str, value: str) -> bool:
-        """Set/add/update a single key-value pair in the meta JSON field."""
-        trace_in()
-        log(f"Setting meta key '{key}' for page {self.id}")
-        metadata = self._get_metadata_dict()
-        current_meta = metadata.get('meta')
-        if isinstance(current_meta, str):
-            try:
-                current_meta = json.loads(current_meta)
-            except (ValueError, TypeError):
-                current_meta = {}
-        if not isinstance(current_meta, dict):
-            current_meta = {}
-        meta_copy = dict(current_meta)
-        try:
-            parsed_value = json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            parsed_value = value
-        meta_copy[key] = parsed_value
-        sorted_meta = self._sort_meta_dict(meta_copy)
-        metadata['meta'] = sorted_meta
-        if self._write_metadata_dict(metadata):
-            self.meta_dict = sorted_meta
-            self.meta = json.dumps(sorted_meta, ensure_ascii=False) if sorted_meta else '{}'
-            log(f"Successfully updated page {self.id} meta key '{key}'")
-            self.flag_page_modification("meta updated")
-        trace_out()
-        return not is_error()
+    @staticmethod
+    def _normalize_field_name(field: str) -> str:
+        """Normalize field name to canonical form. Maps 'files', 'files_touched', 'files-touched' to 'files_touched'."""
+        if field in ('files', 'files_touched', 'files-touched'):
+            return 'files_touched'
+        return field
     
     def _modify_work_sort_order_internal(self, page_id: int, new_sort_order: int) -> bool:
         """Helper method to update a single page's sort_order using JSON_SET()."""
@@ -596,6 +624,352 @@ class WorkPage(Page):
                 
                 if not is_error():
                     log(f"Successfully updated ordering for {len(new_order)} siblings")
+        
+        trace_out()
+        return not is_error()
+    
+    def work_add(self, data: Dict[str, str], field: str = "meta") -> bool:
+        """Add key-value pairs to specified field dictionary. Errors if any key already exists."""
+        trace_in()
+        # Normalize field name (e.g., 'files' -> 'files_touched')
+        field = self._normalize_field_name(field)
+        log(f"Adding to {field} for page {self.id}")
+        
+        if field not in ("files_touched", "deviations", "meta"):
+            warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
+            report_error("action", f"Invalid field: {field}")
+            trace_out()
+            return False
+        
+        if not isinstance(data, dict):
+            warn(f"Data must be a dictionary, got {type(data)}")
+            report_error("action", "Data must be a dictionary")
+            trace_out()
+            return False
+        
+        for key, value in data.items():
+            if not self._validate_is_string(key):
+                warn(f"{field} key must be a string, got {type(key)}")
+                report_error("action", f"{field} key must be a string, got {type(key)}")
+                trace_out()
+                return False
+            if not self._validate_is_string(value):
+                warn(f"{field} value must be a string, got {type(value)}")
+                report_error("action", f"{field} value must be a string, got {type(value)}")
+                trace_out()
+                return False
+        
+        if is_error():
+            trace_out()
+            return False
+        
+        metadata = self._get_metadata_dict()
+        
+        if field == "meta":
+            current_field = metadata.get('meta', {})
+            if isinstance(current_field, str):
+                try:
+                    current_field = json.loads(current_field)
+                except (ValueError, TypeError):
+                    current_field = {}
+            if not isinstance(current_field, dict):
+                current_field = {}
+        else:
+            current_field = metadata.get(field, {})
+            if not isinstance(current_field, dict):
+                current_field = {}
+        
+        duplicates = [k for k in data.keys() if k in current_field]
+        if duplicates:
+            warn(f"{field} keys already exist: {duplicates}")
+            report_error("action", f"{field} keys already exist: {duplicates}")
+            trace_out()
+            return False
+        
+        current_field.update(data)
+        
+        if field == "meta":
+            sorted_field = self._sort_meta_dict(current_field)
+            metadata['meta'] = sorted_field
+            if self._write_metadata_dict(metadata):
+                self.meta_dict = sorted_field
+                self.meta = json.dumps(sorted_field, ensure_ascii=False) if sorted_field else '{}'
+                log(f"Successfully added {len(data)} keys to {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        else:
+            metadata[field] = current_field
+            if self._write_metadata_dict(metadata):
+                log(f"Successfully added {len(data)} entries to {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        
+        trace_out()
+        return not is_error()
+    
+    def work_add_log(self, data: Dict[str, str]) -> bool:
+        """Append a log entry to the log list with automatic timestamp."""
+        trace_in()
+        log(f"Adding log entry for page {self.id}")
+        
+        if not isinstance(data, dict):
+            warn(f"Log entry must be a dictionary, got {type(data)}")
+            report_error("action", "Log entry must be a dictionary")
+            trace_out()
+            return False
+        
+        for key, value in data.items():
+            if not self._validate_is_string(key):
+                warn(f"Log entry key must be a string, got {type(key)}")
+                report_error("action", f"Log entry key must be a string, got {type(key)}")
+                trace_out()
+                return False
+            if not self._validate_is_string(value):
+                warn(f"Log entry value for key '{key}' must be a string, got {type(value)}")
+                report_error("action", f"Log entry value for key '{key}' must be a string")
+                trace_out()
+                return False
+        
+        if is_error():
+            trace_out()
+            return False
+        
+        metadata = self._get_metadata_dict()
+        log_list = metadata.get('log', [])
+        if not isinstance(log_list, list):
+            log_list = []
+        
+        entry_copy = dict(data)
+        entry_copy['timestamp'] = dt.datetime.now().isoformat()
+        
+        log_list.append(entry_copy)
+        metadata['log'] = log_list
+        
+        if self._write_metadata_dict(metadata):
+            log(f"Successfully added log entry to page {self.id}")
+            self.flag_page_modification("meta updated")
+        else:
+            warn(f"Failed to write log entry for page {self.id}")
+            report_error("action", "Failed to write log entry")
+        
+        trace_out()
+        return not is_error()
+    
+    def work_remove(self, keys: List[str], field: str = "meta") -> bool:
+        """Remove specified keys from specified field dictionary. Errors if any key doesn't exist."""
+        trace_in()
+        # Normalize field name (e.g., 'files' -> 'files_touched')
+        field = self._normalize_field_name(field)
+        log(f"Removing from {field} for page {self.id}")
+        
+        if field not in ("files_touched", "deviations", "meta"):
+            warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
+            report_error("action", f"Invalid field: {field}")
+            trace_out()
+            return False
+        
+        if not isinstance(keys, list):
+            warn(f"Keys must be a list, got {type(keys)}")
+            report_error("action", "Keys must be a list")
+            trace_out()
+            return False
+        
+        for key in keys:
+            if not self._validate_is_string(key):
+                warn(f"Key must be a string, got {type(key)}")
+                report_error("action", f"Key must be a string, got {type(key)}")
+                trace_out()
+                return False
+        
+        if is_error():
+            trace_out()
+            return False
+        
+        metadata = self._get_metadata_dict()
+        
+        if field == "meta":
+            current_field = metadata.get('meta', {})
+            if isinstance(current_field, str):
+                try:
+                    current_field = json.loads(current_field)
+                except (ValueError, TypeError):
+                    current_field = {}
+            if not isinstance(current_field, dict):
+                current_field = {}
+        else:
+            current_field = metadata.get(field, {})
+            if not isinstance(current_field, dict):
+                current_field = {}
+        
+        missing = [k for k in keys if k not in current_field]
+        if missing:
+            warn(f"Keys not found in {field}: {missing}")
+            report_error("action", f"Keys not found in {field}: {missing}")
+            trace_out()
+            return False
+        
+        for key in keys:
+            current_field.pop(key, None)
+        
+        if field == "meta":
+            sorted_field = self._sort_meta_dict(current_field)
+            metadata['meta'] = sorted_field
+            if self._write_metadata_dict(metadata):
+                self.meta_dict = sorted_field
+                self.meta = json.dumps(sorted_field, ensure_ascii=False) if sorted_field else '{}'
+                log(f"Successfully removed {len(keys)} keys from {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        else:
+            metadata[field] = current_field
+            if self._write_metadata_dict(metadata):
+                log(f"Successfully removed {len(keys)} keys from {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        
+        trace_out()
+        return not is_error()
+    
+    def work_set(self, data: Dict[str, str], field: str = "meta") -> bool:
+        """Add/update key-value pairs in specified field dictionary. No error if keys already exist, leaves other keys unchanged."""
+        trace_in()
+        # Normalize field name (e.g., 'files' -> 'files_touched')
+        field = self._normalize_field_name(field)
+        log(f"Setting {field} for page {self.id}")
+        
+        if field not in ("files_touched", "deviations", "meta"):
+            warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
+            report_error("action", f"Invalid field: {field}")
+            trace_out()
+            return False
+        
+        if not isinstance(data, dict):
+            warn(f"Data must be a dictionary, got {type(data)}")
+            report_error("action", "Data must be a dictionary")
+            trace_out()
+            return False
+        
+        for key, value in data.items():
+            if not self._validate_is_string(key):
+                warn(f"{field} key must be a string, got {type(key)}")
+                report_error("action", f"{field} key must be a string, got {type(key)}")
+                trace_out()
+                return False
+            if not self._validate_is_string(value):
+                warn(f"{field} value must be a string, got {type(value)}")
+                report_error("action", f"{field} value must be a string, got {type(value)}")
+                trace_out()
+                return False
+        
+        if is_error():
+            trace_out()
+            return False
+        
+        metadata = self._get_metadata_dict()
+        
+        if field == "meta":
+            current_field = metadata.get('meta', {})
+            if isinstance(current_field, str):
+                try:
+                    current_field = json.loads(current_field)
+                except (ValueError, TypeError):
+                    current_field = {}
+            if not isinstance(current_field, dict):
+                current_field = {}
+        else:
+            current_field = metadata.get(field, {})
+            if not isinstance(current_field, dict):
+                current_field = {}
+        
+        current_field.update(data)
+        
+        if field == "meta":
+            sorted_field = self._sort_meta_dict(current_field)
+            metadata['meta'] = sorted_field
+            if self._write_metadata_dict(metadata):
+                self.meta_dict = sorted_field
+                self.meta = json.dumps(sorted_field, ensure_ascii=False) if sorted_field else '{}'
+                log(f"Successfully set {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        else:
+            metadata[field] = current_field
+            if self._write_metadata_dict(metadata):
+                log(f"Successfully set {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        
+        trace_out()
+        return not is_error()
+    
+    def work_set_all(self, data: Dict[str, str], field: str = "meta") -> bool:
+        """Replace entire specified field dictionary with new dictionary."""
+        trace_in()
+        # Normalize field name (e.g., 'files' -> 'files_touched')
+        field = self._normalize_field_name(field)
+        log(f"Setting all {field} for page {self.id}")
+        
+        if field not in ("files_touched", "deviations", "meta"):
+            warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
+            report_error("action", f"Invalid field: {field}")
+            trace_out()
+            return False
+        
+        if not isinstance(data, dict):
+            warn(f"Data must be a dictionary, got {type(data)}")
+            report_error("action", "Data must be a dictionary")
+            trace_out()
+            return False
+        
+        for key, value in data.items():
+            if not self._validate_is_string(key):
+                warn(f"{field} key must be a string, got {type(key)}")
+                report_error("action", f"{field} key must be a string, got {type(key)}")
+                trace_out()
+                return False
+            if not self._validate_is_string(value):
+                warn(f"{field} value must be a string, got {type(value)}")
+                report_error("action", f"{field} value must be a string, got {type(value)}")
+                trace_out()
+                return False
+        
+        if is_error():
+            trace_out()
+            return False
+        
+        metadata = self._get_metadata_dict()
+        
+        if field == "meta":
+            sorted_field = self._sort_meta_dict(data)
+            metadata['meta'] = sorted_field
+            if self._write_metadata_dict(metadata):
+                self.meta_dict = sorted_field
+                self.meta = json.dumps(sorted_field, ensure_ascii=False) if sorted_field else '{}'
+                log(f"Successfully set all {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
+        else:
+            metadata[field] = data
+            if self._write_metadata_dict(metadata):
+                log(f"Successfully set all {field} for page {self.id}")
+                self.flag_page_modification("meta updated")
+            else:
+                warn(f"Failed to write {field} for page {self.id}")
+                report_error("action", f"Failed to write {field}")
         
         trace_out()
         return not is_error()

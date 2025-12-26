@@ -181,6 +181,50 @@ def deploy() -> bool:
             warn(f"Failed to deploy ext code: {e}")
             report_error("backend", f"Failed to deploy ext code: {e}")
 
+    # Clean ext/deploy directory but preserve whitelisted items (if ext/ was deployed)
+    if not is_error() and ext_code_deployed:
+        ext_deploy_dir = dest / 'ext' / 'deploy'
+        ext_preserved_items = {}  # Map of item_name -> (source_path, temp_path)
+        ext_deployment_cleaned = False
+        try:
+            if ext_deploy_dir.exists():
+                # Temporarily move whitelisted items out
+                for item_name in EXT_DEPLOY_WHITELIST:
+                    item_path = ext_deploy_dir / item_name
+                    if item_path.exists():
+                        temp_path = dest / f".{project_name}_ext_{item_name.replace('/', '_').replace('.', '_')}_tmp"
+                        
+                        # Clean up existing temp if it exists
+                        if temp_path.exists():
+                            if temp_path.is_dir():
+                                shutil.rmtree(temp_path)
+                            else:
+                                temp_path.unlink()
+                        
+                        # Move item to temp location
+                        shutil.move(str(item_path), str(temp_path))
+                        ext_preserved_items[item_name] = (item_path, temp_path)
+                        log(f"Temporarily moved ext/{item_name}: {item_path} -> {temp_path}")
+
+                # Remove entire ext/deploy directory contents
+                shutil.rmtree(ext_deploy_dir)
+                log(f"Removed ext/deploy directory: {ext_deploy_dir}")
+
+                # Recreate ext/deploy directory and restore preserved items
+                ext_deploy_dir.mkdir(parents=True, exist_ok=True)
+                for item_name, (original_path, temp_path) in ext_preserved_items.items():
+                    if temp_path.exists():
+                        restored_path = ext_deploy_dir / item_name
+                        shutil.move(str(temp_path), str(restored_path))
+                        log(f"Restored ext/{item_name}: {restored_path}")
+
+                ext_deployment_cleaned = True
+            else:
+                log("ext/deploy directory not found, skipping ext/deploy cleanup")
+        except Exception as e:
+            warn(f"Failed to clean ext/deploy directory while preserving whitelisted items: {e}")
+            report_error("backend", f"Failed to clean ext/deploy directory while preserving whitelisted items: {e}")
+
     # Clean deployment directory but preserve whitelisted items
     if not is_error():
         deploy_dir = dest / 'hh' / 'deploy'
