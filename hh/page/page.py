@@ -2843,19 +2843,15 @@ class Page:
     def show_page(self) -> Dict[str, Any]:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and self.children_by_class is not None
-        lightweight = False
-        gateway = get_gateway()
-        if gateway and gateway.backend == "mcp":
-            lightweight = True
-        if cache_ready and not lightweight:
+        if cache_ready:
             debug(f"Page {self.id}: cache available, methods will check cache independently")
-        if lightweight:
-            debug(f"Page {self.id}: cache miss or stale entry; rebuilding lightweight payload")
         else:
             debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
         page_data = self.get_page_data()
         images_data = self.get_images_data()
         files_data = self.get_files_data()
+        audio_data = self.get_audio_data()
+        video_data = self.get_video_data()
         children_by_class = self._get_children_by_class()
         badge_headers = self._add_badge_headers()
         upper_content = self._add_upper_content()
@@ -2866,45 +2862,27 @@ class Page:
             page_data = dict(page_data)
             page_data['prepared_text'] = prepared_payload
 
-        if lightweight:
-            response_data = {
-                "page": page_data,
-                "images": images_data,
-                "children_by_class": children_by_class,
-                "files": files_data,
-            }
-        else:
-            # Get audio and video data
-            audio_data = self.get_audio_data()
-            video_data = self.get_video_data()
-            response_data = {
-                "page": page_data,
-                "children_by_class": children_by_class,
-                "images": images_data,
-                "files": files_data,
-                "audio": audio_data,
-                "video": video_data,
-                "badge_headers": badge_headers,
-                "upper_content": upper_content,
-                "lower_content": lower_content,
-            }
+        response_data = {
+            "page": page_data,
+            "children_by_class": children_by_class,
+            "images": images_data,
+            "files": files_data,
+            "audio": audio_data,
+            "video": video_data,
+            "badge_headers": badge_headers,
+            "upper_content": upper_content,
+            "lower_content": lower_content,
+        }
 
         # Cache refresh will be handled by wrapper method system if flag is set
 
         total_children = sum(len(group['children']) for group in children_by_class.values())
         file_count = len(files_data)
-        if lightweight:
-            log(
-                f"Assembled lightweight display data for page {self.id}: "
-                f"{total_children} children in {len(children_by_class)} classes, "
-                f"{len(images_data)} images, {file_count} files"
-            )
-        else:
-            log(
-                f"Assembled display data for page {self.id}: "
-                f"{total_children} children in {len(children_by_class)} classes, "
-                f"{len(images_data)} images, {file_count} files"
-            )
+        log(
+            f"Assembled display data for page {self.id}: "
+            f"{total_children} children in {len(children_by_class)} classes, "
+            f"{len(images_data)} images, {file_count} files"
+        )
         trace_out()
         return response_data
 

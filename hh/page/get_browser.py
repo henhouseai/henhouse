@@ -86,7 +86,7 @@ def get_browser() -> bool:
         trace_out()
         return False
     
-    # Get full page data directly (not via show_page which returns lightweight for MCP)
+    # Get full page data directly
     page_data = page.get_page_data()
     images_data = page.get_images_data()
     files_data = page.get_files_data()

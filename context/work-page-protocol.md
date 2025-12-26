@@ -211,9 +211,9 @@ Every work operation must be micrologged. Micrologs serve as:
 
 **What to Include in Microlog**:
 - What work was done
-- Which files were touched (use `files_touched` list)
+- Which files were touched (use `files_touched` dictionary via `modify_work_meta`)
 - Any changes made to metadata (old values → new values)
-- Any deviations from specification (use `deviations` list)
+- Any deviations from specification (use `deviations` dictionary via `modify_work_meta`)
 - Results/outcomes
 - Any issues encountered
 
@@ -244,11 +244,31 @@ WorkPage metadata has two levels:
 
 Three namespaces at the top level are protected and cannot be cleared by standard metadata operations:
 
-- **`log`**: Append-only list of microlog entries
-- **`files_touched`**: List of file paths that were modified
-- **`deviations`**: List of deviations from specification
+- **`log`**: Append-only list of microlog entry dictionaries
+- **`files_touched`**: Dictionary of file paths (keys) with string values (typically file paths as both key and value, or descriptive values)
+- **`deviations`**: Dictionary of deviation descriptions (keys) with string values (typically deviation descriptions as both key and value, or explanatory values)
 
 These are stored at the top level of metadata (alongside `status`, `sort_order`, etc.), not inside the `meta` bucket.
+
+### Unified Metadata Tool
+
+All metadata operations use the unified `modify_work_meta` MCP tool with a `field` parameter to specify which namespace to operate on:
+
+- **Tool Name**: `modify_work_meta`
+- **Required Parameters**:
+  - `page_id`: The ID of the work page (integer)
+  - `action`: The operation to perform (`add_log`, `add`, `remove`, `set`, `set_all`)
+  - `field`: The namespace to operate on (`log`, `files_touched`, `deviations`, `meta`) - defaults to `meta` if not specified
+- **Conditional Parameters**:
+  - `data`: JSON object string (required for `add_log`, `add`, `set`, `set_all` actions)
+  - `keys`: JSON array string (required for `remove` action only)
+
+**Action Summary**:
+- `add_log`: Append log entry (only works with `field="log"`)
+- `add`: Add key-value pairs (errors if key already exists)
+- `remove`: Remove keys (requires `keys` parameter)
+- `set`: Set/update key-value pairs (preserves other keys, allows overwriting)
+- `set_all`: Replace entire field (wipes out all existing entries)
 
 **Example Metadata Structure**:
 ```json
@@ -257,9 +277,20 @@ These are stored at the top level of metadata (alongside `status`, `sort_order`,
   "sort_order": 1,
   "started_ts": "2025-01-15T10:00:00",
   "ended_ts": null,
-  "log": [...],
-  "files_touched": [...],
-  "deviations": [...],
+  "log": [
+    {
+      "message": "Implemented parser module",
+      "files": "src/parser.py, src/lexer.py",
+      "timestamp": "2025-01-15T14:30:00"
+    }
+  ],
+  "files_touched": {
+    "src/parser.py": "src/parser.py",
+    "src/lexer.py": "src/lexer.py"
+  },
+  "deviations": {
+    "schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"
+  },
   "meta": {
     "custom_field_1": "value1",
     "custom_field_2": "value2"
@@ -288,78 +319,103 @@ The `log` namespace contains a list of dictionaries. Each log entry is a diction
 }
 ```
 
-**Functions**:
-- `work-add-log`: Append a new log entry (only function for logs, no set/remove)
+**MCP Tool**: Use `modify_work_meta` with:
+- `action`: `"add_log"` (only action allowed for log field)
+- `field`: `"log"` (required, cannot use other fields with add_log)
+- `data`: JSON object string containing log entry key-value pairs (e.g., `'{"message": "Implemented parser", "files": "src/parser.py"}'`)
+
+**Note**: Log entries are append-only. There is no remove or set operation for log entries. Each entry automatically receives a timestamp when created.
 
 ### Files Touched
 
-The `files_touched` namespace contains a simple list of file paths (strings).
+The `files_touched` namespace contains a dictionary where keys are file paths (strings) and values are strings (typically the same file path or a descriptive value).
 
-**Functions**:
-- `work-add-files-touched`: Add one or more file paths to the list
-- `work-remove-files-touched`: Remove one or more file paths from the list
-- `work-set-files-touched`: Replace entire list with new list (wipes out existing)
+**MCP Tool**: Use `modify_work_meta` with:
+- `field`: `"files_touched"`
+- `action`: One of:
+  - `"add"`: Add key-value pairs (errors if any key already exists)
+  - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
+  - `"set"`: Set/update key-value pairs (preserves other keys, allows overwriting)
+  - `"set_all"`: Replace entire dictionary (wipes out all existing entries)
+- `data`: JSON object string containing file path key-value pairs (e.g., `'{"src/parser.py": "src/parser.py"}'`)
+- `keys`: JSON array string containing keys to remove (e.g., `'["src/parser.py"]'`) - only required for `remove` action
 
-**Note**: `work-set-files-touched` replaces all entries. To preserve existing entries while adding new ones, use `work-add-files-touched`.
+**Note**: `set_all` replaces all entries. To preserve existing entries while adding new ones, use `add`. To update specific entries while preserving others, use `set`.
 
 ### Deviations
 
-The `deviations` namespace contains a simple list of deviation descriptions (strings).
+The `deviations` namespace contains a dictionary where keys are deviation identifiers (strings) and values are deviation descriptions (strings).
 
 **Purpose**: Document when implementation differs from specification, explaining why.
 
-**Functions**:
-- `work-add-deviations`: Add one or more deviation descriptions
-- `work-remove-deviations`: Remove one or more deviation descriptions
-- `work-set-deviations`: Replace entire list with new list (wipes out existing)
+**MCP Tool**: Use `modify_work_meta` with:
+- `field`: `"deviations"`
+- `action`: One of:
+  - `"add"`: Add key-value pairs (errors if any key already exists)
+  - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
+  - `"set"`: Set/update key-value pairs (preserves other keys, allows overwriting)
+  - `"set_all"`: Replace entire dictionary (wipes out all existing entries)
+- `data`: JSON object string containing deviation key-value pairs (e.g., `'{"schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"}'`)
+- `keys`: JSON array string containing keys to remove (e.g., `'["schema_change"]'`) - only required for `remove` action
 
 **Example Deviation**:
-```
-"Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"
+```json
+{
+  "schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"
+}
 ```
 
 ### User-Defined Metadata Functions
 
-**Functions**:
-- `work-set-meta`: Set one or more key-value pairs in the `meta` bucket (preserves existing pairs not mentioned, allows overriding specified pairs)
-- `work-set-all-meta`: Replace all key-value pairs in the `meta` bucket (wipes out all existing pairs in `meta`, preserves protected namespaces)
+**MCP Tool**: Use `modify_work_meta` with:
+- `field`: `"meta"` (default if not specified)
+- `action`: One of:
+  - `"add"`: Add key-value pairs (errors if any key already exists)
+  - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
+  - `"set"`: Set/update key-value pairs (preserves existing pairs not mentioned, allows overriding specified pairs)
+  - `"set_all"`: Replace all key-value pairs (wipes out all existing pairs in `meta`, preserves protected namespaces)
+- `data`: JSON object string containing key-value pairs (e.g., `'{"priority": "high", "owner": "agent1"}'`)
+- `keys`: JSON array string containing keys to remove (e.g., `'["priority"]'`) - only required for `remove` action
 
-**Protected Namespace Behavior**: Both functions preserve the three protected namespaces (log, files_touched, deviations) which are stored at the top level. They only affect the `meta` bucket (user-defined key-value pairs).
+**Protected Namespace Behavior**: All actions preserve the three protected namespaces (log, files_touched, deviations) which are stored at the top level. They only affect the `meta` bucket (user-defined key-value pairs).
 
-**Example**:
+**Example Usage**:
+
+To add/update meta fields (preserves existing):
 ```json
-// Before work-set-meta with {"priority": "high", "owner": "agent1"}
+// MCP tool call: modify_work_meta
 {
-  "status": "doing",
-  "log": [...],
-  "files_touched": [...],
-  "deviations": [...],
-  "meta": {
-    "custom_field": "old_value"
-  }
+  "page_id": 1234,
+  "action": "set",
+  "field": "meta",
+  "data": "{\"priority\": \"high\", \"owner\": \"agent1\"}"
 }
+// Result: Adds/updates priority and owner, preserves custom_field
+```
 
-// After work-set-meta
+To replace all meta fields:
+```json
+// MCP tool call: modify_work_meta
 {
-  "status": "doing",  // preserved (top-level field)
-  "log": [...],  // preserved (protected namespace)
-  "files_touched": [...],  // preserved (protected namespace)
-  "deviations": [...],  // preserved (protected namespace)
-  "meta": {
-    "custom_field": "old_value",  // preserved (not mentioned)
-    "priority": "high",  // set
-    "owner": "agent1"  // set
-  }
+  "page_id": 1234,
+  "action": "set_all",
+  "field": "meta",
+  "data": "{\"status\": \"in_progress\"}"
 }
+// Result: Only "status" remains in meta bucket, all other meta pairs wiped
+// Note: Top-level "status" field is preserved (not in meta bucket)
+```
 
-// After work-set-all-meta with {"status": "in_progress"}
+**Metadata Structure After Operations**:
+```json
 {
   "status": "doing",  // preserved (top-level field, not in meta bucket)
   "log": [...],  // preserved (protected namespace)
-  "files_touched": [...],  // preserved (protected namespace)
-  "deviations": [...],  // preserved (protected namespace)
+  "files_touched": {...},  // preserved (protected namespace)
+  "deviations": {...},  // preserved (protected namespace)
   "meta": {
-    "status": "in_progress"  // only this remains in meta bucket (all other meta pairs wiped)
+    "priority": "high",  // user-defined metadata
+    "owner": "agent1"    // user-defined metadata
   }
 }
 ```
