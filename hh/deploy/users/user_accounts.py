@@ -166,12 +166,12 @@ def detect_project_owner(project_path: Path) -> Optional[str]:
         trace_out()
         return None
 
-def setup_user_convenience_scripts(project_name: str, project_path: Path, username: str, hen_script_name: str = 'hen', is_root: bool = False) -> None:
-    """Set up convenience scripts (hen) for a user pointing to project codebase."""
+def setup_user_entry_points(project_name: str, project_path: Path, username: str, hen_script_name: str = 'hen', is_root: bool = False) -> None:
+    """Set up entry points (hen) for a user pointing to project codebase."""
     trace_in()
     gateway = get_gateway()
     try:
-        log(f"Setting up convenience scripts for {'root' if is_root else username}")
+        log(f"Setting up entry points for {'root' if is_root else username}")
         
         # Verify hen.py exists in project
         hen_script_path = project_path / 'hen.py'
@@ -225,10 +225,10 @@ python3 hen.py "$@"
             gateway.files.chown(str(profile_path), chown_user)
             log(f"Updated PATH for {user_display}")
         
-        log(f"Convenience script setup complete for {user_display}")
+        log(f"Entry point setup complete for {user_display}")
         
     except Exception as e:
-        warn(f"Failed to setup convenience scripts for {'root' if is_root else username}: {str(e)}")
+        warn(f"Failed to setup entry points for {'root' if is_root else username}: {str(e)}")
     finally:
         trace_out()
 
@@ -244,7 +244,7 @@ def setup_human_user_home(project_name: str, project_path: Path, hen_script_name
             return
         
         log(f"Setting up human user home directory for {project_owner}")
-        setup_user_convenience_scripts(project_name, project_path, project_owner, hen_script_name, is_root=False)
+        setup_user_entry_points(project_name, project_path, project_owner, hen_script_name, is_root=False)
         
     except Exception as e:
         warn(f"Failed to setup human user home directory: {str(e)}")
@@ -252,11 +252,11 @@ def setup_human_user_home(project_name: str, project_path: Path, hen_script_name
         trace_out()
 
 def setup_root_user_script(project_name: str, project_path: Path, hen_script_name: str = 'hen') -> None:
-    """Set up root user convenience script for sudo operations with cache cleanup."""
+    """Set up root user entry point for sudo operations with cache cleanup."""
     trace_in()
     gateway = get_gateway()
     try:
-        log("Setting up root user convenience script")
+        log("Setting up root user entry point")
         
         # Verify hen.py exists in project
         hen_script_path = project_path / 'hen.py'
@@ -297,9 +297,9 @@ find . -type f -name "*.pyc" -delete 2>/dev/null || true
             gateway.files.chown(str(profile_path), "root")
             log("Updated PATH for root")
         
-        log("Root convenience script setup complete")
+        log("Root entry point setup complete")
         
     except Exception as e:
-        warn(f"Failed to setup root user convenience script: {str(e)}")
+        warn(f"Failed to setup root user entry point: {str(e)}")
     finally:
         trace_out()

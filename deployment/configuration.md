@@ -46,7 +46,7 @@ Controls what gets deployed for agent visibility (context documentation, plannin
 
 - **`CONTEXT_WHITELIST`**: Folders/files included in deployment:
   - `'context'`, `'planning'`, `'hh'` - Documentation and source
-  - Top-level scripts: `hen.py`, `hen.ps1`, `stage.py`, `stage.ps1`, `mcp_wrapper.py`
+  - Top-level scripts: `hen.py`, `hen.ps1`, `hen.sh`, `stage.py`, `stage.ps1`, `stage.sh`, `mcp_wrapper.py`
   - Project files: `README.md`, `LICENSE`, `requirements.txt`
 - **`CONTEXT_BLACKLIST`**: Patterns excluded from deployment:
   - `.git`, `__pycache__`, `*.pyc`, `.pytest_cache`

@@ -25,7 +25,7 @@ def _initialize_debug():
 
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.users.access import auto_scan_user_keys, generate_ssh_keys, add_user_key
-from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, setup_user_convenience_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner
+from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, setup_user_entry_points, setup_human_user_home, setup_root_user_script, detect_project_owner
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
@@ -136,7 +136,7 @@ def install() -> bool:
         # Set up human user (project owner) home directory
         setup_human_user_home(project_name, project_path, hen_script_name)
         
-        # Set up root user convenience script
+        # Set up root user entry point
         setup_root_user_script(project_name, project_path, hen_script_name)
         
         # Set up images directory with proper permissions

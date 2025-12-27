@@ -1,6 +1,6 @@
 # Installation System
 
-The installation system creates the complete user and group infrastructure needed for a Henhouse deployment. It sets up four tier-based system users, transfers SSH keys, creates credential files, initializes git repositories, and configures convenience scripts.
+The installation system creates the complete user and group infrastructure needed for a Henhouse deployment. It sets up four tier-based system users, transfers SSH keys, creates credential files, initializes git repositories, and configures entry points.
 
 ## Prerequisites
 
@@ -79,7 +79,7 @@ The `install` command performs complete system initialization:
    - Ownership: `{project_owner}:{project_name}` with `0o770` directories, `0o660` files
    - This git repository is used by the git operations system (see `git.md`) for code synchronization
 
-7. **Convenience Scripts**:
+7. **Entry Points**:
    - **Tier users**: Creates `gateway.py` and `{hen_script_name}` in each user's home
      - `gateway.py`: Modified `hen.py` with `/srv/{project_name}` added to Python path
      - `{hen_script_name}`: Wrapper script that calls `python3 gateway.py "$@"`
@@ -92,6 +92,38 @@ The `install` command performs complete system initialization:
    - Updates `.profile` for all tier users: `export PATH="/home/{user}:$PATH"`
    - Updates `.profile` for project owner and root: `export PATH="{user_home}:/root:$PATH"`
    - All users can now run `hen` command from anywhere
+
+**Developer Box Wrapper Scripts**:
+
+The project includes wrapper scripts for developer boxes (laptops/desktops) on all major operating systems:
+
+- **Windows**: `hen.ps1` and `stage.ps1` (PowerShell scripts)
+- **Mac/Linux**: `hen.sh` and `stage.sh` (bash scripts)
+
+These scripts change to the project directory and run the Python scripts, allowing you to use `hen` and `stage` commands from anywhere.
+
+**Setup Process**:
+
+1. **Add project folder to PATH**:
+   - **Windows**: Add the project folder (e.g., `C:\Users\username\Desktop\henhouse`) to your user PATH environment variable via System Properties → Environment Variables
+   - **Mac/Linux**: Add to your shell profile (`~/.bashrc`, `~/.zshrc`, or `~/.profile`):
+     ```bash
+     export PATH="/path/to/henhouse:$PATH"
+     ```
+
+2. **Make scripts executable** (Mac/Linux only):
+   ```bash
+   chmod +x hen.sh stage.sh
+   ```
+
+3. **Optional: Remove extensions** (Mac/Linux only):
+   ```bash
+   mv hen.sh hen
+   mv stage.sh stage
+   ```
+   This lets you type `hen` instead of `hen.sh`. On Windows, PowerShell automatically recognizes `.ps1` files.
+
+After setup, you can use `hen` and `stage` commands from any directory. The scripts are already marked as executable in git (for Mac/Linux), so they'll be executable when cloned.
 
 9. **HTTP Basic Auth Files**:
    - Creates `/var/www/.htpasswd_{admin_tier}` for admin subdomain
@@ -129,7 +161,7 @@ Provides helper functions for user account management:
 - **`update_user_paths(project_name)`**: Updates PATH in all tier users' `.profile` files
 - **`create_user_gateway_scripts(project_name, hen_script_name)`**: Creates `gateway.py` for tier users
 - **`create_user_hen_scripts(project_name, hen_script_name)`**: Creates `hen` wrapper scripts for tier users
-- **`setup_user_convenience_scripts(...)`**: Sets up convenience scripts for human/root users
+- **`setup_user_entry_points(...)`**: Sets up entry points for human/root users
 - **`setup_human_user_home(...)`**: Sets up project owner's home directory
 - **`setup_root_user_script(...)`**: Sets up root user's convenience script with cache cleanup
 - **`detect_project_owner(project_path)`**: Detects project folder owner via UID lookup

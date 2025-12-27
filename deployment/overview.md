@@ -8,7 +8,7 @@
 
 - One-time setup of Unix users, groups, SSH keys, and credential files
 - Creates four tier-based system users with proper permissions
-- Initializes git repositories and convenience scripts
+- Initializes git repositories and entry points
 - Sets up directory structure and group memberships
 
 ## **Database Deployment**
@@ -114,7 +114,7 @@ The following diagram shows the deployment system relationships and dependencies
 - *SSH Key Management*: auto-scan from project owner's `~/.ssh/`, generate new keys, transfer to all tier users
 - *Credential Files*: database connection files (`~/.{project_name}.cnf`) with INI format, `0o600` permissions
 - *Git Repository*: bare repo initialization (`/srv/{project_name}/git/{project_name}.git`) and initial commit with `{project_name}` branch
-- *Convenience Scripts*: `hen` wrapper scripts for all users, `gateway.py` for tier users, PATH configuration in `.profile`
+- *Entry Points*: `hen` wrapper scripts for all users, `gateway.py` for tier users, PATH configuration in `.profile`
 - *Directory Setup*: `/srv/images/{project_name}/`, `/srv/files/{project_name}/`, `/srv/audio/{project_name}/`, and `/srv/video/{project_name}/` with setgid bit (`0o2775`) for group write, each with `deleted/` subdirectory for soft deletes
 - *HTTP Basic Auth*: creates `.htpasswd_admin` and `.htpasswd_panel` files for subdomain authentication
 
@@ -198,7 +198,7 @@ The following diagram shows the deployment system relationships and dependencies
 - *Installation*: complete user, group, and credential setup
 - *Uninstallation*: safe removal with extensive validation
 - *Safety Checks*: prevents accidental deletion of non-project users
-- *Script Cleanup*: removes convenience scripts and PATH modifications
+- *Script Cleanup*: removes entry points and PATH modifications
 
 #### **Site Assets Deployment**: static web files
 
@@ -355,7 +355,7 @@ This deployment system enables Henhouse to be a self-documenting, self-deploying
 
 ### **Installation Architecture**
 
-The installation system creates the complete user and group infrastructure needed for a Henhouse deployment. It sets up four tier-based system users, transfers SSH keys, creates credential files, initializes git repositories, and configures convenience scripts.
+The installation system creates the complete user and group infrastructure needed for a Henhouse deployment. It sets up four tier-based system users, transfers SSH keys, creates credential files, initializes git repositories, and configures entry points.
 
 **Critical Prerequisites**:
 - **Must be inside project directory**: The install command uses `detect_project_context()` which walks up from the current working directory (`Path.cwd()`) looking for an `hh/` folder. You MUST `cd` into the project directory before running install.
@@ -517,7 +517,7 @@ The following documents provide detailed implementation information beyond this 
 - **SSH Key Management**: Auto-scanning, generation, and transfer mechanisms
 - **Credential Files**: Database connection file creation and format
 - **Git Repository Setup**: Bare repo initialization and initial commit process
-- **Convenience Scripts**: Gateway and hen wrapper script deployment
+- **Entry Points**: Gateway and hen wrapper script deployment
 - **File Locations**: Specific file paths, function names, and code patterns for installation
 
 ### **file-deployment.md**

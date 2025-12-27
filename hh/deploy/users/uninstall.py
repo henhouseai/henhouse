@@ -560,11 +560,11 @@ def reset_project_group_ownership(project_name: str, project_path: Path) -> None
     finally:
         trace_out()
 
-def cleanup_user_convenience_scripts(project_name: str, project_path: Path, username: str, hen_script_name: Optional[str] = None, is_root: bool = False) -> None:
-    """Clean up convenience scripts (hen) for a user."""
+def cleanup_user_entry_points(project_name: str, project_path: Path, username: str, hen_script_name: Optional[str] = None, is_root: bool = False) -> None:
+    """Clean up entry points (hen) for a user."""
     trace_in()
     try:
-        log(f"Cleaning up convenience scripts for {'root' if is_root else username}")
+        log(f"Cleaning up entry points for {'root' if is_root else username}")
         
         # Default to standard name if not provided
         if not hen_script_name:
@@ -624,10 +624,10 @@ def cleanup_user_convenience_scripts(project_name: str, project_path: Path, user
             except Exception as e:
                 warn(f"Failed to clean up .profile for {user_display}: {str(e)}")
         
-        log(f"Convenience scripts cleanup complete for {user_display}")
+        log(f"Entry points cleanup complete for {user_display}")
         
     except Exception as e:
-        warn(f"Failed to cleanup convenience scripts for {'root' if is_root else username}: {str(e)}")
+        warn(f"Failed to cleanup entry points for {'root' if is_root else username}: {str(e)}")
     finally:
         trace_out()
 
@@ -643,7 +643,7 @@ def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_na
             return
         
         log(f"Cleaning up human user home directory for {project_owner}")
-        cleanup_user_convenience_scripts(project_name, project_path, project_owner, hen_script_name, is_root=False)
+        cleanup_user_entry_points(project_name, project_path, project_owner, hen_script_name, is_root=False)
         
     except Exception as e:
         warn(f"Failed to cleanup human user home directory: {str(e)}")
@@ -651,14 +651,14 @@ def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_na
         trace_out()
 
 def cleanup_root_user_scripts(project_name: str, project_path: Path, hen_script_name: Optional[str] = None) -> None:
-    """Clean up root user convenience scripts."""
+    """Clean up root user entry points."""
     trace_in()
     try:
-        log("Cleaning up root user convenience scripts")
-        cleanup_user_convenience_scripts(project_name, project_path, "root", hen_script_name, is_root=True)
+        log("Cleaning up root user entry points")
+        cleanup_user_entry_points(project_name, project_path, "root", hen_script_name, is_root=True)
         
     except Exception as e:
-        warn(f"Failed to cleanup root user convenience scripts: {str(e)}")
+        warn(f"Failed to cleanup root user entry points: {str(e)}")
     finally:
         trace_out()
 
