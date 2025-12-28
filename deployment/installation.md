@@ -7,7 +7,7 @@ The installation system creates the complete user and group infrastructure neede
 Before running the installation system, you must have:
 - **Sudo/root privileges** on the target system
 - **Four passwords ready** (one for each tier: guest, verified, admin, root)
-- **Passwordless SSH keys set up**: You MUST have passwordless SSH keys configured in the project owner's `~/.ssh/` directory BEFORE running install. The install command scans `~/.ssh/authorized_keys` and `~/.ssh/*.pub` files from the project owner's account and copies them to all tier users.
+- **Passwordless SSH keys set up**: You MUST have passwordless SSH keys configured in the project owner's `~/.ssh/` directory BEFORE running install. The install command scans `~/.ssh/authorized_keys` from the project owner's account and copies all keys to all tier users.
 - **Project folder with `hh/` directory structure**
 - **Logged in as project owner**: You MUST be logged in as the user who owns the project directory. The install command detects the project owner from directory ownership (UID lookup) and uses that user's SSH keys.
 - **Inside project directory**: You MUST `cd` into the project directory before running install. The install command uses `detect_project_context()` which walks up from the current working directory (`Path.cwd()`) looking for an `hh/` folder. If you run install from outside the project directory, it will not find the project.
@@ -26,7 +26,7 @@ The `install` command performs complete system initialization:
 - Password arguments: `-password1/-pwd1/-p1`, `-password2/-pwd2/-p2`, `-password3/-pwd3/-p3`, `-password4/-pwd4/-p4`
 - **CRITICAL: Must be inside project directory**: The install command uses `detect_project_context()` which starts from `Path.cwd()` (current working directory) and walks up looking for an `hh/` folder. You MUST `cd` into the project directory before running install.
 - **CRITICAL: Must be logged in as project owner**: The install command detects the project owner from directory ownership (UID lookup). You MUST be logged in as the user who owns the project directory.
-- **CRITICAL: Passwordless SSH keys must be set up BEFORE install**: The install command scans the project owner's `~/.ssh/authorized_keys` and `~/.ssh/*.pub` files. You MUST have passwordless SSH keys configured in the project owner's account BEFORE running install.
+- **CRITICAL: Passwordless SSH keys must be set up BEFORE install**: The install command scans the project owner's `~/.ssh/authorized_keys` file. You MUST have passwordless SSH keys configured in the project owner's account BEFORE running install.
 - Optional: `-hen <script_name>` to use custom script name (defaults to 'hen')
 - Optional: `-user_key <ssh_key>` to add additional SSH key to all users
 - Optional: `-clean` to remove existing .git directory before reinstall
@@ -56,7 +56,7 @@ The `install` command performs complete system initialization:
    - Highest tier (root) user gets both `{project_name}` and `{project_name}_deploy` groups
 
 4. **SSH Key Management**:
-   - **Auto-scan**: Scans project owner's `~/.ssh/authorized_keys` and `~/.ssh/*.pub` files
+   - **Auto-scan**: Scans project owner's `~/.ssh/authorized_keys` file (all non-comment lines)
    - **Generate**: Creates new SSH keypair for each tier user (`ssh-keygen -t rsa -b 4096`)
    - **Transfer**: Adds all discovered keys (auto-scanned + user-provided) to each tier user's `authorized_keys`
    - All users own their own `.ssh` directories and files
@@ -173,8 +173,7 @@ Provides helper functions for user account management:
 Provides SSH key scanning and management:
 
 - **`auto_scan_user_keys(project_owner)`**: Scans project owner's SSH keys
-  - Reads `~/.ssh/authorized_keys`
-  - Reads `~/.ssh/id_rsa.pub` and other `*.pub` files
+  - Reads `~/.ssh/authorized_keys` (all non-comment lines)
   - Returns list of public keys
 - **`generate_ssh_keys(user, project_name)`**: Generates new SSH keypair for user
   - Creates `~/.ssh/id_rsa` and `~/.ssh/id_rsa.pub`

@@ -249,14 +249,27 @@ def get_security_headers_ssl() -> List[str]:
     ]
 
 def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
-    """Generate HTTP to HTTPS redirect server block."""
+    """Generate HTTP to HTTPS redirect server block.
+    
+    Includes exception for Let's Encrypt ACME challenges which must be served on HTTP.
+    """
     lines = [
-        "# HTTP - redirect to HTTPS",
+        "# HTTP - redirect to HTTPS (except ACME challenges)",
         "server {",
         "    listen 80;",
         "    listen [::]:80;",
         f"    server_name {' '.join(all_domains)};",
-        "    return 301 https://$host$request_uri;",
+        "",
+        "    # Allow Let's Encrypt ACME challenges (must be on HTTP for webroot validation)",
+        "    location /.well-known/acme-challenge/ {",
+        "        root /var/www/html;",
+        "        try_files $uri =404;",
+        "    }",
+        "",
+        "    # Redirect all other HTTP traffic to HTTPS",
+        "    location / {",
+        "        return 301 https://$host$request_uri;",
+        "    }",
         "}",
         "",
     ]

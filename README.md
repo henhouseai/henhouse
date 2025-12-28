@@ -153,10 +153,10 @@ python hen.py dependency-list -log
 # Debug filtering: show unlimited number of entries  (default limit is 10 per unique function name)
 python hen.py dependency-list -log -debug-limit 0
 
-# Debug filtering: -whitelist only modules in the gateway path
+# Debug filtering: whitelist only modules in the gateway path
 python hen.py dependency-list -log -white "*gateway*"
 
-# Debug filtering: -graylist only gateway.py file
+# Debug filtering: graylist only gateway.py file
 python hen.py dependency-list -log -gray "gateway.py"
 ```
 
@@ -170,19 +170,16 @@ Install Python dependencies as needed:
 pip install -r requirements.txt
 ```
 
-The `dependency-list` command identifies which requirements are needed. Some commands (like `flask-start`, `http-deploy`, `install`) require Unix-specific modules and will show as "Failed" on Windows - these are deployment commands meant for Ubuntu servers.
-
-**What This Enables:**
-
-- Agent helper trained on Henhouse architecture - can explain commands, help with debugging, and guide you through the system
-- Ability to explore all available commands, actions, backends, MCP tools, and page classes
-- Debug system access - use `-log`, `-debug`, `-trace` flags to see what's happening under the hood
-- Debug filtering - use `-whitelist`, `-graylist`, `-blacklist` to focus debug output
-- Local testing capability - test commands and see output without any installation
+The `dependency-list` command identifies which requirements are needed. Some commands (like `flask-start`, `http-deploy`, `install`) require Unix-specific modules and will show as "Failed" on Windows - these are deployment commands meant for Linux servers (developed and tested on Ubuntu, but should work on most Linux distributions).
 
 **Try It Out:**
 
-Have your agent help you explore the system. Ask it to explain what different commands do, try various listers to see what's available, and experiment with debug flags to understand how the system works. This is your foundation for everything that comes next.
+- Train your agent by having it read the context documentation files - this gives it the knowledge to explain commands, help with debugging, and guide you through the system
+- Explore available commands using listers - try `command-list`, `action-list`, `backend-list`, `mcp-list`, `class-list`, and others to see what's available
+- Experiment with debug flags - use `-log`, `-debug`, `-trace` to see what's happening under the hood
+- Use debug filtering - try `-white`, `-gray`, `-black` to focus debug output on specific modules, files, or functions
+- Control debug output volume with `-debug-limit` - by default each function shows up to 10 debug/log messages before being quieted, use `-debug-limit 0` for unlimited output
+- Test commands locally without installation - all of this works by just running Python code directly
 
 ### Tier 2: Server Installation and Git Sync
 
@@ -202,30 +199,43 @@ Once you've verified it works on your developer box, set it up on your deploymen
 cd ~
 git clone https://github.com/henhouseai/henhouse.git
 
-# (Optional) Rename to your project name, example "foxhouse"
+# (Optional) Rename your project folder, example "foxhouse"
+# mv henhouse foxhouse
+
+# move your project to a more central location (outside of your home folder)
+sudo mv henhouse /
 
 # Change into the project directory
-cd henhouse
-# cd foxhouse  # If you renamed it
+cd /henhouse
+
+# Check dependencies on deployment box, install packages as necessary
+python hen.py dependency-list
+pip install -r requirements.txt
 ```
 
 **Step 2: Clean Git History (Recommended)**
 
-Delete the `.git` folder so install creates a fresh repository:
+Delete the `.git` folder so install creates a fresh repository instead of reusing the existing one.
 
 ```bash
 # Remove existing git history so install starts fresh
 rm -rf .git
 ```
 
-The install process will create a new git repository. If you don't delete `.git`, it will reuse the existing repository.
-
 **Step 3: Install**
 
 ```bash
 # Install system users and infrastructure
+cd /henhouse
+ls -la
+
 # CRITICAL: You MUST be inside the project directory when running install
 # CRITICAL: You MUST be logged in as the user who owns the project directory
+# CRITICAL: You MUST have passwordless SSH authentication set up BEFORE running install
+#   The installer scans and copies SSH keys from:
+#   - ~/.ssh/authorized_keys (all non-comment lines)
+#   These keys will be copied to all tier users' authorized_keys files
+
 # Use -hen flag to customize entry point name (e.g., "fox" instead of "hen")
 sudo python hen.py install
 # sudo python hen.py install -hen fox  # If using custom script name

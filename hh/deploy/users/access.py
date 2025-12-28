@@ -39,23 +39,26 @@ def auto_scan_user_keys(project_owner: str) -> List[str]:
                         keys.append(line)
             log(f"Found {len(keys)} keys in {project_owner}'s authorized_keys")
         
+        # Originally we were scanning .pub files, but we decided not to.
+        # Only keys in authorized_keys are copied - if a key isn't in authorized_keys,
+        # it's not set up for passwordless login and shouldn't be copied.
         # Scan id_rsa.pub if it exists
-        id_rsa_pub = ssh_dir / 'id_rsa.pub'
-        if id_rsa_pub.exists():
-            with open(id_rsa_pub, 'r') as f:
-                key = f.read().strip()
-                if key and key not in keys:
-                    keys.append(key)
-                    log(f"Found {project_owner}'s id_rsa.pub key")
-        
+        # id_rsa_pub = ssh_dir / 'id_rsa.pub'
+        # if id_rsa_pub.exists():
+        #     with open(id_rsa_pub, 'r') as f:
+        #         key = f.read().strip()
+        #         if key and key not in keys:
+        #             keys.append(key)
+        #             log(f"Found {project_owner}'s id_rsa.pub key")
+        # 
         # Scan other .pub files
-        for pub_file in ssh_dir.glob('*.pub'):
-            if pub_file.name != 'id_rsa.pub':
-                with open(pub_file, 'r') as f:
-                    key = f.read().strip()
-                    if key and key not in keys:
-                        keys.append(key)
-                        log(f"Found {project_owner}'s {pub_file.name} key")
+        # for pub_file in ssh_dir.glob('*.pub'):
+        #     if pub_file.name != 'id_rsa.pub':
+        #         with open(pub_file, 'r') as f:
+        #             key = f.read().strip()
+        #             if key and key not in keys:
+        #                 keys.append(key)
+        #                 log(f"Found {project_owner}'s {pub_file.name} key")
         
     except Exception as e:
         warn(f"Failed to auto-scan keys for {project_owner}: {str(e)}")

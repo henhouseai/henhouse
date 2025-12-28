@@ -360,7 +360,7 @@ The installation system creates the complete user and group infrastructure neede
 **Critical Prerequisites**:
 - **Must be inside project directory**: The install command uses `detect_project_context()` which walks up from the current working directory (`Path.cwd()`) looking for an `hh/` folder. You MUST `cd` into the project directory before running install.
 - **Must be logged in as project owner**: The install command detects the project owner from directory ownership (UID lookup). You MUST be logged in as the user who owns the project directory.
-- **Passwordless SSH keys required BEFORE install**: The install command scans the project owner's `~/.ssh/authorized_keys` and `~/.ssh/*.pub` files. You MUST have passwordless SSH keys configured in the project owner's account BEFORE running install.
+- **Passwordless SSH keys required BEFORE install**: The install command scans the project owner's `~/.ssh/authorized_keys` file. You MUST have passwordless SSH keys configured in the project owner's account BEFORE running install.
 
 - One-time setup process with comprehensive validation
 - Project name and owner auto-detection
