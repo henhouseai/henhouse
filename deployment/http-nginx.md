@@ -76,6 +76,8 @@ The `http_deploy` command creates HTTP-only NGINX configuration:
 
 **File**: `hh/deploy/http/http_deploy_ssl.py`
 
+**See also**: `ssl.md` for detailed SSL certificate management, renewal, and troubleshooting.
+
 The `http_deploy_ssl` command upgrades HTTP configuration to HTTPS:
 
 **Prerequisites**:

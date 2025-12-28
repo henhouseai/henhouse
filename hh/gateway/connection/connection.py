@@ -46,23 +46,88 @@ class DatabaseRow(TypedDict, total=False):
     created_at: str
     updated_at: str
 
-def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], Optional[Dict[str, Union[str, int]]]]:
-    """Load DSN pair from config file. New system version that accepts project_name."""
+def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict[str, Union[str, bool, int]]:
+    """Build SSL dictionary from config file for PyMySQL.
+    
+    SSL is ALWAYS REQUIRED. This function will raise an error if ssl_ca is not present.
+    
+    Args:
+        config: ConfigParser instance
+        prefix: Prefix for SSL config keys (e.g., 'cache_' for cache_ssl_ca)
+    
+    Returns:
+        SSL dictionary for PyMySQL (never None)
+    
+    Raises:
+        ValueError: If ssl_ca is not configured (SSL is mandatory)
+    """
+    ssl_ca = config.get('client', f'{prefix}ssl_ca', fallback=None)
+    ssl_cert = config.get('client', f'{prefix}ssl_cert', fallback=None)
+    ssl_key = config.get('client', f'{prefix}ssl_key', fallback=None)
+    ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback=None)
+    ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
+    
+    # ssl_ca is MANDATORY - SSL is always required
+    if not ssl_ca:
+        raise ValueError(f"SSL is required but {prefix}ssl_ca is not configured in config file")
+    
+    # Determine verify_mode first
+    verify_mode = 1  # Default to optional
+    if ssl_verify_mode:
+        try:
+            verify_mode = int(ssl_verify_mode)
+            if verify_mode not in (0, 1, 2):
+                verify_mode = 1
+        except ValueError:
+            if ssl_verify_mode.lower() in ('true', '1', 'yes', 'on'):
+                verify_mode = 2
+            elif ssl_verify_mode.lower() in ('false', '0', 'no', 'off'):
+                verify_mode = 0
+            else:
+                verify_mode = 1
+    
+    ssl_dict: Dict[str, Union[str, bool, int]] = {
+        'verify_mode': verify_mode,
+        'check_hostname': ssl_check_hostname.lower() in ('true', '1', 'yes', 'on')
+    }
+    
+    # Only include 'ca' if verify_mode is not 0 (disabled)
+    # When verify_mode=0, we still want SSL but without CA verification
+    if verify_mode != 0:
+        ssl_dict['ca'] = ssl_ca
+    
+    if ssl_cert:
+        ssl_dict['cert'] = ssl_cert
+    if ssl_key:
+        ssl_dict['key'] = ssl_key
+    
+    return ssl_dict
+
+def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:
+    """Load DSN triple (main, cache, history) from config file with SSL support.
+    
+    Returns:
+        Tuple of (main_dsn, cache_dsn, history_dsn), each may be None
+    """
     trace_in()
     config = configparser.ConfigParser()
     path = os.path.expanduser(f'~/.{project_name}.cnf')
     if os.path.exists(path):
         config.read(path)
-        dsn: Dict[str, Union[str, int]] = {
+        dsn: Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]] = {
             'host': config.get('client', 'host', fallback='localhost'),
             'user': config.get('client', 'user', fallback='root'),
             'password': config.get('client', 'password', fallback=''),
             'database': config.get('client', 'database', fallback=project_name),
             'port': config.getint('client', 'port', fallback=3306)
         }
+        
+        # SSL is ALWAYS REQUIRED for main database
+        dsn['ssl'] = _build_ssl_dict(config, '')
+        
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
-        cache_dsn: Dict[str, Union[str, int]] = {
+        cache_dsn: Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]] = {
             'host': config.get('client', 'cache_host', fallback=dsn['host']),
             'user': config.get('client', 'cache_user', fallback=dsn['user']),
             'password': config.get('client', 'cache_password', fallback=dsn['password']),
@@ -70,12 +135,62 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int]]], 
             'port': config.getint('client', 'cache_port', fallback=dsn['port'])
         }
         
+        # SSL is ALWAYS REQUIRED for cache database
+        # Try cache-specific SSL first, fallback to main SSL if cache_ssl_ca not present
+        try:
+            cache_dsn['ssl'] = _build_ssl_dict(config, 'cache_')
+        except ValueError:
+            # Fallback to main SSL config
+            cache_dsn['ssl'] = _build_ssl_dict(config, '')
+        
+        # History database - only create DSN if explicitly configured (database doesn't exist yet)
+        history_dsn = None
+        history_host = config.get('client', 'history_host', fallback=None)
+        if history_host:
+            history_dsn = {
+                'host': history_host,
+                'user': config.get('client', 'history_user', fallback=dsn['user']),
+                'password': config.get('client', 'history_password', fallback=dsn['password']),
+                'database': config.get('client', 'history_database', fallback=f"{dsn['database']}_history"),
+                'port': config.getint('client', 'history_port', fallback=dsn['port'])
+            }
+            # SSL is ALWAYS REQUIRED for history database
+            # Try history-specific SSL first, fallback to main SSL if history_ssl_ca not present
+            try:
+                history_dsn['ssl'] = _build_ssl_dict(config, 'history_')
+            except ValueError:
+                # Fallback to main SSL config
+                history_dsn['ssl'] = _build_ssl_dict(config, '')
+        
         trace_out()
-        return dsn, cache_dsn
+        return dsn, cache_dsn, history_dsn
     else:
         log(f"Configuration file not found: {path}")
         trace_out()
-        return None, None
+        return None, None, None
+
+def _load_root_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:
+    """Load root DSN triple (main, cache, history) from root config file.
+    
+    This function reads from /root/.{project_name}-install.cnf which contains
+    root credentials and configuration for all three database servers.
+    
+    TODO: Full implementation pending ask 1211 (root config file system).
+    Currently returns None for all DSNs as a stub.
+    
+    Returns:
+        Tuple of (main_dsn, cache_dsn, history_dsn), each may be None
+    """
+    trace_in()
+    # Stub implementation - will be fully implemented in ask 1211
+    # Root config file will contain:
+    # - MySQL root password for each database server (main, cache, history)
+    # - Database hostnames
+    # - SSL certificate paths
+    # - All four user tier credentials (for installer use)
+    log("Root DSN loading not yet implemented (stub - see ask 1211)")
+    trace_out()
+    return None, None, None
 
 class Connection:
     """Gateway-owned connection manager for main, cache, and history databases."""
@@ -88,15 +203,22 @@ class Connection:
         self._initialized: bool = False
         self._dry_run: bool = dry_run
     
-    def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+    def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get main database DSN. Override in subclasses for root/MySQL connections."""
         trace_in()
-        main_dsn, _ = _load_dsn(project_name)
+        main_dsn, _, _ = _load_dsn(project_name)
         trace_out()
         return main_dsn
     
-    def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+    def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get cache database DSN. Override in subclasses for root connections.
+        Returns None to use default from _load_dsn()."""
+        trace_in()
+        trace_out()
+        return None
+    
+    def _get_history_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
+        """Get history database DSN. Override in subclasses for root connections.
         Returns None to use default from _load_dsn()."""
         trace_in()
         trace_out()
@@ -162,7 +284,10 @@ class Connection:
             # Get cache DSN (may be overridden by subclasses, otherwise use standard loading)
             cache_dsn = self._get_cache_dsn(project_name)
             if not cache_dsn:
-                _, cache_dsn = _load_dsn(project_name)
+                _, cache_dsn, _ = _load_dsn(project_name)
+            
+            # History database - skip entirely (database doesn't exist yet)
+            history_dsn = None
             
             # Open main database connection
             assert pymysql is not None
@@ -171,20 +296,23 @@ class Connection:
                 warn("pymysql is None")
                 trace_out()
                 return 0
-            self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
+            
+            # Extract SSL dict from main_dsn and pass separately
+            main_ssl = main_dsn.pop('ssl', None) if isinstance(main_dsn.get('ssl'), dict) else None
+            self.main = pymysql.connect(**main_dsn, ssl=main_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
             log(f"Main database connection opened: host={main_dsn['host']}, database={main_dsn.get('database', 'None')}")
             
             # Open cache database connection
             if cache_dsn:
-                self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
+                cache_ssl = cache_dsn.pop('ssl', None) if isinstance(cache_dsn.get('ssl'), dict) else None
+                self.cache = pymysql.connect(**cache_dsn, ssl=cache_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
                 log(f"Cache database connection opened: host={cache_dsn['host']}, database={cache_dsn['database']}")
             else:
                 warn("Cache DSN not available, using main database for cache")
                 self.cache = self.main
             
-            # TODO: Open history database connection when DSN loading is implemented
-            # For now, history is None
-            log("History database connection skipped (not yet implemented)")
+            # History database connection - only attempt if explicitly configured
+            # (History database doesn't exist yet, so skip unless history_host is set)
             self.history = None
             
             self._initialized = True

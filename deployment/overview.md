@@ -559,6 +559,26 @@ The following documents provide detailed implementation information beyond this 
 - **HTTP Basic Auth**: Admin and panel subdomain protection using `.htpasswd` files
 - **File Locations**: Specific file paths in `hh/deploy/http/`, function names, and code patterns
 
+### **ssl.md**
+
+- **Certificate Management**: Let's Encrypt certificate acquisition and renewal using webroot mode
+- **Standardized Webroot**: All certificates use `/var/www/html` as webroot path
+- **HTTP Redirect Block**: ACME challenge exception in HTTP-to-HTTPS redirect blocks
+- **Automatic Renewal**: Certbot automatic renewal process and testing
+- **Database Subdomains**: Automatic inclusion of `db.{domain}` and `cache.{domain}` in HTTP redirect blocks
+- **Renewal Configuration**: Certificate renewal config structure and webroot path management
+- **Troubleshooting**: Common renewal failures and solutions
+
+### **mysql.md**
+
+- **MySQL SSL Setup**: SSL certificate configuration for MySQL database connections
+- **Certificate Mapping**: Let's Encrypt to MySQL SSL directory file mapping
+- **Renewal Hook**: Automatic certificate update script (`copy-mysql-certs.sh`)
+- **File Permissions**: Ownership and permission requirements for MySQL SSL files
+- **Database Subdomains**: Certificate acquisition for `db.{domain}` and `cache.{domain}` subdomains
+- **NGINX Integration**: HTTP redirect block configuration for database subdomain ACME challenges
+- **Troubleshooting**: MySQL SSL connection and certificate renewal issues
+
 ### **maintenance.md**
 
 - **Worker Process**: Continuous loop with adaptive sleep, work detection, and graceful shutdown

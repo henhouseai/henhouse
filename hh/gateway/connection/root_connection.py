@@ -24,7 +24,7 @@ def _initialize_debug():
 class RootConnection(Connection):
     """Connection with root credentials for the main database. Cache/history unchanged."""
     
-    def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+    def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get main database DSN with root credentials."""
         trace_in()
         gateway = get_gateway()
@@ -79,7 +79,7 @@ class RootConnection(Connection):
         
         # Fallback to standard DSN loading
         if not dsn:
-            main_dsn, _ = _load_dsn(project_name) if project_name else (None, None)
+            main_dsn, _, _ = _load_dsn(project_name) if project_name else (None, None, None)
             if main_dsn:
                 # Override with root credentials
                 dsn = main_dsn.copy()
@@ -92,7 +92,7 @@ class RootConnection(Connection):
         trace_out()
         return dsn
     
-    def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+    def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get cache database DSN with root credentials."""
         trace_in()
         gateway = get_gateway()
@@ -146,7 +146,7 @@ class RootConnection(Connection):
         
         # Fallback to standard DSN loading
         if not dsn:
-            _, cache_dsn = _load_dsn(project_name) if project_name else (None, None)
+            _, cache_dsn, _ = _load_dsn(project_name) if project_name else (None, None, None)
             if cache_dsn:
                 dsn = cache_dsn.copy()
                 dsn['user'] = 'root'
@@ -157,4 +157,37 @@ class RootConnection(Connection):
         
         trace_out()
         return dsn
+    
+    def _get_history_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
+        """Get history database DSN with root credentials.
+        
+        TODO: Full implementation pending ask 1211 (root config file system).
+        Currently uses fallback to standard DSN loading with root credentials override.
+        """
+        trace_in()
+        gateway = get_gateway()
+        if not gateway:
+            warn("No gateway available for root history connection")
+            trace_out()
+            return None
+        
+        # Get root password from command line args
+        root_password = gateway.get_arg('password')
+        if not root_password:
+            warn("Root password required for root history connection")
+            trace_out()
+            return None
+        
+        # Fallback to standard DSN loading
+        _, _, history_dsn = _load_dsn(project_name) if project_name else (None, None, None)
+        if history_dsn:
+            dsn = history_dsn.copy()
+            dsn['user'] = 'root'
+            dsn['password'] = root_password
+            log(f"Root history connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
+            trace_out()
+            return dsn
+        
+        trace_out()
+        return None
 
