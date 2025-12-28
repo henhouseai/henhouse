@@ -25,6 +25,7 @@ def create_user_config_file(
     user: str,
     project_name: str,
     password: str,
+    db_user: Optional[str] = None,
     host: Optional[str] = None,
     ssl_ca: Optional[str] = None,
     cache_host: Optional[str] = None,
@@ -38,9 +39,10 @@ def create_user_config_file(
         config_file = user_home / f'.{project_name}.cnf'
         
         host_value = host or 'localhost'
+        db_user_value = db_user or user
         config_lines = [
             "[client]",
-            f"user={user}",
+            f"user={db_user_value}",
             f"password={password}",
             f"host={host_value}",
             f"database={project_name}",

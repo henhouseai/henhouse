@@ -98,6 +98,26 @@ This guide walks you through setting up Henhouse in phases, with each phase enab
 
 Start on your developer box to get familiar with the system and train an agent helper.
 
+**Developer box `. {project}.cnf` and SSL CA setup (for DB + MCP):**
+
+1) Copy baseline config from server: fetch `/home/{project_owner}/.{project}.cnf` (created by install).  
+2) On your dev box, save as `~/.{project}.cnf` and edit:
+   - In `[client]`: set `host=db.yourdomain.tld`, keep user/password, and set `ssl_ca=/home/you/.henhouse/ssl/ca.pem` (or your chosen path).
+   - Add an `[mcp]` section for MCP HTTP auth:
+     ```
+     [mcp]
+     user=henhouse_root
+     password=<htaccess_panel_password>
+     host=panel.yourdomain.tld
+     ```
+     Use the htaccess panel password from the install config.
+3) Copy the SSL CA bundle from the server:
+   - On server, copy `/etc/mysql/ssl/ca.pem` (root+intermediate) to a readable location for your dev user (e.g., `~/ca.pem`) and then to your dev box (e.g., `~/.henhouse/ssl/ca.pem`).
+   - Ensure perms on dev box: `chmod 600 ~/.henhouse/ssl/ca.pem`.
+4) Update paths in `~/.{project}.cnf` to point to your local CA bundle. Do not reference server-only paths.
+
+MCP wrapper uses `[mcp]` if present; otherwise falls back to `[client]`.
+
 **Step 1: Clone and Open in Cursor**
 
 ```bash
