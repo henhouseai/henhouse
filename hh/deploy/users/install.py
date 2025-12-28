@@ -248,6 +248,10 @@ def install() -> bool:
             cfg["password_admin"],
             cfg["password_root"],
         ]
+        password_guest = cfg["password_guest"]
+        password_verified = cfg["password_verified"]
+        password_admin = cfg["password_admin"]
+        password_root = cfg["password_root"]
         htaccess_admin_password = cfg["htaccess_admin_password"]
         htaccess_panel_password = cfg["htaccess_panel_password"]
         db_host = cfg["db_host"]
@@ -369,9 +373,30 @@ def install() -> bool:
         
         # Set up human user (project owner) home directory
         setup_human_user_home(project_name, project_path, hen_script_name)
+        # Create .{project}.cnf for human user (admin creds)
+        if project_owner:
+            create_user_config_file(
+                project_owner,
+                project_name,
+                password_admin,
+                host=db_host,
+                ssl_ca=ssl_ca_path,
+                cache_host=cache_host,
+                cache_ssl_ca=cache_ssl_ca_path
+            )
         
         # Set up root user entry point
         setup_root_user_script(project_name, project_path, hen_script_name)
+        # Create .{project}.cnf for root user (root creds)
+        create_user_config_file(
+            "root",
+            project_name,
+            password_root,
+            host=db_host,
+            ssl_ca=ssl_ca_path,
+            cache_host=cache_host,
+            cache_ssl_ca=cache_ssl_ca_path
+        )
         
         # Set up images directory with proper permissions
         setup_images_directory(project_name)

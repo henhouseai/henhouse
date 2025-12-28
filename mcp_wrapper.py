@@ -75,7 +75,7 @@ def detect_project_name() -> str:
     return script_path.parent.name
 
 def load_config() -> dict:
-    """Load user, password, and host from ~/.{project_name}.cnf"""
+    """Load user, password, and host from ~/.{project_name}.cnf (prefers [mcp] section)."""
     project_name = detect_project_name()
     config = configparser.ConfigParser()
     config_path = Path.home() / f'.{project_name}.cnf'
@@ -99,9 +99,11 @@ def load_config() -> dict:
     config.read(config_path)
     
     try:
-        user = config.get('client', 'user', fallback=None)
-        password = config.get('client', 'password', fallback=None)
-        host = config.get('client', 'host', fallback=None)
+        # Prefer [mcp] section if present, else fall back to [client]
+        section = 'mcp' if config.has_section('mcp') else 'client'
+        user = config.get(section, 'user', fallback=None)
+        password = config.get(section, 'password', fallback=None)
+        host = config.get(section, 'host', fallback=None)
         
         debug_print(f"Found user: {user}")
         debug_print(f"Found password: {'*' * len(password) if password else 'None'}")

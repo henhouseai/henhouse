@@ -34,7 +34,7 @@ def create_user_config_file(
     trace_in()
     gateway = get_gateway()
     try:
-        user_home = Path(f'/home/{user}')
+        user_home = Path('/root') if user == "root" else Path(f'/home/{user}')
         config_file = user_home / f'.{project_name}.cnf'
         
         host_value = host or 'localhost'
