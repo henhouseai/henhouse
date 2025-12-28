@@ -85,10 +85,13 @@ def uninstall() -> bool:
         try:
             parser = configparser.ConfigParser()
             parser.read(cfg_path)
-            if parser.has_section("manifest_sites") and parser.items("manifest_sites"):
-                warn("Manifest shows deployed sites; remove them (http_remove/http_deploy_ssl remove) before uninstall.")
-                trace_out()
-                return False
+            if parser.has_section("manifest_sites"):
+                sites = [item[0] for item in parser.items("manifest_sites")]
+                if sites:
+                    warn(f"Manifest shows deployed sites: {', '.join(sites)}")
+                    warn("Remove them with: http_remove -domain <domain> (or use force there), then rerun uninstall.")
+                    trace_out()
+                    return False
         except Exception as e:
             warn(f"Could not read manifest_sites: {e}")
             trace_out()
