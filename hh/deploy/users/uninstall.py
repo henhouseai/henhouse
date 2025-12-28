@@ -719,6 +719,15 @@ def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_na
         log(f"Cleaning up human user home directory for {project_owner}")
         cleanup_user_entry_points(project_name, project_path, project_owner, hen_script_name, is_root=False)
         
+        # Remove project-specific config file
+        config_file = Path(f"/home/{project_owner}/.{project_name}.cnf")
+        if config_file.exists():
+            try:
+                config_file.unlink()
+                log(f"Removed {config_file}")
+            except Exception as e:
+                warn(f"Failed to remove {config_file}: {e}")
+        
     except Exception as e:
         warn(f"Failed to cleanup human user home directory: {str(e)}")
     finally:
@@ -730,6 +739,14 @@ def cleanup_root_user_scripts(project_name: str, project_path: Path, hen_script_
     try:
         log("Cleaning up root user entry points")
         cleanup_user_entry_points(project_name, project_path, "root", hen_script_name, is_root=True)
+        # Remove project-specific config file
+        config_file = Path(f"/root/.{project_name}.cnf")
+        if config_file.exists():
+            try:
+                config_file.unlink()
+                log(f"Removed {config_file}")
+            except Exception as e:
+                warn(f"Failed to remove {config_file}: {e}")
         
     except Exception as e:
         warn(f"Failed to cleanup root user entry points: {str(e)}")

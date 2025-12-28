@@ -378,7 +378,7 @@ def install() -> bool:
             create_user_config_file(
                 project_owner,
                 project_name,
-                password_admin,
+                password_root,
                 db_user=f"{project_name}_root",
                 host=db_host,
                 ssl_ca=ssl_ca_path,
