@@ -252,13 +252,29 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
     """Generate HTTP to HTTPS redirect server block.
     
     Includes exception for Let's Encrypt ACME challenges which must be served on HTTP.
+    Automatically includes db and cache subdomains for Henhouse sites.
     """
+    # Extract base domain (first domain without www prefix)
+    base_domain = all_domains[0] if all_domains else ""
+    if base_domain.startswith("www."):
+        base_domain = base_domain[4:]
+    
+    # Add db and cache subdomains if not already present
+    extended_domains = list(all_domains)
+    db_subdomain = f"db.{base_domain}"
+    cache_subdomain = f"cache.{base_domain}"
+    
+    if db_subdomain not in extended_domains:
+        extended_domains.append(db_subdomain)
+    if cache_subdomain not in extended_domains:
+        extended_domains.append(cache_subdomain)
+    
     lines = [
         "# HTTP - redirect to HTTPS (except ACME challenges)",
         "server {",
         "    listen 80;",
         "    listen [::]:80;",
-        f"    server_name {' '.join(all_domains)};",
+        f"    server_name {' '.join(extended_domains)};",
         "",
         "    # Allow Let's Encrypt ACME challenges (must be on HTTP for webroot validation)",
         "    location /.well-known/acme-challenge/ {",
