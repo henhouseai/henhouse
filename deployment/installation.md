@@ -18,6 +18,11 @@ The installation system is the **first step** in deploying Henhouse. All other d
 
 **File**: `hh/deploy/users/install.py`
 
+**Root install config and manifest**:
+- First install run creates `/root/.{project}-install.cnf` (600, root). Edit required fields, then rerun install.
+- `manifest_users` section records per-user data as JSON: `{uid, installed_at, removed_at}`. Install writes `installed_at`; uninstall sets `removed_at`. Manifest entries must be cleared manually before reinstall.
+- `manifest_sites` section records deployed domains (http/https) with timestamps. `http_deploy`/`http_deploy_ssl` add entries; `http_remove` removes entries. Uninstall will refuse to run while `manifest_sites` has entries—remove sites first.
+
 The `install` command performs complete system initialization:
 
 **Prerequisites**:
@@ -63,7 +68,7 @@ The `install` command performs complete system initialization:
 
 5. **Credential Files**:
    - Creates `~/.{project_name}.cnf` for each tier user
-   - Format: INI-style with `[client]` section containing `user`, `password`, `host=localhost`, `database={project_name}`
+   - Format: INI-style with `[client]` section containing `user`, `password`, `host=db.{project_name}.ai` (DB subdomain), `database={project_name}`
    - Permissions: `0o600` (read/write for owner only)
    - Owned by respective user
    - These credential files are used by the database deployment system (see `database.md`) to create MySQL users

@@ -1,9 +1,12 @@
 import os
 from typing import Optional, Dict, Union
+import configparser
+from pathlib import Path
 from hh.gateway.connection.connection import Connection, _load_dsn
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.deploy.users.install import _install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,6 +27,32 @@ def _initialize_debug():
 class RootConnection(Connection):
     """Connection with root credentials for the main database. Cache/history unchanged."""
     
+    def _load_install_config(self, project_name: str) -> Optional[Dict[str, str]]:
+        cfg_path = _install_config_path(project_name)
+        if not cfg_path.exists():
+            warn(f"Root install config not found: {cfg_path}")
+            return None
+        parser = configparser.ConfigParser()
+        parser.read(cfg_path)
+        if "install" not in parser:
+            warn(f"Missing [install] section in {cfg_path}")
+            return None
+        sec = parser["install"]
+        def req(key: str) -> str:
+            val = sec.get(key, "").strip()
+            if not val:
+                raise ValueError(f"Missing required field {key} in {cfg_path}")
+            return val
+        data = {
+            "db_host": req("db_host"),
+            "cache_host": req("cache_host"),
+            "ssl_ca_path": req("ssl_ca_path"),
+            "cache_ssl_ca_path": req("cache_ssl_ca_path"),
+            "mysql_root_password_main": req("mysql_root_password_main"),
+            "mysql_root_password_cache": req("mysql_root_password_cache"),
+        }
+        return data
+    
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get main database DSN with root credentials."""
         trace_in()
@@ -33,62 +62,39 @@ class RootConnection(Connection):
             trace_out()
             return None
         
-        # Get root password from command line args
-        root_password = gateway.get_arg('password')
-        if not root_password:
-            warn("Root password required for root connection")
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            warn("Root connection requires sudo/root privileges")
+            trace_out()
+            return None
+        # Only proceed if -root flag is present
+        if not gateway.get_arg('root'):
+            warn("Root flag (-root) not provided; refusing root connection")
             trace_out()
             return None
         
-        # Get DSN info but override user/password
-        # project_name is passed from initialize() to avoid redundant detection
+        cfg = None
+        try:
+            cfg = self._load_install_config(project_name)
+        except Exception as e:
+            warn(f"Failed to load root install config: {e}")
+            trace_out()
+            return None
+        if not cfg:
+            trace_out()
+            return None
         
-        # When running as root, try to detect project owner and use their config
-        dsn = None
-        if hasattr(os, "geteuid") and os.geteuid() == 0 and project_name:  # Running as root
-            # Try to find project owner's config
-            try:
-                import pwd
-                # Look for project owner by checking /srv/{project_name} ownership
-                srv_path = f'/srv/{project_name}'
-                if os.path.exists(srv_path):
-                    stat_info = os.stat(srv_path)
-                    owner_uid = stat_info.st_uid
-                    if not hasattr(pwd, "getpwuid"):
-                        warn("pwd.getpwuid is not available")
-                        trace_out()
-                        return None
-                    owner_info = pwd.getpwuid(owner_uid)
-                    owner_home = owner_info.pw_dir
-                    owner_config = f'{owner_home}/.henhouse.cnf'
-                    
-                    if os.path.exists(owner_config):
-                        import configparser
-                        config = configparser.ConfigParser()
-                        config.read(owner_config)
-                        dsn = {
-                            'host': config.get('client', 'host', fallback='localhost'),
-                            'user': 'root',  # Override with root
-                            'password': root_password,  # Use command line password
-                            'database': config.get('client', 'database', fallback=project_name),
-                            'port': config.getint('client', 'port', fallback=3306)
-                        }
-                        log(f"Using project owner's config: {owner_config}")
-            except Exception as e:
-                warn(f"Failed to detect project owner config: {e}")
+        dsn: Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]] = {
+            'host': cfg["db_host"],
+            'user': 'root',
+            'password': cfg["mysql_root_password_main"],
+            'database': project_name,
+            'port': 3306,
+        }
+        # include ssl_ca if present
+        if cfg.get("ssl_ca_path"):
+            dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': 2, 'check_hostname': True}
         
-        # Fallback to standard DSN loading
-        if not dsn:
-            main_dsn, _, _ = _load_dsn(project_name) if project_name else (None, None, None)
-            if main_dsn:
-                # Override with root credentials
-                dsn = main_dsn.copy()
-                dsn['user'] = 'root'
-                dsn['password'] = root_password
-        
-        if dsn:
-            log(f"Root connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
-        
+        log(f"Root connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
         return dsn
     
@@ -101,60 +107,37 @@ class RootConnection(Connection):
             trace_out()
             return None
         
-        # Get root password from command line args
-        root_password = gateway.get_arg('password')
-        if not root_password:
-            warn("Root password required for root cache connection")
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            warn("Root cache connection requires sudo/root privileges")
+            trace_out()
+            return None
+        if not gateway.get_arg('root'):
+            warn("Root flag (-root) not provided; refusing root cache connection")
             trace_out()
             return None
         
-        # Get cache DSN info but override user/password
-        dsn = None
-        if hasattr(os, "geteuid") and os.geteuid() == 0 and project_name:  # Running as root
-            # Try to find project owner's config for cache database name
-            try:
-                import pwd
-                srv_path = f'/srv/{project_name}'
-                if os.path.exists(srv_path):
-                    stat_info = os.stat(srv_path)
-                    owner_uid = stat_info.st_uid
-                    if not hasattr(pwd, "getpwuid"):
-                        warn("pwd.getpwuid is not available")
-                        trace_out()
-                        return None
-                    owner_info = pwd.getpwuid(owner_uid)
-                    owner_home = owner_info.pw_dir
-                    owner_config = f'{owner_home}/.henhouse.cnf'
-                    
-                    if os.path.exists(owner_config):
-                        import configparser
-                        config = configparser.ConfigParser()
-                        config.read(owner_config)
-                        # Cache database is typically main_database + '_cache'
-                        main_db = config.get('client', 'database', fallback=project_name)
-                        cache_db = f"{main_db}_cache"
-                        dsn = {
-                            'host': config.get('client', 'host', fallback='localhost'),
-                            'user': 'root',
-                            'password': root_password,
-                            'database': cache_db,
-                            'port': config.getint('client', 'port', fallback=3306)
-                        }
-                        log(f"Using project owner's config for cache: {owner_config}")
-            except Exception as e:
-                warn(f"Failed to detect project owner config for cache: {e}")
+        cfg = None
+        try:
+            cfg = self._load_install_config(project_name)
+        except Exception as e:
+            warn(f"Failed to load root install config: {e}")
+            trace_out()
+            return None
+        if not cfg:
+            trace_out()
+            return None
         
-        # Fallback to standard DSN loading
-        if not dsn:
-            _, cache_dsn, _ = _load_dsn(project_name) if project_name else (None, None, None)
-            if cache_dsn:
-                dsn = cache_dsn.copy()
-                dsn['user'] = 'root'
-                dsn['password'] = root_password
+        dsn: Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]] = {
+            'host': cfg["cache_host"],
+            'user': 'root',
+            'password': cfg["mysql_root_password_cache"],
+            'database': f"{project_name}_cache",
+            'port': 3306,
+        }
+        if cfg.get("cache_ssl_ca_path"):
+            dsn['ssl'] = {'ca': cfg["cache_ssl_ca_path"], 'verify_mode': 2, 'check_hostname': True}
         
-        if dsn:
-            log(f"Root cache connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
-        
+        log(f"Root cache connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
         return dsn
     
@@ -171,19 +154,31 @@ class RootConnection(Connection):
             trace_out()
             return None
         
-        # Get root password from command line args
-        root_password = gateway.get_arg('password')
-        if not root_password:
-            warn("Root password required for root history connection")
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            warn("Root history connection requires sudo/root privileges")
             trace_out()
             return None
-        
-        # Fallback to standard DSN loading
+        if not gateway.get_arg('root'):
+            warn("Root flag (-root) not provided; refusing root history connection")
+            trace_out()
+            return None
+        cfg = None
+        try:
+            cfg = self._load_install_config(project_name)
+        except Exception as e:
+            warn(f"Failed to load root install config: {e}")
+            trace_out()
+            return None
+        if not cfg:
+            trace_out()
+            return None
         _, _, history_dsn = _load_dsn(project_name) if project_name else (None, None, None)
         if history_dsn:
             dsn = history_dsn.copy()
             dsn['user'] = 'root'
-            dsn['password'] = root_password
+            dsn['password'] = cfg["mysql_root_password_main"]
+            if cfg.get("ssl_ca_path"):
+                dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': 2, 'check_hostname': True}
             log(f"Root history connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
             trace_out()
             return dsn

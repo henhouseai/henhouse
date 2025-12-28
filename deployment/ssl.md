@@ -160,7 +160,7 @@ Certbot supports renewal hooks in `/etc/letsencrypt/renewal-hooks/`:
 - **deploy/**: Scripts run after successful renewal
 - **post/**: Scripts run after renewal (success or failure)
 
-See `mysql.md` for MySQL SSL certificate renewal hook.
+See `mysql.md` for the MySQL SSL deploy hook: it copies `fullchain.pem` as `server-cert.pem`, builds `ca.pem` from `ISRG_Root_X1.pem + chain.pem`, copies `privkey.pem`, sets perms, and restarts MySQL.
 
 ## Troubleshooting
 

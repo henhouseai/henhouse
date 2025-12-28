@@ -48,59 +48,52 @@ class DatabaseRow(TypedDict, total=False):
 
 def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict[str, Union[str, bool, int]]:
     """Build SSL dictionary from config file for PyMySQL.
-    
-    SSL is ALWAYS REQUIRED. This function will raise an error if ssl_ca is not present.
-    
-    Args:
-        config: ConfigParser instance
-        prefix: Prefix for SSL config keys (e.g., 'cache_' for cache_ssl_ca)
-    
-    Returns:
-        SSL dictionary for PyMySQL (never None)
-    
-    Raises:
-        ValueError: If ssl_ca is not configured (SSL is mandatory)
+
+    SSL is ALWAYS REQUIRED. verify_mode controls strictness:
+    - 2 (default): verify cert + hostname (requires ssl_ca)
+    - 1: optional verify; hostname check disabled
+    - 0: no verify; hostname check disabled
     """
     ssl_ca = config.get('client', f'{prefix}ssl_ca', fallback=None)
     ssl_cert = config.get('client', f'{prefix}ssl_cert', fallback=None)
     ssl_key = config.get('client', f'{prefix}ssl_key', fallback=None)
     ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback=None)
     ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
-    
-    # ssl_ca is MANDATORY - SSL is always required
-    if not ssl_ca:
-        raise ValueError(f"SSL is required but {prefix}ssl_ca is not configured in config file")
-    
-    # Determine verify_mode first
-    verify_mode = 1  # Default to optional
+
+    # Determine verify_mode
+    verify_mode = 2  # Default to strict
     if ssl_verify_mode:
         try:
             verify_mode = int(ssl_verify_mode)
             if verify_mode not in (0, 1, 2):
-                verify_mode = 1
+                verify_mode = 2
         except ValueError:
             if ssl_verify_mode.lower() in ('true', '1', 'yes', 'on'):
                 verify_mode = 2
             elif ssl_verify_mode.lower() in ('false', '0', 'no', 'off'):
                 verify_mode = 0
             else:
-                verify_mode = 1
-    
+                verify_mode = 2
+
+    # Enforce SSL always; only relax verification based on verify_mode
+    if verify_mode == 2 and not ssl_ca:
+        raise ValueError(f"SSL verify_mode=2 but {prefix}ssl_ca is not configured in config file")
+
     ssl_dict: Dict[str, Union[str, bool, int]] = {
         'verify_mode': verify_mode,
-        'check_hostname': ssl_check_hostname.lower() in ('true', '1', 'yes', 'on')
+        # Python requires check_hostname=False unless CERT_REQUIRED
+        'check_hostname': (ssl_check_hostname.lower() in ('true', '1', 'yes', 'on')) and verify_mode == 2
     }
-    
-    # Only include 'ca' if verify_mode is not 0 (disabled)
-    # When verify_mode=0, we still want SSL but without CA verification
-    if verify_mode != 0:
+
+    # Include CA when available (required for mode 2, optional for 1)
+    if ssl_ca and verify_mode in (1, 2):
         ssl_dict['ca'] = ssl_ca
-    
+
     if ssl_cert:
         ssl_dict['cert'] = ssl_cert
     if ssl_key:
         ssl_dict['key'] = ssl_key
-    
+
     return ssl_dict
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:

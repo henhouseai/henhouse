@@ -1,5 +1,9 @@
 import subprocess
 import shutil
+import os
+import configparser
+import json
+import datetime
 from pathlib import Path
 from typing import Dict, Any
 from hh.gateway.registry.registry import register_action
@@ -23,6 +27,26 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+def _iso_now() -> str:
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+def _install_config_path(project_name: str) -> Path:
+    return Path(f"/root/.{project_name}-install.cnf")
+
+def _manifest_add_site(project_name: str, domain: str, mode: str) -> None:
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        return
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if not parser.has_section("manifest_sites"):
+        parser.add_section("manifest_sites")
+    entry = {"domain": domain, "mode": mode, "timestamp": _iso_now()}
+    parser.set("manifest_sites", domain, json.dumps(entry, separators=(',', ':')))
+    with open(cfg_path, 'w') as f:
+        parser.write(f)
+    os.chmod(cfg_path, 0o600)
 
 def create_nginx_config(domain: str, project_name: str) -> str:
     """Generate Nginx configuration for the domain and its subdomains (HTTP only - Stage 1)."""
@@ -264,6 +288,10 @@ def http_deploy() -> bool:
             "status": "deployed",
             "stage": "1"
         }
+        try:
+            _manifest_add_site(project_name, domain, "http")
+        except Exception as e:
+            warn(f"Failed to record site in manifest: {e}")
         gateway.response.set_action_response(success_payload(result_data))
     else:
         log("HTTP deployment encountered problems")

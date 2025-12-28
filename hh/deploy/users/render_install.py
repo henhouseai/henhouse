@@ -32,6 +32,22 @@ def render_install_section(source_data: Dict[str, Union[str, int, bool]], lines:
         trace_out()
         return
     
+    status_value = source_data.get('status')
+    message_value = source_data.get('message')
+    if status_value and status_value != 'installed':
+        info = TableData()
+        info.add_row('status', value=safe_str(status_value))
+        if message_value:
+            info.add_row('message', value=safe_str(message_value))
+        lines.append(render_block(
+            info,
+            FieldConfig().add_simple(['status', 'message']),
+            block_type='install_status'
+        ))
+        break_section(lines)
+        trace_out()
+        return
+    
     block = 'project'
     if not gateway.is_no(block):
         init_data = TableData()

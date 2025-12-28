@@ -1,6 +1,9 @@
 import os
 import shutil
 import subprocess
+import configparser
+import json
+import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from hh.gateway.registry.registry import register_action, register_command
@@ -29,6 +32,134 @@ from hh.deploy.users.user_accounts import create_user_config_file, update_user_p
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
+CONFIG_SECTION = "install"
+
+def _install_config_path(project_name: str) -> Path:
+    return Path(f"/root/.{project_name}-install.cnf")
+
+def _iso_now() -> str:
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+def _write_install_template(config_path: Path, project_name: str) -> None:
+    """Create a placeholder-only template with required fields."""
+    lines = [
+        "[install]",
+        "# Database hosts (no hardcoded suffix; use your DB/cache subdomains)",
+        "db_host = db.yourdomain.tld",
+        "cache_host = cache.yourdomain.tld",
+        "",
+        "# Entry point script name (defaults to hen)",
+        "hen_script_name = hen",
+        "",
+        "# SSL CA paths (absolute)",
+        "ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "",
+        "# MySQL root passwords (per DB host)",
+        "mysql_root_password_main = CHANGE_ME",
+        "mysql_root_password_cache = CHANGE_ME",
+        "",
+        "# DB user passwords (guest, verified, admin, root)",
+        "password_guest = CHANGE_ME",
+        "password_verified = CHANGE_ME",
+        "password_admin = CHANGE_ME",
+        "password_root = CHANGE_ME",
+        "",
+        "# htaccess passwords",
+        "htaccess_admin_password = CHANGE_ME",
+        "htaccess_panel_password = CHANGE_ME",
+        "",
+        "# Optional extra SSH public key to copy to users",
+        "# user_key = ssh-rsa AAAA...",
+        "",
+    ]
+    config_path.write_text("\n".join(lines), encoding="utf-8")
+    os.chmod(config_path, 0o600)
+
+def _fail_with_message(gateway, message: str) -> bool:
+    warn(message)
+    if gateway and gateway.response:
+        gateway.response.set_action_response(success_payload({"status": "failed", "message": message}))
+    report_error("action", message)
+    return False
+
+def _parse_manifest_users(section: configparser.SectionProxy) -> Dict[str, Dict[str, Any]]:
+    parsed: Dict[str, Dict[str, Any]] = {}
+    for k, v in section.items():
+        try:
+            obj = json.loads(v)
+            if isinstance(obj, dict):
+                parsed[k] = obj
+                continue
+        except Exception:
+            pass
+        parsed[k] = {"uid": str(v)}
+    return parsed
+
+def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        return None
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if CONFIG_SECTION not in parser:
+        raise ValueError(f"Missing [{CONFIG_SECTION}] section in {cfg_path}")
+    section = parser[CONFIG_SECTION]
+    def req(key: str) -> str:
+        val = section.get(key, "").strip()
+        if not val:
+            raise ValueError(f"Missing required field {key} in {cfg_path}")
+        return val
+    hen_value = section.get("hen_script_name", "hen")
+    hen_value = hen_value.strip() if hen_value is not None else "hen"
+    manifest_users: Dict[str, Dict[str, Any]] = {}
+    if parser.has_section("manifest_users"):
+        manifest_users = _parse_manifest_users(parser["manifest_users"])
+    data: Dict[str, Any] = {
+        "db_host": req("db_host"),
+        "cache_host": req("cache_host"),
+        "ssl_ca_path": req("ssl_ca_path"),
+        "cache_ssl_ca_path": req("cache_ssl_ca_path"),
+        "hen_script_name": hen_value or "hen",
+        "mysql_root_password_main": req("mysql_root_password_main"),
+        "mysql_root_password_cache": req("mysql_root_password_cache"),
+        "password_guest": req("password_guest"),
+        "password_verified": req("password_verified"),
+        "password_admin": req("password_admin"),
+        "password_root": req("password_root"),
+        "htaccess_admin_password": req("htaccess_admin_password"),
+        "htaccess_panel_password": req("htaccess_panel_password"),
+    }
+    # optional user_key
+    user_key_val = section.get("user_key")
+    if user_key_val:
+        data["user_key"] = user_key_val.strip()
+    data["manifest_users"] = manifest_users
+    # validate CA paths
+    for path_key in ("ssl_ca_path", "cache_ssl_ca_path"):
+        p = Path(data[path_key])
+        if not p.exists() or not os.access(p, os.R_OK):
+            raise ValueError(f"{path_key} not readable: {p}")
+    return data
+
+def _validate_hen_script_name(name: str) -> None:
+    if not name or any(c in name for c in ('/', '\\')):
+        raise ValueError("hen_script_name must be a simple filename (no slashes)")
+    candidate = Path("/root") / name
+    if candidate.exists():
+        raise ValueError(f"hen_script_name '{name}' already exists at {candidate}; choose a different name")
+
+def _write_manifest_users(cfg_path: Path, manifest: Dict[str, Dict[str, Any]]) -> None:
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if not parser.has_section("manifest_users"):
+        parser.add_section("manifest_users")
+    for k, v in manifest.items():
+        parser.set("manifest_users", k, json.dumps(v, separators=(',', ':')))
+    with open(cfg_path, 'w') as f:
+        parser.write(f)
+    os.chmod(cfg_path, 0o600)
+
 
 @register_action('install')
 @register_command('install')
@@ -46,26 +177,67 @@ def install() -> bool:
         return False
     
     try:
-        # Support multiple naming conventions: password1/pwd1/p1, password2/pwd2/p2, etc.
-        password1 = gateway.get_arg('password1') or gateway.get_arg('pwd1') or gateway.get_arg('p1')
-        password2 = gateway.get_arg('password2') or gateway.get_arg('pwd2') or gateway.get_arg('p2')
-        password3 = gateway.get_arg('password3') or gateway.get_arg('pwd3') or gateway.get_arg('p3')
-        password4 = gateway.get_arg('password4') or gateway.get_arg('pwd4') or gateway.get_arg('p4')
-        user_key = gateway.get_arg('user_key')
+        # CLI args now limited: passwords must come from root config
         remove_users = gateway.get_arg('remove_user')
-        hen_script_name = gateway.get_arg('hen') or 'hen'  # Default to 'hen' if not specified
         clean_install = gateway.get_arg('clean')
 
         project_name, project_path = detect_project_context()
         log(f"Starting {project_name} system initialization")
-        
-        if not password1 or not password2 or not password3 or not password4:
-            warn("All four passwords are required for install (use password1/pwd1/p1, password2/pwd2/p2, password3/pwd3/p3, password4/pwd4/p4)")
-            report_error("action", "All four passwords are required for install (use password1/pwd1/p1, password2/pwd2/p2, password3/pwd3/p3, password4/pwd4/p4)")
+
+        # Load root install config (or create template on first run)
+        cfg_path = _install_config_path(project_name)
+        if not cfg_path.exists():
+            _write_install_template(cfg_path, project_name)
+            _fail_with_message(gateway, f"Install config not found; template created at {cfg_path}. Edit it and rerun install.")
             trace_out()
             return False
-        
-        passwords = [password1, password2, password3, password4]
+        try:
+            cfg = _load_install_config(project_name)
+        except Exception as e:
+            _fail_with_message(gateway, f"Install config invalid: {e}")
+            trace_out()
+            return False
+        if not cfg:
+            _fail_with_message(gateway, "Install config missing and template could not be created.")
+            trace_out()
+            return False
+        manifest_users = cfg.get("manifest_users", {})
+        if manifest_users:
+            existing_users = []
+            for uname in manifest_users.keys():
+                try:
+                    if gateway.os and gateway.os.user_exists(uname):
+                        existing_users.append(uname)
+                except Exception:
+                    pass
+            if existing_users:
+                _fail_with_message(gateway, f"Existing install detected (users present): {', '.join(existing_users)}. Uninstall first.")
+                trace_out()
+                return False
+            else:
+                _fail_with_message(gateway, "Previous install entries found in manifest_users; clear them from the config before reinstall.")
+                trace_out()
+                return False
+        passwords = [
+            cfg["password_guest"],
+            cfg["password_verified"],
+            cfg["password_admin"],
+            cfg["password_root"],
+        ]
+        htaccess_admin_password = cfg["htaccess_admin_password"]
+        htaccess_panel_password = cfg["htaccess_panel_password"]
+        db_host = cfg["db_host"]
+        cache_host = cfg["cache_host"]
+        ssl_ca_path = cfg["ssl_ca_path"]
+        cache_ssl_ca_path = cfg["cache_ssl_ca_path"]
+        user_key_cfg = cfg.get("user_key")
+        hen_script_name = cfg.get("hen_script_name", "hen")
+        try:
+            _validate_hen_script_name(hen_script_name)
+        except Exception as e:
+            _fail_with_message(gateway, f"Install config invalid: {e}")
+            trace_out()
+            return False
         
         # Check for existing setup before proceeding
         existing_setup = check_existing_setup(project_name)
@@ -103,19 +275,57 @@ def install() -> bool:
         # Auto-scan project owner's keys
         if not project_owner:
             project_owner = detect_project_owner(project_path)
-        auto_scanned_keys = []
+        auto_scanned_keys: List[str] = []
         if project_owner:
             auto_scanned_keys = auto_scan_user_keys(project_owner)
             log(f"Auto-scanned {len(auto_scanned_keys)} keys from {project_owner}")
+        all_available_keys: List[str] = []
+        if user_key_cfg:
+            all_available_keys.append(user_key_cfg)
+        if auto_scanned_keys:
+            all_available_keys.extend(auto_scanned_keys)
+        if not all_available_keys:
+            _fail_with_message(gateway, "No SSH keys found to copy (authorized_keys empty and no user_key provided). Aborting install.")
+            trace_out()
+            return False
         
         # Create core groups FIRST (before users so they can be added to them)
         setup_core_groups(project_name)
         
         # Create fresh users (needs deploy group to exist)
-        user_data = create_fresh_users(passwords, user_key, project_name, auto_scanned_keys)
+        user_data = create_fresh_users(
+            passwords,
+            all_available_keys,
+            project_name,
+            auto_scanned_keys,
+            db_host=db_host,
+            ssl_ca_path=ssl_ca_path,
+            cache_host=cache_host,
+            cache_ssl_ca_path=cache_ssl_ca_path
+        )
+        # Write manifest of created users/uids
+        manifest: Dict[str, Dict[str, Any]] = {}
+        now = _iso_now()
+        for user in user_data:
+            if user.get("status") == "created":
+                uname = user.get("username", "")
+                try:
+                    if gateway.os:
+                        info = gateway.os.get_user_by_name(uname)
+                        if info and "uid" in info:
+                            manifest[uname] = {"uid": str(info["uid"]), "installed_at": now, "removed_at": None}
+                except Exception:
+                    pass
+        if manifest:
+            try:
+                _write_manifest_users(cfg_path, manifest)
+            except Exception as e:
+                _fail_with_message(gateway, f"Failed to write manifest_users: {e}")
+                trace_out()
+                return False
         
         # Create/update .htpasswd files for admin and root tiers
-        setup_htpasswd_files(project_name, passwords)
+        setup_htpasswd_files(project_name, passwords, htaccess_admin_password, htaccess_panel_password)
         
         # Set up rest of project groups (after users created so their groups exist)
         setup_project_group(project_name, project_path)
@@ -362,7 +572,16 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
     
     trace_out()
 
-def create_fresh_users(passwords: List[str], user_key: Optional[str], project_name: str, auto_scanned_keys: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+def create_fresh_users(
+    passwords: List[str],
+    user_keys: Optional[List[str]],
+    project_name: str,
+    auto_scanned_keys: Optional[List[str]] = None,
+    db_host: Optional[str] = None,
+    ssl_ca_path: Optional[str] = None,
+    cache_host: Optional[str] = None,
+    cache_ssl_ca_path: Optional[str] = None
+) -> List[Dict[str, Any]]:
     trace_in()
     gateway = get_gateway()
     log("Creating fresh users")
@@ -380,9 +599,8 @@ def create_fresh_users(passwords: List[str], user_key: Optional[str], project_na
             result = subprocess.run(useradd_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise subprocess.CalledProcessError(result.returncode, ['useradd'], result.stdout, result.stderr)
-            subprocess.run([
-                'chpasswd'
-            ], input=f'{user}:{password}\n', text=True, check=True, capture_output=True)
+            # SSH-only: lock password
+            subprocess.run(['passwd', '-l', user], check=True, capture_output=True)
             gateway.files.chmod(f'/home/{user}', 0o755)
             
             # All users own their own home directories
@@ -392,16 +610,24 @@ def create_fresh_users(passwords: List[str], user_key: Optional[str], project_na
             
             # Add all keys: user-provided, auto-scanned, and any additional
             all_keys = []
-            if user_key:
-                all_keys.append(user_key)
-            if auto_scanned_keys:
+            if user_keys:
+                all_keys.extend(user_keys)
+            elif auto_scanned_keys:
                 all_keys.extend(auto_scanned_keys)
             
             for key in all_keys:
                 add_user_key(user, key)
             
             # Create project-specific config file
-            create_user_config_file(user, project_name, password)
+            create_user_config_file(
+                user,
+                project_name,
+                password,
+                host=db_host,
+                ssl_ca=ssl_ca_path,
+                cache_host=cache_host,
+                cache_ssl_ca=cache_ssl_ca_path
+            )
             
             # Add users to appropriate groups based on tier
             deploy_group_name = f"{project_name}_deploy"
@@ -445,7 +671,7 @@ def create_fresh_users(passwords: List[str], user_key: Optional[str], project_na
     trace_out()
     return user_data
 
-def setup_htpasswd_files(project_name: str, passwords: List[str]) -> None:
+def setup_htpasswd_files(project_name: str, passwords: List[str], admin_htpasswd: str, panel_htpasswd: str) -> None:
     """Create/update .htpasswd files for admin and root tiers."""
     trace_in()
     try:
@@ -456,7 +682,7 @@ def setup_htpasswd_files(project_name: str, passwords: List[str]) -> None:
         if admin_idx is not None:
             admin_tier = HENHOUSE_TIERS[admin_idx]
             admin_user = f"{project_name}_{admin_tier}"
-            admin_password = passwords[admin_idx]
+            admin_password = admin_htpasswd
             htpasswd_file = f"/var/www/.htpasswd_{admin_tier}"
             
             # Use htpasswd to create/update the file (-b for batch mode, -c to create file)
@@ -476,7 +702,7 @@ def setup_htpasswd_files(project_name: str, passwords: List[str]) -> None:
         if root_idx is not None:
             root_tier = HENHOUSE_TIERS[root_idx]
             root_user = f"{project_name}_{root_tier}"
-            root_password = passwords[root_idx]
+            root_password = panel_htpasswd
             # Use 'panel' as the suffix for root tier .htpasswd file
             htpasswd_file = "/var/www/.htpasswd_panel"
             

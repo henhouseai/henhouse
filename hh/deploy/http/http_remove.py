@@ -1,4 +1,7 @@
 import os
+import configparser
+import json
+import datetime
 from pathlib import Path
 from typing import Dict, Any
 from hh.gateway.registry.registry import register_action
@@ -23,6 +26,46 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+def _iso_now() -> str:
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+def detect_project_name() -> str:
+    """Detect project name from current directory."""
+    try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            return "henhouse"
+        cwd = gateway.os.get_cwd()
+        if cwd.startswith('/srv/'):
+            parts = cwd.split('/')
+            if len(parts) >= 3:
+                return parts[2]
+        else:
+            current_path = Path(cwd)
+            while current_path != current_path.parent:
+                hh_dir = current_path / 'hh'
+                if hh_dir.exists() and hh_dir.is_dir():
+                    return current_path.name
+                current_path = current_path.parent
+        return "henhouse"
+    except Exception:
+        return "henhouse"
+
+def _install_config_path(project_name: str) -> Path:
+    return Path(f"/root/.{project_name}-install.cnf")
+
+def _manifest_remove_site(project_name: str, domain: str) -> None:
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        return
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if parser.has_section("manifest_sites") and parser.has_option("manifest_sites", domain):
+        parser.remove_option("manifest_sites", domain)
+        with open(cfg_path, 'w') as f:
+            parser.write(f)
+        os.chmod(cfg_path, 0o600)
 
 def validate_nginx_config_for_deletion(config_file: Path, force: bool = False) -> bool:
     """Validate that an nginx config file was created by our deploy system."""
@@ -141,6 +184,8 @@ def http_remove() -> bool:
         log("Force flag enabled - skipping safety checks")
     
     log(f"Starting HTTP removal for domain: {domain}")
+    project_name = detect_project_name()
+    log(f"Project: {project_name}")
 
     # Remove Nginx configuration
     config_removed = False
@@ -170,6 +215,10 @@ def http_remove() -> bool:
             "nginx_active": nginx_active,
             "status": "removed"
         }
+        try:
+            _manifest_remove_site(project_name, domain)
+        except Exception as e:
+            warn(f"Failed to update manifest_sites: {e}")
         gateway.response.set_action_response(success_payload(result_data))
     else:
         log("HTTP removal encountered problems")

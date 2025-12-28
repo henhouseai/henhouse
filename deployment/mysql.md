@@ -17,6 +17,7 @@ MySQL SSL uses Let's Encrypt certificates for database subdomains:
 - **Certificate Location**: `/etc/letsencrypt/live/db.{domain}/`
 - **MySQL SSL Directory**: `/etc/mysql/ssl/`
 - **Automatic Renewal**: Certbot renewal hook updates MySQL certificates automatically
+- **Client host**: Always use the DB subdomain (e.g., `db.henhouse.ai`), not `localhost`
 
 ### Why Separate Database Certificates?
 
@@ -30,11 +31,13 @@ Database subdomains (`db.{domain}`, `cache.{domain}`) use separate certificates 
 
 Let's Encrypt certificates are copied (not symlinked) to MySQL SSL directory:
 
-| Let's Encrypt File | MySQL SSL File | Purpose |
-|-------------------|----------------|---------|
-| `fullchain.pem` | `ca.pem` | Certificate Authority chain (full chain including server cert) |
-| `cert.pem` | `server-cert.pem` | Server certificate |
-| `privkey.pem` | `server-key.pem` | Private key |
+| Let's Encrypt File | MySQL SSL File      | Purpose                                       |
+|--------------------|---------------------|-----------------------------------------------|
+| `fullchain.pem`    | `server-cert.pem`   | Leaf + intermediate (what MySQL serves)       |
+| `chain.pem`        | —                   | Intermediate (used to build ca.pem)           |
+| `ISRG_Root_X1.pem` | —                   | Root CA (system CA store)                     |
+| `privkey.pem`      | `server-key.pem`    | Private key                                   |
+| `ca.pem`           | built from Root+R12 | Trusted CA bundle for clients/MySQL verification |
 
 **Why Copy Instead of Symlink?**
 - MySQL process needs proper file permissions
@@ -54,14 +57,20 @@ sudo mkdir -p /etc/mysql/ssl
 Copy certificates from Let's Encrypt to MySQL SSL directory:
 
 ```bash
-sudo cp -L /etc/letsencrypt/live/db.henhouse.ai/fullchain.pem /etc/mysql/ssl/ca.pem
-sudo cp -L /etc/letsencrypt/live/db.henhouse.ai/cert.pem /etc/mysql/ssl/server-cert.pem
+# What MySQL serves: leaf + intermediate
+sudo cp -L /etc/letsencrypt/live/db.henhouse.ai/fullchain.pem /etc/mysql/ssl/server-cert.pem
+
+# What clients trust: root + intermediate (no leaf)
+sudo sh -c 'cat /etc/ssl/certs/ISRG_Root_X1.pem /etc/letsencrypt/live/db.henhouse.ai/chain.pem > /etc/mysql/ssl/ca.pem'
+
+# Private key
 sudo cp -L /etc/letsencrypt/live/db.henhouse.ai/privkey.pem /etc/mysql/ssl/server-key.pem
 ```
 
-**Note**: 
-- `-L` flag dereferences symlinks (copies actual files, not symlinks)
-- Use `fullchain.pem` for `ca.pem` (includes full certificate chain including server certificate)
+**Notes**:
+- `-L` dereferences symlinks (copies real files)
+- `server-cert.pem` must be `fullchain.pem` so MySQL presents the intermediate
+- `ca.pem` must be **root + intermediate only** (no leaf)
 
 ### 3. Set Ownership and Permissions
 
@@ -83,9 +92,9 @@ Add SSL configuration to MySQL config file (`/etc/mysql/mysql.conf.d/mysqld.cnf`
 
 ```ini
 [mysqld]
-ssl-ca = /etc/mysql/ssl/ca.pem
-ssl-cert = /etc/mysql/ssl/server-cert.pem
-ssl-key = /etc/mysql/ssl/server-key.pem
+ssl-ca = /etc/mysql/ssl/ca.pem           # root + intermediate
+ssl-cert = /etc/mysql/ssl/server-cert.pem # fullchain (leaf + intermediate)
+ssl-key = /etc/mysql/ssl/server-key.pem   # private key
 ```
 
 **Important**: Use **absolute paths** (not relative paths). MySQL must be able to find the certificate files using the full path.
@@ -107,21 +116,22 @@ Certbot renewal hook automatically updates MySQL certificates when Let's Encrypt
 **Script Contents**:
 ```bash
 #!/bin/bash
-# Copy renewed certificates to MySQL SSL directory and restart MySQL
+set -euo pipefail
 
-cp -L /etc/letsencrypt/live/db.henhouse.ai/fullchain.pem /etc/mysql/ssl/ca.pem
-cp -L /etc/letsencrypt/live/db.henhouse.ai/cert.pem /etc/mysql/ssl/server-cert.pem
-cp -L /etc/letsencrypt/live/db.henhouse.ai/privkey.pem /etc/mysql/ssl/server-key.pem
+SSL_DIR=/etc/mysql/ssl
+LE_LIVE=/etc/letsencrypt/live/db.henhouse.ai
+ROOT_CA=/etc/ssl/certs/ISRG_Root_X1.pem
 
-chown mysql:mysql /etc/mysql/ssl/*
-chmod 644 /etc/mysql/ssl/ca.pem
-chmod 644 /etc/mysql/ssl/server-cert.pem
-chmod 600 /etc/mysql/ssl/server-key.pem
+cp -L "$LE_LIVE/fullchain.pem" "$SSL_DIR/server-cert.pem"   # leaf + intermediate
+cat "$ROOT_CA" "$LE_LIVE/chain.pem" > "$SSL_DIR/ca.pem"     # root + intermediate
+cp -L "$LE_LIVE/privkey.pem" "$SSL_DIR/server-key.pem"
+
+chown mysql:mysql "$SSL_DIR"/server-cert.pem "$SSL_DIR"/server-key.pem "$SSL_DIR"/ca.pem
+chmod 644 "$SSL_DIR"/server-cert.pem "$SSL_DIR"/ca.pem
+chmod 600 "$SSL_DIR"/server-key.pem
 
 systemctl restart mysql
 ```
-
-**Note**: Uses `fullchain.pem` for `ca.pem` to include the full certificate chain.
 
 ### Hook Execution
 
@@ -222,16 +232,14 @@ server {
 3. Check Let's Encrypt certificate files are readable
 4. Verify MySQL user/group exists: `id mysql`
 
-### SSL Verification Warning
+### SSL Verification Fails (unable to get local issuer)
 
-**Problem**: MySQL error log shows warning: "Server SSL certificate doesn't verify: unable to get local issuer certificate"
-
-**Explanation**: This is a **harmless warning**. MySQL is still using SSL encryption correctly. The warning occurs because MySQL cannot verify the certificate chain against its local CA store, but the certificate chain is valid and SSL connections are encrypted.
+**Problem**: Clients fail verification.
 
 **Solutions**:
-1. **Ignore the warning** - SSL is working correctly, this is just a verification message
-2. Verify SSL is working: `SHOW STATUS LIKE 'Ssl_server_not_after';` should show your certificate expiration date
-3. If desired, try using `chain.pem` instead of `fullchain.pem` for `ca.pem` (may or may not resolve the warning)
+1. Ensure MySQL serves `fullchain.pem` as `server-cert.pem` (so the intermediate is sent).
+2. Ensure `ca.pem` contains **root + intermediate** (no leaf).
+3. Ensure client config uses `ssl_verify_mode=2` and `ssl_ca` points to the readable `ca.pem`.
 
 ## Integration with Other Systems
 

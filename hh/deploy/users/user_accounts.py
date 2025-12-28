@@ -21,7 +21,15 @@ def _initialize_debug():
 
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
-def create_user_config_file(user: str, project_name: str, password: str) -> None:
+def create_user_config_file(
+    user: str,
+    project_name: str,
+    password: str,
+    host: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+    cache_host: Optional[str] = None,
+    cache_ssl_ca: Optional[str] = None
+) -> None:
     """Create project-specific config file for user."""
     trace_in()
     gateway = get_gateway()
@@ -29,7 +37,21 @@ def create_user_config_file(user: str, project_name: str, password: str) -> None
         user_home = Path(f'/home/{user}')
         config_file = user_home / f'.{project_name}.cnf'
         
-        config_content = f"[client]\nuser={user}\npassword={password}\nhost=localhost\ndatabase={project_name}\n"
+        host_value = host or 'localhost'
+        config_lines = [
+            "[client]",
+            f"user={user}",
+            f"password={password}",
+            f"host={host_value}",
+            f"database={project_name}",
+        ]
+        if ssl_ca:
+            config_lines.append(f"ssl_ca={ssl_ca}")
+        if cache_host:
+            config_lines.append(f"cache_host={cache_host}")
+        if cache_ssl_ca:
+            config_lines.append(f"cache_ssl_ca={cache_ssl_ca}")
+        config_content = "\n".join(config_lines) + "\n"
         
         with open(config_file, 'w') as f:
             f.write(config_content)

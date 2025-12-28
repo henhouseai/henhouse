@@ -1,5 +1,9 @@
+import os
 import shutil
 import subprocess
+import configparser
+import json
+import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from hh.gateway.registry.registry import register_action
@@ -26,6 +30,35 @@ def _initialize_debug():
 
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
+def _iso_now() -> str:
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+def _install_config_path(project_name: str) -> Path:
+    return Path(f"/root/.{project_name}-install.cnf")
+
+def _update_manifest_user_removal(cfg_path: Path, users: List[str]) -> None:
+    if not cfg_path.exists() or not users:
+        return
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if not parser.has_section("manifest_users"):
+        return
+    changed = False
+    for user in users:
+        if parser.has_option("manifest_users", user):
+            try:
+                obj = json.loads(parser.get("manifest_users", user))
+                if isinstance(obj, dict):
+                    obj["removed_at"] = _iso_now()
+                    parser.set("manifest_users", user, json.dumps(obj, separators=(',', ':')))
+                    changed = True
+            except Exception:
+                continue
+    if changed:
+        with open(cfg_path, 'w') as f:
+            parser.write(f)
+        os.chmod(cfg_path, 0o600)
+
 @register_action('uninstall')
 @register_command('uninstall')
 def uninstall() -> bool:
@@ -45,6 +78,21 @@ def uninstall() -> bool:
     project_name, project_path = detect_project_context()
     log(f"Starting {project_name} system uninstall")
     log(f"Project: {project_name} at {project_path}")
+    cfg_path = _install_config_path(project_name)
+
+    # Block uninstall if manifest lists deployed sites
+    if cfg_path.exists():
+        try:
+            parser = configparser.ConfigParser()
+            parser.read(cfg_path)
+            if parser.has_section("manifest_sites") and parser.items("manifest_sites"):
+                warn("Manifest shows deployed sites; remove them (http_remove/http_deploy_ssl remove) before uninstall.")
+                trace_out()
+                return False
+        except Exception as e:
+            warn(f"Could not read manifest_sites: {e}")
+            trace_out()
+            return False
     
     # Discover hen script name from tier user directory
     hen_script_name = discover_script_names(project_name)
@@ -135,6 +183,13 @@ def uninstall() -> bool:
             except Exception as e:
                 warn(f"Error removing user {user}: {str(e)}")
                 debug(f"Exception for {user}: {str(e)}")
+
+    # Update manifest with removal timestamps
+    if not is_error():
+        try:
+            _update_manifest_user_removal(cfg_path, removed_project_users)
+        except Exception as e:
+            warn(f"Failed to update manifest removal timestamps: {e}")
 
     # Step 2: Remove project directory (only if project highest level user doesn't exist)
     # Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are in different locations and NOT touched
@@ -398,6 +453,18 @@ def cleanup_existing_users(project_name: str, additional_users: Optional[List[st
     gateway = get_gateway()
     log("Cleaning up existing users")
     
+    # Load manifest to constrain deletions
+    manifest_users = {}
+    cfg_path = Path(f"/root/.{project_name}-install.cnf")
+    if cfg_path.exists():
+        try:
+            parser = configparser.ConfigParser()
+            parser.read(cfg_path)
+            if parser.has_section("manifest_users"):
+                manifest_users = {k: v for k, v in parser["manifest_users"].items()}
+        except Exception as e:
+            warn(f"Could not read manifest_users: {e}")
+    
     # Get dynamic project users
     project_users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
     
@@ -414,6 +481,10 @@ def cleanup_existing_users(project_name: str, additional_users: Optional[List[st
             seen.add(user)
             deduplicated.append(user)
     users_to_remove = deduplicated
+
+    # If manifest exists, only remove those in manifest
+    if manifest_users:
+        users_to_remove = [u for u in users_to_remove if u in manifest_users]
     
     log(f"Users to remove: {users_to_remove}")
     

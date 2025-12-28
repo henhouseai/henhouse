@@ -222,23 +222,23 @@ Delete the `.git` folder so install creates a fresh repository instead of reusin
 rm -rf .git
 ```
 
-**Step 3: Install**
+**Step 3: Install (config-driven)**
 
 ```bash
 # Install system users and infrastructure
 cd /henhouse
 ls -la
 
-# CRITICAL: You MUST be inside the project directory when running install
-# CRITICAL: You MUST be logged in as the user who owns the project directory
-# CRITICAL: You MUST have passwordless SSH authentication set up BEFORE running install
-#   The installer scans and copies SSH keys from:
-#   - ~/.ssh/authorized_keys (all non-comment lines)
-#   These keys will be copied to all tier users' authorized_keys files
+# CRITICAL: Must run inside the project directory, as the owner, with passwordless SSH ready.
+# SSH keys are copied from ~/.ssh/authorized_keys to all tier users.
 
-# Use -hen flag to customize entry point name (e.g., "fox" instead of "hen")
+# First run: creates /root/.{project}-install.cnf (mode 600, root) and exits.
+# Edit that file with:
+#   db_host, cache_host, ssl_ca_path, cache_ssl_ca_path
+#   mysql_root_password_main/cache, four DB user passwords, two htaccess passwords
+#   hen_script_name (entry point), optional user_key
+# Re-run after editing. Installer fails if manifest_users has entries (previous install not cleared).
 sudo python hen.py install
-# sudo python hen.py install -hen fox  # If using custom script name
 ```
 
 **Step 4: Verify Installation**
@@ -261,6 +261,9 @@ id henhouse_guest
 id henhouse_verified
 id henhouse_admin
 id henhouse_root
+
+# If reinstalling: ensure /root/.{project}-install.cnf [manifest_users] is empty
+# and no leftover users remain, or install will refuse to run.
 
 # Check git repository
 ls -la /srv/henhouse/git/henhouse.git
