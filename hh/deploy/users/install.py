@@ -160,6 +160,16 @@ def _write_manifest_users(cfg_path: Path, manifest: Dict[str, Dict[str, Any]]) -
         parser.write(f)
     os.chmod(cfg_path, 0o600)
 
+def _assert_config_value(key: str, value: str) -> None:
+    if value is None:
+        raise ValueError(f"{key} is required")
+    v = str(value).strip()
+    if not v:
+        raise ValueError(f"{key} is required")
+    lower = v.lower()
+    if "change_me" in lower or "yourdomain" in lower or "example.com" in lower:
+        raise ValueError(f"{key} must be set to real values (placeholder detected)")
+
 
 @register_action('install')
 @register_command('install')
@@ -201,6 +211,20 @@ def install() -> bool:
             _fail_with_message(gateway, "Install config missing and template could not be created.")
             trace_out()
             return False
+        # Reject placeholder/unchanged values
+        for key in (
+            "db_host",
+            "cache_host",
+            "mysql_root_password_main",
+            "mysql_root_password_cache",
+            "password_guest",
+            "password_verified",
+            "password_admin",
+            "password_root",
+            "htaccess_admin_password",
+            "htaccess_panel_password",
+        ):
+            _assert_config_value(key, cfg.get(key, ""))
         manifest_users = cfg.get("manifest_users", {})
         if manifest_users:
             existing_users = []
