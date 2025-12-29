@@ -211,6 +211,7 @@ The cache system is triggered by CommandRegistry during handler resolution and p
 #### cross-references:
 - **[Command Registry](#1-command-registry)**: Consumes cached handler data for performance
 - **[Backend](#3-backend)**: Uses backend types to scope discovery operations
+- **[Cache Cleanup Registry](#6-cache-cleanup-registry)**: Shares similar decorator-based discovery pattern for cache management
 
 ---
 
@@ -423,3 +424,64 @@ See `hh/gateway/registry/render_command_list.py` - `command_list()` function for
 #### cross-references:
 - **[Command Registry](#1-command-registry)**: Provides registered backend handlers
 - **[Generic Action Module](#4-generic-action-module)**: Processes action response data for presentation
+
+---
+
+## 6. Cache Cleanup Registry
+
+**File**: `hh/deploy/cache/cache_cleanup_registry.py`
+
+The cache cleanup registry provides a centralized system for managing file-based caches throughout the Henhouse system. It uses a decorator-based registration pattern similar to the command registry, allowing any module to register its own cache cleanup function.
+
+### Global Module
+
+#### owned by:
+- global scope : *Module-level cache cleanup registry*
+
+#### owns:
+- cleanup registry : *Dictionary of registered cache cleanup functions*
+- cache directory registry : *Dictionary of cache directory paths for permission management*
+
+#### data managed:
+- registered cleanup functions (source of truth) : *Cache cleanup handlers discovered via decorator scanning*
+- cache directory paths (source of truth) : *Cache directory locations for permission management*
+
+#### calls:
+- **`register_cache_cleanup(cache_name, cache_dir=None)`** : *Decorator for registering cache cleanup methods*
+- **`discover_cache_cleanups()`** : *Scans codebase and loads all registered cleanup functions*
+- **`clean_cache(cache_name)`** : *Cleans a specific cache by name*
+- **`clean_all_caches()`** : *Cleans all registered caches and aggregates results*
+- **`get_cache_directories()`** : *Returns list of all cache directory paths*
+
+#### called by:
+- file deployment (permission management) : *Discovers cache directories for permission setting*
+- git operations (cache clearing) : *Clears all caches after pull operations*
+- installation system (cache clearing) : *Clears all caches after install/uninstall*
+- deployment commands (cache clearing) : *Clears all caches after deployment*
+
+#### retrieves from:
+- file system (decorator scanning) : *Scans for `@register_cache_cleanup` decorator usage*
+- registry (registered handlers) : *Gets registered cleanup functions after module import*
+
+#### provides to:
+- deployment system (cache directory discovery) : *Provides cache directory paths for permission management*
+- cache cleanup commands (cleanup execution) : *Provides registered cleanup functions*
+
+#### configuration dependencies:
+- none : *Self-contained registry system*
+
+#### error handling:
+- **Cache Miss Handling**: Gracefully handles missing cache files during cleanup
+- **File System Errors**: Handles cleanup failures with error reporting
+- **Discovery Errors**: Manages import failures during decorator scanning
+
+#### agent training notes:
+- **Decorator Pattern**: Similar to command registry - uses `@register_cache_cleanup` decorator for registration
+- **Discovery Process**: Scans codebase for decorator usage, imports modules to trigger registration
+- **Shared Mechanism**: Multiple cache systems throughout Henhouse (page classes, text processor decorators, etc.) all use this same cleanup registry
+- **Hot/Cold Caches**: Registry supports both hot caches (in-memory) and cold caches (file-based) with unified cleanup interface
+- **Permission Management**: Tracks cache directory paths for deployment permission setting (setgid for group write access)
+
+#### cross-references:
+- **[Cache](#2-cache)**: Command registry cache system uses similar discovery patterns
+- **[Command Registry](#1-command-registry)**: Shares decorator-based discovery architecture
