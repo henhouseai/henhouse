@@ -17,6 +17,10 @@ from hh.render.config.config_registry import register_label
 @register_label('success_count',                        'Successful:',                     '✅')
 @register_label('failed_count',                        'Failed:',                         '❌')
 @register_label('username',                            'Username:',                       '👤')
+@register_label('config_status',                      'Status:',                        '🔸')
+@register_label('template_location',                   'Template Location:',              '📁')
+@register_label('template_created',                  'Template Created:',               '✅')
+@register_label('next_steps',                         'Next Steps:',                    '➡️')
 def _register_config():
     pass
 

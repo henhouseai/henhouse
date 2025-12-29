@@ -85,10 +85,16 @@ def _fail_with_message(gateway, message: str) -> bool:
 
 def _template_created_message(gateway, config_path: Path) -> bool:
     """Report template creation as informational (not an error)."""
-    message = f"Install config not found; template created at {config_path}. Edit it and rerun install."
-    log(message)
+    log(f"Template created at {config_path}")
     if gateway and gateway.response:
-        gateway.response.set_action_response(success_payload({"status": "template_created", "message": message, "config_path": str(config_path)}))
+        gateway.response.set_action_response(success_payload({
+            "status": "template_created",
+            "config_status": "Config Not Found",
+            "config_path": str(config_path),
+            "template_location": str(config_path),
+            "template_created": "Yes",
+            "next_steps": "Edit template and rerun install"
+        }))
     return True
 
 def _parse_manifest_users(section: configparser.SectionProxy) -> Dict[str, Dict[str, Any]]:

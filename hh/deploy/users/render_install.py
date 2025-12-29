@@ -36,18 +36,36 @@ def render_install_section(source_data: Dict[str, Union[str, int, bool]], lines:
     message_value = source_data.get('message')
     if status_value and status_value != 'installed':
         info = TableData()
-        # Template creation is informational, not an error
+        # Template creation is informational, not an error - display structured fields
         if status_value == 'template_created':
-            info.add_row('info', value=safe_str('Template Created'))
+            config_status = source_data.get('config_status', 'Config Not Found')
+            config_path = source_data.get('config_path', 'Unknown')
+            template_location = source_data.get('template_location', 'Unknown')
+            template_created = source_data.get('template_created', 'Yes')
+            next_steps = source_data.get('next_steps', 'Edit template and rerun install')
+            
+            info.add_row('config_status', value=safe_str(config_status))
+            info.add_row('template_location', value=safe_str(template_location))
+            info.add_row('template_created', value=safe_str(template_created))
+            info.add_row('next_steps', value=safe_str(next_steps))
+            
+            lines.append(render_block(
+                info,
+                FieldConfig().add_simple(['config_status', 'template_location', 'template_created', 'next_steps']),
+                table_overrides={'margin_l': 4},
+                block_type='install_status'
+            ))
         else:
+            # Other error statuses
             info.add_row('status', value=safe_str(status_value))
-        if message_value:
-            info.add_row('message', value=safe_str(message_value))
-        lines.append(render_block(
-            info,
-            FieldConfig().add_simple(['info' if status_value == 'template_created' else 'status', 'message']),
-            block_type='install_status'
-        ))
+            if message_value:
+                info.add_row('message', value=safe_str(message_value))
+            lines.append(render_block(
+                info,
+                FieldConfig().add_simple(['status', 'message']),
+                table_overrides={'margin_l': 4},
+                block_type='install_status'
+            ))
         break_section(lines)
         trace_out()
         return
