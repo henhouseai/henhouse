@@ -235,7 +235,35 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             warn(f"Failed to verify cache tables: {str(e)}")
             report_error("backend", f"Failed to verify cache tables: {str(e)}")
     
-    # Step 6: Prepare response data
+    # Step 6: Create homepage if pages table is empty
+    homepage_created = False
+    if not is_error():
+        try:
+            # Check if page with id=1 already exists
+            check_query = "SELECT COUNT(*) as count FROM pages WHERE id = 1"
+            check_results: List[Dict[str, Any]] = gateway.conn.read(check_query)
+            if check_results and check_results[0]['count'] == 0:
+                # Pages table exists but no page with id=1, create homepage
+                import datetime as dt
+                now = dt.datetime.now()
+                user_results: List[Dict[str, Any]] = gateway.conn.read("SELECT USER() as db_user")
+                db_user = user_results[0]['db_user'] if user_results else 'unknown'
+                
+                insert_query = """
+                    INSERT INTO pages (id, parent, name, link, class, text, last_modified, username, visibility, displayStyle)
+                    VALUES (1, 0, %s, NULL, 'page', 'Hello, World!', %s, %s, 1, 1)
+                """
+                gateway.conn.create(insert_query, (project_name, now, str(db_user)))  # type: ignore[arg-type]
+                log(f"Created homepage: id=1, name='{project_name}', parent=0")
+                homepage_created = True
+            else:
+                log("Homepage already exists (page with id=1 found)")
+        except Exception as e:
+            # Non-fatal - homepage creation is optional
+            warn(f"Could not create homepage (non-fatal): {str(e)}")
+            log("Continuing without homepage creation")
+    
+    # Step 7: Prepare response data
     if not is_error():
         try:
             result_data = {
@@ -245,6 +273,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 "created_tables": len(created_tables),
                 "cache_tables": len(cache_tables),
                 "cache_database": cache_db_name,
+                "homepage_created": homepage_created,
                 "initialization_successful": len(created_tables) > 0 and len(cache_tables) > 0
             }
             gateway.response.set_action_response(success_payload(result_data))

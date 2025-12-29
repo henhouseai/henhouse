@@ -149,11 +149,9 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
     if user_key_val:
         data["user_key"] = user_key_val.strip()
     data["manifest_users"] = manifest_users
-    # validate CA paths
-    for path_key in ("ssl_ca_path", "cache_ssl_ca_path"):
-        p = Path(data[path_key])
-        if not p.exists() or not os.access(p, os.R_OK):
-            raise ValueError(f"{path_key} not readable: {p}")
+    # Note: SSL CA paths are not validated here - they may not exist yet if certificates
+    # haven't been set up. They will be validated when database connections are attempted.
+    # This allows installation to proceed before SSL certificates are configured.
     return data
 
 def _validate_hen_script_name(name: str) -> None:
@@ -579,6 +577,15 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
     
     subprocess.run(['git', 'init', '--bare', str(bare_repo)], check=True)
     log(f"Created bare git repository: {bare_repo}")
+    
+    # Configure Git safe.directory to allow access to this repository
+    # This prevents "dubious ownership" errors when cloning via SSH
+    try:
+        subprocess.run(['git', 'config', '--system', '--add', 'safe.directory', str(bare_repo)], check=True)
+        log(f"Configured Git safe.directory for {bare_repo}")
+    except subprocess.CalledProcessError as e:
+        warn(f"Failed to set Git safe.directory (non-fatal): {e}")
+        # Non-fatal - users can set it manually if needed
     
     # Set ownership to project owner (detected earlier)
     project_owner = detect_project_owner(project_path)

@@ -52,7 +52,7 @@ This guide walks you through setting up Henhouse in phases, with each phase enab
 - **Project Name**: The project name is determined by the folder name where your Henhouse is located.
   - Set before you run install
   - Default is "henhouse" (lowercase, the folder name)
-  - Can be renamed to anything you want (e.g., "foxhouse", "myproject")
+  - Can be renamed to anything you want
   - Affects naming conventions throughout the system, including:
     - Unix users it creates
     - Database names it creates
@@ -65,9 +65,9 @@ This guide walks you through setting up Henhouse in phases, with each phase enab
 
 - **Entry Point**: The command you use to run Henhouse operations (e.g., `hen deploy`, `hen show-page`).
   - Default name is "hen"
-  - Can be customized (e.g., "fox") to match your project name
+  - Can be customized to match your project name
   - Each project can have its own entry point name
-  - You can run `hen deploy` for one project and `fox deploy` for another, all on the same deployment box
+  - You can run different entry points for different projects, all on the same deployment box
   - Changing the entry point name is easier than changing project name: uninstall and reinstall with new name
   - Throughout this documentation, we use "hen" as the default entry point name
 
@@ -219,8 +219,8 @@ Once you've verified it works on your developer box, set it up on your deploymen
 cd ~
 git clone https://github.com/henhouseai/henhouse.git
 
-# (Optional) Rename your project folder, example "foxhouse"
-# mv henhouse foxhouse
+# (Optional) Rename your project folder if desired
+# mv henhouse myproject
 
 # move your project to a more central location (outside of your home folder)
 sudo mv henhouse /
@@ -233,42 +233,150 @@ python hen.py dependency-list
 pip install -r requirements.txt
 ```
 
-**Step 2: Clean Git History (Recommended)**
+**Step 2: Prerequisites Check**
 
-Delete the `.git` folder so install creates a fresh repository instead of reusing the existing one.
+Before installing, ensure you have:
+
+- **DNS configured**: All required DNS records pointing to your server's static IP (see `deployment/dns.md`)
+  - Main domain, www, admin, panel, db, and cache subdomains must all have A records
+- **NGINX installed and running**: Web server must be set up (see `deployment/http-nginx.md`)
+- **MySQL installed and running**: Database server must be set up (see `deployment/mysql.md`)
+- **At least one top-level domain** that you own (ideally one per project)
+
+**Step 3: Clean Git History (Required)**
+
+Delete the `.git` folder so install creates a fresh repository instead of reusing the existing one. This is required to avoid conflicts during installation.
 
 ```bash
 # Remove existing git history so install starts fresh
 rm -rf .git
 ```
 
-**Step 3: Install (config-driven)**
+**Step 4: Install (config-driven)**
 
 ```bash
 # Install system users and infrastructure
 cd /henhouse
 ls -la
+# Verify: All files should be owned by your human user account (user:group should show your username)
 
 # CRITICAL: Must run inside the project directory, as the owner, with passwordless SSH ready.
 # SSH keys are copied from ~/.ssh/authorized_keys to all tier users.
 
 # First run: creates /root/.{project}-install.cnf (mode 600, root) and exits.
-# Edit that file with:
-#   db_host, cache_host, ssl_ca_path, cache_ssl_ca_path
-#   mysql_root_password_main/cache, four DB user passwords, two htaccess passwords
-#   hen_script_name (entry point), optional user_key
+sudo python hen.py install
+
+# Edit the config file that was just created:
+sudo vi /root/.henhouse-install.cnf
+# (or use nano if you prefer: sudo nano /root/.henhouse-install.cnf)
+#
+# Required fields to set:
+#
+# Database hosts:
+#   db_host: Database server hostname
+#   cache_host: Cache database server hostname
+#   - If this is your FIRST henhouse installation: use subdomains like db.{yourdomain} and cache.{yourdomain}
+#     Example: db.henhouse.ai, cache.henhouse.ai
+#   - If this is your SECOND+ henhouse: use the same database server as your first installation
+#     All henhouse installations on the same server share the same database server
+#   - IMPORTANT: DNS records must be set up BEFORE installing (see deployment/dns.md)
+#     All subdomains (db, cache, admin, panel, www, main domain) must point to your server's static IP
+#
+# SSL CA paths (absolute paths to certificate files):
+#   ssl_ca_path: Path to SSL CA certificate for main database (e.g., /etc/mysql/ssl/ca.pem)
+#   cache_ssl_ca_path: Path to SSL CA certificate for cache database
+#   - These certificates can be set up AFTER installation if needed
+#   - The installer will accept these paths even if files don't exist yet
+#   - See deployment/ssl.md and deployment/mysql.md for certificate setup details
+#
+# MySQL root passwords (one per database server):
+#   mysql_root_password_main: Root password for main database server
+#   mysql_root_password_cache: Root password for cache database server
+#
+# Database user passwords (used for both main and cache databases):
+#   password_guest, password_verified, password_admin, password_root
+#
+# HTTP Basic Auth passwords:
+#   htaccess_admin_password: For admin subdomain access
+#   htaccess_panel_password: For panel subdomain access
+#
+# Entry script name:
+#   hen_script_name: Name of the entry point script (defaults to "hen")
+#
+# Optional:
+#   user_key: Additional SSH public key to copy to all tier users
+#
+# All passwords must be changed from "CHANGE_ME" - installer validates this.
+
 # Re-run after editing. Installer fails if manifest_users has entries (previous install not cleared).
 sudo python hen.py install
 ```
 
-**Step 4: Verify Installation**
+**Verify Installation and Permissions:**
+
+```bash
+# Check project directory ownership (group should now be henhouse)
+ls -la
+# Verify: Files are still owned by your user, but group is now "henhouse"
+
+# Check /srv directory structure
+ls /srv
+# Should show: files/, audio/, video/, images/ folders
+# Inside each folder, you'll see a subfolder for your project (e.g., henhouse/)
+
+# Check that you cannot yet access /srv/henhouse (group permissions not active)
+ls /srv/henhouse
+# Should show "Permission denied" - this is expected until you log out and back in
+
+# Check new user accounts were created
+ls /home
+# Should show four new accounts: {project}_guest, {project}_verified, {project}_admin, {project}_root
+
+# Check install config file was created
+sudo vi /root/.henhouse-install.cnf
+# Should see the configuration with all passwords set (not "CHANGE_ME")
+
+# IMPORTANT: Log out and log back in via SSH to activate group permissions
+exit
+# (Then SSH back in)
+
+# After logging back in, verify group permissions are active
+ls /srv/henhouse
+# Should now work! You can see the git/ folder inside
+# This confirms your account now has the henhouse group permissions
+
+# Verify /srv/henhouse permissions
+ls -la /srv/henhouse
+# Should show: owned by henhouse:henhouse (project group - human user + root tier only)
+
+# Verify git folder permissions
+ls -la /srv/henhouse/git
+# Should show: owned by henhouse:henhouse (project group)
+# Note: /srv/henhouse itself uses henhouse_deployed group (all tier users can access)
+#       but git/ uses henhouse group (only human user + root tier)
+```
+
+**Note: Database Connection Warnings**
+
+After installation, when you run hen commands (like `hen command-list` or `hen dependency-list`), you may see warnings like:
+```
+Failed to initialize database connection. Access denied for user {project}_root at {ip_address} using password: YES
+```
+
+This is **expected and temporary**. The installer creates the DSN configuration files (`~/.{project}.cnf`) that point to your database servers, but the databases themselves don't exist yet on those servers. The system is trying to load these DSN files and connect, but the databases haven't been created.
+
+You can safely ignore these warnings until you set up the databases. See **Tier 3: Database Setup** below for instructions on creating the databases and database users.
+
+Until then, the connection failures are harmless - the system is just trying to connect to databases that haven't been created yet.
+
+**Step 5: Verify Installation**
 
 After installation, check what was created:
 
 ```bash
 # Check the main project directory
 ls -la /srv/henhouse
-# ls -la /srv/foxhouse  # If using custom project name
+# ls -la /srv/myproject  # If using custom project name
 
 # Check media directories
 ls -la /srv/images/henhouse
@@ -308,9 +416,9 @@ Once your server has a valid domain you can connect to, clone from the server in
 ```bash
 # On your developer box, clone from your server's bare repository
 git clone user@your-server:/srv/henhouse/git/henhouse.git
-# git clone user@your-server:/srv/foxhouse/git/foxhouse.git  # If using custom project name
+# git clone user@your-server:/srv/myproject/git/myproject.git  # If using custom project name
 cd henhouse
-# cd foxhouse  # If using custom project name
+# cd myproject  # If using custom project name
 
 # Open this folder in Cursor as a new project
 # Your origin will point to the server's bare repo
@@ -332,11 +440,11 @@ Test the git sync workflow before deploying:
 # (use Cursor's git features or command line)
 git add .
 git commit -m "test change"
-git push origin henhouse  # or foxhouse, myproject, etc. (not main/master)
+git push origin henhouse  # or your project name (not main/master)
 
 # On deployment box: pull (no sudo needed, as your Unix user)
 hen pull-project
-# fox pull-project  # If using custom script name
+# myproject pull-project  # If using custom script name
 ```
 
 This syncs the project directory with the head of your project branch. The `pull-project` command automatically clears caches.
@@ -348,7 +456,7 @@ The `push-project` feature creates side branches for recovery:
 ```bash
 # On deployment box: create a stage branch
 hen push-project --message "test stage branch"
-# fox push-project --message "test stage branch"  # If using custom script name
+# myproject push-project --message "test stage branch"  # If using custom script name
 
 # On developer box: pull the stage branch
 stage pull
@@ -387,16 +495,11 @@ Set up the database before deploying to avoid maintenance daemon errors:
 
 ```bash
 # Initialize database (one-time setup)
-sudo hen init-db --confirm -password <mysql_root_password>
-# sudo fox init-db --confirm -password <mysql_root_password>  # If using custom script name
+# Creates databases and schema, automatically creates homepage if pages table is empty
+sudo hen init-db -root --confirm
 
 # Create tier-based database users
-sudo hen add-db-users -password <mysql_root_password>
-# sudo fox add-db-users -password <mysql_root_password>  # If using custom script name
-
-# Create homepage
-hen init-homepage
-# fox init-homepage  # If using custom script name
+sudo hen add-db-users -root
 ```
 
 **What This Enables:**
@@ -423,7 +526,7 @@ After installation completes, **log out and log back in** to refresh SSH group p
 ```bash
 # Deploy the application
 sudo hen deploy
-# sudo fox deploy  # If using custom script name
+# sudo myproject deploy  # If using custom script name
 ```
 
 This copies whitelisted files to `/srv/{project_name}`, sets permissions, and prepares the production environment. The deploy process automatically stops and restarts Flask applications and the maintenance daemon. You can't do NGINX deployment until code is deployed to `/srv` first, because NGINX configuration is generated from the deployed code.
@@ -435,11 +538,11 @@ Check that Flask apps and maintenance daemon are running:
 ```bash
 # Check Flask daemon status (4 instances, one per tier)
 hen flask-status
-# fox flask-status  # If using custom script name
+# myproject flask-status  # If using custom script name
 
 # Check maintenance daemon status
 hen maintenance-status
-# fox maintenance-status  # If using custom script name
+# myproject maintenance-status  # If using custom script name
 ```
 
 You should see four Flask daemons running (ports 5001-5004) and one maintenance daemon. If you need to stop them, use `hen flask-stop` and `hen maintenance-stop`, but note that they will automatically restart the next time you run `sudo hen deploy`.
@@ -482,7 +585,7 @@ If you're setting up a new domain, start with HTTP-only to allow SSL certificate
 ```bash
 # Configure HTTP/NGINX (HTTP-only, for SSL certificate setup)
 sudo hen http-deploy -domain yourdomain.com
-# sudo fox http-deploy -domain yourdomain.com  # If using custom script name
+# sudo myproject http-deploy -domain yourdomain.com  # If using custom script name
 ```
 
 This allows the SSL certificate authority to verify your domain by uploading a file and checking it. Once your SSL certificate is issued, proceed to Phase B.
@@ -494,7 +597,7 @@ After SSL certificates are installed (typically via Let's Encrypt):
 ```bash
 # Configure HTTPS/NGINX with SSL certificates
 sudo hen http-deploy-ssl -domain yourdomain.com
-# sudo fox http-deploy-ssl -domain yourdomain.com  # If using custom script name
+# sudo myproject http-deploy-ssl -domain yourdomain.com  # If using custom script name
 ```
 
 This configures NGINX with SSL certificates and sets up HTTP-to-HTTPS redirects.
@@ -521,11 +624,11 @@ Check that all services are running properly:
 ```bash
 # Check Flask daemon status (4 instances, one per tier)
 hen flask-status
-# fox flask-status  # If using custom script name
+# myproject flask-status  # If using custom script name
 
 # Check maintenance daemon status
 hen maintenance-status
-# fox maintenance-status  # If using custom script name
+# myproject maintenance-status  # If using custom script name
 ```
 
 You should see:
@@ -539,11 +642,11 @@ If you need to stop daemons:
 ```bash
 # Stop Flask daemons
 sudo hen flask-stop
-# sudo fox flask-stop  # If using custom script name
+# sudo myproject flask-stop  # If using custom script name
 
 # Stop maintenance daemon
 sudo hen maintenance-stop
-# fox maintenance-stop  # If using custom script name
+# myproject maintenance-stop  # If using custom script name
 ```
 
 **Important**: Every time you run `sudo hen deploy`, the daemons are automatically stopped before deployment and restarted after deployment. You don't need to manually manage them during normal deployment cycles.
@@ -555,11 +658,11 @@ Auto-start on server reboot is not yet enabled. If your server reboots, you'll n
 ```bash
 # Start Flask daemons
 sudo hen flask-start
-# sudo fox flask-start  # If using custom script name
+# sudo myproject flask-start  # If using custom script name
 
 # Start maintenance daemon
 sudo hen maintenance-start
-# fox maintenance-start  # If using custom script name
+# myproject maintenance-start  # If using custom script name
 ```
 
 **What This Enables:**
