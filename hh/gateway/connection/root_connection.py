@@ -4,7 +4,6 @@ import configparser
 from pathlib import Path
 from hh.gateway.connection.connection import Connection, _load_dsn
 from hh.deploy.deploy_utils import detect_project_context
-from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.deploy.users.install import _install_config_path
 
@@ -56,19 +55,8 @@ class RootConnection(Connection):
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get main database DSN with root credentials."""
         trace_in()
-        gateway = get_gateway()
-        if not gateway:
-            warn("No gateway available for root connection")
-            trace_out()
-            return None
-        
         if hasattr(os, "geteuid") and os.geteuid() != 0:
             warn("Root connection requires sudo/root privileges")
-            trace_out()
-            return None
-        # Only proceed if -root flag is present
-        if not gateway.get_arg('root'):
-            warn("Root flag (-root) not provided; refusing root connection")
             trace_out()
             return None
         
@@ -101,18 +89,8 @@ class RootConnection(Connection):
     def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get cache database DSN with root credentials."""
         trace_in()
-        gateway = get_gateway()
-        if not gateway:
-            warn("No gateway available for root cache connection")
-            trace_out()
-            return None
-        
         if hasattr(os, "geteuid") and os.geteuid() != 0:
             warn("Root cache connection requires sudo/root privileges")
-            trace_out()
-            return None
-        if not gateway.get_arg('root'):
-            warn("Root flag (-root) not provided; refusing root cache connection")
             trace_out()
             return None
         
@@ -148,18 +126,8 @@ class RootConnection(Connection):
         Currently uses fallback to standard DSN loading with root credentials override.
         """
         trace_in()
-        gateway = get_gateway()
-        if not gateway:
-            warn("No gateway available for root history connection")
-            trace_out()
-            return None
-        
         if hasattr(os, "geteuid") and os.geteuid() != 0:
             warn("Root history connection requires sudo/root privileges")
-            trace_out()
-            return None
-        if not gateway.get_arg('root'):
-            warn("Root flag (-root) not provided; refusing root history connection")
             trace_out()
             return None
         cfg = None
