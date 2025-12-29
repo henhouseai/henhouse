@@ -89,7 +89,7 @@ def _template_created_message(gateway, config_path: Path) -> bool:
     log(message)
     if gateway and gateway.response:
         gateway.response.set_action_response(success_payload({"status": "template_created", "message": message, "config_path": str(config_path)}))
-    return False
+    return True
 
 def _parse_manifest_users(section: configparser.SectionProxy) -> Dict[str, Dict[str, Any]]:
     parsed: Dict[str, Dict[str, Any]] = {}
@@ -208,7 +208,7 @@ def install() -> bool:
             _write_install_template(cfg_path, project_name)
             _template_created_message(gateway, cfg_path)
             trace_out()
-            return False
+            return True
         try:
             cfg = _load_install_config(project_name)
         except Exception as e:
