@@ -209,6 +209,15 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     if ext_schema_path.exists():
         run_sql_script(project_name, ext_schema_path, "Extension schema", root_password_main)
     
+    # Step 4.6: Re-initialize connection now that databases exist
+    if not is_error():
+        try:
+            gateway.conn.initialize()
+            log("Re-initialized database connection after database creation")
+        except Exception as e:
+            warn(f"Failed to re-initialize connection: {str(e)}")
+            report_error("backend", f"Failed to re-initialize connection: {str(e)}")
+    
     # Step 5: Verify tables were created
     created_tables = []
     cache_tables = []
