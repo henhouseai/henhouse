@@ -10,6 +10,48 @@ Before setting up MySQL SSL, you must have:
 - Sudo/root privileges for file operations and MySQL service management
 - SSL certificate renewal hook configured (see below)
 
+## MySQL Root User Permissions
+
+The MySQL `root` user must be able to connect from the deployment box. By default, MySQL only allows `root` to connect from `localhost` or `127.0.0.1`. If your deployment box connects to the database server using a remote hostname (e.g., `db.henhouse.ai`), you need to grant `root` access from the deployment box's IP address.
+
+### Check Current Root User Permissions
+
+```sql
+SELECT user, host FROM mysql.user WHERE user = 'root';
+```
+
+This will show all `root` user entries and their allowed hosts. Common entries:
+- `root@localhost` - Allows connection from localhost only
+- `root@127.0.0.1` - Allows connection from 127.0.0.1 only
+- `root@%` - Allows connection from any host (less secure)
+
+### Grant Root Access from Deployment Box IP
+
+If your deployment box connects via a remote hostname, you need to grant `root` access from the deployment box's static IP address:
+
+```sql
+CREATE USER IF NOT EXISTS 'root'@'DEPLOYMENT_BOX_IP' IDENTIFIED BY 'your_mysql_root_password';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'DEPLOYMENT_BOX_IP' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+```
+
+Replace `DEPLOYMENT_BOX_IP` with your deployment box's actual static IP address (e.g., `96.42.130.78`).
+
+**Note**: The password must match the MySQL root password you plan to use in your install config.
+
+### Verify Connection
+
+After granting permissions, test the connection from the deployment box using the MySQL command line:
+
+```bash
+mysql -h db.henhouse.ai -u root -p
+```
+
+If the connection fails with "Access denied", verify:
+1. The IP address in the `GRANT` statement matches your deployment box's IP
+2. The password matches the MySQL root password
+3. MySQL firewall rules allow connections from that IP
+
 ## MySQL SSL Architecture
 
 MySQL SSL uses Let's Encrypt certificates for database subdomains:
