@@ -72,9 +72,6 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "# Flask daemon starting port (reserves 100 ports: start_port through start_port+99)",
         "flask_start_port = 5001",
         "",
-        "# Optional extra SSH public key to copy to users",
-        "# user_key = ssh-rsa AAAA...",
-        "",
     ]
     config_path.write_text("\n".join(lines), encoding="utf-8")
     os.chmod(config_path, 0o600)
@@ -154,10 +151,6 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
         "htaccess_panel_password": req("htaccess_panel_password"),
         "flask_start_port": flask_start_port,
     }
-    # optional user_key
-    user_key_val = section.get("user_key")
-    if user_key_val:
-        data["user_key"] = user_key_val.strip()
     data["manifest_users"] = manifest_users
     # Note: SSL CA paths are not validated here - they may not exist yet if certificates
     # haven't been set up. They will be validated when database connections are attempted.
@@ -369,7 +362,6 @@ def install() -> bool:
         cache_host = cfg["cache_host"]
         ssl_ca_path = cfg["ssl_ca_path"]
         cache_ssl_ca_path = cfg["cache_ssl_ca_path"]
-        user_key_cfg = cfg.get("user_key")
         hen_script_name = cfg.get("hen_script_name", "hen")
         flask_start_port = cfg.get("flask_start_port", 5001)
         try:
@@ -426,13 +418,8 @@ def install() -> bool:
         if project_owner:
             auto_scanned_keys = auto_scan_user_keys(project_owner)
             log(f"Auto-scanned {len(auto_scanned_keys)} keys from {project_owner}")
-        all_available_keys: List[str] = []
-        if user_key_cfg:
-            all_available_keys.append(user_key_cfg)
-        if auto_scanned_keys:
-            all_available_keys.extend(auto_scanned_keys)
-        if not all_available_keys:
-            _fail_with_message(gateway, "No SSH keys found to copy (authorized_keys empty and no user_key provided). Aborting install.")
+        if not auto_scanned_keys:
+            _fail_with_message(gateway, "No SSH keys found to copy (authorized_keys empty). Aborting install.")
             trace_out()
             return False
         
@@ -442,7 +429,6 @@ def install() -> bool:
         # Create fresh users (needs deploy group to exist)
         user_data = create_fresh_users(
             passwords,
-            all_available_keys,
             project_name,
             auto_scanned_keys,
             db_host=db_host,
@@ -753,7 +739,6 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
 
 def create_fresh_users(
     passwords: List[str],
-    user_keys: Optional[List[str]],
     project_name: str,
     auto_scanned_keys: Optional[List[str]] = None,
     db_host: Optional[str] = None,
@@ -787,15 +772,10 @@ def create_fresh_users(
             
             ssh_keys = generate_ssh_keys(user, project_name)
             
-            # Add all keys: user-provided, auto-scanned, and any additional
-            all_keys = []
-            if user_keys:
-                all_keys.extend(user_keys)
-            elif auto_scanned_keys:
-                all_keys.extend(auto_scanned_keys)
-            
-            for key in all_keys:
-                add_user_key(user, key)
+            # Add auto-scanned keys
+            if auto_scanned_keys:
+                for key in auto_scanned_keys:
+                    add_user_key(user, key)
             
             # Create project-specific config file
             create_user_config_file(
