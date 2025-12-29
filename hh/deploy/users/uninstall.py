@@ -97,9 +97,42 @@ def uninstall() -> bool:
             trace_out()
             return False
     
-    # Discover hen script name from tier user directory
-    hen_script_name = discover_script_names(project_name)
-    log(f"Discovered hen script name: {hen_script_name}")
+    # Get hen script name from install config - REQUIRED, no fallback
+    if not cfg_path.exists():
+        warn(f"Install config not found: {cfg_path}")
+        report_error("action", f"Install config not found: {cfg_path}. Cannot determine script name.")
+        trace_out()
+        return False
+    
+    try:
+        parser = configparser.ConfigParser()
+        parser.read(cfg_path)
+        if not parser.has_section("install"):
+            warn(f"Missing [install] section in {cfg_path}")
+            report_error("action", f"Missing [install] section in {cfg_path}. Cannot determine script name.")
+            trace_out()
+            return False
+        
+        hen_script_name = parser.get("install", "hen_script_name", fallback=None)
+        if not hen_script_name:
+            warn(f"hen_script_name not found in install config: {cfg_path}")
+            report_error("action", f"hen_script_name not found in install config: {cfg_path}. Cannot determine script name.")
+            trace_out()
+            return False
+        
+        hen_script_name = hen_script_name.strip()
+        if not hen_script_name:
+            warn(f"hen_script_name is empty in install config: {cfg_path}")
+            report_error("action", f"hen_script_name is empty in install config: {cfg_path}. Cannot determine script name.")
+            trace_out()
+            return False
+        
+        log(f"Using hen script name from install config: {hen_script_name}")
+    except Exception as e:
+        warn(f"Could not read hen_script_name from install config: {e}")
+        report_error("action", f"Could not read hen_script_name from install config: {e}")
+        trace_out()
+        return False
 
     # Parse additional users to remove
     remove_users = gateway.get_arg('remove_user')
@@ -530,61 +563,6 @@ def detect_project_owner(project_path: Path) -> Optional[str]:
 
 # Import detect_project_context from utils
 from hh.deploy.deploy_utils import detect_project_context
-
-def discover_script_names(project_name: str) -> Optional[str]:
-    """Discover hen script name from tier user directory."""
-    trace_in()
-    gateway = get_gateway()
-    hen_script_name = None
-    
-    try:
-        # Get first tier user
-        if not HENHOUSE_TIERS:
-            warn("No tiers defined - cannot discover script names")
-            trace_out()
-            return None
-        
-        first_tier = HENHOUSE_TIERS[0]
-        tier_user = f"{project_name}_{first_tier}"
-        tier_user_home = Path(f'/home/{tier_user}')
-        
-        if not tier_user_home.exists():
-            log(f"Tier user home {tier_user_home} does not exist - cannot discover script names")
-            trace_out()
-            return None
-        
-        # Look for hen script (could be 'hen' or custom name)
-        # It should contain 'python3 gateway' (tier users call gateway.py)
-        for item in tier_user_home.iterdir():
-            if item.is_file() and gateway.files.is_executable(str(item)):
-                name = item.name
-                # Check if it's a hen script (contains 'python3 gateway')
-                if name != 'gateway.py' and not name.startswith('gateway-'):
-                    try:
-                        with open(item, 'r') as f:
-                            content = f.read()
-                        if 'python3 gateway' in content:
-                            hen_script_name = name
-                            log(f"Discovered hen script name: {hen_script_name}")
-                            break
-                    except Exception:
-                        pass
-        
-        if not hen_script_name:
-            # Default to 'hen' if not found
-            hen_script_name = 'hen'
-            log("No custom hen script found, defaulting to 'hen'")
-        
-        log(f"Discovered hen script name: {hen_script_name}")
-        
-    except Exception as e:
-        warn(f"Error discovering script names: {str(e)}")
-        # Default to standard name on error
-        hen_script_name = 'hen'
-    finally:
-        trace_out()
-    
-    return hen_script_name
 
 def reset_project_group_ownership(project_name: str, project_path: Path) -> None:
     """Reset project folder group ownership and delete project group."""
