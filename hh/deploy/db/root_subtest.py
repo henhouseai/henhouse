@@ -16,13 +16,15 @@ import tempfile
 import configparser
 from pathlib import Path
 from typing import Optional, Dict
-from hh.gateway.registry.registry import register_action, register_command
+from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.response.json_standard import success_payload
+from hh.gateway.response.json_standard import success_payload, get_data
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 from hh.deploy.users.install import _install_config_path
+from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
+from hh.render.config.config import safe_str
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -202,4 +204,57 @@ def root_subtest() -> bool:
     log("Root subprocess test completed successfully")
     trace_out()
     return True
+
+@register_parser('root_subtest')
+def root_subtest_parser() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        report_error("backend", "No gateway available")
+        trace_out()
+        return False
+    if not gateway.response.has_action_response():
+        warn("No action response available")
+        report_error("backend", "No action response available")
+        trace_out()
+        return False
+    
+    try:
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data if json_data is not None else {})
+        
+        lines = []
+        lines.append(render_header_block('l_root_subtest_header'))
+        
+        table_data = TableData()
+        project_name = source_data.get('project_name', 'Unknown')
+        status = source_data.get('status', 'unknown')
+        tests_passed = source_data.get('tests_passed', 0)
+        message = source_data.get('message', '')
+        
+        table_data.add_row('project_header', value=safe_str(project_name))
+        table_data.add_row('status', value=safe_str(status))
+        table_data.add_row('tests_passed', value=safe_str(f"{tests_passed} tests passed"))
+        if message:
+            table_data.add_row('message', value=safe_str(message))
+        
+        lines.append(render_block(
+            table_data,
+            FieldConfig()
+                .add_header('project_header')
+                .add_simple(['status', 'tests_passed', 'message']),
+            table_overrides={'margin_l': 4},
+            block_type='root_subtest'
+        ))
+        
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully")
+        trace_out()
+        return True
+    except Exception as e:
+        warn(f"Parser execution raised an exception: {e}")
+        report_error("backend", f"Parser execution raised an exception: {e}")
+        trace_out()
+        return False
 

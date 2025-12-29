@@ -27,6 +27,8 @@ from hh.render.config.config_registry import register_label
 @register_label('init_sql_file',                       'Init SQL File:',                 '📄')
 @register_label('created_tables',                      'Created Tables:',                '📋')
 @register_label('initialization_status',                 'Initialization Status:',         '✅')
+@register_label('root_test_header',                      'Root Connection Test',            '🔌')
+@register_label('root_subtest_header',                   'Root Subprocess Test',           '⚙️')
 def _register_config():
     pass
 
