@@ -1,5 +1,7 @@
 import os
 import subprocess
+import configparser
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from hh.gateway.registry.registry import register_action, register_command
@@ -8,6 +10,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
 from hh.deploy.deploy_utils import detect_project_context
+from hh.deploy.users.install import _install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,29 +27,74 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
+def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
+    """Load root install config and return MySQL root passwords."""
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        warn(f"Root install config not found: {cfg_path}")
+        return None
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if "install" not in parser:
+        warn(f"Missing [install] section in {cfg_path}")
+        return None
+    sec = parser["install"]
+    def req(key: str) -> str:
+        val = sec.get(key, "").strip()
+        if not val:
+            raise ValueError(f"Missing required field {key} in {cfg_path}")
+        return val
+    data = {
+        "mysql_root_password_main": req("mysql_root_password_main"),
+        "mysql_root_password_cache": req("mysql_root_password_cache"),
+    }
+    return data
+
 @register_action('clean_db')
 @register_command('clean_db')
 def clean_db(args: Optional[List[str]] = None) -> bool:
     trace_in()
     gateway = get_gateway()
-    if not gateway or not gateway.conn or not gateway.conn.main:
-        warn("No gateway or connection available")
-        report_error("action", "No gateway or connection available")
+    if not gateway:
+        warn("No gateway available")
+        report_error("action", "No gateway available")
         trace_out()
         return False
     
-    # Step 1: Validate required arguments
-    root_password = gateway.get_arg('password')
-    if not root_password:
-        warn("Root password is required for clean_db")
-        report_error("action", "Root password is required for clean_db")
+    # Step 1: Validate required arguments and privileges
+    if hasattr(os, "geteuid") and os.geteuid() != 0:
+        warn("clean_db requires sudo/root privileges")
+        report_error("action", "clean_db requires sudo/root privileges")
+        trace_out()
+        return False
+    
+    if not gateway.get_arg('root'):
+        warn("Root flag (-root) is required for clean_db")
+        report_error("action", "Root flag (-root) is required for clean_db")
+        trace_out()
+        return False
+    
     confirm = gateway.get_arg('confirm')
     if not confirm:
         warn("--confirm flag is required for clean_db")
         report_error("action", "--confirm flag is required for clean_db")
+        trace_out()
+        return False
     
     project_name, project_path = detect_project_context()
     log(f"Starting db cleanup for project: {project_name}")
+    
+    # Load root passwords from install config
+    cfg = _load_install_config(project_name)
+    if not cfg:
+        warn("Failed to load root install config")
+        report_error("action", "Failed to load root install config")
+        trace_out()
+        return False
+    
+    root_password_main = cfg["mysql_root_password_main"]
+    root_password_cache = cfg["mysql_root_password_cache"]
+    
     cache_db_name = f"{project_name}_cache"
     
     # Step 2: Locate clean scripts
@@ -60,11 +108,19 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
             else:
                 log(f"Using SQL file: {path}")
     
-    def run_clean_script(target_db: str, sql_path: Path, label: str) -> bool:
+    def run_clean_script(target_db: str, sql_path: Path, label: str, password: str) -> bool:
         if is_error():
             return False
+        # Create temporary MySQL option file to avoid password on command line
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, prefix='mysql_', suffix='.cnf') as opt_file:
+            opt_file.write(f"[client]\n")
+            opt_file.write(f"user=root\n")
+            opt_file.write(f"password={password}\n")
+            opt_file_path = opt_file.name
         try:
-            mysql_cmd = ["mysql", "--user=root", f"--password={root_password}", target_db]
+            os.chmod(opt_file_path, 0o600)
+            mysql_cmd = ["mysql", f"--defaults-file={opt_file_path}", target_db]
             with open(sql_path, 'r') as sql_file:
                 result = subprocess.run(
                     mysql_cmd,
@@ -84,10 +140,17 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
             warn(f"{label} execution failed: {str(e)}")
             report_error("backend", f"{label} execution failed: {str(e)}")
             return False
+        finally:
+            # Clean up temporary option file
+            try:
+                if os.path.exists(opt_file_path):
+                    os.unlink(opt_file_path)
+            except Exception:
+                pass
     
     # Step 3: Execute clean scripts
-    run_clean_script(project_name, clean_sql_path, "Main DB cleanup")
-    run_clean_script(cache_db_name, clean_cache_sql_path, "Cache DB cleanup")
+    run_clean_script(project_name, clean_sql_path, "Main DB cleanup", root_password_main)
+    run_clean_script(cache_db_name, clean_cache_sql_path, "Cache DB cleanup", root_password_cache)
     
     # Step 4: Verify tables were dropped
     remaining_tables = []

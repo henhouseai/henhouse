@@ -36,10 +36,16 @@ def check_db(args: Optional[List[str]] = None) -> bool:
         trace_out()
         return False
     
-    root_password = gateway.get_arg('password')
-    if not root_password:
-        warn("Root password is required for check_db")
-        report_error("action", "Root password is required for check_db")
+    # Require -root flag and sudo/root privileges
+    if hasattr(os, "geteuid") and os.geteuid() != 0:
+        warn("check_db requires sudo/root privileges")
+        report_error("action", "check_db requires sudo/root privileges")
+        trace_out()
+        return False
+    
+    if not gateway.get_arg('root'):
+        warn("Root flag (-root) is required for check_db")
+        report_error("action", "Root flag (-root) is required for check_db")
         trace_out()
         return False
     

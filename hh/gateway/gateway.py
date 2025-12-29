@@ -377,7 +377,7 @@ class Gateway:
         trace_in()
         tier_level = 0
         
-        if self.request.get_arg('password') or self.request.get_arg('root_password'):
+        if self.request.get_arg('root'):
             log("Root connection type requested, lazy-importing RootConnection...")
             from hh.gateway.connection.root_connection import RootConnection
             self.conn = RootConnection(dry_run=dry_run)

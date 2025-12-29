@@ -124,23 +124,25 @@ def remove_db_users() -> bool:
         return False
 
     try:
-        # Get root password from command line
-        root_password = gateway.get_arg('password')
-        if not root_password:
-            warn("Root password is required for remove_db_users")
-            report_error("action", "Root password is required for remove_db_users")
+        # Require -root flag and sudo/root privileges
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            warn("remove_db_users requires sudo/root privileges")
+            report_error("action", "remove_db_users requires sudo/root privileges")
+            trace_out()
+            return False
+        
+        if not gateway.get_arg('root'):
+            warn("Root flag (-root) is required for remove_db_users")
+            report_error("action", "Root flag (-root) is required for remove_db_users")
             trace_out()
             return False
 
-        # Gateway should automatically use RootConnection when password arg is present
+        # Gateway should automatically use RootConnection when -root flag is present
         if not gateway.conn or not gateway.conn.main:
-            warn("No root connection available - gateway should create RootConnection when password arg is present")
+            warn("No root connection available - gateway should create RootConnection when -root flag is present")
             report_error("action", "No root connection available")
             trace_out()
             return False
-
-        debug(f"Root password provided: length={len(root_password)}")
-        debug(f"Root password starts with: {root_password[:3]}...")
 
         # Detect project context
         project_name, project_path = detect_project_context()

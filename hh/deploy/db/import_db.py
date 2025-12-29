@@ -1,5 +1,7 @@
 import os
 import subprocess
+import configparser
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
@@ -9,6 +11,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.response.json_standard import success_payload
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
+from hh.deploy.users.install import _install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -24,6 +27,29 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
+    """Load root install config and return MySQL root passwords."""
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        warn(f"Root install config not found: {cfg_path}")
+        return None
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if "install" not in parser:
+        warn(f"Missing [install] section in {cfg_path}")
+        return None
+    sec = parser["install"]
+    def req(key: str) -> str:
+        val = sec.get(key, "").strip()
+        if not val:
+            raise ValueError(f"Missing required field {key} in {cfg_path}")
+        return val
+    data = {
+        "mysql_root_password_main": req("mysql_root_password_main"),
+        "mysql_root_password_cache": req("mysql_root_password_cache"),
+    }
+    return data
 
 def _collect_table_info(gateway, db_name: Optional[str] = None) -> List[Dict[str, Any]]:
     """Collect table information using gateway.conn.read()."""
@@ -81,11 +107,16 @@ def import_db(args: Optional[List[str]] = None) -> bool:
         trace_out()
         return False
     
-    # Get required parameters
-    root_password = gateway.get_arg('password')
-    if not root_password:
-        warn("Root password is required for import_db")
-        report_error("action", "Root password is required for import_db")
+    # Require -root flag and sudo/root privileges
+    if hasattr(os, "geteuid") and os.geteuid() != 0:
+        warn("import_db requires sudo/root privileges")
+        report_error("action", "import_db requires sudo/root privileges")
+        trace_out()
+        return False
+    
+    if not gateway.get_arg('root'):
+        warn("Root flag (-root) is required for import_db")
+        report_error("action", "Root flag (-root) is required for import_db")
         trace_out()
         return False
     
@@ -98,6 +129,14 @@ def import_db(args: Optional[List[str]] = None) -> bool:
     
     project_name, project_path = detect_project_context()
     log(f"Starting database import for project: {project_name}")
+    
+    # Load root passwords from install config
+    cfg = _load_install_config(project_name)
+    if not cfg:
+        warn("Failed to load root install config")
+        report_error("action", "Failed to load root install config")
+        trace_out()
+        return False
     
     # Check if file exists
     import_filepath = Path(filename)
@@ -126,6 +165,12 @@ def import_db(args: Optional[List[str]] = None) -> bool:
             target_db = project_name
     log(f"Target database for import: {target_db}")
     
+    # Determine which password to use based on target database
+    if target_db == f"{project_name}_cache":
+        root_password = cfg["mysql_root_password_cache"]
+    else:
+        root_password = cfg["mysql_root_password_main"]
+    
     # Step 1: Get current table information before import
     current_table_info: List[Dict[str, Any]] = []
     if not is_error():
@@ -142,22 +187,40 @@ def import_db(args: Optional[List[str]] = None) -> bool:
     
     # Step 2: Run mysql import
     if not is_error():
-        mysql_cmd = ["mysql", f"--user=root", f"--password={root_password}", target_db]
+        # Create temporary MySQL option file to avoid password on command line
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, prefix='mysql_', suffix='.cnf') as opt_file:
+            opt_file.write(f"[client]\n")
+            opt_file.write(f"user=root\n")
+            opt_file.write(f"password={root_password}\n")
+            opt_file_path = opt_file.name
         try:
-            with open(import_filepath, 'r') as import_file:
-                result = subprocess.run(
-                    mysql_cmd,
-                    stdin=import_file,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-            if result.returncode != 0:
-                warn(f"mysql import failed with return code {result.returncode}")
-                warn(f"mysql stderr: {result.stderr}")
-                report_error("backend", f"Database import failed: {result.stderr}")
+            os.chmod(opt_file_path, 0o600)
+            mysql_cmd = ["mysql", f"--defaults-file={opt_file_path}", target_db]
+            try:
+                with open(import_filepath, 'r') as import_file:
+                    result = subprocess.run(
+                        mysql_cmd,
+                        stdin=import_file,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                if result.returncode != 0:
+                    warn(f"mysql import failed with return code {result.returncode}")
+                    warn(f"mysql stderr: {result.stderr}")
+                    report_error("backend", f"Database import failed: {result.stderr}")
+            except Exception as e:
+                warn(f"mysql import execution failed: {str(e)}")
+                report_error("backend", f"mysql import execution failed: {str(e)}")
+            finally:
+                # Clean up temporary option file
+                try:
+                    if os.path.exists(opt_file_path):
+                        os.unlink(opt_file_path)
+                except Exception:
+                    pass
         except Exception as e:
-            warn(f"mysql import execution failed: {str(e)}")
-            report_error("backend", f"mysql import execution failed: {str(e)}")
+            warn(f"Failed to create MySQL option file: {str(e)}")
+            report_error("backend", f"Failed to create MySQL option file: {str(e)}")
     
     # Step 3: Get table information after import
     final_table_info: List[Dict[str, Any]] = []

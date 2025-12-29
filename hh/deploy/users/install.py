@@ -83,6 +83,14 @@ def _fail_with_message(gateway, message: str) -> bool:
     report_error("action", message)
     return False
 
+def _template_created_message(gateway, config_path: Path) -> bool:
+    """Report template creation as informational (not an error)."""
+    message = f"Install config not found; template created at {config_path}. Edit it and rerun install."
+    log(message)
+    if gateway and gateway.response:
+        gateway.response.set_action_response(success_payload({"status": "template_created", "message": message, "config_path": str(config_path)}))
+    return False
+
 def _parse_manifest_users(section: configparser.SectionProxy) -> Dict[str, Dict[str, Any]]:
     parsed: Dict[str, Dict[str, Any]] = {}
     for k, v in section.items():
@@ -198,7 +206,7 @@ def install() -> bool:
         cfg_path = _install_config_path(project_name)
         if not cfg_path.exists():
             _write_install_template(cfg_path, project_name)
-            _fail_with_message(gateway, f"Install config not found; template created at {cfg_path}. Edit it and rerun install.")
+            _template_created_message(gateway, cfg_path)
             trace_out()
             return False
         try:

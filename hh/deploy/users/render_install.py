@@ -36,12 +36,16 @@ def render_install_section(source_data: Dict[str, Union[str, int, bool]], lines:
     message_value = source_data.get('message')
     if status_value and status_value != 'installed':
         info = TableData()
-        info.add_row('status', value=safe_str(status_value))
+        # Template creation is informational, not an error
+        if status_value == 'template_created':
+            info.add_row('info', value=safe_str('Template Created'))
+        else:
+            info.add_row('status', value=safe_str(status_value))
         if message_value:
             info.add_row('message', value=safe_str(message_value))
         lines.append(render_block(
             info,
-            FieldConfig().add_simple(['status', 'message']),
+            FieldConfig().add_simple(['info' if status_value == 'template_created' else 'status', 'message']),
             block_type='install_status'
         ))
         break_section(lines)
