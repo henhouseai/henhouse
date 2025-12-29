@@ -7,6 +7,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.response.json_standard import success_payload
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.deploy_utils import detect_project_context
+from hh.deploy.users.install import _install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -155,9 +156,25 @@ def flask_status() -> bool:
     project_name, _ = detect_project_context()
     log(f"Project: {project_name}")
     
+    # Load flask_start_port from install config
+    start_port = 5001  # Default
+    try:
+        import configparser
+        cfg_path = _install_config_path(project_name)
+        if cfg_path.exists():
+            parser = configparser.ConfigParser()
+            parser.read(cfg_path)
+            if "install" in parser:
+                port_str = parser["install"].get("flask_start_port", "5001").strip()
+                try:
+                    start_port = int(port_str)
+                except ValueError:
+                    warn(f"Invalid flask_start_port in config, using default 5001")
+    except Exception as e:
+        warn(f"Failed to load flask_start_port from config: {e}, using default 5001")
+    
     # Get status for Flask daemons for each tier
     results = []
-    start_port = 5001  # Starting from 5001
     
     for i, tier in enumerate(HENHOUSE_TIERS):
         port = start_port + i

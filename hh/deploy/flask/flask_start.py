@@ -10,6 +10,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.flask.flask_stop import remove_logrotate
 from hh.deploy.deploy_utils import detect_project_context
+from hh.deploy.users.install import _install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -268,7 +269,23 @@ def flask_start() -> bool:
     project_name, _ = detect_project_context()
     log(f"Project: {project_name}")
     
-    start_port = 5001  # Starting from 5001
+    # Load flask_start_port from install config
+    start_port = 5001  # Default
+    try:
+        import configparser
+        cfg_path = _install_config_path(project_name)
+        if cfg_path.exists():
+            parser = configparser.ConfigParser()
+            parser.read(cfg_path)
+            if "install" in parser:
+                port_str = parser["install"].get("flask_start_port", "5001").strip()
+                try:
+                    start_port = int(port_str)
+                except ValueError:
+                    warn(f"Invalid flask_start_port in config, using default 5001")
+    except Exception as e:
+        warn(f"Failed to load flask_start_port from config: {e}, using default 5001")
+    
     result_data = run_flask_start(project_name, start_port)
     
     gateway.response.set_action_response(success_payload(result_data))

@@ -513,7 +513,23 @@ sudo hen add-db-users -root
 
 **Try It Out:**
 
-Test page operations from the command line: `hen show-page -id 1` to see your homepage. Try creating a page: `hen add-page -target-page 1 -name "Test Page"`. Create a work docket for project planning: `hen add-page -target-page 1 -name "My Project" -class work_docket`. Explore the work page system for organizing tasks and tracking progress. All of this works from the command line - perfect for testing before exposing via web interface.
+Test page operations from the command line:
+
+```bash
+# View the homepage
+hen show-page -id 1
+
+# Create a test page (will be page ID 2)
+hen add-page -target-page 1 -name "Test Page"
+
+# Set the page text (assuming it's page ID 2)
+hen modify-text -page-id 2 -text "The quick red fox jumped over the lazy brown dog"
+
+# View the updated page
+hen show-page -id 2
+```
+
+This demonstrates basic page creation and text modification from the command line.
 
 ### Tier 4: Deploy to /srv
 

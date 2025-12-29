@@ -41,6 +41,7 @@ from hh.deploy.flask.flask_start import run_flask_start
 from hh.deploy.flask.flask_stop import run_flask_stop
 from hh.deploy.maintenance.maintenance_start import run_maintenance_start
 from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
+from hh.deploy.users.install import _install_config_path
 
 @register_action('deploy')
 @register_command('deploy')
@@ -80,9 +81,27 @@ def deploy() -> bool:
     HH_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'HH_EXTRA_DEPLOY_FILES')
     EXT_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXT_EXTRA_DEPLOY_FILES')
     
-    # Get starting port from gateway args (default 5001)
+    # Get starting port from gateway args, or from install config, or default 5001
     start_port_arg = gateway.get_arg('start_port')
-    start_port = int(start_port_arg) if start_port_arg else 5001
+    if start_port_arg:
+        start_port = int(start_port_arg)
+    else:
+        # Load from install config
+        start_port = 5001  # Default
+        try:
+            import configparser
+            cfg_path = _install_config_path(project_name)
+            if cfg_path.exists():
+                parser = configparser.ConfigParser()
+                parser.read(cfg_path)
+                if "install" in parser:
+                    port_str = parser["install"].get("flask_start_port", "5001").strip()
+                    try:
+                        start_port = int(port_str)
+                    except ValueError:
+                        pass
+        except Exception:
+            pass
     
     source = current_path
     dest = Path(f'/srv/{project_name}')

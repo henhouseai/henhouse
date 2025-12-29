@@ -69,6 +69,9 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "htaccess_admin_password = CHANGE_ME",
         "htaccess_panel_password = CHANGE_ME",
         "",
+        "# Flask daemon starting port (reserves 100 ports: start_port through start_port+99)",
+        "flask_start_port = 5001",
+        "",
         "# Optional extra SSH public key to copy to users",
         "# user_key = ssh-rsa AAAA...",
         "",
@@ -129,6 +132,12 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
     manifest_users: Dict[str, Dict[str, Any]] = {}
     if parser.has_section("manifest_users"):
         manifest_users = _parse_manifest_users(parser["manifest_users"])
+    flask_start_port_str = section.get("flask_start_port", "5001").strip()
+    try:
+        flask_start_port = int(flask_start_port_str)
+    except ValueError:
+        flask_start_port = 5001
+    
     data: Dict[str, Any] = {
         "db_host": req("db_host"),
         "cache_host": req("cache_host"),
@@ -143,6 +152,7 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
         "password_root": req("password_root"),
         "htaccess_admin_password": req("htaccess_admin_password"),
         "htaccess_panel_password": req("htaccess_panel_password"),
+        "flask_start_port": flask_start_port,
     }
     # optional user_key
     user_key_val = section.get("user_key")
@@ -171,6 +181,95 @@ def _write_manifest_users(cfg_path: Path, manifest: Dict[str, Dict[str, Any]]) -
     with open(cfg_path, 'w') as f:
         parser.write(f)
     os.chmod(cfg_path, 0o600)
+
+def _scan_active_installations(exclude_project: Optional[str] = None) -> Dict[str, int]:
+    """Scan /root for active installations and return their port ranges.
+    
+    An installation is considered active if its users still exist.
+    Returns dict mapping project_name -> flask_start_port.
+    """
+    trace_in()
+    active_installations: Dict[str, int] = {}
+    root_dir = Path("/root")
+    
+    if not root_dir.exists():
+        trace_out()
+        return active_installations
+    
+    gateway = get_gateway()
+    if not gateway or not gateway.os:
+        trace_out()
+        return active_installations
+    
+    # Find all install config files
+    for config_file in root_dir.glob(".*-install.cnf"):
+        try:
+            # Extract project name from filename (e.g., .henhouse-install.cnf -> henhouse)
+            filename = config_file.stem  # e.g., ".henhouse-install"
+            if not filename.startswith("."):
+                continue
+            project_name = filename[1:].replace("-install", "")
+            
+            if exclude_project and project_name == exclude_project:
+                continue
+            
+            # Check if installation is active by verifying users exist
+            is_active = False
+            for tier in HENHOUSE_TIERS:
+                user = f"{project_name}_{tier}"
+                if gateway.os.user_exists(user):
+                    is_active = True
+                    break
+            
+            if not is_active:
+                continue
+            
+            # Load the config to get flask_start_port
+            try:
+                parser = configparser.ConfigParser()
+                parser.read(config_file)
+                if "install" in parser:
+                    port_str = parser["install"].get("flask_start_port", "5001").strip()
+                    try:
+                        port = int(port_str)
+                        active_installations[project_name] = port
+                    except ValueError:
+                        # Invalid port, use default
+                        active_installations[project_name] = 5001
+            except Exception:
+                # Can't read config, skip it
+                pass
+        except Exception:
+            # Skip files we can't process
+            continue
+    
+    trace_out()
+    return active_installations
+
+def _check_port_conflict(requested_port: int, project_name: str) -> Optional[str]:
+    """Check if requested port range conflicts with active installations.
+    
+    Returns error message if conflict found, None otherwise.
+    Port range is 100 ports: requested_port through requested_port+99.
+    """
+    trace_in()
+    active_installations = _scan_active_installations(exclude_project=project_name)
+    
+    requested_range = set(range(requested_port, requested_port + 100))
+    
+    for other_project, other_port in active_installations.items():
+        other_range = set(range(other_port, other_port + 100))
+        if requested_range.intersection(other_range):
+            conflict_msg = (
+                f"Port conflict: {project_name} requested port {requested_port} "
+                f"(reserves {requested_port}-{requested_port+99}), but {other_project} "
+                f"is using port {other_port} (reserves {other_port}-{other_port+99})"
+            )
+            trace_out()
+            return conflict_msg
+    
+    trace_out()
+    return None
 
 def _assert_config_value(key: str, value: str) -> None:
     if value is None:
@@ -272,10 +371,18 @@ def install() -> bool:
         cache_ssl_ca_path = cfg["cache_ssl_ca_path"]
         user_key_cfg = cfg.get("user_key")
         hen_script_name = cfg.get("hen_script_name", "hen")
+        flask_start_port = cfg.get("flask_start_port", 5001)
         try:
             _validate_hen_script_name(hen_script_name)
         except Exception as e:
             _fail_with_message(gateway, f"Install config invalid: {e}")
+            trace_out()
+            return False
+        
+        # Check for port conflicts with active installations
+        port_conflict = _check_port_conflict(flask_start_port, project_name)
+        if port_conflict:
+            _fail_with_message(gateway, port_conflict)
             trace_out()
             return False
         
