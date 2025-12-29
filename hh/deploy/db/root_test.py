@@ -75,6 +75,8 @@ def root_test() -> bool:
         trace_out()
         return False
     
+    tests_passed = 0
+    
     # Test 1: Simple SELECT query
     try:
         log("Test 1: Executing SELECT 1")
@@ -82,6 +84,7 @@ def root_test() -> bool:
         if result and len(result) > 0:
             test_value = result[0].get('test_value')
             log(f"✓ Test 1 passed: SELECT 1 returned {test_value}")
+            tests_passed += 1
         else:
             warn("Test 1 failed: No result returned")
             report_error("action", "Test 1 failed: No result returned")
@@ -100,6 +103,7 @@ def root_test() -> bool:
         if result and len(result) > 0:
             db_user = result[0].get('db_user')
             log(f"✓ Test 2 passed: Connected as {db_user}")
+            tests_passed += 1
         else:
             warn("Test 2 failed: No user result returned")
             report_error("action", "Test 2 failed: No user result returned")
@@ -118,6 +122,7 @@ def root_test() -> bool:
         if result and len(result) > 0:
             db_name = result[0].get('db_name')
             log(f"✓ Test 3 passed: Connected to database {db_name}")
+            tests_passed += 1
         else:
             warn("Test 3 failed: No database result returned")
             report_error("action", "Test 3 failed: No database result returned")
@@ -138,6 +143,7 @@ def root_test() -> bool:
                 result = cursor.fetchone()
                 if result and result.get('test_value') == 1:
                     log("✓ Test 4 passed: Cache connection works")
+                    tests_passed += 1
                 else:
                     warn("Test 4 failed: Cache connection returned unexpected result")
         except Exception as e:
@@ -149,7 +155,7 @@ def root_test() -> bool:
     result_data = {
         "project_name": project_name,
         "status": "success",
-        "tests_passed": 3,
+        "tests_passed": tests_passed,
         "message": "Root connection test completed successfully"
     }
     gateway.response.set_action_response(success_payload(result_data))
