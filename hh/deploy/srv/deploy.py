@@ -415,7 +415,7 @@ def deploy() -> bool:
             if ext_maint_dir.exists():
                 for worker_file in ext_maint_dir.glob("*_worker.py"):
                     daemon_name = worker_file.stem.replace("_worker", "")
-                    maint_dest = dest / f'{project_name}_{daemon_name}.py'
+                    maint_dest = dest / f'{project_name}_maintenance_{daemon_name}.py'
                     content = worker_file.read_text()
                     # No replacement needed for EXT workers (they find project root themselves)
                     with open(maint_dest, 'w') as f:

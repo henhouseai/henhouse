@@ -153,8 +153,8 @@ def status_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
         
         # Get worker path
         if is_deployed:
-            worker_path = Path(f"/srv/{project_name}/{project_name}_{daemon_name}.py")
-            process_name = f"{project_name}_{daemon_name}.py"
+            worker_path = Path(f"/srv/{project_name}/{project_name}_maintenance_{daemon_name}.py")
+            process_name = f"{project_name}_maintenance_{daemon_name}.py"
         else:
             worker_path = project_root / "ext" / "deploy" / "maintenance" / f"{daemon_name}_worker.py"
             process_name = f"{daemon_name}_worker.py"
@@ -234,11 +234,12 @@ def run_maintenance_status(project_name: str) -> Dict[str, Any]:
         # Look for EXT maintenance workers
         if is_deployed:
             ext_maint_dir = Path(f"/srv/{project_name}")
-            # Check for deployed EXT workers
-            for worker_file in ext_maint_dir.glob(f"{project_name}_*.py"):
+            # Check for deployed EXT workers (pattern: {project_name}_maintenance_{daemon_name}.py)
+            for worker_file in ext_maint_dir.glob(f"{project_name}_maintenance_*.py"):
                 if worker_file.name == f"{project_name}_maintenance.py":
                     continue  # Skip main maintenance worker
-                daemon_name = worker_file.stem.replace(f"{project_name}_", "")
+                # Extract daemon name: henhouse_maintenance_migration.py -> migration
+                daemon_name = worker_file.stem.replace(f"{project_name}_maintenance_", "")
                 if daemon_name:
                     ext_results[daemon_name] = status_ext_daemon(project_name, daemon_name)
         else:
