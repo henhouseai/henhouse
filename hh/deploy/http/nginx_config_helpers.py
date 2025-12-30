@@ -1,6 +1,8 @@
 """Common Nginx configuration helpers for HTTP and HTTPS deployments."""
+import configparser
 from typing import List, Optional
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+from hh.deploy.users.install import _install_config_path
 
 def get_security_headers() -> List[str]:
     """Return standard security headers for all server blocks."""
@@ -17,7 +19,7 @@ def get_rate_limiting() -> List[str]:
     """Return rate limiting configuration."""
     return [
         "    # Rate limiting",
-        "    limit_req zone=general burst=20 nodelay;",
+        "    limit_req zone=general burst=100 nodelay;",
         "",
     ]
 
@@ -107,18 +109,22 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
         static_locations: Pre-formatted static location blocks
         label: Optional comment label for the server block
         extra_blocks: Optional extra configuration blocks to add before proxy
-        project_name: Project name for detecting media port
-        media_port: Media server port (if None, will be detected)
+        project_name: Project name for detecting media port (required)
+        media_port: Media server port (if None, will be detected from installer manifest)
         
     Returns:
         List of strings for the server block
+    
+    Raises:
+        FileNotFoundError: If installer manifest not found
+        ValueError: If installer manifest invalid or missing flask_start_port
     """
     lines = []
     
-    # Detect media port if not provided
+    # Detect ports from installer manifest
+    ports = detect_flask_ports(project_name)
     if media_port is None:
-        ports = detect_flask_ports(project_name)
-        media_port = ports.get('media', 5005)
+        media_port = ports['media']
     
     # Add label comment if provided
     if label:
@@ -146,11 +152,10 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
     lines.extend(get_block_hidden_files())
     
     # Add authentication for admin/panel subdomains
-    # Map port to tier based on HENHOUSE_TIERS order (default ports: 5001=guest, 5002=verified, 5003=admin, 5004=root)
-    default_ports = {tier: 5001 + idx for idx, tier in enumerate(HENHOUSE_TIERS)}
+    # Map port to tier using actual detected ports
     tier = None
-    for t, p in default_ports.items():
-        if port == p:
+    for t, p in ports.items():
+        if t != 'media' and port == p:
             tier = t
             break
     
@@ -173,62 +178,65 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
     
     return lines
 
+def _load_flask_start_port(project_name: str) -> int:
+    """Load flask_start_port from installer manifest. Fails hard if config missing or invalid."""
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Installer manifest not found: {cfg_path}")
+    
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    
+    if "install" not in parser:
+        raise ValueError(f"Missing [install] section in installer manifest: {cfg_path}")
+    
+    section = parser["install"]
+    flask_start_port_str = section.get("flask_start_port", "").strip()
+    
+    if not flask_start_port_str:
+        raise ValueError(f"Missing flask_start_port in installer manifest: {cfg_path}")
+    
+    try:
+        flask_start_port = int(flask_start_port_str)
+    except ValueError:
+        raise ValueError(f"Invalid flask_start_port value '{flask_start_port_str}' in installer manifest: {cfg_path}")
+    
+    return flask_start_port
+
 def detect_flask_ports(project_name: str) -> dict:
-    """Detect Flask app ports by reading the deployed app files."""
-    import re
+    """Detect Flask app ports from installer manifest. Fails hard if config missing or invalid."""
+    flask_start_port = _load_flask_start_port(project_name)
     ports = {}
     
-    for tier in ['guest', 'verified', 'admin', 'root']:
-        app_file = f'/srv/{project_name}/{project_name}_{tier}.py'
-        try:
-            with open(app_file, 'r') as f:
-                content = f.read()
-            
-            # Look for port = XXXX pattern
-            match = re.search(r'port\s*=\s*(\d+)', content)
-            if match:
-                ports[tier] = int(match.group(1))
-        except FileNotFoundError:
-            # Fall back to default ports if file doesn't exist
-            default_ports = {'guest': 5001, 'verified': 5002, 'admin': 5003, 'root': 5004}
-            ports[tier] = default_ports[tier]
-        except Exception:
-            # Fall back to default ports on any error
-            default_ports = {'guest': 5001, 'verified': 5002, 'admin': 5003, 'root': 5004}
-            ports[tier] = default_ports[tier]
+    # Calculate ports based on tier index: flask_start_port + tier_index
+    for idx, tier in enumerate(HENHOUSE_TIERS):
+        ports[tier] = flask_start_port + idx
     
-    # Detect media server port
-    media_file = f'/srv/{project_name}/{project_name}_media.py'
-    try:
-        with open(media_file, 'r') as f:
-            content = f.read()
-        match = re.search(r'port\s*=\s*(\d+)', content)
-        if match:
-            ports['media'] = int(match.group(1))
-        else:
-            # Default: port after all tier apps
-            ports['media'] = 5005
-    except FileNotFoundError:
-        ports['media'] = 5005
-    except Exception:
-        ports['media'] = 5005
+    # Media server port is after all tier apps
+    ports['media'] = flask_start_port + len(HENHOUSE_TIERS)
     
     return ports
 
-def get_server_configs(domain: str, project_name: Optional[str] = None) -> List[dict]:
+def get_server_configs(domain: str, project_name: str) -> List[dict]:
     """Get server configuration definitions for a domain.
+    
+    Args:
+        domain: Domain name
+        project_name: Project name (required - used to load installer manifest)
     
     Returns list of dicts with:
         - names: List of server names
         - port: Flask port to use
         - label: Display label
+    
+    Raises:
+        FileNotFoundError: If installer manifest not found
+        ValueError: If installer manifest invalid or missing flask_start_port
     """
-    # Detect actual ports from deployed Flask apps
-    if project_name:
-        ports = detect_flask_ports(project_name)
-    else:
-        # Fall back to default ports
-        ports = {'guest': 5001, 'verified': 5002, 'admin': 5003, 'root': 5004}
+    if not project_name:
+        raise ValueError("project_name is required")
+    
+    ports = detect_flask_ports(project_name)
     
     return [
         {'names': [domain, f'www.{domain}'], 'port': ports['guest'], 'label': 'Main site (Guest)'},
@@ -304,18 +312,22 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
         label: Optional comment label for the server block
         rate_limit: Rate limit zone (general or admin)
         extra_blocks: Optional extra configuration blocks to add before proxy
-        project_name: Project name for detecting media port
-        media_port: Media server port (if None, will be detected)
+        project_name: Project name for detecting media port (required)
+        media_port: Media server port (if None, will be detected from installer manifest)
         
     Returns:
         List of strings for the server block
+    
+    Raises:
+        FileNotFoundError: If installer manifest not found
+        ValueError: If installer manifest invalid or missing flask_start_port
     """
     lines = []
     
-    # Detect media port if not provided
+    # Detect ports from installer manifest
+    ports = detect_flask_ports(project_name)
     if media_port is None:
-        ports = detect_flask_ports(project_name)
-        media_port = ports.get('media', 5005)
+        media_port = ports['media']
     
     # Add label comment if provided
     if label:
@@ -351,11 +363,11 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
     lines.extend(get_block_hidden_files())
     
     # Add authentication for admin/panel subdomains
-    # Map port to tier based on HENHOUSE_TIERS order (default ports: 5001=guest, 5002=verified, 5003=admin, 5004=root)
-    default_ports = {tier: 5001 + idx for idx, tier in enumerate(HENHOUSE_TIERS)}
+    # Map port to tier using actual detected ports
+    ports = detect_flask_ports(project_name)
     tier = None
-    for t, p in default_ports.items():
-        if port == p:
+    for t, p in ports.items():
+        if t != 'media' and port == p:
             tier = t
             break
     

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -65,93 +66,269 @@ def _get_process_filter(project_name: str, is_deployed: bool) -> str:
 
 
 def start_maintenance_process(project_name: str) -> Dict[str, Any]:
+    """Start maintenance daemon."""
     trace_in()
-    gateway = get_gateway()
-    
-    if not gateway.os:
-        warn("ProcessManager not available (psutil not installed)")
-        report_error("action", "ProcessManager not available - install psutil")
+    try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            error_result = {'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            trace_out()
+            return error_result
+        
+        pm = gateway.os
+        project_root = pm.find_project_root()
+        is_deployed = pm.is_deployed(project_name)
+        
+        worker_path = _get_worker_path(project_name, is_deployed, project_root)
+        log_file = _get_log_file(project_name, is_deployed, project_root)
+        process_name = _get_process_filter(project_name, is_deployed)
+        
+        # Check if worker file exists
+        if not gateway.files or not gateway.files.file_exists(str(worker_path)):
+            result = {'status': 'not_found', 'error': f'Worker not found: {worker_path}'}
+            trace_out()
+            return result
+        
+        # Determine user for deployed mode
+        user = f"{project_name}_root" if is_deployed else None
+        
+        # Check if user exists (for deployed mode)
+        if is_deployed and user and not gateway.os.user_exists(user):
+            result = {'status': 'user_not_found', 'error': f'User not found: {user}'}
+            trace_out()
+            return result
+        
+        # Stop any existing maintenance processes
+        check_cmd = ['ps', 'aux']
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+        lines = check_result.stdout.split('\n')
+        pids_to_kill = []
+        for line in lines:
+            if process_name in line and 'python' in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        pids_to_kill.append(pid)
+                    except ValueError:
+                        pass
+        killed_any = False
+        for pid in pids_to_kill:
+            if gateway.os.kill_process(pid, force=False):
+                log(f"Sent SIGTERM to PID {pid} (Maintenance)")
+                killed_any = True
+        
+        # Determine working directory
+        if is_deployed:
+            cwd = f"/srv/{project_name}"
+        else:
+            cwd = str(project_root)
+        
+        # Start maintenance daemon
+        if is_deployed and user:
+            # Deployed mode: run as root user
+            cmd = f'sudo -u {user} bash -c "cd {cwd} && nohup python3 {worker_path} < /dev/null &> /dev/null &"'
+        else:
+            # Local dev mode: run as current user
+            cmd = f'cd {cwd} && nohup {sys.executable} {worker_path} < /dev/null &> /dev/null &'
+        debug(f"Running command: {cmd}")
+        
+        # Use Popen for background processes to avoid timeout issues
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        debug(f"Started process with PID: {process.pid}")
+        
+        # Give it a moment for the daemon to start
+        time.sleep(1)
+        
+        # Check if the maintenance daemon is actually running (via ps)
+        check_cmd = ['ps', 'aux']
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+        debug(f"Process check for '{process_name}'")
+        
+        if process_name in check_result.stdout:
+            result_status = 'restarted' if killed_any else 'started'
+            start_result: dict[str, str | bool] = {
+                'status': result_status,
+                'log_file': str(log_file),
+                'deployed': is_deployed,
+            }
+            if user:
+                start_result['user'] = user
+            log(f"Started maintenance daemon")
+            trace_out()
+            return start_result
+        else:
+            start_result = {'status': 'failed', 'error': 'Process not found running'}
+            warn(f"Maintenance daemon failed to start")
+            trace_out()
+            return start_result
+        
+    except Exception as e:
+        error_result = {'status': 'error', 'error': str(e)}
+        warn(f"Error starting maintenance daemon: {e}")
         trace_out()
-        return {"status": "error", "error": "ProcessManager not available"}
+        return error_result
+
+
+def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
+    """Start an EXT maintenance daemon (e.g., migration).
     
-    pm = gateway.os
-    project_root = pm.find_project_root()
-    is_deployed = pm.is_deployed(project_name)
-    
-    # Check privileges on deployed systems
-    if is_deployed and not pm.is_privileged():
-        warn("Maintenance commands require sudo privileges on deployed systems")
-        report_error("action", "Maintenance commands require sudo privileges")
+    Args:
+        project_name: Project name
+        daemon_name: Daemon name (e.g., 'migration')
+        
+    Returns:
+        Dictionary with start status
+    """
+    trace_in()
+    try:
+        gateway = get_gateway()
+        if not gateway or not gateway.os:
+            error_result = {'status': 'error', 'error': 'Gateway or ProcessManager not available'}
+            trace_out()
+            return error_result
+        
+        pm = gateway.os
+        project_root = pm.find_project_root()
+        is_deployed = pm.is_deployed(project_name)
+        
+        # Get worker path
+        if is_deployed:
+            worker_path = Path(f"/srv/{project_name}/{project_name}_{daemon_name}.py")
+            process_name = f"{project_name}_{daemon_name}.py"
+        else:
+            worker_path = project_root / "ext" / "deploy" / "maintenance" / f"{daemon_name}_worker.py"
+            process_name = f"{daemon_name}_worker.py"
+        
+        # Use daemon-specific log file name
+        if is_deployed:
+            log_file = Path(f"/srv/{project_name}/logs/{daemon_name}_{project_name}.log")
+        else:
+            log_file = project_root / "logs" / f"{daemon_name}_{project_name}.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Check if worker file exists
+        if not gateway.files or not gateway.files.file_exists(str(worker_path)):
+            result = {'status': 'not_found', 'error': f'Worker not found: {worker_path}'}
+            trace_out()
+            return result
+        
+        # Determine user for deployed mode
+        user = f"{project_name}_root" if is_deployed else None
+        
+        # Check if user exists (for deployed mode)
+        if is_deployed and user and not gateway.os.user_exists(user):
+            result = {'status': 'user_not_found', 'error': f'User not found: {user}'}
+            trace_out()
+            return result
+        
+        # Stop any existing daemon processes
+        check_cmd = ['ps', 'aux']
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+        lines = check_result.stdout.split('\n')
+        pids_to_kill = []
+        for line in lines:
+            if process_name in line and 'python' in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        pids_to_kill.append(pid)
+                    except ValueError:
+                        pass
+        killed_any = False
+        for pid in pids_to_kill:
+            if gateway.os.kill_process(pid, force=False):
+                log(f"Sent SIGTERM to PID {pid} ({daemon_name})")
+                killed_any = True
+        
+        # Determine working directory
+        if is_deployed:
+            cwd = f"/srv/{project_name}"
+        else:
+            cwd = str(project_root)
+        
+        # Start EXT daemon
+        if is_deployed and user:
+            # Deployed mode: run as root user
+            cmd = f'sudo -u {user} bash -c "cd {cwd} && nohup python3 {worker_path} < /dev/null &> /dev/null &"'
+        else:
+            # Local dev mode: run as current user
+            cmd = f'cd {cwd} && nohup {sys.executable} {worker_path} < /dev/null &> /dev/null &'
+        debug(f"Running command: {cmd}")
+        
+        # Use Popen for background processes to avoid timeout issues
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        debug(f"Started process with PID: {process.pid}")
+        
+        # Give it a moment for the daemon to start
+        time.sleep(1)
+        
+        # Check if the daemon is actually running (via ps)
+        check_cmd = ['ps', 'aux']
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+        debug(f"Process check for '{process_name}'")
+        
+        if process_name in check_result.stdout:
+            result_status = 'restarted' if killed_any else 'started'
+            start_result: dict[str, str | bool] = {
+                'status': result_status,
+                'log_file': str(log_file),
+                'deployed': is_deployed,
+            }
+            if user:
+                start_result['user'] = user
+            log(f"Started {daemon_name} daemon")
+            trace_out()
+            return start_result
+        else:
+            start_result = {'status': 'failed', 'error': 'Process not found running'}
+            warn(f"{daemon_name} daemon failed to start")
+            trace_out()
+            return start_result
+        
+    except Exception as e:
+        error_result = {'status': 'error', 'error': str(e)}
+        warn(f"Error starting {daemon_name} daemon: {e}")
         trace_out()
-        return {"status": "error", "error": "Requires sudo privileges"}
-    
-    worker_path = _get_worker_path(project_name, is_deployed, project_root)
-    log_file = _get_log_file(project_name, is_deployed, project_root)
-    process_filter = _get_process_filter(project_name, is_deployed)
-    
-    # Check worker exists
-    if not worker_path.exists():
-        result = {
-            "status": "not_found",
-            "error": f"Worker not found: {worker_path}",
-        }
-        trace_out()
-        return result
-    
-    # Stop existing processes
-    existing = pm.list_processes(process_filter)
-    for proc in existing:
-        pid = proc["pid"]
-        log(f"Stopping existing maintenance process PID {pid}")
-        pm.kill_process(pid)
-    
-    # Determine user for deployed mode
-    user = f"{project_name}_root" if is_deployed else None
-    
-    # Determine working directory
-    if is_deployed:
-        cwd = f"/srv/{project_name}"
-    else:
-        cwd = str(project_root)
-    
-    # Build command
-    cmd = [sys.executable, str(worker_path)]
-    
-    # Start the process
-    debug(f"Starting maintenance daemon: {cmd} (cwd={cwd}, log={log_file}, user={user})")
-    pid = pm.start_background_process(
-        cmd=cmd,
-        cwd=cwd,
-        log_file=str(log_file),
-        user=user,
-    )
-    
-    if not pid:
-        result = {"status": "failed", "error": "Failed to start process"}
-        trace_out()
-        return result
-    
-    # Wait a moment and verify
-    time.sleep(1)
-    running = pm.list_processes(process_filter)
-    
-    if running:
-        final_result: dict[str, str | list[int] | bool] = {
-            "status": "started",
-            "log_file": str(log_file),
-            "pids": [p["pid"] for p in running],
-            "deployed": is_deployed,
-        }
-        if user:
-            final_result["user"] = user
-        return final_result
-    else:
-        return {"status": "failed", "error": "Process not found after start"}
+        return error_result
 
 
 def run_maintenance_start(project_name: str) -> Dict[str, Any]:
     trace_in()
-    result = start_maintenance_process(project_name)
+    # Start main maintenance daemon
+    main_result = start_maintenance_process(project_name)
+    
+    # Start EXT daemons
+    ext_results = {}
+    gateway = get_gateway()
+    if gateway and gateway.os:
+        pm = gateway.os
+        project_root = pm.find_project_root()
+        is_deployed = pm.is_deployed(project_name)
+        
+        # Look for EXT maintenance workers
+        if is_deployed:
+            ext_maint_dir = Path(f"/srv/{project_name}")
+            # Check for deployed EXT workers
+            for worker_file in ext_maint_dir.glob(f"{project_name}_*.py"):
+                if worker_file.name == f"{project_name}_maintenance.py":
+                    continue  # Skip main maintenance worker
+                daemon_name = worker_file.stem.replace(f"{project_name}_", "")
+                if daemon_name:
+                    ext_results[daemon_name] = start_ext_daemon(project_name, daemon_name)
+        else:
+            ext_maint_dir = project_root / "ext" / "deploy" / "maintenance"
+            if ext_maint_dir.exists():
+                for worker_file in ext_maint_dir.glob("*_worker.py"):
+                    daemon_name = worker_file.stem.replace("_worker", "")
+                    ext_results[daemon_name] = start_ext_daemon(project_name, daemon_name)
+    
+    # Combine results
+    result = {
+        "main": main_result,
+        "ext": ext_results
+    }
     trace_out()
     return result
 
@@ -165,13 +342,30 @@ def maintenance_start() -> bool:
         warn("No gateway available")
         trace_out()
         return False
-
+    
+    # Check if running with sudo privileges (also checks for Unix deployment)
+    if not gateway.os or not gateway.os.require_privileged():
+        trace_out()
+        return False
+    
+    # Detect project name
     project_name, _ = detect_project_context()
+    log(f"Project: {project_name}")
+    
     result = run_maintenance_start(project_name)
     gateway.response.set_action_response(success_payload(result))
 
-    if result.get("status") in {"failed", "error", "not_found"}:
-        report_error("action", f"Maintenance start failed: {result.get('error', result.get('status'))}")
+    # Check for errors in main or ext daemons
+    main_status = result.get("main", {}).get("status")
+    if main_status in {"failed", "error", "not_found"}:
+        report_error("action", f"Maintenance start failed: {result.get('main', {}).get('error', main_status)}")
+    
+    # Check ext daemons for errors
+    ext_results = result.get("ext", {})
+    for daemon_name, ext_result in ext_results.items():
+        ext_status = ext_result.get("status")
+        if ext_status in {"failed", "error", "not_found"}:
+            report_error("action", f"EXT daemon {daemon_name} start failed: {ext_result.get('error', ext_status)}")
 
     trace_out()
     return not is_error()

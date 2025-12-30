@@ -249,7 +249,17 @@ Each tier has separate Unix user accounts, database credentials, Flask applicati
 - **Safety**: Extensive validation and error checking at every step
 - **Modularity**: Components can be used independently or together
 
-For architecture documentation, see the `context/` folder which contains system documentation covering Gateway, Page System, Registry, Render, Debug, MCP, Maintenance, and other core components.
+**System Dependencies**: The deployment system follows a clear dependency chain where each component builds upon the previous:
+- **Gateway is foundational**: All deployment commands use Gateway for dispatch, error handling, and response management
+- **Installation is prerequisite**: User infrastructure must exist before database, deployment, or service management
+- **Database setup is independent**: Can be initialized separately from file deployment, but requires credential files from installation
+- **File deployment coordinates services**: Automatically stops and restarts Flask and maintenance daemons during deployment
+- **Git operations are independent**: Can sync code without affecting running services, with automatic cache clearing
+- **Configuration drives deployment**: Whitelists determine what gets deployed, with extension support via `ext/` folder
+- **Services depend on deployment**: Flask and maintenance daemons require deployed code to function
+- **HTTP/NGINX depends on installation and deployment**: Uses authentication files from installation, serves files from deployment
+
+For architecture documentation, see the `context/` folder which contains system documentation covering Gateway, Page System, Registry, Render, Debug, MCP, and other core components.
 
 ## Deployment
 
@@ -308,8 +318,6 @@ Training documents for agents to learn how to extend and customize the Henhouse 
 - **`render.md`**: Render system for output formatting
 - **`debug.md`**: Debug system for data capture and troubleshooting
 - **`mcp.md`**: MCP (Model Context Protocol) integration system
-- **`deployment.md`**: Deployment system architecture and workflows
-- **`maintenance.md`**: Maintenance system architecture and daemon management
 - **`text_processor.md`**: Text processor for custom markup parsing
 - **`type_script.md`**: TypeScript client architecture
 - **`patterns.md`**: Code patterns and examples

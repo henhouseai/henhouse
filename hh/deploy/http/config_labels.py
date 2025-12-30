@@ -30,6 +30,7 @@ from hh.render.config.config_registry import register_label
 @register_label('css_whitelist',                      'CSS Whitelist:',                 '🎨')
 @register_label('misc_whitelist',                     'Misc Whitelist:',                '📦')
 @register_label('context_whitelist',                   'Context Whitelist:',              '📂')
+@register_label('bind_ips',                           'Bound to:',                       '🔗')
 def _register_config():
     pass
 

@@ -138,7 +138,7 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
         error_result = {'tier': tier, 'status': 'error', 'error': str(e)}
         warn(f"Error starting Flask daemon for {tier}: {e}")
         trace_out()
-        return result
+        return error_result
 
 def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
     """Start media server Flask daemon (runs as admin user)."""

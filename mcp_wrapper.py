@@ -40,6 +40,16 @@ password=your_password
 host=panel.yourdomain.com
 ```
 
+Or use the `[mcp]` section:
+```ini
+[mcp]
+user=your_username
+password=your_password
+host=panel.yourdomain.com
+```
+
+**Protocol Auto-Detection**: The wrapper automatically uses HTTP for hosts ending in `.local` (e.g., `panel.accounting.local`) and HTTPS for all other hosts. No manual protocol configuration needed.
+
 The wrapper auto-detects the project name by walking up from the script location looking for an `hh/` directory.
 """
 from __future__ import annotations
@@ -120,6 +130,11 @@ def load_config() -> dict:
                 "id": None
             }), file=sys.stderr)
             sys.exit(1)
+        
+        # Get protocol (defaults to https for backward compatibility)
+        protocol = config.get(section, 'protocol', fallback='https')
+        if protocol not in ['http', 'https']:
+            protocol = 'https'  # Default to https if invalid value
         
         return {
             'user': user,
@@ -517,7 +532,10 @@ def main() -> int:
     except SystemExit:
         return 1
     
-    mcp_url = f"https://{config['host']}/mcp"
+    # Auto-detect protocol: use HTTP for .local domains, HTTPS otherwise
+    host = config['host']
+    protocol = 'http' if host.endswith('.local') else 'https'
+    mcp_url = f"{protocol}://{host}/mcp"
     
     debug_print(f"MCP URL: {mcp_url}")
     sys.stderr.flush()  # Ensure debug output is sent immediately

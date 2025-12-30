@@ -437,6 +437,234 @@ Daemon log files are located in `/srv/{project_name}/logs/`:
 
 Logs are rotated automatically by logrotate (hourly, 24 rotations, compressed).
 
+## Technical Appendices
+
+### Appendix A: Maintenance Jobs System Architecture
+
+#### Database Schema
+**Table**: `maintenance_jobs`
+
+Key fields:
+- `id`: Primary key
+- `job_type`: Type of maintenance operation (maps to command names)
+- `status`: Current status (`pending`, `running`, `done`, `error`)
+- `priority`: Execution priority (lower numbers = higher priority)
+- `progress_json`: JSON progress data
+- `error_message`: Error details for failed jobs
+- `attempts`: Number of execution attempts
+- `created_at`, `updated_at`, `completed_at`: Timestamps
+
+#### Job Lifecycle
+1. **Creation**: Jobs created by external systems or maintenance tools
+2. **Claiming**: Worker claims job by executing corresponding maintenance command
+3. **Processing**: Tool processes work and returns job_id in response
+4. **Status Updates**: Worker updates job status based on response:
+   - **Success + Done**: Mark as `done`
+   - **Success + More Work**: Mark as `pending` with progress update
+   - **Error**: Mark as `error` with debug information
+5. **Completion**: Final status recorded with completion timestamp
+
+#### Job Status Management
+**Function**: `update_maintenance_job(job_id, status, progress, error_message)`
+
+Provides comprehensive job status updates:
+- **Status Changes**: Update job status (`pending`, `running`, `done`, `error`)
+- **Progress Tracking**: JSON progress data with custom fields
+- **Error Handling**: Truncated error messages (10KB limit)
+- **Attempt Counting**: Automatic increment of attempt counter
+- **Completion Tracking**: Automatic timestamp updates for final states
+
+### Appendix B: Maintenance Backend Response Handler
+
+**Class**: `ResponseMaintenance` in `hh/gateway/response/response_maintenance.py`
+
+#### Response Format
+**Success Response**:
+```json
+{
+  "status": "ok",
+  "data": {
+    "operation": "rebuild_page_cache",
+    "page_id": 123,
+    "processed": true,
+    "pages_remaining": 5
+  },
+  "debug": {...}
+}
+```
+
+**Error Response**:
+```json
+{
+  "status": "error",
+  "data": null,
+  "errors": [
+    {"type": "action", "content": "Error message"}
+  ],
+  "debug": {...}
+}
+```
+
+#### Backend Architecture Flow
+```
+maintenance_client.py (or daemon subprocess)
+    ↓
+Gateway.dispatch(argv, "maintenance")
+    ↓
+Action Handler (uses success_payload() wrapper)
+    ↓
+Maintenance Backend Wrapper (auto-generated via exec())
+    - Unwraps MCP envelope from action_response
+    - Extracts flat data from content[0]["text"]
+    - Replaces wrapped response with flat data
+    ↓
+ResponseMaintenance.get_output()
+    - Formats as JSON: {"status": "ok", "data": {...}, "errors": {...}, "debug": {...}}
+    ↓
+JSON Response (for daemon) or Parser Backend (for CLI)
+```
+
+**Key Features**:
+- **JSON Output Format**: Structured JSON with `status`, `data`, `errors`, and `debug` fields
+- **Error Handling**: Error responses formatted consistently
+- **Debug Integration**: Debug output included when available
+- **Envelope Unwrapping**: Maintenance backend extracts flat data from MCP protocol envelopes since maintenance is internal-only
+
+### Appendix C: Maintenance Tools Registry System
+
+#### Tool Registration Pattern
+Every maintenance tool requires triple registration for full functionality:
+
+1. **Action registration** (business logic): `@register_action("tool_name")` + `@register_command("tool_name")`
+2. **Parser backend registration** (for command-line testing): `@register_parser("tool_name")`
+3. **Maintenance registry** (triggers wrapper generation): `register_maintenance_tool("tool_name")` call at bottom of file
+
+#### Auto-Generated Wrappers
+The registry automatically generates wrapper functions using `exec()` that unwrap the MCP envelope from action responses:
+
+**Process**:
+1. **Scanning**: `_scan_for_maintenance_tools()` searches codebase for `register_maintenance_tool("tool_name")` calls
+2. **Collection**: Builds set of all registered tool names from scanned files
+3. **Generation**: Uses `exec()` to dynamically generate wrapper functions with `@register_maintenance` decorators
+4. **Envelope Stripping**: Each generated wrapper extracts flat data from `action_response["content"][0]["text"]` and replaces the wrapped response
+5. **Registration**: Wrappers automatically registered in `maintenances` dictionary for Gateway discovery
+
+#### Response Format Unwrapping
+Maintenance operations are internal-only and never sent to external systems, so the MCP protocol envelope is automatically unwrapped:
+
+**Action Handler Flow**:
+1. Action uses `success_payload(data)` which creates MCP-style wrapper with `{"content": [{"type": "text", "text": dict(data)}]}`
+2. Maintenance backend wrapper automatically unwraps this envelope using `_maintenance_wrapper_template()`, extracting flat data from `action_response["content"][0]["text"]` and replacing the wrapped response
+3. Parser backend receives unwrapped flat data directly for CLI testing
+
+### Appendix D: Maintenance Client Entry Point
+
+**File**: `hh/deploy/maint/maintenance_client.py`
+
+The maintenance client is a simple entry point script that bridges command-line arguments to the Gateway system:
+
+- **Simple Interface**: Takes command-line arguments and passes them to Gateway
+- **Backend Specification**: Calls `gateway.dispatch(argv, "maintenance")` - this is the key detail
+- **Output Handling**: Prints response output and returns appropriate exit codes
+- **Encoding Support**: Handles UTF-8 encoding for cross-platform compatibility
+
+**Example Usage**:
+```bash
+# Via maintenance backend (for daemon)
+python3 maintenance_client.py maintenance-jobs-status
+
+# Via parser backend (for command-line testing)
+hen maintenance-jobs-status
+```
+
+Both routes execute the same action handler, but use different backend handlers for output formatting.
+
+### Appendix E: Cross-Platform Support Details
+
+#### Path Management
+- **Project Root Detection**: Walks up directory tree to find `hh/` directory
+- **Environment Detection**: Automatic deployed vs. local development mode detection
+- **Log Path Resolution**: Environment-appropriate log file paths
+- **Script Path Resolution**: Automatic maintenance_client.py discovery
+
+#### Deployment Modes
+
+**Local Development Mode**:
+- **Worker Path**: `{project_root}/hh/deploy/maintenance/worker.py`
+- **Client Path**: `{project_root}/hh/deploy/maint/maintenance_client.py`
+- **Log Path**: `{project_root}/logs/maintenance_{project}.log`
+- **User**: Current user
+- **Privileges**: No special requirements
+
+**Deployed Mode**:
+- **Worker Path**: `/srv/{project}/{project}_maintenance.py`
+- **Client Path**: `/srv/{project}/maintenance_client.py`
+- **Log Path**: `/srv/{project}/logs/maintenance_{project}.log`
+- **User**: `{project}_root`
+- **Privileges**: Requires sudo for daemon management
+
+#### Process Management
+- **Windows Compatibility**: `CREATE_NO_WINDOW` flag prevents console windows
+- **Unix Compatibility**: Standard subprocess execution with proper signal handling
+- **Environment Variables**: Proper `PYTHONPATH` management for module imports
+- **User Management**: Automatic user switching in deployed environments
+
+### Appendix F: Future Enhancements
+
+#### Job Queue Enhancements
+**Planned Improvements**:
+- **Priority Processing**: Implement priority-based job queue processing
+- **Job Dependencies**: Support for job dependency chains
+- **Retry Logic**: Configurable retry policies for failed jobs
+- **Job Scheduling**: Time-based job scheduling capabilities
+- **Monitoring**: Enhanced job queue monitoring and alerting
+
+#### Performance Optimizations
+**Planned Enhancements**:
+- **Batch Processing**: Optional batch processing for cache refresh operations
+- **Parallel Execution**: Multi-threaded processing for independent operations
+- **Resource Management**: Memory and CPU usage optimization
+- **Monitoring**: Performance metrics and monitoring integration
+
+#### Logging Abstraction
+**Cross-Cutting Enhancement**:
+- **Environment Detection**: Automatic SRV vs. local development detection
+- **Path Management**: Unified log path resolution for all maintenance components
+- **Configuration**: Centralized logging configuration for maintenance and daemon systems
+- **Integration**: Seamless integration with existing Gateway debug/logging systems
+
+### Appendix G: Integration with Other Systems
+
+#### With Gateway
+- Maintenance registered as backend type in Gateway system
+- All maintenance commands route through standard Gateway dispatch
+- Uses Gateway connection patterns for database access
+- Integrates with Gateway error reporting and debug systems
+
+#### With Registry
+- Maintenance tools use standard `@register_action` and `@register_command` patterns
+- Auto-generated wrappers registered in `maintenances` dictionary
+- Tool discovery through decorator scanning and caching
+- Backend handler registration follows standard registry patterns
+
+#### With Database Connection
+- Uses standard Gateway connection patterns (`gateway.conn`)
+- Transaction management through Gateway commit process
+- Database operations use `read()`, `create()`, `update()`, `delete()` methods
+- Cache database operations through `read_cache()`, `create_cache()`, `update_cache()`
+
+#### With Error System
+- Integrates with centralized error_store system
+- Uses `report_error()` for action-level errors
+- Error propagation through Gateway error handling
+- Consistent error reporting patterns across all maintenance tools
+
+#### With Debug System
+- Full integration with Gateway debug system
+- Uses `trace_in()`, `trace_out()`, `log()`, `debug()`, `warn()` functions
+- Debug filtering and output control available
+- Maintenance-specific debug output formatting
+
 ## Next Steps
 
 After daemon management is complete, your Henhouse installation is fully operational:
