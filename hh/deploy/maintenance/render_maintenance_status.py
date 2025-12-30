@@ -45,7 +45,7 @@ def render_maintenance_block(source_data, lines):
 
     data_table = TableData()
     # Add header row to define column structure
-    data_table.add_row("maintenance_status_header", name="", user="", port="")
+    data_table.add_row("maintenance_status_header", name="Tier", user="User", port="Port")
 
     # Get main maintenance daemon status
     main_data = source_data.get("main", {})

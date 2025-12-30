@@ -34,7 +34,7 @@ def render_flask_daemons(source_data, lines):
         daemons_data = TableData()
         
         # Add header row to define column structure
-        daemons_data.add_row('daemon_status_header', name='', user='', port='')
+        daemons_data.add_row('daemon_status_header', name='Tier', user='User', port='Port')
         
         daemons = source_data.get('daemons', [])
         log(f"Rendering {len(daemons)} Flask daemons")

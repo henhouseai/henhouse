@@ -88,23 +88,32 @@ def status_maintenance_process(project_name: str) -> Dict[str, Any]:
         # Look for the maintenance process
         lines = ps_result.stdout.split('\n')
         pids = []
-        users = []
         
         for line in lines:
             if process_name in line and 'python' in line:
                 parts = line.split()
                 # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                # USER is column 0, PID is column 1
+                # PID is column 1
                 if len(parts) > 1:
                     try:
                         pid = int(parts[1])
-                        user = parts[0] if len(parts) > 0 else 'unknown'
                         pids.append(pid)
-                        users.append(user)
                     except ValueError:
                         pass
         
         if pids:
+            # Get full username using stat command (ps aux truncates long usernames)
+            users = []
+            for pid in pids:
+                try:
+                    stat_result = subprocess.run(['stat', '-c', '%U', f'/proc/{pid}/'], capture_output=True, text=True, check=False)
+                    if stat_result.returncode == 0:
+                        user = stat_result.stdout.strip()
+                        if user:
+                            users.append(user)
+                except Exception:
+                    pass
+            
             # Get unique users (should be same for all PIDs of same daemon)
             unique_users = list(set(users)) if users else ['unknown']
             user = unique_users[0] if unique_users else 'unknown'
@@ -188,23 +197,32 @@ def status_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
         # Look for the EXT daemon process
         lines = ps_result.stdout.split('\n')
         pids = []
-        users = []
         
         for line in lines:
             if process_name in line and 'python' in line:
                 parts = line.split()
                 # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                # USER is column 0, PID is column 1
+                # PID is column 1
                 if len(parts) > 1:
                     try:
                         pid = int(parts[1])
-                        user = parts[0] if len(parts) > 0 else 'unknown'
                         pids.append(pid)
-                        users.append(user)
                     except ValueError:
                         pass
         
         if pids:
+            # Get full username using stat command (ps aux truncates long usernames)
+            users = []
+            for pid in pids:
+                try:
+                    stat_result = subprocess.run(['stat', '-c', '%U', f'/proc/{pid}/'], capture_output=True, text=True, check=False)
+                    if stat_result.returncode == 0:
+                        user = stat_result.stdout.strip()
+                        if user:
+                            users.append(user)
+                except Exception:
+                    pass
+            
             # Get unique users (should be same for all PIDs of same daemon)
             unique_users = list(set(users)) if users else ['unknown']
             user = unique_users[0] if unique_users else 'unknown'
