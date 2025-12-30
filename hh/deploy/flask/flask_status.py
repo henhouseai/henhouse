@@ -1,4 +1,3 @@
-import subprocess
 from typing import Dict, Any, List
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -42,38 +41,19 @@ def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str
             trace_out()
             return not_deployed_result
         
-        # Check if process is running
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the specific app
-        lines = ps_result.stdout.split('\n')
-        pids = []
-        
-        for line in lines:
-            if f'{project_name}_{tier}.py' in line and 'python' in line:
-                parts = line.split()
-                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                # PID is column 1
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids.append(pid)
-                    except ValueError:
-                        pass
+        # Check if process is running using ProcessManager
+        pm = gateway.os
+        process_filter = f'{project_name}_{tier}.py'
+        processes = pm.list_processes(process_filter)
+        pids = [p['pid'] for p in processes]
         
         if pids:
-            # Get full username using stat command (ps aux truncates long usernames)
+            # Get full username using ProcessManager helper (ps aux truncates long usernames)
             users = []
             for pid in pids:
-                try:
-                    stat_result = subprocess.run(['stat', '-c', '%U', f'/proc/{pid}/'], capture_output=True, text=True, check=False)
-                    if stat_result.returncode == 0:
-                        user = stat_result.stdout.strip()
-                        if user:
-                            users.append(user)
-                except Exception:
-                    pass
+                username = pm.get_process_username(pid)
+                if username:
+                    users.append(username)
             
             # Get unique users (should be same for all PIDs of same daemon)
             unique_users = list(set(users)) if users else ['unknown']
@@ -118,38 +98,19 @@ def get_media_server_status(project_name: str, port: int) -> Dict[str, Any]:
             trace_out()
             return not_deployed_result
         
-        # Check if process is running
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the media server app
-        lines = ps_result.stdout.split('\n')
-        pids = []
-        
-        for line in lines:
-            if f'{project_name}_media.py' in line and 'python' in line:
-                parts = line.split()
-                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                # PID is column 1
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids.append(pid)
-                    except ValueError:
-                        pass
+        # Check if process is running using ProcessManager
+        pm = gateway.os
+        process_filter = f'{project_name}_media.py'
+        processes = pm.list_processes(process_filter)
+        pids = [p['pid'] for p in processes]
         
         if pids:
-            # Get full username using stat command (ps aux truncates long usernames)
+            # Get full username using ProcessManager helper (ps aux truncates long usernames)
             users = []
             for pid in pids:
-                try:
-                    stat_result = subprocess.run(['stat', '-c', '%U', f'/proc/{pid}/'], capture_output=True, text=True, check=False)
-                    if stat_result.returncode == 0:
-                        user = stat_result.stdout.strip()
-                        if user:
-                            users.append(user)
-                except Exception:
-                    pass
+                username = pm.get_process_username(pid)
+                if username:
+                    users.append(username)
             
             # Get unique users (should be same for all PIDs of same daemon)
             unique_users = list(set(users)) if users else ['unknown']

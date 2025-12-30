@@ -445,6 +445,43 @@ class ProcessManager:
             trace_out()
             return None
 
+    def get_process_username(self, pid: int) -> Optional[str]:
+        """Get the full username of a process by PID using stat command.
+        
+        This uses stat -c '%U' /proc/{pid}/ to get the full username,
+        which is more reliable than ps aux (which truncates long usernames).
+        
+        Args:
+            pid: Process ID
+            
+        Returns:
+            Username string, or None if process not found or error occurred
+        """
+        trace_in()
+        if not self.is_unix:
+            trace_out()
+            return None
+        
+        try:
+            stat_result = subprocess.run(
+                ['stat', '-c', '%U', f'/proc/{pid}/'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if stat_result.returncode == 0:
+                username = stat_result.stdout.strip()
+                if username:
+                    log(f"Got username for PID {pid}: {username}")
+                    trace_out()
+                    return username
+            trace_out()
+            return None
+        except Exception as e:
+            warn(f"Error getting username for PID {pid}: {e}")
+            trace_out()
+            return None
+
     def user_exists(self, username: str) -> bool:
         """Check if a user exists. Returns False on Windows or if user doesn't exist."""
         trace_in()

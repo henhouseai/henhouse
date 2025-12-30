@@ -87,45 +87,43 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
             return result
         
         # Stop any existing processes for this tier (acts like restart)
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        lines = check_result.stdout.split('\n')
-        pids_to_kill = []
-        for line in lines:
-            if f'{project_name}_{tier}.py' in line and 'python' in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        pm = gateway.os
+        process_filter = f'{project_name}_{tier}.py'
+        existing_processes = pm.list_processes(process_filter)
+        pids_to_kill = [p['pid'] for p in existing_processes]
         killed_any = False
         for pid in pids_to_kill:
-            if gateway.os.kill_process(pid, force=False):
+            if pm.kill_process(pid, force=False):
                 log(f"Sent SIGTERM to PID {pid} (Flask {tier})")
                 killed_any = True
         
-        # Start Flask daemon as the appropriate Unix user
+        # Start Flask daemon as the appropriate Unix user using ProcessManager
         # Flask app now handles its own logging internally, so no need for shell redirection
-        cmd = f'sudo -u {user} bash -c "cd /srv/{project_name} && nohup python3 {app_path} < /dev/null &> /dev/null &"'
-        debug(f"Running command: {cmd}")
+        cmd = ['python3', app_path]
+        cwd = f'/srv/{project_name}'
+        debug(f"Starting Flask daemon: {cmd} in {cwd} as {user}")
         
-        # Use Popen for background processes to avoid timeout issues
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        debug(f"Started process with PID: {process.pid}")
+        # Use ProcessManager to start background process
+        started_pid = pm.start_background_process(cmd, cwd=cwd, log_file=None, user=user)
+        
+        if started_pid:
+            debug(f"Started process with PID: {started_pid}")
+        else:
+            start_result: dict[str, str | int] = {'tier': tier, 'status': 'failed', 'error': 'Failed to start process'}
+            warn(f"Flask daemon for {tier} tier failed to start")
+            trace_out()
+            return start_result
         
         # Give it a moment for the Flask daemon to start
         time.sleep(1)
         
-        # Check if the Flask daemon is actually running (via ps)
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        debug(f"Process check for '{project_name}_{tier}.py'")
+        # Check if the Flask daemon is actually running using ProcessManager
+        check_processes = pm.list_processes(process_filter)
+        debug(f"Process check for '{process_filter}': found {len(check_processes)} processes")
         
-        if f'{project_name}_{tier}.py' in check_result.stdout:
+        if check_processes:
             result_status = 'restarted' if killed_any else 'started'
-            start_result: dict[str, str | int] = {'tier': tier, 'status': result_status, 'port': port, 'user': user}
+            start_result = {'tier': tier, 'status': result_status, 'port': port, 'user': user}
             log(f"Started Flask daemon for {tier} tier on port {port}")
         else:
             start_result = {'tier': tier, 'status': 'failed', 'error': 'Process not found running'}
@@ -167,42 +165,41 @@ def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
             return result
         
         # Stop any existing media server processes
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        lines = check_result.stdout.split('\n')
-        pids_to_kill = []
-        for line in lines:
-            if f'{project_name}_media.py' in line and 'python' in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        pm = gateway.os
+        process_filter = f'{project_name}_media.py'
+        existing_processes = pm.list_processes(process_filter)
+        pids_to_kill = [p['pid'] for p in existing_processes]
         killed_any = False
         for pid in pids_to_kill:
-            if gateway.os.kill_process(pid, force=False):
+            if pm.kill_process(pid, force=False):
                 log(f"Sent SIGTERM to PID {pid} (Media Server)")
                 killed_any = True
         
-        # Start media server daemon as admin user
-        cmd = f'sudo -u {user} bash -c "cd /srv/{project_name} && nohup python3 {app_path} < /dev/null &> /dev/null &"'
-        debug(f"Running command: {cmd}")
+        # Start media server daemon as admin user using ProcessManager
+        cmd = ['python3', app_path]
+        cwd = f'/srv/{project_name}'
+        debug(f"Starting Media Server: {cmd} in {cwd} as {user}")
         
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        debug(f"Started process with PID: {process.pid}")
+        # Use ProcessManager to start background process
+        started_pid = pm.start_background_process(cmd, cwd=cwd, log_file=None, user=user)
+        
+        if started_pid:
+            debug(f"Started process with PID: {started_pid}")
+        else:
+            start_result: dict[str, str | int] = {'tier': 'media', 'status': 'failed', 'error': 'Failed to start process'}
+            warn(f"Media Server Flask daemon failed to start")
+            trace_out()
+            return start_result
         
         time.sleep(1)
         
-        # Check if the media server is actually running
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        debug(f"Process check for '{project_name}_media.py'")
+        # Check if the media server is actually running using ProcessManager
+        check_processes = pm.list_processes(process_filter)
+        debug(f"Process check for '{process_filter}': found {len(check_processes)} processes")
         
-        if f'{project_name}_media.py' in check_result.stdout:
+        if check_processes:
             result_status = 'restarted' if killed_any else 'started'
-            start_result: dict[str, str | int] = {'tier': 'media', 'status': result_status, 'port': port, 'user': user}
+            start_result = {'tier': 'media', 'status': result_status, 'port': port, 'user': user}
             log(f"Started Media Server Flask daemon on port {port}")
         else:
             start_result = {'tier': 'media', 'status': 'failed', 'error': 'Process not found running'}

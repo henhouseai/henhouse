@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -59,24 +58,10 @@ def stop_maintenance_processes(project_name: str) -> Dict[str, Any]:
         is_deployed = pm.is_deployed(project_name)
         process_name = _get_process_filter(project_name, is_deployed)
         
-        # Find process running maintenance daemon
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the maintenance process
-        lines = ps_result.stdout.split('\n')
-        pids_to_kill = []
-        
-        for line in lines:
-            if process_name in line and 'python' in line:
-                parts = line.split()
-                # PID is typically the 2nd column
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        # Find process running maintenance daemon using ProcessManager
+        pm = gateway.os
+        processes = pm.list_processes(process_name)
+        pids_to_kill = [p['pid'] for p in processes]
         
         if not pids_to_kill:
             not_running_result = {'status': 'not_running'}
@@ -132,24 +117,10 @@ def stop_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
         else:
             process_name = f"{daemon_name}_worker.py"
         
-        # Find process running EXT daemon
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the EXT daemon process
-        lines = ps_result.stdout.split('\n')
-        pids_to_kill = []
-        
-        for line in lines:
-            if process_name in line and 'python' in line:
-                parts = line.split()
-                # PID is typically the 2nd column
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        # Find process running EXT daemon using ProcessManager
+        pm = gateway.os
+        processes = pm.list_processes(process_name)
+        pids_to_kill = [p['pid'] for p in processes]
         
         if not pids_to_kill:
             not_running_result = {'status': 'not_running'}

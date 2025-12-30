@@ -81,38 +81,18 @@ def status_maintenance_process(project_name: str) -> Dict[str, Any]:
             trace_out()
             return not_found_result
         
-        # Check if process is running
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the maintenance process
-        lines = ps_result.stdout.split('\n')
-        pids = []
-        
-        for line in lines:
-            if process_name in line and 'python' in line:
-                parts = line.split()
-                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                # PID is column 1
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids.append(pid)
-                    except ValueError:
-                        pass
+        # Check if process is running using ProcessManager
+        pm = gateway.os
+        processes = pm.list_processes(process_name)
+        pids = [p['pid'] for p in processes]
         
         if pids:
-            # Get full username using stat command (ps aux truncates long usernames)
+            # Get full username using ProcessManager helper (ps aux truncates long usernames)
             users = []
             for pid in pids:
-                try:
-                    stat_result = subprocess.run(['stat', '-c', '%U', f'/proc/{pid}/'], capture_output=True, text=True, check=False)
-                    if stat_result.returncode == 0:
-                        user = stat_result.stdout.strip()
-                        if user:
-                            users.append(user)
-                except Exception:
-                    pass
+                username = pm.get_process_username(pid)
+                if username:
+                    users.append(username)
             
             # Get unique users (should be same for all PIDs of same daemon)
             unique_users = list(set(users)) if users else ['unknown']
@@ -190,38 +170,18 @@ def status_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
             trace_out()
             return not_found_result
         
-        # Check if process is running
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the EXT daemon process
-        lines = ps_result.stdout.split('\n')
-        pids = []
-        
-        for line in lines:
-            if process_name in line and 'python' in line:
-                parts = line.split()
-                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                # PID is column 1
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids.append(pid)
-                    except ValueError:
-                        pass
+        # Check if process is running using ProcessManager
+        pm = gateway.os
+        processes = pm.list_processes(process_name)
+        pids = [p['pid'] for p in processes]
         
         if pids:
-            # Get full username using stat command (ps aux truncates long usernames)
+            # Get full username using ProcessManager helper (ps aux truncates long usernames)
             users = []
             for pid in pids:
-                try:
-                    stat_result = subprocess.run(['stat', '-c', '%U', f'/proc/{pid}/'], capture_output=True, text=True, check=False)
-                    if stat_result.returncode == 0:
-                        user = stat_result.stdout.strip()
-                        if user:
-                            users.append(user)
-                except Exception:
-                    pass
+                username = pm.get_process_username(pid)
+                if username:
+                    users.append(username)
             
             # Get unique users (should be same for all PIDs of same daemon)
             unique_users = list(set(users)) if users else ['unknown']

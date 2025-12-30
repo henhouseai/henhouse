@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -98,23 +97,13 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
             trace_out()
             return result
         
-        # Stop any existing maintenance processes
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        lines = check_result.stdout.split('\n')
-        pids_to_kill = []
-        for line in lines:
-            if process_name in line and 'python' in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        # Stop any existing maintenance processes using ProcessManager
+        pm = gateway.os
+        existing_processes = pm.list_processes(process_name)
+        pids_to_kill = [p['pid'] for p in existing_processes]
         killed_any = False
         for pid in pids_to_kill:
-            if gateway.os.kill_process(pid, force=False):
+            if pm.kill_process(pid, force=False):
                 log(f"Sent SIGTERM to PID {pid} (Maintenance)")
                 killed_any = True
         
@@ -124,30 +113,36 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
         else:
             cwd = str(project_root)
         
-        # Start maintenance daemon
+        # Start maintenance daemon using ProcessManager
         if is_deployed and user:
             # Deployed mode: run as root user
-            cmd = f'sudo -u {user} bash -c "cd {cwd} && nohup python3 {worker_path} < /dev/null &> /dev/null &"'
+            cmd = ['python3', str(worker_path)]
         else:
             # Local dev mode: run as current user
-            cmd = f'cd {cwd} && nohup {sys.executable} {worker_path} < /dev/null &> /dev/null &'
-        debug(f"Running command: {cmd}")
+            cmd = [sys.executable, str(worker_path)]
+        debug(f"Starting maintenance daemon: {cmd} in {cwd} as {user}")
         
-        # Use Popen for background processes to avoid timeout issues
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        debug(f"Started process with PID: {process.pid}")
+        # Use ProcessManager to start background process
+        started_pid = pm.start_background_process(cmd, cwd=cwd, log_file=None, user=user)
+        
+        if started_pid:
+            debug(f"Started process with PID: {started_pid}")
+        else:
+            start_result = {'status': 'failed', 'error': 'Failed to start process'}
+            warn(f"Maintenance daemon failed to start")
+            trace_out()
+            return start_result
         
         # Give it a moment for the daemon to start
         time.sleep(1)
         
-        # Check if the maintenance daemon is actually running (via ps)
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        debug(f"Process check for '{process_name}'")
+        # Check if the maintenance daemon is actually running using ProcessManager
+        check_processes = pm.list_processes(process_name)
+        debug(f"Process check for '{process_name}': found {len(check_processes)} processes")
         
-        if process_name in check_result.stdout:
+        if check_processes:
             result_status = 'restarted' if killed_any else 'started'
-            start_result: dict[str, str | bool] = {
+            start_result = {
                 'status': result_status,
                 'log_file': str(log_file),
                 'deployed': is_deployed,
@@ -222,23 +217,13 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
             trace_out()
             return result
         
-        # Stop any existing daemon processes
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        lines = check_result.stdout.split('\n')
-        pids_to_kill = []
-        for line in lines:
-            if process_name in line and 'python' in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        # Stop any existing daemon processes using ProcessManager
+        pm = gateway.os
+        existing_processes = pm.list_processes(process_name)
+        pids_to_kill = [p['pid'] for p in existing_processes]
         killed_any = False
         for pid in pids_to_kill:
-            if gateway.os.kill_process(pid, force=False):
+            if pm.kill_process(pid, force=False):
                 log(f"Sent SIGTERM to PID {pid} ({daemon_name})")
                 killed_any = True
         
@@ -248,30 +233,36 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
         else:
             cwd = str(project_root)
         
-        # Start EXT daemon
+        # Start EXT daemon using ProcessManager
         if is_deployed and user:
             # Deployed mode: run as root user
-            cmd = f'sudo -u {user} bash -c "cd {cwd} && nohup python3 {worker_path} < /dev/null &> /dev/null &"'
+            cmd = ['python3', str(worker_path)]
         else:
             # Local dev mode: run as current user
-            cmd = f'cd {cwd} && nohup {sys.executable} {worker_path} < /dev/null &> /dev/null &'
-        debug(f"Running command: {cmd}")
+            cmd = [sys.executable, str(worker_path)]
+        debug(f"Starting {daemon_name} daemon: {cmd} in {cwd} as {user}")
         
-        # Use Popen for background processes to avoid timeout issues
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        debug(f"Started process with PID: {process.pid}")
+        # Use ProcessManager to start background process
+        started_pid = pm.start_background_process(cmd, cwd=cwd, log_file=None, user=user)
+        
+        if started_pid:
+            debug(f"Started process with PID: {started_pid}")
+        else:
+            start_result = {'status': 'failed', 'error': 'Failed to start process'}
+            warn(f"{daemon_name} daemon failed to start")
+            trace_out()
+            return start_result
         
         # Give it a moment for the daemon to start
         time.sleep(1)
         
-        # Check if the daemon is actually running (via ps)
-        check_cmd = ['ps', 'aux']
-        check_result = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
-        debug(f"Process check for '{process_name}'")
+        # Check if the daemon is actually running using ProcessManager
+        check_processes = pm.list_processes(process_name)
+        debug(f"Process check for '{process_name}': found {len(check_processes)} processes")
         
-        if process_name in check_result.stdout:
+        if check_processes:
             result_status = 'restarted' if killed_any else 'started'
-            start_result: dict[str, str | bool] = {
+            start_result = {
                 'status': result_status,
                 'log_file': str(log_file),
                 'deployed': is_deployed,

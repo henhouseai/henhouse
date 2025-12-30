@@ -58,24 +58,11 @@ def stop_flask_daemon(project_name: str, tier: str) -> Dict[str, Any]:
             trace_out()
             return error_result
         
-        # Find process running app_{tier}.py
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        # Look for the specific app
-        lines = ps_result.stdout.split('\n')
-        pids_to_kill = []
-        
-        for line in lines:
-            if f'{project_name}_{tier}.py' in line and 'python' in line:
-                parts = line.split()
-                # PID is typically the 2nd column
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        # Find process running app_{tier}.py using ProcessManager
+        pm = gateway.os
+        process_filter = f'{project_name}_{tier}.py'
+        processes = pm.list_processes(process_filter)
+        pids_to_kill = [p['pid'] for p in processes]
         
         if not pids_to_kill:
             not_running_result = {'tier': tier, 'status': 'not_running'}
@@ -111,22 +98,11 @@ def stop_media_server(project_name: str) -> Dict[str, Any]:
             trace_out()
             return error_result
         
-        # Find process running media server
-        cmd = ['ps', 'aux']
-        ps_result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        
-        lines = ps_result.stdout.split('\n')
-        pids_to_kill = []
-        
-        for line in lines:
-            if f'{project_name}_media.py' in line and 'python' in line:
-                parts = line.split()
-                if len(parts) > 1:
-                    try:
-                        pid = int(parts[1])
-                        pids_to_kill.append(pid)
-                    except ValueError:
-                        pass
+        # Find process running media server using ProcessManager
+        pm = gateway.os
+        process_filter = f'{project_name}_media.py'
+        processes = pm.list_processes(process_filter)
+        pids_to_kill = [p['pid'] for p in processes]
         
         if not pids_to_kill:
             not_running_result = {'tier': 'media', 'status': 'not_running'}
