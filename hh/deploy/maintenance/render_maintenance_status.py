@@ -45,7 +45,7 @@ def render_maintenance_block(source_data, lines):
 
     data_table = TableData()
     # Add header row to define column structure (no port column for maintenance daemons)
-    data_table.add_row("maintenance_status_header", name="Daemon", user="User")
+    data_table.add_row("maintenance_header", name="Daemon", user="User")
 
     # Get main maintenance daemon status
     main_data = source_data.get("main", {})
@@ -90,7 +90,7 @@ def render_maintenance_block(source_data, lines):
         render_block(
             data_table,
             FieldConfig()
-            .add_header("maintenance_status_header")
+            .add_header("maintenance_header")
             .add_simple(
                 [
                     "daemon_running",
@@ -125,7 +125,7 @@ def maintenance_status() -> bool:
 
     json_data = gateway.response.get_action_response()
     source_data = get_data(json_data if json_data is not None else {})
-    lines = [render_header_block("l_maintenance_header")]
+    lines = [render_header_block("l_maintenance_status_header")]
     render_maintenance_block(source_data, lines)
     result = finalize_output(lines)
     gateway.response.add_output(result)
