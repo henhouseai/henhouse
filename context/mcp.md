@@ -168,7 +168,7 @@ Decorator-based lazy-loading whitelist system:
 - Tier-specific whitelists: Each tier (guest, verified, admin, root) has separate cache file
 - Cache files: `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
 - Lazy loading: Cache files loaded on demand; rebuilt on cache miss by scanning all decorators and rebuilding all tier whitelists at once
-- Scanning: `_scan_for_mcp_tools()` recursively searches `hh/` directory for files containing `@register_mcp_tool`
+- Scanning: `_scan_for_mcp_tools()` recursively searches both `hh/` and `ext/` directories for files containing `@register_mcp_tool`
 - Used by `mcp_client.py` for validation and `tools/list` via `MCPWhitelist` class
 - Used by `mcp.py` for auto-generating wrappers
 
@@ -330,7 +330,7 @@ For a tool to work through MCP:
 ### How `mcp_utils.py` modules get imported (and when the registry is populated)
 
 - There are two import paths:
-  - **Whitelist rebuild path**: On cache miss/force rebuild, `mcp_whitelist._scan_for_mcp_tools()` finds every file with `@register_mcp_tool` under `hh/`, then `_import_modules()` imports them. Each decorator call populates `_global_tool_registry`. MCP-tier tools (1-4) are written into tier caches; app-action-only tools (5-8) stay only in the in-memory registry.
+  - **Whitelist rebuild path**: On cache miss/force rebuild, `mcp_whitelist._scan_for_mcp_tools()` finds every file with `@register_mcp_tool` under both `hh/` and `ext/`, then `_import_modules()` imports them. Each decorator call populates `_global_tool_registry`. MCP-tier tools (1-4) are written into tier caches; app-action-only tools (5-8) stay only in the in-memory registry.
   - **Page-load path**: When a page is loaded (HTTP or MCP backend), `hh/page/page_registry.py::_load_mcp_utils_for_page_class` walks the page class MRO and `importlib.import_module("{base}.mcp_utils")` for each class. That import also runs decorators and fills `_global_tool_registry`. This is how app actions get into memory for `get_page`/`show_page` responses, even though they are not stored in the tier caches.
 - `get_app_actions(user_tier_level)` reads `_global_tool_registry` (not the tier caches) and filters for app-action tier levels (5-8, mapped from user tier +4). Page classes attach these to `available_actions` for MCP responses.
 
