@@ -457,11 +457,20 @@ class Page:
         pass
 
     def _get_child_page_ids(self) -> List[int]:
+        """
+        Get all child page IDs for recursive deletion.
+        This queries all children regardless of class (matching legacy PHP behavior).
+        For display purposes, use _get_children_query() which can filter by class.
+        """
         trace_in()
         child_ids = []
         if not is_error():
-            query, params = self._get_children_query(self.id)
-            results = self.gateway.conn.read(query, params)
+            # Query all children regardless of class (legacy behavior for deletion)
+            # _get_children_query() is for display and filters by class
+            results = self.gateway.conn.read(
+                "SELECT id FROM pages WHERE parent = %s",
+                [self.id]
+            )
             if results:
                 child_ids = [row['id'] for row in results]
         log(f"Child page IDs for page {self.id}: {len(child_ids)} found -> {child_ids}")
