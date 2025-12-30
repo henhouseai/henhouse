@@ -44,35 +44,55 @@ def render_maintenance_block(source_data, lines):
         return
 
     data_table = TableData()
-    data_table.add_row("maintenance_status_header", name="")
+    # Add header row to define column structure
+    data_table.add_row("maintenance_header", name="Daemon")
 
-    status = source_data.get("status", "unknown")
-    if status == "started":
-        data_table.add_row("daemon_started", name="Maintenance daemon started")
-    elif status == "failed":
-        data_table.add_row("daemon_failed", name="Maintenance daemon failed to start")
-    elif status == "error":
-        error_msg = source_data.get("error", "Unknown error")
-        data_table.add_row("daemon_failed", name=safe_str(error_msg))
-    elif status == "not_deployed":
-        data_table.add_row("daemon_not_deployed", name="Maintenance script not deployed")
-    elif status == "user_not_found":
-        data_table.add_row("daemon_not_found", name="Root tier user not found")
+    # Get main maintenance daemon status
+    main_data = source_data.get("main", {})
+    main_status = main_data.get("status", "unknown")
+    
+    if main_status == "started" or main_status == "restarted":
+        data_table.add_row("daemon_started", name="main")
+    elif main_status == "failed":
+        data_table.add_row("daemon_failed", name="main")
+    elif main_status == "error":
+        data_table.add_row("daemon_failed", name="main")
+    elif main_status == "not_deployed":
+        data_table.add_row("daemon_not_deployed", name="main")
+    elif main_status == "user_not_found":
+        data_table.add_row("daemon_not_found", name="main")
     else:
-        data_table.add_row("daemon_running", name=f"Status: {status}")
+        data_table.add_row("daemon_failed", name="main")
+
+    # Get EXT maintenance daemon statuses
+    ext_data = source_data.get("ext", {})
+    for daemon_name, ext_daemon_data in ext_data.items():
+        ext_status = ext_daemon_data.get("status", "unknown")
+        
+        if ext_status == "started" or ext_status == "restarted":
+            data_table.add_row("daemon_started", name=safe_str(daemon_name))
+        elif ext_status == "failed":
+            data_table.add_row("daemon_failed", name=safe_str(daemon_name))
+        elif ext_status == "error":
+            data_table.add_row("daemon_failed", name=safe_str(daemon_name))
+        elif ext_status == "not_deployed":
+            data_table.add_row("daemon_not_deployed", name=safe_str(daemon_name))
+        elif ext_status == "user_not_found":
+            data_table.add_row("daemon_not_found", name=safe_str(daemon_name))
+        else:
+            data_table.add_row("daemon_failed", name=safe_str(daemon_name))
 
     lines.append(
         render_block(
             data_table,
             FieldConfig()
-            .add_header("maintenance_status_header")
+            .add_header("maintenance_header")
             .add_simple(
                 [
                     "daemon_started",
                     "daemon_failed",
                     "daemon_not_deployed",
                     "daemon_not_found",
-                    "daemon_running",
                 ]
             ),
             table_overrides={"margin_l": 4},

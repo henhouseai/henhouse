@@ -33,8 +33,8 @@ def render_flask_daemons(source_data, lines):
     if not gateway.is_no(block):
         daemons_data = TableData()
         
-        # Add header row to define column structure (empty right column)
-        daemons_data.add_row('daemon_status_header', name='')
+        # Add header row to define column structure
+        daemons_data.add_row('daemon_status_header', name='Tier')
         
         daemons = source_data.get('daemons', [])
         log(f"Rendering {len(daemons)} Flask daemons")

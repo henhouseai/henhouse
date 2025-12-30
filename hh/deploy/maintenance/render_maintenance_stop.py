@@ -44,25 +44,43 @@ def render_maintenance_block(source_data, lines):
         return
 
     data_table = TableData()
-    data_table.add_row("maintenance_status_header", name="")
+    # Add header row to define column structure
+    data_table.add_row("maintenance_header", name="Daemon")
 
-    status = source_data.get("status", "unknown")
-    if status == "stopped":
-        data_table.add_row("daemon_stopped", name="Maintenance daemon stopped")
-    elif status == "not_running":
-        data_table.add_row("daemon_not_found", name="Maintenance daemon not running")
-    elif status == "error":
-        data_table.add_row("daemon_failed", name=safe_str(source_data.get("error", "Error")))
+    # Get main maintenance daemon status
+    main_data = source_data.get("main", {})
+    main_status = main_data.get("status", "unknown")
+    
+    if main_status == "stopped":
+        data_table.add_row("daemon_stopped", name="main")
+    elif main_status == "not_running":
+        data_table.add_row("daemon_not_found", name="main")
+    elif main_status == "error":
+        data_table.add_row("daemon_failed", name="main")
     else:
-        data_table.add_row("daemon_running", name=f"Status: {status}")
+        data_table.add_row("daemon_failed", name="main")
+
+    # Get EXT maintenance daemon statuses
+    ext_data = source_data.get("ext", {})
+    for daemon_name, ext_daemon_data in ext_data.items():
+        ext_status = ext_daemon_data.get("status", "unknown")
+        
+        if ext_status == "stopped":
+            data_table.add_row("daemon_stopped", name=safe_str(daemon_name))
+        elif ext_status == "not_running":
+            data_table.add_row("daemon_not_found", name=safe_str(daemon_name))
+        elif ext_status == "error":
+            data_table.add_row("daemon_failed", name=safe_str(daemon_name))
+        else:
+            data_table.add_row("daemon_failed", name=safe_str(daemon_name))
 
     lines.append(
         render_block(
             data_table,
             FieldConfig()
-            .add_header("maintenance_status_header")
+            .add_header("maintenance_header")
             .add_simple(
-                ["daemon_stopped", "daemon_not_found", "daemon_failed", "daemon_running"]
+                ["daemon_stopped", "daemon_not_found", "daemon_failed"]
             ),
             table_overrides={"margin_l": 4},
             block_type=block,
