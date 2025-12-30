@@ -77,16 +77,16 @@ def _scan_for_maintenance_tools() -> set:
         project_root = hh_path.parent
         
         # Build list of paths to scan
-        scan_paths: list[tuple[Path, Path]] = [(hh_path, hh_path)]
+        scan_paths: list[Path] = [hh_path]
         
         # Check if ext/ exists and add it to scan paths
         ext_path = project_root / "ext"
         if ext_path.exists() and ext_path.is_dir():
-            scan_paths.append((ext_path, hh_path))  # Use hh_path for relative path calculation
+            scan_paths.append(ext_path)
             log(f"Found ext/ folder, will scan for maintenance tools")
         
         # Scan each path
-        for scan_path, base_path in scan_paths:
+        for scan_path in scan_paths:
             for py_file in scan_path.rglob("*.py"):
                 if py_file.name.startswith("cache_"):
                     continue
@@ -98,7 +98,8 @@ def _scan_for_maintenance_tools() -> set:
                         matches = re.findall(r'register_maintenance_tool\(["\']([^"\']+)["\']\)', content)
                         for tool_name in matches:
                             found_tools.add(tool_name)
-                            log(f"Found maintenance tool: {tool_name} in {py_file.relative_to(base_path)}")
+                            # Use scan_path as base for relative path calculation
+                            log(f"Found maintenance tool: {tool_name} in {py_file.relative_to(scan_path)}")
                 except Exception as e:
                     warn(f"Error reading {py_file}: {e}")
     except Exception as e:
