@@ -49,30 +49,38 @@ def get_flask_daemon_status(project_name: str, tier: str, port: int) -> Dict[str
         # Look for the specific app
         lines = ps_result.stdout.split('\n')
         pids = []
+        users = []
         
         for line in lines:
             if f'{project_name}_{tier}.py' in line and 'python' in line:
                 parts = line.split()
-                # PID is typically the 2nd column
+                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+                # USER is column 0, PID is column 1
                 if len(parts) > 1:
                     try:
                         pid = int(parts[1])
+                        user = parts[0] if len(parts) > 0 else 'unknown'
                         pids.append(pid)
+                        users.append(user)
                     except ValueError:
                         pass
         
         if pids:
+            # Get unique users (should be same for all PIDs of same daemon)
+            unique_users = list(set(users)) if users else ['unknown']
+            user = unique_users[0] if unique_users else 'unknown'
             status_result: dict[str, str | int | list[int]] = {
                 'tier': tier, 
                 'status': 'running', 
                 'pids': pids,
-                'port': port
+                'port': port,
+                'user': user
             }
-            log(f"Flask daemon for {tier} tier is running (PIDs: {pids})")
+            log(f"Flask daemon for {tier} tier is running (PIDs: {pids}, User: {user}, Port: {port})")
             trace_out()
             return status_result
         else:
-            stopped_result: dict[str, str | int] = {'tier': tier, 'status': 'stopped', 'port': port}
+            stopped_result: dict[str, str | int | None] = {'tier': tier, 'status': 'stopped', 'port': port, 'user': None}
             log(f"Flask daemon for {tier} tier is stopped")
             trace_out()
             return stopped_result
@@ -108,30 +116,38 @@ def get_media_server_status(project_name: str, port: int) -> Dict[str, Any]:
         # Look for the media server app
         lines = ps_result.stdout.split('\n')
         pids = []
+        users = []
         
         for line in lines:
             if f'{project_name}_media.py' in line and 'python' in line:
                 parts = line.split()
-                # PID is typically the 2nd column
+                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+                # USER is column 0, PID is column 1
                 if len(parts) > 1:
                     try:
                         pid = int(parts[1])
+                        user = parts[0] if len(parts) > 0 else 'unknown'
                         pids.append(pid)
+                        users.append(user)
                     except ValueError:
                         pass
         
         if pids:
+            # Get unique users (should be same for all PIDs of same daemon)
+            unique_users = list(set(users)) if users else ['unknown']
+            user = unique_users[0] if unique_users else 'unknown'
             status_result: dict[str, str | int | list[int]] = {
                 'tier': 'media', 
                 'status': 'running', 
                 'pids': pids,
-                'port': port
+                'port': port,
+                'user': user
             }
-            log(f"Media Server Flask daemon is running (PIDs: {pids})")
+            log(f"Media Server Flask daemon is running (PIDs: {pids}, User: {user}, Port: {port})")
             trace_out()
             return status_result
         else:
-            stopped_result: dict[str, str | int] = {'tier': 'media', 'status': 'stopped', 'port': port}
+            stopped_result: dict[str, str | int | None] = {'tier': 'media', 'status': 'stopped', 'port': port, 'user': None}
             log(f"Media Server Flask daemon is stopped")
             trace_out()
             return stopped_result

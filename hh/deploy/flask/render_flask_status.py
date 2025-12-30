@@ -33,8 +33,8 @@ def render_flask_daemons(source_data, lines):
     if not gateway.is_no(block):
         daemons_data = TableData()
         
-        # Add header row to define column structure (empty right column)
-        daemons_data.add_row('daemon_status_header', name='')
+        # Add header row to define column structure
+        daemons_data.add_row('daemon_status_header', name='', user='', port='')
         
         daemons = source_data.get('daemons', [])
         log(f"Rendering {len(daemons)} Flask daemons")
@@ -42,16 +42,21 @@ def render_flask_daemons(source_data, lines):
         for daemon in daemons:
             tier = daemon.get('tier', 'unknown')
             status = daemon.get('status', 'unknown')
+            user = daemon.get('user', '')
+            port = daemon.get('port', '')
+            
+            user_str = safe_str(user) if user else '-'
+            port_str = safe_str(str(port)) if port else '-'
             
             if status == 'running':
-                daemons_data.add_row('daemon_running', name=safe_str(tier))
+                daemons_data.add_row('daemon_running', name=safe_str(tier), user=user_str, port=port_str)
             elif status == 'stopped':
-                daemons_data.add_row('daemon_stopped', name=safe_str(tier))
+                daemons_data.add_row('daemon_stopped', name=safe_str(tier), user=user_str, port=port_str)
             elif status == 'not_deployed':
-                daemons_data.add_row('daemon_not_deployed', name=safe_str(tier))
+                daemons_data.add_row('daemon_not_deployed', name=safe_str(tier), user=user_str, port=port_str)
             elif status == 'error':
                 error_msg = daemon.get('error', 'Unknown error')
-                daemons_data.add_row('daemon_error', name=safe_str(tier))
+                daemons_data.add_row('daemon_error', name=safe_str(tier), user=user_str, port=port_str)
         
         lines.append(render_block(
             daemons_data,

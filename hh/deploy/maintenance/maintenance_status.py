@@ -88,33 +88,44 @@ def status_maintenance_process(project_name: str) -> Dict[str, Any]:
         # Look for the maintenance process
         lines = ps_result.stdout.split('\n')
         pids = []
+        users = []
         
         for line in lines:
             if process_name in line and 'python' in line:
                 parts = line.split()
-                # PID is typically the 2nd column
+                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+                # USER is column 0, PID is column 1
                 if len(parts) > 1:
                     try:
                         pid = int(parts[1])
+                        user = parts[0] if len(parts) > 0 else 'unknown'
                         pids.append(pid)
+                        users.append(user)
                     except ValueError:
                         pass
         
         if pids:
+            # Get unique users (should be same for all PIDs of same daemon)
+            unique_users = list(set(users)) if users else ['unknown']
+            user = unique_users[0] if unique_users else 'unknown'
             running_result = {
                 'daemon': 'main',
                 'status': 'running',
                 'pids': pids,
+                'user': user,
+                'port': None,  # Maintenance daemons don't use ports
                 'deployed': is_deployed,
                 'worker_path': str(worker_path),
             }
-            log(f"Maintenance daemon is running (PIDs: {pids})")
+            log(f"Maintenance daemon is running (PIDs: {pids}, User: {user})")
             trace_out()
             return running_result
         else:
             stopped_result = {
                 'daemon': 'main',
                 'status': 'stopped',
+                'user': None,
+                'port': None,
                 'deployed': is_deployed,
                 'worker_path': str(worker_path),
             }
@@ -177,33 +188,44 @@ def status_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
         # Look for the EXT daemon process
         lines = ps_result.stdout.split('\n')
         pids = []
+        users = []
         
         for line in lines:
             if process_name in line and 'python' in line:
                 parts = line.split()
-                # PID is typically the 2nd column
+                # ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+                # USER is column 0, PID is column 1
                 if len(parts) > 1:
                     try:
                         pid = int(parts[1])
+                        user = parts[0] if len(parts) > 0 else 'unknown'
                         pids.append(pid)
+                        users.append(user)
                     except ValueError:
                         pass
         
         if pids:
+            # Get unique users (should be same for all PIDs of same daemon)
+            unique_users = list(set(users)) if users else ['unknown']
+            user = unique_users[0] if unique_users else 'unknown'
             running_result = {
                 'daemon': daemon_name,
                 'status': 'running',
                 'pids': pids,
+                'user': user,
+                'port': None,  # EXT maintenance daemons don't use ports
                 'deployed': is_deployed,
                 'worker_path': str(worker_path),
             }
-            log(f"{daemon_name} daemon is running (PIDs: {pids})")
+            log(f"{daemon_name} daemon is running (PIDs: {pids}, User: {user})")
             trace_out()
             return running_result
         else:
             stopped_result = {
                 'daemon': daemon_name,
                 'status': 'stopped',
+                'user': None,
+                'port': None,
                 'deployed': is_deployed,
                 'worker_path': str(worker_path),
             }
