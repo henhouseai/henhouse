@@ -39,7 +39,7 @@ This document covers the comprehensive debug system that provides sophisticated 
 ### Filter System Control
 - **Whitelist**: Control which folders/modules are included (`-white "*gateway*"`)
 - **Graylist**: Control which files are included (`-gray "cache.py"`)
-- **Blacklist**: Control which functions are excluded (`-black "dispatch,get_arg"`)
+- **Blacklist**: Control which functions are excluded (`-black "dispatch,get_arg"`)hen 
 - **Debug Limits**: Control message volume per combination (`-debug-limit 10`)
 
 ### Common Debug Patterns

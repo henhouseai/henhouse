@@ -14,13 +14,14 @@ _SAFE_DEBUG_ATTR = "_gateway_safe_debug_instance"
 _tls = threading.local()
 _DEBUG_MODULE_PATH: Optional[str] = "hh.gateway.debug.debug_table"
 
-_use_trace = False
-_use_log = False
-_use_debug = False
+_use_trace = True  # Enabled by default to capture during request parsing
+_use_log = True  # Enabled by default to capture during request parsing
+_use_debug = True  # Enabled by default to capture during request parsing
 
 _debug_init_functions: List[Callable] = []
 _initialized_functions: set = set()
 _initialized = False
+_initialized_count = 0  # Track how many times initialize_debug_modules has been called
 _DEBUG_REGISTRY_PRINTS = False
 
 def debug_print(message: str) -> None:
@@ -93,6 +94,15 @@ class SharedDebugDataStore(FilterMixin):
             self._filename_colors.clear()
             self._function_colors.clear()
             self._module_color_index = 0
+    
+    def clear_entries_by_level(self, levels: List[int]) -> None:
+        """Remove entries with specified levels from captured_data."""
+        with self._lock:
+            self.captured_data = [entry for entry in self.captured_data if entry.level not in levels]
+            # Rebuild index tracking
+            for i, entry in enumerate(self.captured_data):
+                entry.index = i
+            self._next_index = len(self.captured_data)
 
 _shared_debug_store = SharedDebugDataStore()
 
@@ -131,25 +141,63 @@ def register_debug_init(func: Callable) -> Callable:
     return func
 
 def initialize_debug_modules() -> None:
-    global _initialized
-    uninitialized_count = len(_debug_init_functions) - len(_initialized_functions)
+    global _initialized, _initialized_count, _use_trace, _use_log, _use_debug
+    _initialized_count += 1
     
-    if uninitialized_count == 0:
-        _debug_print(f"[DEBUG_REGISTRY] No uninitialized modules found")
-        return
+    # First call: initialize all modules with defaults (all True)
+    if _initialized_count == 1:
+        uninitialized_count = len(_debug_init_functions) - len(_initialized_functions)
         
-    _debug_print(f"[DEBUG_REGISTRY] Initializing {uninitialized_count} uninitialized debug modules")
+        if uninitialized_count == 0:
+            _debug_print(f"[DEBUG_REGISTRY] No uninitialized modules found")
+            return
+            
+        _debug_print(f"[DEBUG_REGISTRY] Initializing {uninitialized_count} uninitialized debug modules")
+        
+        newly_initialized = 0
+        for i, func in enumerate(_debug_init_functions):
+            module_name = func.__module__ if hasattr(func, '__module__') else 'unknown'
+            function_name = func.__name__ if hasattr(func, '__name__') else 'unknown'
+            _debug_print(f"[DEBUG_REGISTRY] Initializing debug module {newly_initialized+1}/{uninitialized_count}: {module_name}.{function_name}")
+            if _initialize_single_debug_func(func, module_name, function_name, auto_init=False):
+                newly_initialized += 1
+        
+        _initialized = True
+        _debug_print(f"[DEBUG_REGISTRY] Completed initialization of {newly_initialized} debug modules (total initialized: {len(_initialized_functions)})")
     
-    newly_initialized = 0
-    for i, func in enumerate(_debug_init_functions):
-        module_name = func.__module__ if hasattr(func, '__module__') else 'unknown'
-        function_name = func.__name__ if hasattr(func, '__name__') else 'unknown'
-        _debug_print(f"[DEBUG_REGISTRY] Initializing debug module {newly_initialized+1}/{uninitialized_count}: {module_name}.{function_name}")
-        if _initialize_single_debug_func(func, module_name, function_name, auto_init=False):
-            newly_initialized += 1
+    # Second call: re-initialize based on user flags
+    elif _initialized_count == 2:
+        _debug_print(f"[DEBUG_REGISTRY] Re-initializing debug modules based on user flags")
+        
+        # Determine which levels to clear (ones not requested by user)
+        levels_to_clear = []
+        if not _use_trace:
+            levels_to_clear.extend([1, 2])  # trace_in and trace_out
+        if not _use_log:
+            levels_to_clear.append(3)  # log
+        if not _use_debug:
+            levels_to_clear.append(4)  # debug
+        # warn (level 5) is always kept
+        
+        # Clear entries for levels not requested
+        if levels_to_clear:
+            _shared_debug_store.clear_entries_by_level(levels_to_clear)
+            _debug_print(f"[DEBUG_REGISTRY] Cleared entries for levels: {levels_to_clear}")
+        
+        # Re-monkey-patch all registered functions with current flag values
+        for func in _debug_init_functions:
+            module_name = func.__module__ if hasattr(func, '__module__') else 'unknown'
+            function_name = func.__name__ if hasattr(func, '__name__') else 'unknown'
+            _debug_print(f"[DEBUG_REGISTRY] Re-initializing: {module_name}.{function_name}")
+            func()  # Re-run the init function to re-monkey-patch
+        
+        _debug_print(f"[DEBUG_REGISTRY] Re-initialization complete (trace={_use_trace}, log={_use_log}, debug={_use_debug})")
     
-    _initialized = True
-    _debug_print(f"[DEBUG_REGISTRY] Completed initialization of {newly_initialized} debug modules (total initialized: {len(_initialized_functions)})")
+    # Subsequent calls: just re-monkey-patch (flags may have changed)
+    else:
+        _debug_print(f"[DEBUG_REGISTRY] Re-initializing debug modules (call #{_initialized_count})")
+        for func in _debug_init_functions:
+            func()  # Re-run the init function to re-monkey-patch
 
 def get_debug_init_count() -> int:
     return len(_debug_init_functions)

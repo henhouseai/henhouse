@@ -78,41 +78,37 @@ class Gateway:
         self._initialize(raw_argv, backend)
 
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
-        # Initialize request
-        if not is_error():
-            self.request = Request(raw_argv)
-            self._initialize_command()
+        initialize_debug_modules()
         
-        # Initialize debug module
-        if not is_error():
-            self._initialize_debug_module()
+        # Initialize request
+        self.request = Request(raw_argv)
+        self._initialize_command()
+        
+        # Configure debug module based on request flags
+        self._initialize_debug_module()
         
         # Initialize connection
-        if not is_error():
-            # Check for dry_run flag from request before initializing connection and filesystem
-            dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
-            self._user_tier_level = self._initialize_connection(dry_run=dry_run)
+        # Check for dry_run flag from request before initializing connection and filesystem
+        dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
+        self._user_tier_level = self._initialize_connection(dry_run=dry_run)
         
         # Initialize response and filesystem
-        if not is_error():
-            # Initialize response after connection (so we can pass tier level)
-            self._initialize_response()
-            
-            self.files = FileSystem(dry_run=dry_run)
-            self.os = ProcessManager()
+        # Initialize response after connection (so we can pass tier level)
+        self._initialize_response()
+        
+        self.files = FileSystem(dry_run=dry_run)
+        self.os = ProcessManager()
         
         # Initialize registry
-        if not is_error():
-            if not self.command or not self.backend:
-                report_error("registry", "Command or backend missing")
-            else:
-                self.registry = CommandRegistry(self.command, self.backend)
+        if not self.command or not self.backend:
+            report_error("registry", "Command or backend missing")
+        else:
+            self.registry = CommandRegistry(self.command, self.backend)
         
         # Initialize action and backend handlers
-        if not is_error():
-            self._initialize_action()
-            self._initialize_backend()
-            self._configure_debug_module()
+        self._initialize_action()
+        self._initialize_backend()
+        self._configure_debug_module()
         
         # Verify initialization and load modules
         if not is_error() and not self.request:
@@ -150,7 +146,7 @@ class Gateway:
         initialize_debug_modules()
 
     def _initialize_command(self):
-        if not is_error() and self.request.has_command():
+        if self.request.has_command():
             # Command was specified - use it as-is
             self.command = self.request.get_command()
         elif not is_error():

@@ -5,6 +5,7 @@ import re
 from typing import List, Optional, Union
 from hh.gateway.request.token import Token, TokenKind, GrammarError
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.error.error_store import report_error
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -29,13 +30,12 @@ class ParserState(Enum):
 @dataclass
 class ParsedValue:
     raw: str
-    as_int: Optional[int]
+    as_value: Optional[Union[int, float]]  # Numeric value (int or float), None if not numeric
     origin_index: int
 
 @dataclass
 class ParsedCommand:
     name: str
-    default_value: Optional[ParsedValue]
     origin_index: int
 
 @dataclass
@@ -53,7 +53,7 @@ class ParsedValueMarker:
 
 @dataclass
 class ParsedCommandStream:
-    primary_command: ParsedCommand
+    primary_command: Optional[ParsedCommand]  # Optional to support partial parsing on error
     additional_commands: List[ParsedCommand]
     flags: List[ParsedFlag]
     order: List[Union[ParsedCommand, ParsedFlag, ParsedValueMarker]]
@@ -61,9 +61,11 @@ class ParsedCommandStream:
 def parse(tokens: List[Token]) -> ParsedCommandStream:
     trace_in()
     if not tokens:
-        warn("Empty token stream provided to parser")
+        error_msg = "Empty token stream"
+        warn(error_msg)
+        report_error("request", error_msg)
         trace_out()
-        raise GrammarError("Empty token stream")
+        raise GrammarError(error_msg)
     log(f"Parsing {len(tokens)} tokens")
     state = ParserState.EXPECT_COMMAND
     i = 0
@@ -71,71 +73,138 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
     additional_commands: list[ParsedCommand] = []
     flags: list[ParsedFlag] = []
     order: list[ParsedCommand | ParsedFlag | ParsedValueMarker] = []
-    while i < len(tokens):
-        token = tokens[i]
-        log(f"Processing token {i}: {token.kind.value}='{token.text}' in state {state.value}")
-        if state == ParserState.EXPECT_COMMAND:
-            if token.kind != TokenKind.COMMAND:
-                warn(f"Missing leading command, got {token.kind.value}: '{token.text}' at position {token.origin_index}")
-                trace_out()
-                raise GrammarError(f"Missing leading command, got {token.kind.value}: '{token.text}' at position {token.origin_index}")
-            command, next_i = _parse_command(tokens, i)
-            primary_command = command
-            order.append(command)
-            i = next_i
-            state = ParserState.EXPECT_ELEMENT
-            log(f"Parsed primary command: '{command.name}', now expecting element")
-        elif state == ParserState.EXPECT_ELEMENT:
-            if token.kind == TokenKind.FLAG:
-                flag, next_i = _parse_flag(tokens, i)
-                flags.append(flag)
-                order.append(flag)
-                i = next_i
-                state = ParserState.EXPECT_FLAG_VALUE_OR_NEXT
-                log(f"Parsed flag: '{flag.name}', now expecting value or next element")
-            elif token.kind == TokenKind.NO_FLAG:
-                flag, next_i = _parse_no_flag(tokens, i)
-                flags.append(flag)
-                order.append(flag)
-                i = next_i
-                log(f"Parsed no-flag: '{flag.name}', staying in element state")
-            elif token.kind == TokenKind.COMMAND:
+    try:
+        while i < len(tokens):
+            token = tokens[i]
+            log(f"Processing token {i}: {token.kind.value}='{token.text}' in state {state.value}")
+            if state == ParserState.EXPECT_COMMAND:
+                if token.kind != TokenKind.COMMAND:
+                    error_msg = f"Missing leading command, got {token.kind.value}: '{token.text}' at position {token.origin_index}"
+                    warn(error_msg)
+                    report_error("request", error_msg)
+                    trace_out()
+                    raise GrammarError(error_msg)
                 command, next_i = _parse_command(tokens, i)
-                additional_commands.append(command)
+                primary_command = command
                 order.append(command)
                 i = next_i
-                log(f"Parsed additional command: '{command.name}'")
-            elif token.kind == TokenKind.VALUE:
-                warn(f"Value without owner: '{token.text}' at position {token.origin_index}")
-                trace_out()
-                raise GrammarError(f"Value without owner: '{token.text}' at position {token.origin_index}")
-            else:
-                warn(f"Unexpected token type: {token.kind.value} at position {token.origin_index}")
-                trace_out()
-                raise GrammarError(f"Unexpected token type: {token.kind.value} at position {token.origin_index}")
-        elif state == ParserState.EXPECT_FLAG_VALUE_OR_NEXT:
-            if token.kind == TokenKind.VALUE:
-                if flags:
-                    value = _parse_value(token)
-                    flags[-1].value = value
-                    order.append(ParsedValueMarker(
-                        command_name=None,
-                        flag_name=flags[-1].name,
-                        origin_index=token.origin_index
-                    ))
-                    log(f"Added value '{value.raw}' to flag '{flags[-1].name}'")
+                state = ParserState.EXPECT_ELEMENT
+                log(f"Parsed primary command: '{command.name}', now expecting element")
+            elif state == ParserState.EXPECT_ELEMENT:
+                if token.kind == TokenKind.FLAG:
+                    flag, next_i = _parse_flag(tokens, i)
+                    flags.append(flag)
+                    order.append(flag)
+                    i = next_i
+                    state = ParserState.EXPECT_FLAG_VALUE_OR_NEXT
+                    log(f"Parsed flag: '{flag.name}', now expecting value or next element")
+                elif token.kind == TokenKind.NO_FLAG:
+                    flag, next_i = _parse_no_flag(tokens, i)
+                    flags.append(flag)
+                    order.append(flag)
+                    i = next_i
+                    log(f"Parsed no-flag: '{flag.name}', staying in element state")
+                elif token.kind == TokenKind.COMMAND:
+                    # Context-aware: convert COMMAND to FLAG (not additional command)
+                    # This happens after primary command - bare commands become flags
+                    flag, next_i = _parse_command_as_flag(tokens, i)
+                    flags.append(flag)
+                    order.append(flag)
+                    i = next_i
+                    state = ParserState.EXPECT_FLAG_VALUE_OR_NEXT
+                    debug(f"Converted COMMAND '{flag.name}' to FLAG, now expecting value or next element")
+                elif token.kind == TokenKind.VALUE:
+                    error_msg = f"Value without owner: '{token.text}' at position {token.origin_index}"
+                    warn(error_msg)
+                    report_error("request", error_msg)
+                    trace_out()
+                    raise GrammarError(error_msg)
+                elif token.kind == TokenKind.NUMBER:
+                    error_msg = f"Number without owner: '{token.text}' at position {token.origin_index}"
+                    warn(error_msg)
+                    report_error("request", error_msg)
+                    trace_out()
+                    raise GrammarError(error_msg)
                 else:
-                    warn("Value token found but no flags available")
-                i += 1
-                state = ParserState.EXPECT_ELEMENT
-                log("Processed flag value, back to element state")
-            else:
-                state = ParserState.EXPECT_ELEMENT
-                log("No value found, back to element state")
-    if primary_command is None:
-        warn("No primary command found in token stream")
+                    error_msg = f"Unexpected token type: {token.kind.value} at position {token.origin_index}"
+                    warn(error_msg)
+                    report_error("request", error_msg)
+                    trace_out()
+                    raise GrammarError(error_msg)
+            elif state == ParserState.EXPECT_FLAG_VALUE_OR_NEXT:
+                if token.kind == TokenKind.VALUE:
+                    # Quoted string value
+                    if flags:
+                        value = _parse_value(token)
+                        flags[-1].value = value
+                        order.append(ParsedValueMarker(
+                            command_name=None,
+                            flag_name=flags[-1].name,
+                            origin_index=token.origin_index
+                        ))
+                        log(f"Added string value '{value.raw}' to flag '{flags[-1].name}'")
+                    else:
+                        warn("Value token found but no flags available")
+                    i += 1
+                    state = ParserState.EXPECT_ELEMENT
+                    log("Processed flag value, back to element state")
+                elif token.kind == TokenKind.NUMBER:
+                    # Number value (convert to ParsedValue with numeric conversion)
+                    if flags:
+                        value = _parse_number_value(token)
+                        flags[-1].value = value
+                        order.append(ParsedValueMarker(
+                            command_name=None,
+                            flag_name=flags[-1].name,
+                            origin_index=token.origin_index
+                        ))
+                        debug(f"Added number value '{value.raw}' (as_value={value.as_value}) to flag '{flags[-1].name}'")
+                    else:
+                        warn("Number token found but no flags available")
+                    i += 1
+                    state = ParserState.EXPECT_ELEMENT
+                    debug("Processed flag number value, back to element state")
+                elif token.kind == TokenKind.COMMAND:
+                    # Context-aware: convert COMMAND to VALUE (unquoted string value)
+                    if flags:
+                        value = _parse_command_as_value(token)
+                        flags[-1].value = value
+                        order.append(ParsedValueMarker(
+                            command_name=None,
+                            flag_name=flags[-1].name,
+                            origin_index=token.origin_index
+                        ))
+                        debug(f"Converted COMMAND '{token.text}' to VALUE for flag '{flags[-1].name}'")
+                    else:
+                        warn("Command token found as value but no flags available")
+                    i += 1
+                    state = ParserState.EXPECT_ELEMENT
+                    debug("Processed command as flag value, back to element state")
+                else:
+                    # No value provided - flag becomes boolean (truthy)
+                    state = ParserState.EXPECT_ELEMENT
+                    debug("No value found, flag remains boolean, back to element state")
+    except GrammarError as e:
+        # Error encountered during token processing - return partial results
+        # Everything parsed before the error is kept, error token and everything after discarded
+        warn(f"Grammar error encountered during parsing, returning partial result: {e}")
+        result = ParsedCommandStream(
+            primary_command=primary_command,
+            additional_commands=additional_commands,
+            flags=flags,
+            order=order
+        )
+        log(f"Returning partial parse: primary_command={primary_command is not None}, {len(flags)} flags")
         trace_out()
-        raise GrammarError("No primary command found")
+        return result
+    
+    # Parsing completed successfully - build final result
+    if primary_command is None:
+        error_msg = "No primary command found in token stream"
+        warn(error_msg)
+        report_error("request", error_msg)
+        trace_out()
+        raise GrammarError(error_msg)
     result = ParsedCommandStream(
         primary_command=primary_command,
         additional_commands=additional_commands,
@@ -151,26 +220,20 @@ def _parse_command(tokens: List[Token], start_i: int) -> tuple[ParsedCommand, in
     command_token = tokens[start_i]
     log(f"Parsing command: '{command_token.text}' at position {start_i}")
     i = start_i + 1
-    default_value = None
-    if i < len(tokens) and tokens[i].kind == TokenKind.VALUE:
-        default_value = _parse_value(tokens[i])
-        i += 1
-        log(f"Command has default value: '{default_value.raw}'")
-    else:
-        log("Command has no default value")
+    # Commands don't have default values - leave VALUE tokens in stream to be caught as orphaned
     result = ParsedCommand(
         name=command_token.text,
-        default_value=default_value,
         origin_index=command_token.origin_index
     )
-    log(f"Parsed command: '{result.name}' with default_value={default_value is not None}")
+    log(f"Parsed command: '{result.name}'")
     trace_out()
     return result, i
 
 def _parse_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
     trace_in()
     flag_token = tokens[start_i]
-    name = flag_token.text.lstrip('-')
+    # Tokenizer already stripped dashes, so name is just the text
+    name = flag_token.text
     log(f"Parsing flag: '{flag_token.text}' -> name='{name}'")
     result = ParsedFlag(
         name=name,
@@ -185,21 +248,15 @@ def _parse_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
 def _parse_no_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
     trace_in()
     no_flag_token = tokens[start_i]
-    log(f"Parsing no-flag: '{no_flag_token.text}' at position {start_i}")
-    if no_flag_token.text.startswith('--no-'):
-        name = no_flag_token.text[5:]
-        log(f"Detected --no- format, name='{name}'")
-    elif no_flag_token.text.startswith('--no_'):
-        name = no_flag_token.text[5:]
-        log(f"Detected --no_ format, name='{name}'")
-    else:
-        warn(f"Invalid no-flag format: {no_flag_token.text}")
+    # Tokenizer already stripped --no- or --no_ prefix, so name is just the text
+    name = no_flag_token.text
+    log(f"Parsing no-flag: '{no_flag_token.text}' -> name='{name}' at position {start_i}")
+    if start_i + 1 < len(tokens) and (tokens[start_i + 1].kind == TokenKind.VALUE or tokens[start_i + 1].kind == TokenKind.NUMBER or tokens[start_i + 1].kind == TokenKind.COMMAND):
+        error_msg = f"No-flag cannot take value: '{no_flag_token.text}' followed by '{tokens[start_i + 1].text}'"
+        warn(error_msg)
+        report_error("request", error_msg)
         trace_out()
-        raise GrammarError(f"Invalid no-flag format: {no_flag_token.text}")
-    if start_i + 1 < len(tokens) and tokens[start_i + 1].kind == TokenKind.VALUE:
-        warn(f"No-flag cannot take value: '{no_flag_token.text}' followed by '{tokens[start_i + 1].text}'")
-        trace_out()
-        raise GrammarError(f"No-flag cannot take value: '{no_flag_token.text}' followed by '{tokens[start_i + 1].text}'")
+        raise GrammarError(error_msg)
     result = ParsedFlag(
         name=name,
         value=None,
@@ -211,22 +268,75 @@ def _parse_no_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
     return result, start_i + 1
 
 def _parse_value(token: Token) -> ParsedValue:
+    """Parse a VALUE token (quoted string) as ParsedValue."""
     trace_in()
     log(f"Parsing value: '{token.text}' at position {token.origin_index}")
-    as_int = None
-    if re.match(r'^\d+$', token.text):
-        try:
-            as_int = int(token.text)
-            log(f"Value '{token.text}' converted to integer: {as_int}")
-        except ValueError as e:
-            log(f"Failed to convert '{token.text}' to integer: {e}")
-    else:
-        log(f"Value '{token.text}' is not numeric")
+    # Quoted strings are always strings, not numbers
     result = ParsedValue(
         raw=token.text,
-        as_int=as_int,
+        as_value=None,
         origin_index=token.origin_index
     )
-    log(f"Parsed value: raw='{result.raw}', as_int={result.as_int}")
+    log(f"Parsed value: raw='{result.raw}', as_value={result.as_value}")
+    trace_out()
+    return result
+
+def _parse_number_value(token: Token) -> ParsedValue:
+    """Parse a NUMBER token as ParsedValue with numeric conversion."""
+    trace_in()
+    debug(f"Parsing number value: '{token.text}' at position {token.origin_index}")
+    as_value: Optional[Union[int, float]] = None
+    try:
+        # Try integer first
+        if re.match(r'^-?\d+$', token.text):
+            as_value = int(token.text)
+            debug(f"Number '{token.text}' converted to integer: {as_value}")
+        else:
+            # Try float
+            float_value = float(token.text)
+            # If it's a whole number, store as int
+            if float_value.is_integer():
+                as_value = int(float_value)
+                debug(f"Number '{token.text}' converted to integer: {as_value}")
+            else:
+                as_value = float_value
+                debug(f"Number '{token.text}' converted to float: {as_value}")
+    except ValueError as e:
+        debug(f"Failed to convert '{token.text}' to number: {e}")
+    result = ParsedValue(
+        raw=token.text,
+        as_value=as_value,
+        origin_index=token.origin_index
+    )
+    debug(f"Parsed number value: raw='{result.raw}', as_value={result.as_value}")
+    trace_out()
+    return result
+
+def _parse_command_as_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
+    """Convert a COMMAND token to a ParsedFlag (context-aware conversion)."""
+    trace_in()
+    command_token = tokens[start_i]
+    debug(f"Converting COMMAND '{command_token.text}' to FLAG at position {start_i}")
+    result = ParsedFlag(
+        name=command_token.text,
+        value=None,
+        origin_index=command_token.origin_index,
+        is_no=False
+    )
+    debug(f"Converted COMMAND to flag: '{result.name}'")
+    trace_out()
+    return result, start_i + 1
+
+def _parse_command_as_value(token: Token) -> ParsedValue:
+    """Convert a COMMAND token to a ParsedValue (unquoted string value)."""
+    trace_in()
+    debug(f"Converting COMMAND '{token.text}' to VALUE at position {token.origin_index}")
+    # Command becomes an unquoted string value
+    result = ParsedValue(
+        raw=token.text,
+        as_value=None,
+        origin_index=token.origin_index
+    )
+    debug(f"Converted COMMAND to value: raw='{result.raw}'")
     trace_out()
     return result
