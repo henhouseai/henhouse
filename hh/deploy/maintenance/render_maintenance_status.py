@@ -44,51 +44,47 @@ def render_maintenance_block(source_data, lines):
         return
 
     data_table = TableData()
-    # Add header row to define column structure
-    data_table.add_row("maintenance_status_header", name="Tier", user="User", port="Port")
+    # Add header row to define column structure (no port column for maintenance daemons)
+    data_table.add_row("maintenance_status_header", name="Daemon", user="User")
 
     # Get main maintenance daemon status
     main_data = source_data.get("main", {})
     main_status = main_data.get("status", "unknown")
     main_user = main_data.get("user", "")
-    main_port = main_data.get("port", "")
     
     main_user_str = safe_str(main_user) if main_user else '-'
-    main_port_str = safe_str(str(main_port)) if main_port else '-'
     
     if main_status == "running":
-        data_table.add_row("daemon_running", name="main", user=main_user_str, port=main_port_str)
+        data_table.add_row("daemon_running", name="main", user=main_user_str)
     elif main_status == "stopped":
-        data_table.add_row("daemon_stopped", name="main", user=main_user_str, port=main_port_str)
+        data_table.add_row("daemon_stopped", name="main", user=main_user_str)
     elif main_status == "not_found":
-        data_table.add_row("daemon_not_found", name="main", user=main_user_str, port=main_port_str)
+        data_table.add_row("daemon_not_found", name="main", user=main_user_str)
     elif main_status == "error":
         error_msg = main_data.get("error", "Error")
-        data_table.add_row("daemon_failed", name="main", user=main_user_str, port=main_port_str)
+        data_table.add_row("daemon_failed", name="main", user=main_user_str)
     else:
-        data_table.add_row("daemon_not_found", name="main", user=main_user_str, port=main_port_str)
+        data_table.add_row("daemon_not_found", name="main", user=main_user_str)
 
     # Get EXT maintenance daemon statuses
     ext_data = source_data.get("ext", {})
     for daemon_name, ext_daemon_data in ext_data.items():
         ext_status = ext_daemon_data.get("status", "unknown")
         ext_user = ext_daemon_data.get("user", "")
-        ext_port = ext_daemon_data.get("port", "")
         
         ext_user_str = safe_str(ext_user) if ext_user else '-'
-        ext_port_str = safe_str(str(ext_port)) if ext_port else '-'
         
         if ext_status == "running":
-            data_table.add_row("daemon_running", name=safe_str(daemon_name), user=ext_user_str, port=ext_port_str)
+            data_table.add_row("daemon_running", name=safe_str(daemon_name), user=ext_user_str)
         elif ext_status == "stopped":
-            data_table.add_row("daemon_stopped", name=safe_str(daemon_name), user=ext_user_str, port=ext_port_str)
+            data_table.add_row("daemon_stopped", name=safe_str(daemon_name), user=ext_user_str)
         elif ext_status == "not_found":
-            data_table.add_row("daemon_not_found", name=safe_str(daemon_name), user=ext_user_str, port=ext_port_str)
+            data_table.add_row("daemon_not_found", name=safe_str(daemon_name), user=ext_user_str)
         elif ext_status == "error":
             error_msg = ext_daemon_data.get("error", "Error")
-            data_table.add_row("daemon_failed", name=safe_str(daemon_name), user=ext_user_str, port=ext_port_str)
+            data_table.add_row("daemon_failed", name=safe_str(daemon_name), user=ext_user_str)
         else:
-            data_table.add_row("daemon_not_found", name=safe_str(daemon_name), user=ext_user_str, port=ext_port_str)
+            data_table.add_row("daemon_not_found", name=safe_str(daemon_name), user=ext_user_str)
 
     lines.append(
         render_block(
@@ -129,7 +125,7 @@ def maintenance_status() -> bool:
 
     json_data = gateway.response.get_action_response()
     source_data = get_data(json_data if json_data is not None else {})
-    lines = [render_header_block("l_maintenance_status_header")]
+    lines = [render_header_block("l_maintenance_header")]
     render_maintenance_block(source_data, lines)
     result = finalize_output(lines)
     gateway.response.add_output(result)
