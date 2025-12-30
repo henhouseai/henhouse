@@ -37,6 +37,7 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
         upgrade_data = TableData()
         target = source_data.get('target', 'Unknown')
         backup_name = source_data.get('backup_name', 'Unknown')
+        context_backup_name = source_data.get('context_backup_name')
         restored_files_raw: Any = source_data.get('restored_files', [])
         restored_files: List[str] = restored_files_raw if isinstance(restored_files_raw, list) else []
         restored_count = source_data.get('restored_count', 0)
@@ -56,6 +57,13 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
             'backup_created',
             value=safe_str(backup_name)
         )
+        
+        # Context backup name (if exists)
+        if context_backup_name:
+            upgrade_data.add_row(
+                'context_backup_created',
+                value=safe_str(context_backup_name)
+            )
         
         # Restored files
         if restored_files:
@@ -82,16 +90,21 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
         
         debug(f"Final upgrade_data: {upgrade_data.num_rows()} items")
         
+        # Build simple fields list (conditionally include context_backup_created)
+        simple_fields = ['backup_created']
+        if context_backup_name:
+            simple_fields.append('context_backup_created')
+        simple_fields.extend([
+            'file_restored',
+            'backup_reminder',
+            'test_reminder',
+        ])
+        
         lines.append(render_block(
             upgrade_data,
             FieldConfig()
                 .add_header('target_header')
-                .add_simple([
-                    'backup_created',
-                    'file_restored',
-                    'backup_reminder',
-                    'test_reminder',
-                ]),
+                .add_simple(simple_fields),
             table_overrides={'margin_l': 4},
             block_type=block
         ))

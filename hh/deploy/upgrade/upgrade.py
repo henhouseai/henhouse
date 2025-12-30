@@ -103,6 +103,33 @@ def create_backup(target_path: Path) -> Path:
     return backup_path
 
 
+def create_context_backup(target_path: Path) -> Optional[Path]:
+    """Create backup of context/ folder with incrementing names if backup already exists."""
+    trace_in()
+    context_path = target_path / "context"
+    
+    if not context_path.exists():
+        log(f"context/ folder does not exist: {context_path}, skipping backup")
+        trace_out()
+        return None
+    
+    # Find available backup name
+    backup_name = "context_backup"
+    backup_path = target_path / backup_name
+    counter = 2
+    
+    while backup_path.exists():
+        backup_name = f"context_backup_{counter}"
+        backup_path = target_path / backup_name
+        counter += 1
+    
+    # Rename context/ to backup (atomic operation)
+    context_path.rename(backup_path)
+    log(f"Created context backup: {backup_path}")
+    trace_out()
+    return backup_path
+
+
 def copy_hh(source_path: Path, target_path: Path) -> bool:
     """Copy hh/ folder from source to target, then clean up cache files."""
     trace_in()
@@ -178,6 +205,32 @@ def copy_hh(source_path: Path, target_path: Path) -> bool:
     return True
 
 
+def copy_context(source_path: Path, target_path: Path) -> bool:
+    """Copy context/ folder from source to target."""
+    trace_in()
+    source_context = source_path / "context"
+    target_context = target_path / "context"
+    
+    if not source_context.exists():
+        warn(f"Source context/ folder does not exist: {source_context}")
+        report_error("action", f"Source context/ folder does not exist: {source_context}")
+        trace_out()
+        return False
+    
+    try:
+        # Copy entire context/ folder (no exclusions)
+        shutil.copytree(source_context, target_context)
+        log(f"Copied context/ to {target_context}")
+    except Exception as e:
+        warn(f"Failed to copy context/ folder: {e}")
+        report_error("action", f"Failed to copy context/ folder: {e}")
+        trace_out()
+        return False
+    
+    trace_out()
+    return True
+
+
 def restore_preserved(target_path: Path, backup_path: Path) -> List[str]:
     """Restore files from backup that are listed in upgrade_preserve.py."""
     trace_in()
@@ -231,7 +284,7 @@ def restore_preserved(target_path: Path, backup_path: Path) -> List[str]:
     return restored_files
 
 
-def report_results(target_path: Path, backup_path: Path, restored_files: List[str]) -> dict:
+def report_results(target_path: Path, backup_path: Path, restored_files: List[str], context_backup_path: Optional[Path] = None) -> dict:
     """Create result payload for upgrade operation."""
     trace_in()
     result_data = {
@@ -242,6 +295,9 @@ def report_results(target_path: Path, backup_path: Path, restored_files: List[st
         "restored_count": len(restored_files),
         "status": "upgraded"
     }
+    if context_backup_path:
+        result_data["context_backup"] = str(context_backup_path)
+        result_data["context_backup_name"] = context_backup_path.name
     trace_out()
     return result_data
 
@@ -277,6 +333,9 @@ def do_upgrade() -> bool:
         trace_out()
         return False
     
+    # Check if context folder should be upgraded
+    upgrade_context = gateway.is_set('context')
+    
     # Create backup
     try:
         backup_path = create_backup(target_path)
@@ -286,10 +345,27 @@ def do_upgrade() -> bool:
         trace_out()
         return False
     
+    # Create context backup if requested
+    context_backup_path = None
+    if upgrade_context:
+        try:
+            context_backup_path = create_context_backup(target_path)
+        except Exception as e:
+            warn(f"Failed to create context backup: {e}")
+            report_error("action", f"Failed to create context backup: {e}")
+            trace_out()
+            return False
+    
     # Copy new hh/
     if not copy_hh(source_path, target_path):
         trace_out()
         return False
+    
+    # Copy context/ if requested
+    if upgrade_context:
+        if not copy_context(source_path, target_path):
+            trace_out()
+            return False
     
     # Restore preserved files
     restored_files = restore_preserved(target_path, backup_path)
@@ -298,7 +374,7 @@ def do_upgrade() -> bool:
     result = not is_error()
     if result:
         log("Upgrade completed successfully")
-        result_data = report_results(target_path, backup_path, restored_files)
+        result_data = report_results(target_path, backup_path, restored_files, context_backup_path)
         gateway.response.set_action_response(success_payload(result_data))
     else:
         log("Upgrade encountered problems")

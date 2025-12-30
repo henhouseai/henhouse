@@ -212,18 +212,76 @@ Derived classes extend `Page` (or intermediate abstract classes):
 
 Derived classes can override the following methods to customize behavior:
 
-##### Class Hooks
+##### Lifecycle Hooks
 
-**`_add_page_class_information(new_page_id: int)`** - Class Method
-- Called after page creation for class-specific setup
-- Use for initializing related records or setting defaults
-- Example: Creating related records in other tables
+The Page system provides comprehensive before/after hooks for all major lifecycle operations. All hooks are empty stubs in the base `Page` class and can be overridden by derived classes.
 
-**`_delete_page_class_information()`** - Instance Method
-- Called before page deletion for cleanup
-- Use for deleting related records or cleaning up resources
+**Page Creation Hooks**
 
-See `Page._add_page_class_information()` and `_delete_page_class_information()` in `hh/page/page.py` for the base implementations.
+**`_before_add_page(cls, parent_id: int, page_class: str, name: Optional[str])`** - Class Method
+- Called before page creation in database (after validation, before INSERT)
+- Use for validation or preparation before page is created
+- Receives parent ID, page class, and name that will be used
+
+**`_after_add_page(cls, new_page_id: int)`** - Class Method
+- Called after page creation to initialize class-specific data
+- Use for setting default metadata values or initializing related records
+- Receives the newly created page ID
+- Example: See accounting modules (Account, Fee, Transfer, etc.) for metadata initialization
+
+**Page Copy Hooks**
+
+**`_before_copy_page(self, target_page_id: int)`** - Instance Method
+- Called before copying a page
+- Use for validation or preparation before copy operation
+- Receives the target parent page ID where copy will be created
+
+**`_after_copy_page(self, new_page_id: int)`** - Instance Method
+- Called after copying a page (metadata is automatically copied)
+- Use for cleanup or triggering recalculation of derived fields
+- Receives the newly created page ID
+- Example: See Statement, Invoice, Sale for recalculation logic
+
+**Page Move Hooks**
+
+**`_before_move_page(self, target_page_id: int)`** - Instance Method
+- Called before moving a page
+- Use for validation or preparation before move operation
+- Receives the target parent page ID
+
+**`_after_move_page(self, old_parent_id: Optional[int], new_parent_id: int)`** - Instance Method
+- Called after moving a page
+- Use for cleanup or triggering recalculation of derived fields
+- Receives both old and new parent IDs
+- Example: See Statement, Invoice, Sale, Transfer, Fee for recalculation logic
+
+**Page Delete Hooks**
+
+**`_before_delete_page(self)`** - Instance Method
+- Called before deleting a page (page still exists in database)
+- Use for capturing values needed for cleanup (e.g., parent, transferTo)
+- Store values as instance attributes (e.g., `self._deleted_parent`) for use in `_after_delete_page()`
+
+**`_after_delete_page(self)`** - Instance Method
+- Called after deleting a page (page already removed from database)
+- Use for cleanup or triggering recalculation of related pages
+- Access captured values from `_before_delete_page()` hook
+- Example: See Statement, Invoice, Sale, Transfer, Fee for recalculation logic
+
+**Metadata Extraction Hooks**
+
+**`_before_metadata_extraction(self)`** - Instance Method
+- Called before metadata fields are extracted as attributes in `__init__()`
+- Use for preparation before metadata extraction
+- Called automatically during page initialization
+
+**`_after_metadata_extraction(self)`** - Instance Method
+- Called after metadata fields are extracted as attributes
+- Use for normalizing metadata, setting defaults, or setting up lazy computation
+- Called automatically in `__init__()` after metadata extraction but before cache hydration
+- Example: See Statement, Invoice, Sale for derived field initialization and lazy computation setup
+
+See `Page` class in `hh/page/page.py` for the base hook implementations.
 
 ##### Display Hooks
 
@@ -270,10 +328,7 @@ See `Page._add_page_class_information()` and `_delete_page_class_information()` 
 - Uses the class's own `_get_children_query()` to get children of that specific class
 - Example: See `SourceCodeFile.getChildrenOf()` in `hh/source_code_file/source_code_file.py` for class-specific override
 
-**`_copy_page_class_information(new_page_id: int)`** - Instance Method
-- Override to customize what happens when a page is copied
-- Called during `copy_page()` operation
-- Default: No-op
+**Note on Metadata Copying**: The `copy_page()` method automatically copies the entire metadata JSON field from source to target page. Derived classes can use `_after_copy_page()` hook to trigger recalculation or other post-copy operations.
 
 #### Custom Metadata Namespaces
 

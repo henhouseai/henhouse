@@ -178,7 +178,7 @@ class McpActionRequest(Page):
         return display_name
 
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int):
+    def _after_add_page(cls, new_page_id: int):
         """Hook called after page creation to initialize MCP action request metadata."""
         trace_in()
         gateway = get_gateway()
@@ -218,11 +218,6 @@ class McpActionRequest(Page):
         log(f"Initialized metadata for MCP action request page {new_page_id}")
         trace_out()
 
-    def _delete_page_class_information(self):
-        """Hook called before page deletion."""
-        trace_in()
-        # Metadata stored with page; nothing additional to delete.
-        trace_out()
 
     def get_page_data(self) -> Dict[str, Any]:
         """Override to add MCP action request specific fields to page data."""

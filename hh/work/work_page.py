@@ -127,11 +127,13 @@ class WorkPage(Page):
     """
     
     def __init__(self, id: int):
-        """Initialize WorkPage by calling parent constructor and loading work metadata."""
+        """Initialize WorkPage by calling parent constructor."""
         # Call parent constructor first (Page handles gateway, DB load, cache hydration, and automatically extracts metadata fields as attributes)
+        # The _after_metadata_extraction() hook will be called automatically to load work metadata
         super().__init__(id)
-        
-        # Load and normalize work-specific metadata (moved from _do_init)
+    
+    def _after_metadata_extraction(self) -> None:
+        """Override hook to load and normalize work-specific metadata after parent extracts metadata fields."""
         # Page.__init__() already extracted metadata fields (status, meta, sort_order, etc.) as attributes
         # This method normalizes them and sets defaults if needed
         if not is_error() and hasattr(self, 'gateway') and self.gateway and self.gateway.conn:
@@ -152,7 +154,7 @@ class WorkPage(Page):
         return {key: data[key] for key in sorted(data.keys(), key=lambda k: k.lower())}
     
     @classmethod
-    def _add_page_class_information(cls, new_page_id: int):
+    def _after_add_page(cls, new_page_id: int):
         """
         Hook called after page creation to initialize metadata for work entities.
         """
@@ -234,13 +236,6 @@ class WorkPage(Page):
         new_page.meta = json.dumps(user_meta or {}, ensure_ascii=False)
         trace_out()
     
-    def _delete_page_class_information(self):
-        """
-        Hook called before page deletion to remove work-specific metadata if desired.
-        """
-        trace_in()
-        # No additional cleanup required now that metadata lives on the page row.
-        trace_out()
     
     def _get_display_name(self) -> str:
         """

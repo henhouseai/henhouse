@@ -288,6 +288,11 @@ class Page:
                 except (ValueError, TypeError):
                     self.metadata = {}
             
+            # Call hook for subclasses to handle pre-metadata-extraction setup
+            # This allows subclasses to prepare before metadata fields are extracted as attributes
+            if not is_error():
+                self._before_metadata_extraction()
+            
             # Automatically extract all metadata fields as attributes
             # This allows subclasses to access metadata fields directly (e.g., self.path, self.language)
             # without needing to manually extract them
@@ -300,6 +305,11 @@ class Page:
                         debug(f"Extracted metadata field: {key} = {value}")
                     else:
                         debug(f"Skipped metadata field '{key}' - attribute already exists")
+            
+            # Call hook for subclasses to handle post-metadata-extraction setup
+            # This allows subclasses to normalize metadata, set defaults, or set up lazy computation
+            if not is_error():
+                self._after_metadata_extraction()
             
             text_length = len(self.text) if self.text else 0
             log(f"Loaded page {id}: {self.name}")
@@ -381,7 +391,69 @@ class Page:
                             log(f"Copied child page {child_id} to {copied_child_id}")
         trace_out()
 
-    def _copy_page_class_information(self, new_page_id: int):
+    @classmethod
+    def _before_add_page(cls, parent_id: int, page_class: str, name: Optional[str]) -> None:
+        """
+        Hook called before page creation for validation or preparation.
+        This is a classmethod (like PHP's static method) so it can be called on the class
+        without needing an instance. Subclasses should override this.
+        
+        Args:
+            parent_id: ID of the parent page
+            page_class: Class name of the page to be created
+            name: Name of the page to be created (may be None)
+        """
+        pass
+
+    @classmethod
+    def _after_add_page(cls, new_page_id: int):
+        """
+        Hook called after page creation to initialize class-specific data.
+        This is a classmethod (like PHP's static method) so it can be called on the class
+        without needing an instance. Subclasses should override this.
+        """
+        pass
+
+    def _before_copy_page(self, target_page_id: int):
+        """
+        Hook called before copying a page.
+        Subclasses can override this for validation or preparation.
+        """
+        pass
+
+    def _after_copy_page(self, new_page_id: int):
+        """
+        Hook called after copying a page.
+        Subclasses can override this for cleanup or recalculation.
+        """
+        pass
+
+    def _before_move_page(self, target_page_id: int):
+        """
+        Hook called before moving a page.
+        Subclasses can override this for validation or preparation.
+        """
+        pass
+
+    def _after_move_page(self, old_parent_id: Optional[int], new_parent_id: int):
+        """
+        Hook called after moving a page.
+        Subclasses can override this for cleanup or recalculation.
+        """
+        pass
+
+    def _before_delete_page(self):
+        """
+        Hook called before deleting a page.
+        Subclasses can override this for validation or preparation.
+        """
+        pass
+
+    def _after_delete_page(self):
+        """
+        Hook called after deleting a page.
+        Subclasses can override this for cleanup or recalculation.
+        """
         pass
 
     def _get_child_page_ids(self) -> List[int]:
@@ -458,6 +530,24 @@ class Page:
             self._flag_cache_refresh()
         trace_out()
         return children_by_class
+
+    def _before_metadata_extraction(self) -> None:
+        """
+        Hook called before metadata fields are extracted as attributes.
+        Subclasses can override this to prepare before metadata extraction.
+        Called automatically in __init__() before metadata extraction.
+        """
+        # Default implementation does nothing - subclasses can override
+        pass
+
+    def _after_metadata_extraction(self) -> None:
+        """
+        Hook called after metadata fields are extracted as attributes.
+        Subclasses can override this to normalize metadata, set defaults, or set up lazy computation.
+        Called automatically in __init__() after metadata extraction but before cache hydration.
+        """
+        # Default implementation does nothing - subclasses can override
+        pass
 
     def _get_display_name(self) -> str:
         """
@@ -575,15 +665,6 @@ class Page:
             self.metadata = metadata
         trace_out()
         return success and not is_error()
-
-    @classmethod
-    def _add_page_class_information(cls, new_page_id: int):
-        """
-        Hook called after page creation to add class-specific data.
-        This is a classmethod (like PHP's static method) so it can be called on the class
-        without needing an instance. Subclasses should override this.
-        """
-        pass
 
     def _add_image_to_group(self, image_id: int, rank: Optional[int] = None) -> bool:
         trace_in()
@@ -916,8 +997,6 @@ class Page:
         trace_out()
         return not is_error()
 
-    def _delete_page_class_information(self):
-        pass
 
     def _dump_json(self, value: Any) -> str:
         return json.dumps(
@@ -1245,16 +1324,21 @@ class Page:
             # Otherwise, set to None
             link_value = name_value if (auto_link and name_value is not None) else None
             
-            try:
-                now = dt.datetime.now()
-                new_page_id = self.gateway.conn.create("""
-                    INSERT INTO pages (parent, name, link, class, last_modified, username, visibility, displayStyle)
-                    VALUES (%s, %s, %s, %s, %s, %s, 1, 1)
-                """, (self.id, name_value, link_value, page_class, now, db_user))
-                log(f"Created new page: id={new_page_id}, name='{name_value}', parent={self.id}, class='{page_class}'")
-            except Exception as e:
-                warn(f"Failed to create page: {str(e)}")
-                report_error("backend", f"Failed to create page: {str(e)}")
+            # Call before hook for validation or preparation
+            if not is_error():
+                NewPageClass._before_add_page(self.id, page_class, name_value)
+            
+            if not is_error():
+                try:
+                    now = dt.datetime.now()
+                    new_page_id = self.gateway.conn.create("""
+                        INSERT INTO pages (parent, name, link, class, last_modified, username, visibility, displayStyle)
+                        VALUES (%s, %s, %s, %s, %s, %s, 1, 1)
+                    """, (self.id, name_value, link_value, page_class, now, db_user))
+                    log(f"Created new page: id={new_page_id}, name='{name_value}', parent={self.id}, class='{page_class}'")
+                except Exception as e:
+                    warn(f"Failed to create page: {str(e)}")
+                    report_error("backend", f"Failed to create page: {str(e)}")
         if not is_error() and new_page_id:
             # Call hook to initialize class-specific data
             # Get the page class for the new page and call its static method
@@ -1265,7 +1349,7 @@ class Page:
                 report_error("action", f"Page class '{page_class}' not found")
             else:
                 # Call the classmethod on the new page's class
-                NewPageClass._add_page_class_information(new_page_id)
+                NewPageClass._after_add_page(new_page_id)
             # Flag parent modification so cache system sees the hierarchy change
             self.flag_page_modification("child added")
         if new_page_id:
@@ -1383,11 +1467,22 @@ class Page:
                 warn(f"Target page {target_page_id} not found")
                 report_error("action", f"Target page {target_page_id} not found")
         if not is_error() and new_page_id > 0:
+            # Call before hook
+            self._before_copy_page(target_page_id)
+        if not is_error() and new_page_id > 0:
             # Copy text content
             if self.text:
                 new_page = get_page(page_id=new_page_id)
                 if new_page:
                     new_page.modify_text(self.text)
+            # Copy metadata automatically
+            if self.metadata:
+                new_page = get_page(page_id=new_page_id)
+                if new_page:
+                    # Copy entire metadata dict to new page
+                    source_metadata = self._get_metadata_dict()
+                    if source_metadata:
+                        new_page._write_metadata_dict(source_metadata.copy())
             # Copy images if requested
             if copy_images:
                 source_images = self.get_images_data()
@@ -1410,11 +1505,11 @@ class Page:
                         if file_ids:
                             if not new_page.copy_media_items("file", file_ids):
                                 warn(f"Failed to copy files from page {self.id} to page {new_page_id}")
-            # Call class-specific copy logic hook
-            self._copy_page_class_information(new_page_id)
             # Recursively copy children if requested
             if recursive:
                 self._copy_children_recursive(new_page_id, max_depth, copy_images=copy_images, copy_files=copy_files)
+            # Call after hook
+            self._after_copy_page(new_page_id)
             log(f"Successfully copied page {self.id} to page {new_page_id}")
         trace_out()
         return new_page_id
@@ -1681,10 +1776,13 @@ class Page:
                     warn(f"Failed to delete video_groups for page {self.id}")
                     report_error("action", f"Failed to delete video_groups for page {self.id}")
         if not is_error():
-            # Call hook to clean up class-specific data before deleting
-            self._delete_page_class_information()
+            # Call before hook
+            self._before_delete_page()
         if not is_error():
             success = self.delete_from_database()
+            if success:
+                # Call after hook
+                self._after_delete_page()
             if not success:
                 warn(f"Failed to delete page {self.id}")
                 report_error("action", f"Failed to delete page {self.id}")
@@ -2243,6 +2341,9 @@ class Page:
             trace_out()
             return False
         original_parent = self.parent
+        # Call before hook
+        if not is_error():
+            self._before_move_page(target_page_id)
         if not is_error():
             # Perform the actual move
             affected = self.gateway.conn.update("UPDATE pages SET parent = %s WHERE id = %s", (target_page_id, self.id))
@@ -2263,6 +2364,9 @@ class Page:
                 new_parent = get_page(page_id=target_page_id)
                 if new_parent:
                     new_parent.flag_page_modification("child moved in")
+            # Call after hook
+            old_parent_id = original_parent if original_parent else 0
+            self._after_move_page(old_parent_id, target_page_id)
             log(f"Successfully moved page {self.id} to parent {target_page_id}")
         trace_out()
         return not is_error()
