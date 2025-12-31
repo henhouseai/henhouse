@@ -52,29 +52,31 @@ sudo apt upgrade -y
 
 **Install Required System Packages**:
 
-Before proceeding with Henhouse installation, install these system packages:
+Before proceeding with Henhouse installation, install all required system packages and Python dependencies:
 
 ```bash
-# Python and pip
-sudo apt install python3 python3-pip -y
-
-# Git (for cloning the repository)
-sudo apt install git -y
-
-# MySQL client libraries (required for pymysql)
-sudo apt install default-libmysqlclient-dev -y
-
-# NGINX (web server - required for HTTP deployment)
-sudo apt install nginx -y
-
-# MySQL server (if running database on this box)
-sudo apt install mysql-server -y
+# Install all system packages and Python dependencies in one command
+sudo apt install python3 python3-pip git default-libmysqlclient-dev nginx mysql-server apache2-utils python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
 ```
 
+**What this installs**:
+- **Python 3** - Python interpreter (usually pre-installed)
+- **python3-pip** - Python package manager (optional, for developer boxes)
+- **Git** - Version control (for cloning henhouse repository)
+- **default-libmysqlclient-dev** - MySQL client libraries (required for pymysql)
+- **NGINX** - Web server (required for HTTP deployment - see Chapter 9)
+- **MySQL server** - Database server (required for database setup - see Chapter 2)
+- **apache2-utils** - Provides `htpasswd` command (required for HTTP Basic Auth - see Chapter 9)
+- **Python dependencies** - Flask, pymysql, psutil, mutagen, Pillow (all available as apt packages)
+- **ffmpeg** - Audio/video processing (includes ffprobe)
+
+**Note**: NGINX and MySQL are **required** for full Henhouse deployment. The dependency checker (`python3 hen.py dependency-list`) only checks Python packages, not system services like NGINX or MySQL.
+
 **Note on Package Management**:
-- Use `apt` for system packages (Python, Git, NGINX, MySQL, etc.)
-- Use `pip3` for Python packages (Flask, pymysql, etc.)
-- Python packages are listed in `requirements.txt` and installed with `pip3 install -r requirements.txt`
+- Use `apt` for all packages (system packages and Python packages)
+- Python dependencies are available as apt packages: `python3-flask`, `python3-pymysql`, `python3-psutil`, `python3-mutagen`, `python3-pil`
+- Install all dependencies with: `sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y`
+- `requirements.txt` is provided for developer boxes or systems where apt packages aren't available
 
 ### Installation Scope
 
@@ -159,12 +161,17 @@ These values are used in the install config file (`/root/.{project}-install.cnf`
 
 NGINX must be installed and running on your deployment server before you can deploy Henhouse sites. The installer does not install NGINX for you.
 
-**Installation commands** (Ubuntu/Debian):
+**Note**: NGINX should already be installed as part of the initial system setup (see "Initial System Setup" section above). If you haven't installed it yet, install it now:
+
 ```bash
-sudo apt update
-sudo apt install nginx
+sudo apt install nginx -y
 sudo systemctl start nginx
 sudo systemctl enable nginx
+```
+
+**Verify NGINX is running**:
+```bash
+sudo systemctl status nginx
 ```
 
 ### Expected Directory Structure
@@ -252,12 +259,17 @@ Before proceeding to installation, verify:
    sudo systemctl status nginx
    ```
 
-3. **Webroot Directory**: `/var/www/html` exists and is writable
+3. **MySQL Status**: MySQL server is installed and running (if running database on this box)
+   ```bash
+   sudo systemctl status mysql
+   ```
+
+4. **Webroot Directory**: `/var/www/html` exists and is writable
    ```bash
    ls -la /var/www/html
    ```
 
-4. **Static IP**: You know your deployment server's static IP address (for DNS records and MySQL configuration)
+5. **Static IP**: You know your deployment server's static IP address (for DNS records and MySQL configuration)
 
 ## Next Steps
 

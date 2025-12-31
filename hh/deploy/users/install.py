@@ -709,6 +709,31 @@ def setup_git_repository(project_name: str, project_path: Path) -> None:
         # Rename branch to project_name (regardless of what git init created)
         subprocess.run(['git', 'branch', '-m', project_name], cwd=str(project_path), check=True)
     
+    # Check if there are any commits (repo might exist but be empty)
+    result = subprocess.run(['git', 'rev-list', '--count', 'HEAD'], cwd=str(project_path), capture_output=True, text=True)
+    commit_count = int(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else 0
+    
+    if commit_count == 0:
+        log(f"No commits found in {project_path}, creating initial commit")
+        # Configure git user if not already set
+        try:
+            subprocess.run(['git', 'config', 'user.name', f'{project_name} System'], cwd=str(project_path), check=True)
+            subprocess.run(['git', 'config', 'user.email', f'system@{project_name}.local'], cwd=str(project_path), check=True)
+        except subprocess.CalledProcessError:
+            pass  # Already configured
+        
+        # Add all files
+        subprocess.run(['git', 'add', '.'], cwd=str(project_path), check=True)
+        
+        # Initial commit
+        subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=str(project_path), check=True)
+        
+        # Rename branch to project_name if needed
+        try:
+            subprocess.run(['git', 'branch', '-m', project_name], cwd=str(project_path), check=True)
+        except subprocess.CalledProcessError:
+            pass  # Branch might already be named correctly
+    
     # Add the bare repo as remote (remove existing if it exists)
     try:
         subprocess.run(['git', 'remote', 'remove', 'origin'], cwd=str(project_path), check=True, capture_output=True)
@@ -835,6 +860,14 @@ def setup_htpasswd_files(project_name: str, passwords: List[str], admin_htpasswd
     """Create/update .htpasswd files for admin and root tiers."""
     trace_in()
     try:
+        # Check if htpasswd command exists
+        htpasswd_path = shutil.which('htpasswd')
+        if not htpasswd_path:
+            error_msg = "htpasswd command not found. Install apache2-utils: sudo apt install apache2-utils"
+            warn(error_msg)
+            report_error("backend", error_msg)
+            raise FileNotFoundError(error_msg)
+        
         # Get admin and root tier indices
         admin_idx = HENHOUSE_TIERS.index('admin') if 'admin' in HENHOUSE_TIERS else None
         root_idx = HENHOUSE_TIERS.index('root') if 'root' in HENHOUSE_TIERS else None

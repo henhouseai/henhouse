@@ -306,20 +306,34 @@ find . -type f -name "*.pyc" -delete 2>/dev/null || true
         gateway.files.chmod(str(hen_script), 0o755)
         log(f"Created root hen script with cache cleanup at {hen_script}")
         
-        # Update root's PATH to include /root
-        profile_path = root_home / '.profile'
-        if profile_path.exists():
-            with open(profile_path, 'r') as f:
-                profile_content = f.read()
-        else:
-            profile_content = ''
+        # Update root's PATH to include /root (both .profile and .bashrc for compatibility)
+        path_update = 'export PATH="/root:$PATH"'
         
-        path_update = f'export PATH="/root:$PATH"'
-        if path_update not in profile_content:
-            with open(profile_path, 'a') as f:
-                f.write(f'\n{path_update}\n')
-            gateway.files.chown(str(profile_path), "root")
-            log("Updated PATH for root")
+        for config_file in ['.profile', '.bashrc']:
+            config_path = root_home / config_file
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config_content = f.read()
+            else:
+                config_content = ''
+            
+            # Check if /root is already in PATH (more flexible check)
+            path_already_set = False
+            if '/root' in config_content:
+                # Check if it's in a PATH export line
+                lines = config_content.split('\n')
+                for line in lines:
+                    if 'PATH' in line and '/root' in line:
+                        path_already_set = True
+                        break
+            
+            if not path_already_set:
+                with open(config_path, 'a') as f:
+                    f.write(f'\n{path_update}\n')
+                gateway.files.chown(str(config_path), "root")
+                log(f"Updated PATH in {config_file} for root")
+            else:
+                log(f"PATH already includes /root in {config_file} for root")
         
         log("Root entry point setup complete")
         

@@ -45,21 +45,34 @@ This command:
 
 ### Installing Dependencies
 
-Most dependencies can be installed via pip:
+**On Ubuntu/Debian deployment boxes** (recommended):
+Install all dependencies via apt:
+
+```bash
+sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
+```
+
+This installs:
+- `python3-flask` - Flask web framework
+- `python3-pymysql` - MySQL connector
+- `python3-psutil` - System utilities
+- `python3-mutagen` - Audio metadata
+- `python3-pil` - Image processing (Pillow)
+- `ffmpeg` - Audio/video processing (includes ffprobe)
+
+**On developer boxes or other systems**:
+If apt packages aren't available, use pip:
 
 ```bash
 pip install -r requirements.txt
+pip install pillow  # Pillow not in requirements.txt but required
 ```
 
-**Note**: Some dependencies may require system packages (installed via `apt` on Ubuntu/Debian). For example:
-- Audio/video processing libraries may need system packages
-- Some packages like `mutagen` may require both pip and apt packages
-
-If you encounter missing dependencies:
-1. Check the error message for the specific package
-2. Try installing via pip first
-3. If pip installation fails, search for system package requirements
-4. Install system packages via `apt` if needed
+**Note**: Using apt packages is preferred on deployment boxes because:
+- Packages are managed by the system package manager
+- Lower risk of conflicts with system Python
+- Easier to update with `apt upgrade`
+- No need for `--break-system-packages` flag
 
 ## System Probing
 

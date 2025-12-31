@@ -164,7 +164,7 @@ cd /henhouse
 
 # Check dependencies before installing (see Chapter 4)
 python hen.py dependency-list
-pip install -r requirements.txt
+sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
 
 # Install system users and infrastructure (see Chapter 5)
 sudo python hen.py install
@@ -200,7 +200,7 @@ sudo mv henhouse /foxhouse
 cd /foxhouse
 
 python hen.py dependency-list
-pip install -r requirements.txt
+sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
 
 sudo python hen.py install
 sudo vi /root/.foxhouse-install.cnf
