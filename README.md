@@ -41,7 +41,7 @@ For detailed step-by-step installation instructions, see the numbered chapters i
 
 **Key Terms:**
 
-- **Deployment Box**: Your Linux server (developed and tested on Ubuntu, but should work on most Linux distributions) that's accessible over the internet. This is where Henhouse runs in production, serving web requests and hosting your content.
+- **Deployment Box**: Your Linux server (developed and tested on Ubuntu Server 24.x, but should work on most Linux distributions) that's accessible over the network (local-only or remote with static IP). This is where Henhouse runs in production, serving web requests and hosting your content. **Deployment boxes are designed to be part of a cluster** - you can start with a single box and expand to multiple boxes (4-5 or more) for optimization and load distribution. **Do NOT use your developer box (Mac laptop, etc.) as a deployment box** - while Macs can host NGINX, they are not suitable for full Henhouse deployment.
 
 - **Henhouse**: A Henhouse Framework-enabled project.
   - The Henhouse Framework is an extensible and upgradable framework (via the `ext/` folder)
@@ -77,9 +77,10 @@ For detailed step-by-step installation instructions, see the numbered chapters i
   - Changing the entry point name is easier than changing project name: uninstall and reinstall with new name
   - Throughout this documentation, we use "hen" as the default entry point name
 
-- **Developer Box**: Your laptop, desktop, or development machine where you write code and use your IDE.
+- **Developer Box**: Your laptop, desktop, or development machine (Windows, Mac, or Linux) where you write code and use your IDE.
   - Developed and tested with Cursor as the agentic IDE, but other IDEs like GitHub Copilot should be compatible as well
-  - No install process - just clone the repository and run Python code directly
+  - **No Henhouse installation** - developer box does NOT run Henhouse deployment
+  - Just clone the repository and run Python code directly for testing
   - Wrapper scripts available (`.sh` for Mac/Linux, `.ps1` for Windows) - add project folder to PATH to use `hen` and `stage` commands
   - Entry points provide CLI interface to test features before pushing to server
   - Once deployment box is fully set up with database and MCP server running, developer box can connect to it
@@ -263,7 +264,9 @@ For architecture documentation, see the `context/` folder which contains system 
 
 ## Deployment
 
-The Henhouse Framework is designed for deployment on Linux servers (developed and tested on Ubuntu, but should work on most Linux distributions), with desktop/laptop development tools (Cursor app on Windows/Mac/Linux) working in conjunction with the server deployment.
+The Henhouse Framework is designed for deployment on Linux servers (developed and tested on Ubuntu Server 24.x on B-Link mini S hardware with Intel N150 processor, 16GB RAM, 512GB SSD, but should work on most Linux distributions and hardware configurations), with desktop/laptop development tools (Cursor app on Windows/Mac/Linux) working in conjunction with the server deployment.
+
+**Hardware Testing**: Henhouse is tested on B-Link mini S mini PCs (Intel N150, 16GB RAM, 512GB SSD) running Ubuntu Server 24.x. The system is designed to scale from a single deployment box to a cluster of 4-5 boxes (or more) for optimization and load distribution.
 
 **Deployment Philosophy**: Henhouse follows a **"set it up once, deploy repeatedly"** philosophy. After initial one-time setup (installation, database initialization, HTTP configuration), subsequent deployments are simple: pull the latest code and run `sudo hen deploy`. The deployment system automatically manages services, permissions, and file copying.
 

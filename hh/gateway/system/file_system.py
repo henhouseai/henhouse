@@ -137,6 +137,34 @@ class FileSystem:
         self._operations.append(operation)
         trace_out()
     
+    def schedule_copy(self, from_path: str, to_path: str) -> None:
+        """Schedule a file copy operation to be executed on commit.
+        Preserves metadata (timestamps, permissions) like shutil.copy2()."""
+        trace_in()
+        operation = {
+            'type': 'copy',
+            'from_path': from_path,
+            'to_path': to_path,
+            'status': 'scheduled'
+        }
+        self._operations.append(operation)
+        log(f"Scheduled file copy: {from_path} -> {to_path}")
+        trace_out()
+    
+    def schedule_copy_tree(self, from_path: str, to_path: str) -> None:
+        """Schedule a recursive directory copy operation to be executed on commit.
+        Copies entire directory tree like shutil.copytree()."""
+        trace_in()
+        operation = {
+            'type': 'copy_tree',
+            'from_path': from_path,
+            'to_path': to_path,
+            'status': 'scheduled'
+        }
+        self._operations.append(operation)
+        log(f"Scheduled directory tree copy: {from_path} -> {to_path}")
+        trace_out()
+    
     def commit(self) -> bool:
         """Execute all scheduled file operations. Returns True if all succeed, False otherwise. If dry_run is enabled, skips execution."""
         trace_in()
@@ -199,6 +227,29 @@ class FileSystem:
                         log(f"Moved file to temp for deletion: {from_path} -> {to_path}")
                         operation['status'] = 'completed'
                         completed_count += 1
+                
+                elif operation['type'] == 'copy':
+                    # Single file copy with metadata preservation (like shutil.copy2)
+                    to_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(from_path), str(to_path))
+                    log(f"Copied file: {from_path} -> {to_path}")
+                    operation['status'] = 'completed'
+                    completed_count += 1
+                
+                elif operation['type'] == 'copy_tree':
+                    # Recursive directory copy (like shutil.copytree)
+                    # Note: copytree requires destination to not exist
+                    if to_path.exists():
+                        warn(f"Destination directory already exists: {to_path}")
+                        report_error("file_operation", f"Destination directory already exists: {to_path}")
+                        operation['status'] = 'failed'
+                        trace_out()
+                        return False
+                    to_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(str(from_path), str(to_path))
+                    log(f"Copied directory tree: {from_path} -> {to_path}")
+                    operation['status'] = 'completed'
+                    completed_count += 1
                     
             except Exception as e:
                 warn(f"Failed to execute file operation {operation['type']}: {from_path} -> {to_path}: {str(e)}")
@@ -273,6 +324,35 @@ class FileSystem:
                         operation['status'] = 'rollback_failed'
                         trace_out()
                         return False
+                
+                elif operation['type'] == 'copy':
+                    # Rollback copy: delete the destination file
+                    if to_path.exists():
+                        if to_path.is_dir():
+                            shutil.rmtree(str(to_path))
+                        else:
+                            to_path.unlink()
+                        log(f"Rolled back copy: deleted {to_path}")
+                        operation['status'] = 'rolled_back'
+                        rolled_back_count += 1
+                    else:
+                        warn(f"Destination file does not exist for rollback: {to_path}")
+                        # Don't fail - file may have been deleted already
+                        operation['status'] = 'rolled_back'
+                        rolled_back_count += 1
+                
+                elif operation['type'] == 'copy_tree':
+                    # Rollback copy_tree: remove the entire destination directory tree
+                    if to_path.exists():
+                        shutil.rmtree(str(to_path))
+                        log(f"Rolled back copy_tree: deleted {to_path}")
+                        operation['status'] = 'rolled_back'
+                        rolled_back_count += 1
+                    else:
+                        warn(f"Destination directory does not exist for rollback: {to_path}")
+                        # Don't fail - directory may have been deleted already
+                        operation['status'] = 'rolled_back'
+                        rolled_back_count += 1
                     
             except Exception as e:
                 warn(f"Failed to rollback file operation {operation['type']}: {str(e)}")

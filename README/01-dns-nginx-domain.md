@@ -1,5 +1,91 @@
 # Chapter 1: DNS, NGINX, and Domain Setup
 
+## System Requirements and Hardware
+
+### Deployment Box vs Developer Box
+
+**Deployment Box**: A Linux server where Henhouse runs in production. This is where you install Henhouse, run the database, serve web requests, and host your content. Deployment boxes are designed to be:
+- Accessible over the network (local-only or remote with static IP)
+- Running Linux server OS (Ubuntu Server recommended)
+- Capable of running all services (NGINX, MySQL, Flask daemons, maintenance daemons)
+- Designed to be part of a cluster of multiple deployment boxes for optimization
+
+**Developer Box**: Your laptop, desktop, or development machine (Windows, Mac, or Linux) where you write code and use your IDE. The developer box:
+- Does NOT run Henhouse installation
+- Connects to deployment boxes via SSH and MCP
+- Runs Cursor or other IDEs for development
+- Should NOT be used as a deployment box (Mac laptops can host NGINX, but are not suitable for full Henhouse deployment)
+
+### Hardware Requirements
+
+**Minimum Requirements** (for single-box deployment):
+- **CPU**: Any modern x86_64 processor
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: 256GB minimum, 512GB recommended
+- **Network**: Ethernet connection (for remote access, static IP recommended)
+
+**Test Hardware**:
+Henhouse is tested and developed on:
+- **Model**: B-Link mini S mini PC
+- **CPU**: Intel N150 processor
+- **RAM**: 16GB
+- **Storage**: 512GB SSD
+- **OS**: Ubuntu Server 24.x (24.04 LTS)
+
+**Cluster Architecture**:
+Henhouse is designed to be deployed across multiple deployment boxes in a cluster configuration. You can start with a single box and expand to 4-5 boxes (or more) for optimization and load distribution. Each box can run different services or multiple Henhouse installations.
+
+### Operating System
+
+**Tested OS**: Ubuntu Server 24.x (24.04 LTS)
+
+**Compatibility**: Should work on most Linux distributions (Debian, Ubuntu variants, etc.), but Ubuntu Server is recommended and all installation steps are written for Ubuntu/Debian systems.
+
+### Initial System Setup
+
+After installing Ubuntu Server, update the system:
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+**Install Required System Packages**:
+
+Before proceeding with Henhouse installation, install these system packages:
+
+```bash
+# Python and pip
+sudo apt install python3 python3-pip -y
+
+# Git (for cloning the repository)
+sudo apt install git -y
+
+# MySQL client libraries (required for pymysql)
+sudo apt install default-libmysqlclient-dev -y
+
+# NGINX (web server - required for HTTP deployment)
+sudo apt install nginx -y
+
+# MySQL server (if running database on this box)
+sudo apt install mysql-server -y
+```
+
+**Note on Package Management**:
+- Use `apt` for system packages (Python, Git, NGINX, MySQL, etc.)
+- Use `pip3` for Python packages (Flask, pymysql, etc.)
+- Python packages are listed in `requirements.txt` and installed with `pip3 install -r requirements.txt`
+
+### Installation Scope
+
+This documentation covers installation for:
+- **Local-only deployment**: Single box on local network, accessible via local IP
+- **Remote deployment**: Box with static IP, accessible over the internet
+- **Single-box deployment**: All services (NGINX, MySQL, Flask) running on one box
+- **Multi-box cluster**: Services distributed across multiple deployment boxes (advanced setup)
+
+The installation process is the same for both local-only and remote deployments. The main difference is DNS configuration (local-only may use `/etc/hosts` instead of public DNS records).
+
 ## Quick Reference
 
 Before setting up your Henhouse installation, you need to prepare the following infrastructure components. This quick reference lists all the information you'll need to track and where it will be used.
