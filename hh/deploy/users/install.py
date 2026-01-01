@@ -55,6 +55,10 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "",
+        "# SSL verify mode (0=no verify for self-signed, 2=strict for Let's Encrypt)",
+        "# Auto-set to 0 for localhost, 2 for remote hosts during install",
+        "ssl_verify_mode = 2",
+        "",
         "# MySQL root passwords (per DB host)",
         "mysql_root_password_main = CHANGE_ME",
         "mysql_root_password_cache = CHANGE_ME",
@@ -427,6 +431,29 @@ def install() -> bool:
         setup_core_groups(project_name)
         
         # Create fresh users (needs deploy group to exist)
+        # Determine ssl_verify_mode: 0 for localhost (self-signed), 2 for remote (Let's Encrypt)
+        # Read from config if set, otherwise auto-detect based on db_host
+        parser = configparser.ConfigParser()
+        parser.read(cfg_path)
+        sec = parser["install"] if "install" in parser else None
+        ssl_verify_mode: Optional[int] = None
+        if sec:
+            try:
+                ssl_verify_mode = sec.getint("ssl_verify_mode", fallback=None)
+            except (ValueError, configparser.NoOptionError):
+                ssl_verify_mode = None
+        if ssl_verify_mode is None:
+            ssl_verify_mode = 0 if db_host in ("localhost", "127.0.0.1") else 2
+            # Write it back to config so it's saved
+            if not sec:
+                parser.add_section("install")
+                sec = parser["install"]
+            sec["ssl_verify_mode"] = str(ssl_verify_mode)
+            with open(cfg_path, 'w') as f:
+                parser.write(f)
+            os.chmod(cfg_path, 0o600)
+            log(f"Auto-set ssl_verify_mode={ssl_verify_mode} based on db_host={db_host}")
+        
         user_data = create_fresh_users(
             passwords,
             project_name,
@@ -434,7 +461,8 @@ def install() -> bool:
             db_host=db_host,
             ssl_ca_path=ssl_ca_path,
             cache_host=cache_host,
-            cache_ssl_ca_path=cache_ssl_ca_path
+            cache_ssl_ca_path=cache_ssl_ca_path,
+            ssl_verify_mode=ssl_verify_mode
         )
         # Write manifest of created users/uids
         manifest: Dict[str, Dict[str, Any]] = {}
@@ -488,7 +516,8 @@ def install() -> bool:
                 host=db_host,
                 ssl_ca=ssl_ca_path,
                 cache_host=cache_host,
-                cache_ssl_ca=cache_ssl_ca_path
+                cache_ssl_ca=cache_ssl_ca_path,
+                ssl_verify_mode=ssl_verify_mode
             )
         
         # Set up root user entry point
@@ -502,7 +531,8 @@ def install() -> bool:
             host=db_host,
             ssl_ca=ssl_ca_path,
             cache_host=cache_host,
-            cache_ssl_ca=cache_ssl_ca_path
+            cache_ssl_ca=cache_ssl_ca_path,
+            ssl_verify_mode=ssl_verify_mode
         )
         
         # Set up images directory with proper permissions
@@ -769,7 +799,8 @@ def create_fresh_users(
     db_host: Optional[str] = None,
     ssl_ca_path: Optional[str] = None,
     cache_host: Optional[str] = None,
-    cache_ssl_ca_path: Optional[str] = None
+    cache_ssl_ca_path: Optional[str] = None,
+    ssl_verify_mode: int = 2
 ) -> List[Dict[str, Any]]:
     trace_in()
     gateway = get_gateway()
@@ -811,7 +842,8 @@ def create_fresh_users(
                 host=db_host,
                 ssl_ca=ssl_ca_path,
                 cache_host=cache_host,
-                cache_ssl_ca=cache_ssl_ca_path
+                cache_ssl_ca=cache_ssl_ca_path,
+                ssl_verify_mode=ssl_verify_mode
             )
             
             # Add users to appropriate groups based on tier

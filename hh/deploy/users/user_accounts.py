@@ -29,7 +29,8 @@ def create_user_config_file(
     host: Optional[str] = None,
     ssl_ca: Optional[str] = None,
     cache_host: Optional[str] = None,
-    cache_ssl_ca: Optional[str] = None
+    cache_ssl_ca: Optional[str] = None,
+    ssl_verify_mode: Optional[int] = None
 ) -> None:
     """Create project-specific config file for user."""
     trace_in()
@@ -53,6 +54,8 @@ def create_user_config_file(
             config_lines.append(f"cache_host={cache_host}")
         if cache_ssl_ca:
             config_lines.append(f"cache_ssl_ca={cache_ssl_ca}")
+        if ssl_verify_mode is not None:
+            config_lines.append(f"ssl_verify_mode={ssl_verify_mode}")
         config_content = "\n".join(config_lines) + "\n"
         
         with open(config_file, 'w') as f:
@@ -306,38 +309,108 @@ find . -type f -name "*.pyc" -delete 2>/dev/null || true
         gateway.files.chmod(str(hen_script), 0o755)
         log(f"Created root hen script with cache cleanup at {hen_script}")
         
-        # Update root's PATH to include /root (both .profile and .bashrc for compatibility)
-        path_update = 'export PATH="/root:$PATH"'
+        # Update root's PATH to include /root (same as working install - only .profile)
+        profile_path = root_home / '.profile'
+        if profile_path.exists():
+            with open(profile_path, 'r') as f:
+                profile_content = f.read()
+        else:
+            profile_content = ''
         
-        for config_file in ['.profile', '.bashrc']:
-            config_path = root_home / config_file
-            if config_path.exists():
-                with open(config_path, 'r') as f:
-                    config_content = f.read()
-            else:
-                config_content = ''
-            
-            # Check if /root is already in PATH (more flexible check)
+        # Check if /root is already in PATH (check for the exact line that works)
+        path_update = 'export PATH="/root:$PATH"'
+        if path_update not in profile_content:
+            # Also check if there's any PATH line with /root (more flexible)
             path_already_set = False
-            if '/root' in config_content:
-                # Check if it's in a PATH export line
-                lines = config_content.split('\n')
+            if '/root' in profile_content:
+                lines = profile_content.split('\n')
                 for line in lines:
                     if 'PATH' in line and '/root' in line:
                         path_already_set = True
                         break
             
             if not path_already_set:
-                with open(config_path, 'a') as f:
+                with open(profile_path, 'a') as f:
                     f.write(f'\n{path_update}\n')
-                gateway.files.chown(str(config_path), "root")
-                log(f"Updated PATH in {config_file} for root")
+                gateway.files.chown(str(profile_path), "root")
+                log("Updated PATH in .profile for root")
             else:
-                log(f"PATH already includes /root in {config_file} for root")
+                log("PATH already includes /root in .profile for root")
+        else:
+            log("PATH already set correctly in .profile for root")
+        
+        # Update sudo's secure_path to include /root (so sudo books works)
+        setup_sudo_secure_path()
+        
+        # Update sudo's secure_path to include /root (so sudo books works)
+        setup_sudo_secure_path()
         
         log("Root entry point setup complete")
         
     except Exception as e:
         warn(f"Failed to setup root user entry point: {str(e)}")
+    finally:
+        trace_out()
+
+def setup_sudo_secure_path() -> None:
+    """Add /root to sudo's secure_path so sudo books works."""
+    trace_in()
+    gateway = get_gateway()
+    try:
+        log("Setting up sudo secure_path to include /root")
+        
+        # Read current secure_path from /etc/sudoers
+        sudoers_path = Path('/etc/sudoers')
+        if not sudoers_path.exists():
+            warn("sudoers file not found - skipping secure_path update")
+            trace_out()
+            return
+        
+        # Read current sudoers to get existing secure_path
+        with open(sudoers_path, 'r') as f:
+            sudoers_content = f.read()
+        
+        # Extract current secure_path
+        current_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+        for line in sudoers_content.split('\n'):
+            if 'secure_path=' in line:
+                start = line.find('secure_path="') + len('secure_path="')
+                end = line.find('"', start)
+                if end > start:
+                    current_path = line[start:end]
+                    break
+        
+        # Check if /root is already in the path
+        if '/root' in current_path:
+            log("secure_path already includes /root")
+            trace_out()
+            return
+        
+        # Add /root to the path
+        new_path = f'{current_path}:/root'
+        
+        # Create a file in /etc/sudoers.d/ (safer than modifying /etc/sudoers directly)
+        sudoers_d_dir = Path('/etc/sudoers.d')
+        sudoers_d_dir.mkdir(exist_ok=True)
+        
+        henhouse_sudoers = sudoers_d_dir / 'henhouse-secure-path'
+        with open(henhouse_sudoers, 'w') as f:
+            f.write(f'Defaults        secure_path="{new_path}"\n')
+        
+        gateway.files.chmod(str(henhouse_sudoers), 0o440)
+        log(f"Created {henhouse_sudoers} to add /root to secure_path")
+        
+        # Validate with visudo
+        result = subprocess.run(['visudo', '-c', '-f', str(henhouse_sudoers)], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            warn(f"visudo validation failed: {result.stderr}")
+            henhouse_sudoers.unlink()  # Remove invalid file
+            raise Exception("visudo validation failed")
+        
+        log("sudo secure_path updated successfully")
+            
+    except Exception as e:
+        warn(f"Failed to update sudo secure_path: {str(e)}")
     finally:
         trace_out()

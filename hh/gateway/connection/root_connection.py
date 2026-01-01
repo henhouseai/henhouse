@@ -26,7 +26,7 @@ def _initialize_debug():
 class RootConnection(Connection):
     """Connection with root credentials for the main database. Cache/history unchanged."""
     
-    def _load_install_config(self, project_name: str) -> Optional[Dict[str, str]]:
+    def _load_install_config(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
         cfg_path = _install_config_path(project_name)
         if not cfg_path.exists():
             warn(f"Root install config not found: {cfg_path}")
@@ -42,7 +42,7 @@ class RootConnection(Connection):
             if not val:
                 raise ValueError(f"Missing required field {key} in {cfg_path}")
             return val
-        data = {
+        data: Dict[str, Union[str, int]] = {
             "db_host": req("db_host"),
             "cache_host": req("cache_host"),
             "ssl_ca_path": req("ssl_ca_path"),
@@ -50,6 +50,8 @@ class RootConnection(Connection):
             "mysql_root_password_main": req("mysql_root_password_main"),
             "mysql_root_password_cache": req("mysql_root_password_cache"),
         }
+        # ssl_verify_mode is optional (defaults to 2 if not set)
+        data["ssl_verify_mode"] = int(sec.get("ssl_verify_mode", "2"))
         return data
     
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
@@ -80,7 +82,9 @@ class RootConnection(Connection):
         }
         # include ssl_ca if present
         if cfg.get("ssl_ca_path"):
-            dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': 2, 'check_hostname': True}
+            verify_mode = int(cfg.get("ssl_verify_mode", 2))
+            check_hostname = verify_mode == 2
+            dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': verify_mode, 'check_hostname': check_hostname}
         
         log(f"Root connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -113,7 +117,9 @@ class RootConnection(Connection):
             'port': 3306,
         }
         if cfg.get("cache_ssl_ca_path"):
-            dsn['ssl'] = {'ca': cfg["cache_ssl_ca_path"], 'verify_mode': 2, 'check_hostname': True}
+            verify_mode = int(cfg.get("ssl_verify_mode", 2))
+            check_hostname = verify_mode == 2
+            dsn['ssl'] = {'ca': cfg["cache_ssl_ca_path"], 'verify_mode': verify_mode, 'check_hostname': check_hostname}
         
         log(f"Root cache connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -146,7 +152,9 @@ class RootConnection(Connection):
             dsn['user'] = 'root'
             dsn['password'] = cfg["mysql_root_password_main"]
             if cfg.get("ssl_ca_path"):
-                dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': 2, 'check_hostname': True}
+                verify_mode = int(cfg.get("ssl_verify_mode", 2))
+                check_hostname = verify_mode == 2
+                dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': verify_mode, 'check_hostname': check_hostname}
             log(f"Root history connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
             trace_out()
             return dsn
