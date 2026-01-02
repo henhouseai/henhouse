@@ -69,6 +69,8 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
             verify_mode = 2
     except (ValueError, TypeError):
         verify_mode = 2
+    
+    debug(f"SSL config: ssl_verify_mode='{ssl_verify_mode}', verify_mode={verify_mode}, ssl_ca={ssl_ca}")
 
     # Enforce SSL always; only relax verification based on verify_mode
     if verify_mode in (2, 3) and not ssl_ca:
@@ -96,6 +98,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
     if ssl_key:
         ssl_dict['key'] = ssl_key
 
+    debug(f"SSL dict built: {ssl_dict}")
     return ssl_dict
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:
