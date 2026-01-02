@@ -1112,7 +1112,36 @@ def deploy() -> bool:
             # NGINX always expects fullchain.pem and privkey.pem
             cert_file_path = certificate_path / "fullchain.pem"
             
-            # Verify certificate exists (if we detected it above)
+            # For self-signed certificates, create the certificate BEFORE setting up NGINX
+            # (NGINX config test requires the certificate file to exist)
+            if create_mode == "self-cert":
+                log("Creating self-signed certificate before NGINX setup...")
+                from hh.deploy.deploy_utils import generate_self_signed_certificate
+                cert_name = domain.replace('.', '_')  # Use domain as cert name base
+                cert_owner_user = "root"
+                cert_owner_group = "root"
+                
+                if generate_self_signed_certificate(certificate_path, cert_name, cert_owner_user, cert_owner_group):
+                    certificate_created = True
+                    log(f"Self-signed certificate generated at {certificate_path}")
+                    
+                    # Verify certificate exists and fix permissions if needed
+                    if cert_file_path.exists():
+                        if not ensure_certificate_exists(
+                            cert_path=str(cert_file_path),
+                            cert_owner_user="root",
+                            cert_owner_group="root",
+                            create_mode=None  # Don't create, just verify/fix
+                        ):
+                            warn("Certificate verification failed after creation")
+                            report_error("action", "Certificate verification failed after creation")
+                else:
+                    warn("Failed to generate self-signed certificate")
+                    report_error("action", "Failed to generate self-signed certificate")
+                    trace_out()
+                    return False
+            
+            # Verify certificate exists (for existing certificates or after self-signed creation)
             if create_mode is None and not cert_file_path.exists():
                 warn(f"Certificate file not found at {cert_file_path}")
                 report_error("action", f"Certificate file not found at {cert_file_path}")
@@ -1120,7 +1149,8 @@ def deploy() -> bool:
                 return False
             
             # Set up NGINX with SSL configuration (pointing to certificate path)
-            # This will work even if cert doesn't exist yet (for Let's Encrypt flow)
+            # For self-signed: certificate already exists
+            # For Let's Encrypt: cert doesn't exist yet, but NGINX needs to be running for ACME challenge
             log("Installing NGINX SSL configuration...")
             
             if is_local:
@@ -1181,45 +1211,28 @@ def deploy() -> bool:
                     warn("NGINX SSL configuration installation failed")
                     report_error("action", "NGINX SSL configuration installation failed")
             
-            # Now create/get certificate if needed (NGINX is running, which is required for Let's Encrypt)
-            if not is_error() and create_mode:
-                log(f"Creating certificate using mode: {create_mode}")
-                
-                # For self-signed, use nginx user/group
-                # For Let's Encrypt, certbot manages its own permissions
-                cert_owner_user = "root" if create_mode == "self-cert" else "root"
-                cert_owner_group = "root" if create_mode == "self-cert" else "root"
-                
-                if create_mode == "self-cert":
-                    # Generate self-signed certificate
-                    from hh.deploy.deploy_utils import generate_self_signed_certificate
-                    cert_name = domain.replace('.', '_')  # Use domain as cert name base
-                    if generate_self_signed_certificate(certificate_path, cert_name, cert_owner_user, cert_owner_group):
-                        certificate_created = True
-                        log(f"Self-signed certificate generated at {certificate_path}")
-                    else:
-                        warn("Failed to generate self-signed certificate")
-                        report_error("action", "Failed to generate self-signed certificate")
-                elif create_mode == "get-cert":
-                    # Get Let's Encrypt certificate (NGINX must be running)
-                    from hh.deploy.deploy_utils import get_certificate_from_letsencrypt
-                    if get_certificate_from_letsencrypt(domain, certificate_path):
-                        certificate_created = True
-                        log(f"Let's Encrypt certificate obtained for {domain}")
-                    else:
-                        warn("Failed to obtain Let's Encrypt certificate")
-                        report_error("action", "Failed to obtain Let's Encrypt certificate")
-                
-                # Verify certificate exists and fix permissions if needed
-                if certificate_created and cert_file_path.exists():
-                    if not ensure_certificate_exists(
-                        cert_path=str(cert_file_path),
-                        cert_owner_user="root",
-                        cert_owner_group="root",
-                        create_mode=None  # Don't create, just verify/fix
-                    ):
-                        warn("Certificate verification failed after creation")
-                        report_error("action", "Certificate verification failed after creation")
+            # Now get Let's Encrypt certificate if needed (NGINX is running, which is required for ACME challenge)
+            # Note: Self-signed certificates are already created above, before NGINX setup
+            if not is_error() and create_mode == "get-cert":
+                log("Obtaining Let's Encrypt certificate (NGINX must be running for ACME challenge)...")
+                from hh.deploy.deploy_utils import get_certificate_from_letsencrypt
+                if get_certificate_from_letsencrypt(domain, certificate_path):
+                    certificate_created = True
+                    log(f"Let's Encrypt certificate obtained for {domain}")
+                    
+                    # Verify certificate exists and fix permissions if needed
+                    if cert_file_path.exists():
+                        if not ensure_certificate_exists(
+                            cert_path=str(cert_file_path),
+                            cert_owner_user="root",
+                            cert_owner_group="root",
+                            create_mode=None  # Don't create, just verify/fix
+                        ):
+                            warn("Certificate verification failed after creation")
+                            report_error("action", "Certificate verification failed after creation")
+                else:
+                    warn("Failed to obtain Let's Encrypt certificate")
+                    report_error("action", "Failed to obtain Let's Encrypt certificate")
             
             # Check NGINX status
             nginx_status = check_nginx_status()
