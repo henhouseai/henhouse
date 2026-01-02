@@ -161,7 +161,7 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
                     static_locations,
                     certificate_path,
                     server['label'],
-                    rate_limit="admin" if server['label'] != "Main Site (Guest)" else "general",
+                    rate_limit="general",  # Not used anymore, but kept for function signature compatibility
                     project_name=project_name,
                     media_port=media_port,
                     bind_ip=bind_ip,
@@ -179,7 +179,7 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
         return ""
 
 def _generate_local_https_server_block(server_names: List[str], port: int, static_locations: str,
-                                      certificate_path: str, label: str = "", rate_limit: str = "general",
+                                      certificate_path: str, label: str = "", rate_limit: str = "general",  # rate_limit not used
                                       project_name: str = "henhouse", media_port: Optional[int] = None,
                                       bind_ip: str = "127.0.0.1", deploy_path: Path = Path("/srv"),
                                       guest_password: Optional[str] = None) -> List[str]:
@@ -215,12 +215,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     # Add security headers (includes HSTS)
     lines.extend(get_security_headers_ssl())
     
-    # Add rate limiting
-    burst = "100" if rate_limit == "admin" else "100"
-    zone = rate_limit
-    lines.append("    # Rate limiting")
-    lines.append(f"    limit_req zone={zone} burst={burst} nodelay;")
-    lines.append("")
+    # Rate limiting removed - no zones needed
     
     # Add static file whitelist locations
     lines.append("    # Static file whitelist locations (served directly by Nginx)")

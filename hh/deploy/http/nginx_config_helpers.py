@@ -17,11 +17,8 @@ def get_security_headers() -> List[str]:
 
 def get_rate_limiting() -> List[str]:
     """Return rate limiting configuration."""
-    return [
-        "    # Rate limiting",
-        "    limit_req zone=general burst=100 nodelay;",
-        "",
-    ]
+    # Rate limiting removed - no zones needed
+    return []
 
 def get_block_hidden_files() -> List[str]:
     """Return location blocks to block hidden files but allow .well-known."""
@@ -353,11 +350,7 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
     # Add security headers (includes HSTS)
     lines.extend(get_security_headers_ssl())
     
-    # Add rate limiting
-    burst = "100" if rate_limit == "admin" else "100"
-    lines.append("    # Rate limiting")
-    lines.append("    limit_req zone={} burst={} nodelay;".format(rate_limit, burst))
-    lines.append("")
+    # Rate limiting removed - no zones needed
     
     # Add static file whitelist locations
     lines.append("    # Static file whitelist locations (served directly by Nginx)")
