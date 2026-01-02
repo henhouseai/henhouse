@@ -101,7 +101,7 @@ def get_ips_matching_pattern(pattern: str) -> List[str]:
     trace_out()
     return matching_ips
 
-def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List[str], certificate_path: str, deploy_path: Path) -> str:
+def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List[str], certificate_path: str) -> str:
     """Generate Nginx SSL configuration bound to specific local IPs only."""
     trace_in()
     try:
@@ -139,7 +139,7 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
                 if not filename:
                     continue
                 misc_blocks.append(f"""    location /{filename} {{
-        alias {deploy_path}/{project_name}/site/{filename};
+        alias /srv/{project_name}/site/{filename};
         expires off;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }}""")
@@ -187,7 +187,6 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
                     project_name=project_name,
                     media_port=media_port,
                     bind_ip=bind_ip,
-                    deploy_path=deploy_path,
                     guest_password=guest_password
                 )
                 config_lines.extend(block_lines)
@@ -203,7 +202,7 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
 def _generate_local_https_server_block(server_names: List[str], port: int, static_locations: str,
                                       certificate_path: str, label: str = "", rate_limit: str = "general",  # rate_limit not used
                                       project_name: str = "henhouse", media_port: Optional[int] = None,
-                                      bind_ip: str = "127.0.0.1", deploy_path: Path = Path("/srv"),
+                                      bind_ip: str = "127.0.0.1",
                                       guest_password: Optional[str] = None) -> List[str]:
     """Generate an HTTPS server block that binds to a specific local IP."""
     from hh.deploy.http.nginx_config_helpers import (
@@ -272,7 +271,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     
     return lines
 
-def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str], deploy_path: Path) -> str:
+def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str]) -> str:
     """Generate Nginx HTTP-only configuration bound to specific local IPs only."""
     trace_in()
     try:
@@ -309,7 +308,7 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
                 if not filename:
                     continue
                 misc_blocks.append(f"""    location /{filename} {{
-        alias {deploy_path}/{project_name}/site/{filename};
+        alias /srv/{project_name}/site/{filename};
         expires off;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }}""")
@@ -417,26 +416,13 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
     
     return lines
 
-def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None, deploy_path: Optional[Path] = None) -> str:
+def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None) -> str:
     """Generate Nginx SSL configuration for the domain and its subdomains (public deployment)."""
     trace_in()
     try:
         # Default certificate path if not specified
         if not certificate_path:
             certificate_path = f"/etc/letsencrypt/live/{domain}"
-        
-        # Get deploy_path from config if not provided
-        if deploy_path is None:
-            from hh.deploy.users.install import _load_install_config
-            try:
-                install_config = _load_install_config(project_name)
-                if install_config:
-                    deploy_path_str = install_config.get("deploy_path", "/srv").strip()
-                    deploy_path = Path(deploy_path_str)
-                else:
-                    deploy_path = Path("/srv")
-            except Exception:
-                deploy_path = Path("/srv")
         
         # Load guest password from install config
         from hh.deploy.users.install import _load_install_config
@@ -470,7 +456,7 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
                 if not filename:
                     continue
                 misc_blocks.append(f"""    location /{filename} {{
-        alias {deploy_path}/{project_name}/site/{filename};
+        alias /srv/{project_name}/site/{filename};
         expires off;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }}""")
@@ -531,12 +517,12 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         trace_out()
         return ""
 
-def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None, deploy_path: Optional[Path] = None) -> bool:
+def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None) -> bool:
     """Create Nginx SSL configuration file and enable site."""
     trace_in()
     try:
         # Generate configuration
-        config_content = create_nginx_ssl_config(domain, project_name, certificate_path, deploy_path)
+        config_content = create_nginx_ssl_config(domain, project_name, certificate_path)
         if not config_content:
             warn("Failed to generate SSL configuration")
             trace_out()
@@ -585,22 +571,10 @@ def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: O
         trace_out()
         return False
 
-def create_nginx_config(domain: str, project_name: str, deploy_path: Optional[Path] = None) -> str:
+def create_nginx_config(domain: str, project_name: str) -> str:
     """Generate Nginx configuration for the domain and its subdomains (HTTP only - public deployment)."""
     trace_in()
     try:
-        # Get deploy_path from config if not provided
-        if deploy_path is None:
-            from hh.deploy.users.install import _load_install_config
-            try:
-                install_config = _load_install_config(project_name)
-                if install_config:
-                    deploy_path_str = install_config.get("deploy_path", "/srv").strip()
-                    deploy_path = Path(deploy_path_str)
-                else:
-                    deploy_path = Path("/srv")
-            except Exception:
-                deploy_path = Path("/srv")
         
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
@@ -621,7 +595,7 @@ def create_nginx_config(domain: str, project_name: str, deploy_path: Optional[Pa
                 if not filename:
                     continue
                 misc_blocks.append(f"""    location /{filename} {{
-        alias {deploy_path}/{project_name}/site/{filename};
+        alias /srv/{project_name}/site/{filename};
         expires off;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }}""")
@@ -661,12 +635,12 @@ def create_nginx_config(domain: str, project_name: str, deploy_path: Optional[Pa
         trace_out()
         return ""
 
-def install_nginx_config(domain: str, project_name: str, deploy_path: Optional[Path] = None) -> bool:
+def install_nginx_config(domain: str, project_name: str) -> bool:
     """Create Nginx configuration file and enable site."""
     trace_in()
     try:
         # Generate configuration
-        config_content = create_nginx_config(domain, project_name, deploy_path)
+        config_content = create_nginx_config(domain, project_name)
         if not config_content:
             warn("Failed to generate configuration")
             trace_out()
@@ -833,10 +807,6 @@ def deploy() -> bool:
         trace_out()
         return False
     
-    # Get deploy path (defaults to /srv)
-    deploy_path_str = sec.get("deploy_path", "/srv").strip()
-    deploy_path = Path(deploy_path_str)
-    
     # Get SSL enabled setting (required in config, defaults to 1)
     ssl_enabled_str = sec.get("ssl_enabled", "1").strip()
     try:
@@ -869,7 +839,7 @@ def deploy() -> bool:
                  domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
     
     source = current_path
-    dest = deploy_path / project_name
+    dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
     # Stop running daemons prior to deployment
@@ -1110,7 +1080,7 @@ def deploy() -> bool:
                     content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
                     
                     # Replace the log file path with tier-specific path
-                    log_file = f'{deploy_path}/{project_name}/logs/flask_{project_name}_{tier}.log'
+                    log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
                     content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
                     
                     # Write the modified content
@@ -1142,7 +1112,7 @@ def deploy() -> bool:
                 content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {media_port}')
                 
                 # Replace the log file path with media server path
-                log_file = f'{deploy_path}/{project_name}/logs/flask_{project_name}_media.log'
+                log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
                 content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
                 
                 # Write the modified content
@@ -1673,7 +1643,7 @@ def deploy() -> bool:
                     log(f"Local deployment: binding to IPs: {', '.join(bind_ips)}")
                     
                     # Generate local SSL config
-                    config_content = create_nginx_ssl_config_local(domain, project_name, bind_ips, str(certificate_path), deploy_path)
+                    config_content = create_nginx_ssl_config_local(domain, project_name, bind_ips, str(certificate_path))
                     if not config_content:
                         warn("Failed to generate local NGINX SSL configuration")
                         report_error("action", "Failed to generate local NGINX SSL configuration")
@@ -1713,7 +1683,7 @@ def deploy() -> bool:
                                 nginx_deployed = True
                 else:
                     # For public deployments, use standard SSL config (binds to all interfaces)
-                    if install_nginx_ssl_config(domain, project_name, str(certificate_path), deploy_path):
+                    if install_nginx_ssl_config(domain, project_name, str(certificate_path)):
                         nginx_deployed = True
                         log("NGINX SSL configuration installed successfully")
                     else:
@@ -1758,7 +1728,7 @@ def deploy() -> bool:
                     log(f"Local deployment: binding to IPs: {', '.join(bind_ips)}")
                     
                     # Generate local HTTP config
-                    config_content = create_nginx_config_local(domain, project_name, bind_ips, deploy_path)
+                    config_content = create_nginx_config_local(domain, project_name, bind_ips)
                     if not config_content:
                         warn("Failed to generate local NGINX HTTP configuration")
                         report_error("action", "Failed to generate local NGINX HTTP configuration")
@@ -1798,7 +1768,7 @@ def deploy() -> bool:
                                 nginx_deployed = True
                 else:
                     # For public deployments, use standard HTTP config (binds to all interfaces)
-                    if install_nginx_config(domain, project_name, deploy_path):
+                    if install_nginx_config(domain, project_name):
                         nginx_deployed = True
                         log("NGINX HTTP configuration installed successfully")
                     else:
@@ -1992,19 +1962,8 @@ def setup_deployment_ownership_and_permissions(project_name: str) -> None:
             trace_out()
             return
         
-        # Get deploy_path from install config
-        deploy_path = Path("/srv")  # default
-        try:
-            from hh.deploy.users.install import _load_install_config
-            install_config = _load_install_config(project_name)
-            if install_config:
-                deploy_path_str = install_config.get("deploy_path", "/srv").strip()
-                deploy_path = Path(deploy_path_str)
-        except Exception:
-            pass
-        
         # Set ownership of deployment directory to project highest level user with deploy group AFTER deployment
-        srv_project = deploy_path / project_name
+        srv_project = Path("/srv") / project_name
         if srv_project.exists():
             try:
                 project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"

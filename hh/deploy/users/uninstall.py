@@ -228,19 +228,9 @@ def uninstall() -> bool:
             warn(f"Failed to update manifest removal timestamps: {e}")
 
     # Step 2: Remove project directory (only if project highest level user doesn't exist)
-    # Note: {deploy_path}/images/{project_name}, {deploy_path}/files/{project_name}, {deploy_path}/audio/{project_name}, and {deploy_path}/video/{project_name} are in different locations and NOT touched
+    # Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are in different locations and NOT touched
     if not is_error():
-        # Get deploy_path from install config
-        deploy_path = "/srv"  # default
-        try:
-            from hh.deploy.users.install import _load_install_config
-            install_config = _load_install_config(project_name)
-            if install_config:
-                deploy_path = install_config.get("deploy_path", "/srv").strip()
-        except Exception:
-            pass
-        
-        srv_project = Path(f'{deploy_path}/{project_name}')
+        srv_project = Path(f'/srv/{project_name}')
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
         if srv_project.exists():
             # Check if project highest level user doesn't exist (was deleted or never existed)
@@ -251,7 +241,7 @@ def uninstall() -> bool:
                 # User doesn't exist (was successfully deleted or never existed) - safe to delete
                 log(f"Removing project directory: {srv_project}")
                 shutil.rmtree(srv_project)
-                log(f"Note: {deploy_path}/images/{project_name}, {deploy_path}/files/{project_name}, {deploy_path}/audio/{project_name}, and {deploy_path}/video/{project_name} are preserved and left untouched")
+                log(f"Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are preserved and left untouched")
 
     # Step 3: Remove project owner from group BEFORE deleting the group
     if not is_error():
@@ -290,16 +280,7 @@ def uninstall() -> bool:
         
         # Consolidate all detailed information for the parser
         skipped_users = [user for user in users_to_remove if user not in removed_users]
-        # Get deploy_path from install config
-        deploy_path = "/srv"  # default
-        try:
-            from hh.deploy.users.install import _load_install_config
-            install_config = _load_install_config(project_name)
-            if install_config:
-                deploy_path = install_config.get("deploy_path", "/srv").strip()
-        except Exception:
-            pass
-        srv_project = Path(f'{deploy_path}/{project_name}')
+        srv_project = Path(f'/srv/{project_name}')
         project_directory_removed = not srv_project.exists()
         groups_deleted = []
         human_scripts_removed = []

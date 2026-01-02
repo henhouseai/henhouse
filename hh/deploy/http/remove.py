@@ -164,10 +164,7 @@ def remove() -> bool:
     
     sec = parser["install"]
     
-    # Get deploy path (defaults to /srv)
-    deploy_path_str = sec.get("deploy_path", "/srv").strip()
-    deploy_path = Path(deploy_path_str)
-    dest = deploy_path / project_name
+    dest = Path("/srv") / project_name
     
     # Get all deployed sites from manifest
     deployed_domains = _manifest_get_all_sites(project_name)
