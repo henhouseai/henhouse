@@ -344,17 +344,19 @@ def deploy() -> bool:
     deploy_path_str = sec.get("deploy_path", "/srv").strip()
     deploy_path = Path(deploy_path_str)
     
-    # Get SSL certificate directory (defaults to /etc/letsencrypt/live)
-    ssl_cert_dir_str = sec.get("ssl_cert_dir", "/etc/letsencrypt/live").strip()
-    ssl_cert_dir = Path(ssl_cert_dir_str)
+    # Get SSL certificate directories
+    ssl_cert_dir_letsencrypt_str = sec.get("ssl_cert_dir_letsencrypt", "/etc/letsencrypt/live").strip()
+    ssl_cert_dir_letsencrypt = Path(ssl_cert_dir_letsencrypt_str)
+    ssl_cert_dir_self_signed_str = sec.get("ssl_cert_dir_self_signed", "/etc/nginx/ssl").strip()
+    ssl_cert_dir_self_signed = Path(ssl_cert_dir_self_signed_str)
     
     # Get local allow block (IP pattern for local deployments)
     local_allow_block = sec.get("local_allow_block", "192.168.1.").strip()
     
-    # Determine certificate path (directory + domain)
-    # For Let's Encrypt: /etc/letsencrypt/live/{domain}/
-    # For self-signed: /etc/nginx/ssl/{domain}/
-    certificate_path = ssl_cert_dir / domain
+    # Determine certificate path based on certificate type (will be set later based on create_mode)
+    # For Let's Encrypt: {ssl_cert_dir_letsencrypt}/{domain}/
+    # For self-signed: {ssl_cert_dir_self_signed}/{domain}/
+    certificate_path: Optional[Path] = None
     
     # Determine if local deployment
     is_local = (domain.endswith('.local') or 
@@ -1069,12 +1071,6 @@ def deploy() -> bool:
             from hh.deploy.http.nginx_config_helpers import detect_flask_ports
             from hh.deploy.http.http_deploy_ssl import create_nginx_ssl_config, install_nginx_ssl_config, check_nginx_status
             
-            # Determine certificate file path
-            # NGINX always expects fullchain.pem and privkey.pem
-            # For Let's Encrypt: /etc/letsencrypt/live/{domain}/fullchain.pem
-            # For self-signed: {ssl_cert_dir}/{domain}/fullchain.pem (created by generate_self_signed_certificate)
-            cert_file_path = certificate_path / "fullchain.pem"
-            
             # Check for certificate creation flags
             create_mode = None
             if gateway.get_arg('self_cert') or gateway.get_arg('self-cert'):
@@ -1088,12 +1084,38 @@ def deploy() -> bool:
                     trace_out()
                     return False
             
-            # Check certificate existence and permissions (but don't create yet - NGINX needs to be up first for Let's Encrypt)
-            cert_exists = cert_file_path.exists()
-            if not cert_exists and create_mode is None:
-                warn(f"Certificate not found at {cert_file_path}")
-                warn("Use -self-cert flag to generate self-signed certificate, or -get-cert flag to obtain Let's Encrypt certificate")
-                report_error("action", f"Certificate not found at {cert_file_path}")
+            # Determine certificate path based on certificate type
+            if create_mode == "self-cert":
+                certificate_path = ssl_cert_dir_self_signed / domain
+            elif create_mode == "get-cert":
+                certificate_path = ssl_cert_dir_letsencrypt / domain
+            else:
+                # Try to detect existing certificate (check both locations)
+                letsencrypt_path = ssl_cert_dir_letsencrypt / domain / "fullchain.pem"
+                self_signed_path = ssl_cert_dir_self_signed / domain / "fullchain.pem"
+                if letsencrypt_path.exists():
+                    certificate_path = ssl_cert_dir_letsencrypt / domain
+                    log(f"Found existing Let's Encrypt certificate at {certificate_path}")
+                elif self_signed_path.exists():
+                    certificate_path = ssl_cert_dir_self_signed / domain
+                    log(f"Found existing self-signed certificate at {certificate_path}")
+                else:
+                    # Default to Let's Encrypt location if no certificate found
+                    certificate_path = ssl_cert_dir_letsencrypt / domain
+                    warn(f"Certificate not found at either {letsencrypt_path} or {self_signed_path}")
+                    warn("Use -self-cert flag to generate self-signed certificate, or -get-cert flag to obtain Let's Encrypt certificate")
+                    report_error("action", f"Certificate not found for domain {domain}")
+                    trace_out()
+                    return False
+            
+            # Determine certificate file path
+            # NGINX always expects fullchain.pem and privkey.pem
+            cert_file_path = certificate_path / "fullchain.pem"
+            
+            # Verify certificate exists (if we detected it above)
+            if create_mode is None and not cert_file_path.exists():
+                warn(f"Certificate file not found at {cert_file_path}")
+                report_error("action", f"Certificate file not found at {cert_file_path}")
                 trace_out()
                 return False
             
