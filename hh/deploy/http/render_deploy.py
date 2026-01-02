@@ -218,6 +218,82 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
             block_type=block
         ))
         break_section(lines)
+    
+    # HTTP/NGINX section
+    block = 'domain'
+    if not gateway.is_no(block):
+        http_data = TableData()
+        domain = source_data.get('domain', '')
+        is_local = source_data.get('is_local', False)
+        certificate_path = source_data.get('certificate_path', '')
+        certificate_created = source_data.get('certificate_created', False)
+        nginx_deployed = source_data.get('nginx_deployed', False)
+        nginx_active = source_data.get('nginx_active', False)
+        bind_ips_raw: Any = source_data.get('bind_ips', [])
+        bind_ips: List[str] = bind_ips_raw if isinstance(bind_ips_raw, list) else []
+        
+        if domain:  # Only show HTTP section if domain is present
+            log(f"Rendering HTTP/NGINX section for: {domain}")
+            
+            # Domain header
+            http_data.add_row(
+                'domain_header',
+                value=safe_str(domain)
+            )
+            
+            # Port (443 for SSL, which we always use now)
+            if not gateway.is_no('config'):
+                http_data.add_row(
+                    'port',
+                    value='443'
+                )
+            
+            # Certificate path (always present since we always use SSL)
+            if not gateway.is_no('cert') and certificate_path:
+                cert_status = str(certificate_path)
+                if certificate_created:
+                    cert_status += " (created)"
+                http_data.add_row(
+                    'certificate_path',
+                    value=safe_str(cert_status)
+                )
+            
+            # Bind IPs (local deployments only)
+            if is_local and bind_ips:
+                bind_ips_str = ', '.join(bind_ips)
+                http_data.add_row(
+                    'bind_ips',
+                    value=safe_str(bind_ips_str)
+                )
+            
+            # NGINX deployment status
+            if not gateway.is_no('nginx'):
+                if nginx_deployed:
+                    http_data.add_row(
+                        'nginx_deployed',
+                        value='Yes'
+                    )
+                if nginx_active:
+                    http_data.add_row(
+                        'nginx_active',
+                        value='Yes (nginx service running)'
+                    )
+                else:
+                    http_data.add_row(
+                        'nginx_active',
+                        value='No'
+                    )
+            
+            if http_data.num_rows() > 0:
+                lines.append(render_block(
+                    http_data,
+                    FieldConfig()
+                        .add_header('domain_header')
+                        .add_simple(['port', 'certificate_path', 'bind_ips', 'nginx_deployed', 'nginx_active']),
+                    table_overrides={'margin_l': 4},
+                    block_type=block
+                ))
+                break_section(lines)
     trace_out()
 
 @register_parser('deploy')

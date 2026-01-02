@@ -15,11 +15,6 @@ def get_security_headers() -> List[str]:
         "",
     ]
 
-def get_rate_limiting() -> List[str]:
-    """Return rate limiting configuration."""
-    # Rate limiting removed - no zones needed
-    return []
-
 def get_block_hidden_files() -> List[str]:
     """Return location blocks to block hidden files but allow .well-known."""
     return [
@@ -141,9 +136,6 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
     
     # Add security headers
     lines.extend(get_security_headers())
-    
-    # Add rate limiting
-    lines.extend(get_rate_limiting())
     
     # Add static file whitelist locations
     lines.append("    # Static file whitelist locations (served directly by Nginx)")
@@ -303,7 +295,7 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
     return lines
 
 def generate_https_server_block(server_names: List[str], port: int, static_locations: str,
-                               certificate_path: str, label: str = "", rate_limit: str = "general",
+                               certificate_path: str, label: str = "",
                                extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None, guest_password: Optional[str] = None) -> List[str]:
     """Generate a complete Nginx HTTPS server block.
     
@@ -313,7 +305,6 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
         static_locations: Pre-formatted static location blocks
         certificate_path: Path to SSL certificate directory
         label: Optional comment label for the server block
-        rate_limit: Rate limit zone (general or admin)
         extra_blocks: Optional extra configuration blocks to add before proxy
         project_name: Project name for detecting media port (required)
         media_port: Media server port (if None, will be detected from installer manifest)
@@ -349,8 +340,6 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
     
     # Add security headers (includes HSTS)
     lines.extend(get_security_headers_ssl())
-    
-    # Rate limiting removed - no zones needed
     
     # Add static file whitelist locations
     lines.append("    # Static file whitelist locations (served directly by Nginx)")

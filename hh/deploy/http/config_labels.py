@@ -6,6 +6,7 @@ from hh.render.config.config_registry import register_label
 @register_label('domain_header',                     'Domain:',                        '🌐')
 @register_label('certificate_path',                   'Certificate Path:',              '🔑')
 @register_label('nginx_active',                       'Nginx Active:',                  '✅')
+@register_label('nginx_deployed',                     'Nginx Config Deployed:',          '🌐')
 @register_label('port',                              'Port:',                          '🔌')
 @register_label('http_config_path',                  'Config File Path:',              '🌍')
 @register_label('main_domain',                       'Main Domain:',                   '🌐')
@@ -46,6 +47,15 @@ from hh.render.config.config_registry import register_label
 @register_label('flask_restart',                      'Flask Restart:',                 '🔁')
 @register_label('maintenance_restart',                'Maintenance Restart:',            '🧰')
 @register_label('project_info',                       'Project Info:',                   'ℹ️')
+@register_label('remove_header',                      'Removal Status',                  '🗑️')
+@register_label('deployment_path',                    'Deployment Path:',                '📁')
+@register_label('domains_removed',                    'Domains Removed:',                '✅')
+@register_label('domains_failed',                     'Domains Failed:',                 '❌')
+@register_label('flask_stopped',                      'Flask Stopped:',                  '🛑')
+@register_label('maintenance_stopped',              'Maintenance Stopped:',             '🛑')
+@register_label('files_removed',                      'Files Removed:',                  '🗑️')
+@register_label('manifest_cleared',                    'Manifest Cleared:',              '🧹')
+@register_label('nginx_enabled_sites',                'Nginx Enabled Sites:',            '🌐')
 def _register_config():
     pass
 

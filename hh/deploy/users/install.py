@@ -78,6 +78,8 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "# HTTP deployment settings",
         "domain = yourdomain.tld",
         "deploy_path = /srv",
+        "# SSL enabled (1 = enabled, 0 = disabled, defaults to 1)",
+        "ssl_enabled = 1",
         "# SSL certificate directories",
         "ssl_cert_dir_letsencrypt = /etc/letsencrypt/live",
         "ssl_cert_dir_self_signed = /etc/nginx/ssl",
