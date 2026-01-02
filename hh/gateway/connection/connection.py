@@ -88,8 +88,8 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
         'check_hostname': check_hostname
     }
 
-    # Include CA when available (required for modes 2,3; optional for mode 1)
-    if ssl_ca and verify_mode in (1, 2, 3):
+    # Include CA when available (required for modes 2,3; optional for mode 1; NOT for mode 0)
+    if ssl_ca and verify_mode > 0:
         ssl_dict['ca'] = ssl_ca
 
     if ssl_cert:

@@ -50,7 +50,18 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int
     }
     # SSL settings (optional)
     data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
-    data["ssl_verify_mode"] = int(sec.get("ssl_verify_mode", "2"))
+    # Read ssl_verify_mode from root user's .{project}.cnf file (not install config)
+    root_config_path = Path('/root') / f'.{project_name}.cnf'
+    ssl_verify_mode = 2  # default
+    if root_config_path.exists():
+        root_config = configparser.ConfigParser()
+        root_config.read(root_config_path)
+        if 'client' in root_config:
+            try:
+                ssl_verify_mode = int(root_config.get('client', 'ssl_verify_mode', fallback='2'))
+            except (ValueError, configparser.NoOptionError):
+                ssl_verify_mode = 2
+    data["ssl_verify_mode"] = ssl_verify_mode
     return data
 
 @register_action('init_db')

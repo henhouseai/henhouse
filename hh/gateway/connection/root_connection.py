@@ -50,8 +50,6 @@ class RootConnection(Connection):
             "mysql_root_password_main": req("mysql_root_password_main"),
             "mysql_root_password_cache": req("mysql_root_password_cache"),
         }
-        # ssl_verify_mode is optional (defaults to 2 if not set)
-        data["ssl_verify_mode"] = int(sec.get("ssl_verify_mode", "2"))
         return data
     
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
@@ -80,17 +78,34 @@ class RootConnection(Connection):
             'database': project_name,
             'port': 3306,
         }
-        # include ssl_ca if present
-        if cfg.get("ssl_ca_path"):
-            verify_mode = int(cfg.get("ssl_verify_mode", 2))
+        # Read ssl_verify_mode from root user's .{project}.cnf file (not install config)
+        root_config_path = Path('/root') / f'.{project_name}.cnf'
+        verify_mode: int = 2  # default
+        if root_config_path.exists():
+            root_config = configparser.ConfigParser()
+            root_config.read(root_config_path)
+            if 'client' in root_config:
+                try:
+                    verify_mode = int(root_config.get('client', 'ssl_verify_mode', fallback='2'))
+                except (ValueError, configparser.NoOptionError):
+                    verify_mode = 2
+        
+        # include ssl_ca if present (only for modes 1,2,3 - not mode 0)
+        if cfg.get("ssl_ca_path") and verify_mode > 0:
             # Map verify_mode to Python SSL settings
             # Mode 3: verify_mode=2 + check_hostname=True
             # Mode 2: verify_mode=2 + check_hostname=False
             # Mode 1: verify_mode=1 + check_hostname=False
-            # Mode 0: verify_mode=0 + check_hostname=False
+            # Mode 0: verify_mode=0 + check_hostname=False (no CA included)
             python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
             check_hostname = verify_mode == 3
-            dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
+            ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
+            if verify_mode > 0:
+                ssl_dict['ca'] = str(cfg["ssl_ca_path"])
+            dsn['ssl'] = ssl_dict
+        elif verify_mode == 0:
+            # Mode 0: no CA, no verification
+            dsn['ssl'] = {'verify_mode': 0, 'check_hostname': False}
         
         log(f"Root connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -122,12 +137,27 @@ class RootConnection(Connection):
             'database': f"{project_name}_cache",
             'port': 3306,
         }
-        if cfg.get("cache_ssl_ca_path"):
-            verify_mode = int(cfg.get("ssl_verify_mode", 2))
-            # Map verify_mode to Python SSL settings
+        # Read ssl_verify_mode from root user's .{project}.cnf file
+        root_config_path = Path('/root') / f'.{project_name}.cnf'
+        verify_mode: int = 2  # default
+        if root_config_path.exists():
+            root_config = configparser.ConfigParser()
+            root_config.read(root_config_path)
+            if 'client' in root_config:
+                try:
+                    verify_mode = int(root_config.get('client', 'ssl_verify_mode', fallback='2'))
+                except (ValueError, configparser.NoOptionError):
+                    verify_mode = 2
+        
+        if cfg.get("cache_ssl_ca_path") and verify_mode > 0:
             python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
             check_hostname = verify_mode == 3
-            dsn['ssl'] = {'ca': cfg["cache_ssl_ca_path"], 'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
+            ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
+            if verify_mode > 0:
+                ssl_dict['ca'] = str(cfg["cache_ssl_ca_path"])
+            dsn['ssl'] = ssl_dict
+        elif verify_mode == 0:
+            dsn['ssl'] = {'verify_mode': 0, 'check_hostname': False}
         
         log(f"Root cache connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -159,12 +189,27 @@ class RootConnection(Connection):
             dsn = history_dsn.copy()
             dsn['user'] = 'root'
             dsn['password'] = cfg["mysql_root_password_main"]
-            if cfg.get("ssl_ca_path"):
-                verify_mode = int(cfg.get("ssl_verify_mode", 2))
-                # Map verify_mode to Python SSL settings
+            # Read ssl_verify_mode from root user's .{project}.cnf file
+            root_config_path = Path('/root') / f'.{project_name}.cnf'
+            verify_mode: int = 2  # default
+            if root_config_path.exists():
+                root_config = configparser.ConfigParser()
+                root_config.read(root_config_path)
+                if 'client' in root_config:
+                    try:
+                        verify_mode = int(root_config.get('client', 'ssl_verify_mode', fallback='2'))
+                    except (ValueError, configparser.NoOptionError):
+                        verify_mode = 2
+            
+            if cfg.get("ssl_ca_path") and verify_mode > 0:
                 python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
                 check_hostname = verify_mode == 3
-                dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
+                ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
+                if verify_mode > 0:
+                    ssl_dict['ca'] = str(cfg["ssl_ca_path"])
+                dsn['ssl'] = ssl_dict
+            elif verify_mode == 0:
+                dsn['ssl'] = {'verify_mode': 0, 'check_hostname': False}
             log(f"Root history connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
             trace_out()
             return dsn

@@ -55,10 +55,6 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "",
-        "# SSL verify mode (0=no verify, 1=optional, 2=verify CA, 3=verify CA+hostname)",
-        "# Auto-set to 0 for localhost, 3 for remote hosts during install",
-        "ssl_verify_mode = 2",
-        "",
         "# MySQL root passwords (per DB host)",
         "mysql_root_password_main = CHANGE_ME",
         "mysql_root_password_cache = CHANGE_ME",
@@ -431,20 +427,10 @@ def install() -> bool:
         setup_core_groups(project_name)
         
         # Create fresh users (needs deploy group to exist)
-        # Auto-detect ssl_verify_mode based on db_host and write to config
-        parser = configparser.ConfigParser()
-        parser.read(cfg_path)
-        if "install" not in parser:
-            parser.add_section("install")
-        sec = parser["install"]
-        
-        # Auto-detect: 0 for localhost (self-signed), 3 for remote (VERIFY_IDENTITY)
+        # Auto-detect ssl_verify_mode based on db_host (0 for localhost, 3 for remote)
+        # This value is written to user config files, NOT install config
         ssl_verify_mode = 0 if db_host in ("localhost", "127.0.0.1") else 3
-        sec["ssl_verify_mode"] = str(ssl_verify_mode)
-        with open(cfg_path, 'w') as f:
-            parser.write(f)
-        os.chmod(cfg_path, 0o600)
-        log(f"Auto-set ssl_verify_mode={ssl_verify_mode} based on db_host={db_host}")
+        log(f"Auto-detected ssl_verify_mode={ssl_verify_mode} based on db_host={db_host}")
         
         user_data = create_fresh_users(
             passwords,
