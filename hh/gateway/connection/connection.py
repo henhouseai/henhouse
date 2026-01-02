@@ -60,20 +60,15 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
     ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback=None)
     ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
 
-    # Determine verify_mode
+    # Determine verify_mode from config (defaults to 2 if not set or invalid)
     verify_mode = 2  # Default to strict
     if ssl_verify_mode:
         try:
             verify_mode = int(ssl_verify_mode)
             if verify_mode not in (0, 1, 2):
                 verify_mode = 2
-        except ValueError:
-            if ssl_verify_mode.lower() in ('true', '1', 'yes', 'on'):
-                verify_mode = 2
-            elif ssl_verify_mode.lower() in ('false', '0', 'no', 'off'):
-                verify_mode = 0
-            else:
-                verify_mode = 2
+        except (ValueError, TypeError):
+            verify_mode = 2
 
     # Enforce SSL always; only relax verification based on verify_mode
     if verify_mode == 2 and not ssl_ca:

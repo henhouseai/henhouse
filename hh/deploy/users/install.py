@@ -431,28 +431,20 @@ def install() -> bool:
         setup_core_groups(project_name)
         
         # Create fresh users (needs deploy group to exist)
-        # Determine ssl_verify_mode: 0 for localhost (self-signed), 2 for remote (Let's Encrypt)
-        # Read from config if set, otherwise auto-detect based on db_host
+        # Auto-detect ssl_verify_mode based on db_host and write to config
         parser = configparser.ConfigParser()
         parser.read(cfg_path)
-        sec = parser["install"] if "install" in parser else None
-        ssl_verify_mode: Optional[int] = None
-        if sec:
-            try:
-                ssl_verify_mode = sec.getint("ssl_verify_mode", fallback=None)
-            except (ValueError, configparser.NoOptionError):
-                ssl_verify_mode = None
-        if ssl_verify_mode is None:
-            ssl_verify_mode = 0 if db_host in ("localhost", "127.0.0.1") else 2
-            # Write it back to config so it's saved
-            if not sec:
-                parser.add_section("install")
-                sec = parser["install"]
-            sec["ssl_verify_mode"] = str(ssl_verify_mode)
-            with open(cfg_path, 'w') as f:
-                parser.write(f)
-            os.chmod(cfg_path, 0o600)
-            log(f"Auto-set ssl_verify_mode={ssl_verify_mode} based on db_host={db_host}")
+        if "install" not in parser:
+            parser.add_section("install")
+        sec = parser["install"]
+        
+        # Auto-detect: 0 for localhost (self-signed), 2 for remote (Let's Encrypt)
+        ssl_verify_mode = 0 if db_host in ("localhost", "127.0.0.1") else 2
+        sec["ssl_verify_mode"] = str(ssl_verify_mode)
+        with open(cfg_path, 'w') as f:
+            parser.write(f)
+        os.chmod(cfg_path, 0o600)
+        log(f"Auto-set ssl_verify_mode={ssl_verify_mode} based on db_host={db_host}")
         
         user_data = create_fresh_users(
             passwords,

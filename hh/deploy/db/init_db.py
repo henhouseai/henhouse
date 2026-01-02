@@ -3,7 +3,7 @@ import subprocess
 import configparser
 import tempfile
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
@@ -27,7 +27,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
+def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int]]]:
     """Load root install config and return MySQL root passwords."""
     cfg_path = _install_config_path(project_name)
     if not cfg_path.exists():
@@ -44,10 +44,13 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
         if not val:
             raise ValueError(f"Missing required field {key} in {cfg_path}")
         return val
-    data = {
+    data: Dict[str, Union[str, int]] = {
         "mysql_root_password_main": req("mysql_root_password_main"),
         "mysql_root_password_cache": req("mysql_root_password_cache"),
     }
+    # SSL settings (optional)
+    data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
+    data["ssl_verify_mode"] = int(sec.get("ssl_verify_mode", "2"))
     return data
 
 @register_action('init_db')
@@ -92,8 +95,10 @@ def init_db(args: Optional[List[str]] = None) -> bool:
         trace_out()
         return False
     
-    root_password_main = cfg["mysql_root_password_main"]
-    root_password_cache = cfg["mysql_root_password_cache"]
+    root_password_main = str(cfg["mysql_root_password_main"])
+    root_password_cache = str(cfg["mysql_root_password_cache"])
+    ssl_ca_path = str(cfg.get("ssl_ca_path", ""))
+    ssl_verify_mode = int(cfg.get("ssl_verify_mode", 2))
     
     cache_db_name = f"{project_name}_cache"
     
@@ -116,6 +121,10 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"[client]\n")
             opt_file.write(f"user=root\n")
             opt_file.write(f"password={root_password_main}\n")
+            if ssl_ca_path:
+                opt_file.write(f"ssl-ca={ssl_ca_path}\n")
+                # For MySQL CLI: ssl-verify-server-cert matches verify_mode (0=no verify, 2=strict)
+                opt_file.write(f"ssl-verify-server-cert={ssl_verify_mode}\n")
             opt_file_path_main = opt_file.name
         try:
             os.chmod(opt_file_path_main, 0o600)
@@ -142,6 +151,10 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 opt_file.write(f"[client]\n")
                 opt_file.write(f"user=root\n")
                 opt_file.write(f"password={root_password_cache}\n")
+                if ssl_ca_path:
+                    opt_file.write(f"ssl-ca={ssl_ca_path}\n")
+                    # For MySQL CLI: ssl-verify-server-cert matches verify_mode (0=no verify, 2=strict)
+                    opt_file.write(f"ssl-verify-server-cert={ssl_verify_mode}\n")
                 opt_file_path_cache = opt_file.name
             try:
                 os.chmod(opt_file_path_cache, 0o600)
@@ -170,6 +183,10 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"[client]\n")
             opt_file.write(f"user=root\n")
             opt_file.write(f"password={password}\n")
+            if ssl_ca_path:
+                opt_file.write(f"ssl-ca={ssl_ca_path}\n")
+                # For MySQL CLI: ssl-verify-server-cert matches verify_mode (0=no verify, 2=strict)
+                opt_file.write(f"ssl-verify-server-cert={ssl_verify_mode}\n")
             opt_file_path = opt_file.name
         try:
             os.chmod(opt_file_path, 0o600)
