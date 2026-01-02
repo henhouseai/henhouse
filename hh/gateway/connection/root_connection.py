@@ -83,8 +83,14 @@ class RootConnection(Connection):
         # include ssl_ca if present
         if cfg.get("ssl_ca_path"):
             verify_mode = int(cfg.get("ssl_verify_mode", 2))
-            check_hostname = verify_mode == 2
-            dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': verify_mode, 'check_hostname': check_hostname}
+            # Map verify_mode to Python SSL settings
+            # Mode 3: verify_mode=2 + check_hostname=True
+            # Mode 2: verify_mode=2 + check_hostname=False
+            # Mode 1: verify_mode=1 + check_hostname=False
+            # Mode 0: verify_mode=0 + check_hostname=False
+            python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
+            check_hostname = verify_mode == 3
+            dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
         
         log(f"Root connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -118,8 +124,10 @@ class RootConnection(Connection):
         }
         if cfg.get("cache_ssl_ca_path"):
             verify_mode = int(cfg.get("ssl_verify_mode", 2))
-            check_hostname = verify_mode == 2
-            dsn['ssl'] = {'ca': cfg["cache_ssl_ca_path"], 'verify_mode': verify_mode, 'check_hostname': check_hostname}
+            # Map verify_mode to Python SSL settings
+            python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
+            check_hostname = verify_mode == 3
+            dsn['ssl'] = {'ca': cfg["cache_ssl_ca_path"], 'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
         
         log(f"Root cache connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -153,8 +161,10 @@ class RootConnection(Connection):
             dsn['password'] = cfg["mysql_root_password_main"]
             if cfg.get("ssl_ca_path"):
                 verify_mode = int(cfg.get("ssl_verify_mode", 2))
-                check_hostname = verify_mode == 2
-                dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': verify_mode, 'check_hostname': check_hostname}
+                # Map verify_mode to Python SSL settings
+                python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
+                check_hostname = verify_mode == 3
+                dsn['ssl'] = {'ca': cfg["ssl_ca_path"], 'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
             log(f"Root history connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
             trace_out()
             return dsn

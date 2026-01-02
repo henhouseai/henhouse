@@ -55,8 +55,8 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "",
-        "# SSL verify mode (0=no verify for self-signed, 2=strict for Let's Encrypt)",
-        "# Auto-set to 0 for localhost, 2 for remote hosts during install",
+        "# SSL verify mode (0=no verify, 1=optional, 2=verify CA, 3=verify CA+hostname)",
+        "# Auto-set to 0 for localhost, 3 for remote hosts during install",
         "ssl_verify_mode = 2",
         "",
         "# MySQL root passwords (per DB host)",
@@ -438,8 +438,8 @@ def install() -> bool:
             parser.add_section("install")
         sec = parser["install"]
         
-        # Auto-detect: 0 for localhost (self-signed), 2 for remote (Let's Encrypt)
-        ssl_verify_mode = 0 if db_host in ("localhost", "127.0.0.1") else 2
+        # Auto-detect: 0 for localhost (self-signed), 3 for remote (VERIFY_IDENTITY)
+        ssl_verify_mode = 0 if db_host in ("localhost", "127.0.0.1") else 3
         sec["ssl_verify_mode"] = str(ssl_verify_mode)
         with open(cfg_path, 'w') as f:
             parser.write(f)

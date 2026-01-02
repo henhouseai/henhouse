@@ -50,9 +50,10 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
     """Build SSL dictionary from config file for PyMySQL.
 
     SSL is ALWAYS REQUIRED. verify_mode controls strictness:
-    - 2 (default): verify cert + hostname (requires ssl_ca)
-    - 1: optional verify; hostname check disabled
-    - 0: no verify; hostname check disabled
+    - 3: verify cert + hostname (VERIFY_IDENTITY - strictest)
+    - 2: verify cert, hostname check disabled (VERIFY_CA)
+    - 1: optional verify; hostname check disabled (CERT_OPTIONAL)
+    - 0: no verify; hostname check disabled (least strict)
     """
     ssl_ca = config.get('client', f'{prefix}ssl_ca', fallback=None)
     ssl_cert = config.get('client', f'{prefix}ssl_cert', fallback=None)
@@ -65,23 +66,30 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
     if ssl_verify_mode:
         try:
             verify_mode = int(ssl_verify_mode)
-            if verify_mode not in (0, 1, 2):
+            if verify_mode not in (0, 1, 2, 3):
                 verify_mode = 2
         except (ValueError, TypeError):
             verify_mode = 2
 
     # Enforce SSL always; only relax verification based on verify_mode
-    if verify_mode == 2 and not ssl_ca:
-        raise ValueError(f"SSL verify_mode=2 but {prefix}ssl_ca is not configured in config file")
+    if verify_mode in (2, 3) and not ssl_ca:
+        raise ValueError(f"SSL verify_mode={verify_mode} but {prefix}ssl_ca is not configured in config file")
 
+    # Map verify_mode to Python SSL settings
+    # Mode 3: verify_mode=2 (CERT_REQUIRED) + check_hostname=True
+    # Mode 2: verify_mode=2 (CERT_REQUIRED) + check_hostname=False
+    # Mode 1: verify_mode=1 (CERT_OPTIONAL) + check_hostname=False
+    # Mode 0: verify_mode=0 (CERT_NONE) + check_hostname=False
+    python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
+    check_hostname = verify_mode == 3
+    
     ssl_dict: Dict[str, Union[str, bool, int]] = {
-        'verify_mode': verify_mode,
-        # Python requires check_hostname=False unless CERT_REQUIRED
-        'check_hostname': (ssl_check_hostname.lower() in ('true', '1', 'yes', 'on')) and verify_mode == 2
+        'verify_mode': python_verify_mode,
+        'check_hostname': check_hostname
     }
 
-    # Include CA when available (required for mode 2, optional for 1)
-    if ssl_ca and verify_mode in (1, 2):
+    # Include CA when available (required for modes 2,3; optional for mode 1)
+    if ssl_ca and verify_mode in (1, 2, 3):
         ssl_dict['ca'] = ssl_ca
 
     if ssl_cert:

@@ -123,8 +123,17 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"password={root_password_main}\n")
             if ssl_ca_path:
                 opt_file.write(f"ssl-ca={ssl_ca_path}\n")
-                # For MySQL CLI: ssl-verify-server-cert matches verify_mode (0=no verify, 2=strict)
-                opt_file.write(f"ssl-verify-server-cert={ssl_verify_mode}\n")
+                # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
+                if ssl_verify_mode == 0:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 1:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 2:
+                    opt_file.write(f"ssl-mode=VERIFY_CA\n")
+                elif ssl_verify_mode == 3:
+                    opt_file.write(f"ssl-mode=VERIFY_IDENTITY\n")
+                else:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
             opt_file_path_main = opt_file.name
         try:
             os.chmod(opt_file_path_main, 0o600)
@@ -153,8 +162,17 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 opt_file.write(f"password={root_password_cache}\n")
                 if ssl_ca_path:
                     opt_file.write(f"ssl-ca={ssl_ca_path}\n")
-                    # For MySQL CLI: ssl-verify-server-cert matches verify_mode (0=no verify, 2=strict)
-                    opt_file.write(f"ssl-verify-server-cert={ssl_verify_mode}\n")
+                    # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
+                    if ssl_verify_mode == 0:
+                        opt_file.write(f"ssl-mode=REQUIRED\n")
+                    elif ssl_verify_mode == 1:
+                        opt_file.write(f"ssl-mode=REQUIRED\n")
+                    elif ssl_verify_mode == 2:
+                        opt_file.write(f"ssl-mode=VERIFY_CA\n")
+                    elif ssl_verify_mode == 3:
+                        opt_file.write(f"ssl-mode=VERIFY_IDENTITY\n")
+                    else:
+                        opt_file.write(f"ssl-mode=REQUIRED\n")
                 opt_file_path_cache = opt_file.name
             try:
                 os.chmod(opt_file_path_cache, 0o600)
@@ -185,8 +203,17 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"password={password}\n")
             if ssl_ca_path:
                 opt_file.write(f"ssl-ca={ssl_ca_path}\n")
-                # For MySQL CLI: ssl-verify-server-cert matches verify_mode (0=no verify, 2=strict)
-                opt_file.write(f"ssl-verify-server-cert={ssl_verify_mode}\n")
+                # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
+                if ssl_verify_mode == 0:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 1:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 2:
+                    opt_file.write(f"ssl-mode=VERIFY_CA\n")
+                elif ssl_verify_mode == 3:
+                    opt_file.write(f"ssl-mode=VERIFY_IDENTITY\n")
+                else:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
             opt_file_path = opt_file.name
         try:
             os.chmod(opt_file_path, 0o600)
