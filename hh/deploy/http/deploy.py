@@ -1,8 +1,9 @@
 import os
 import shutil
 import subprocess
+import configparser
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Dict, Any
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -11,6 +12,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.deploy.cache.cache_cleanup_registry import get_cache_directories
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error, is_error
+from hh.deploy.deploy_utils import ensure_certificate_exists
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -32,6 +34,226 @@ from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
 from hh.deploy.deploy_utils import (
     load_whitelist_with_extensions,
 )
+
+def get_ips_matching_pattern(pattern: str) -> List[str]:
+    """
+    Get IP addresses on the system that match the given pattern.
+    
+    Args:
+        pattern: IP pattern like "192.168.1." (matches all 192.168.1.x) or "192.168.1.100" (specific IP)
+    
+    Returns:
+        List of matching IP addresses found on the system
+    """
+    trace_in()
+    matching_ips = []
+    try:
+        # Get all network interfaces
+        result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True)
+        if result.returncode == 0:
+            for line in result.stdout.split('\n'):
+                if 'inet ' in line and '127.0.0.1' not in line:
+                    # Extract IP address (format: inet 192.168.1.100/24)
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        ip_with_cidr = parts[1]
+                        ip = ip_with_cidr.split('/')[0]
+                        
+                        # Check if IP matches pattern
+                        if pattern.endswith('.'):
+                            # Pattern like "192.168.1." - match all IPs starting with that prefix
+                            if ip.startswith(pattern):
+                                matching_ips.append(ip)
+                        else:
+                            # Specific IP pattern - exact match
+                            if ip == pattern:
+                                matching_ips.append(ip)
+    except Exception as e:
+        warn(f"Failed to get IPs matching pattern {pattern}: {e}")
+    
+    # Fallback: if no matches and pattern is specific IP, return it anyway (user might know what they're doing)
+    if not matching_ips and not pattern.endswith('.'):
+        matching_ips.append(pattern)
+        log(f"No matching IPs found for pattern {pattern}, using pattern as-is")
+    
+    trace_out()
+    return matching_ips
+
+def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List[str], certificate_path: str, deploy_path: Path) -> str:
+    """Generate Nginx SSL configuration bound to specific local IPs only."""
+    trace_in()
+    try:
+        # Load guest password from install config
+        from hh.deploy.users.install import _load_install_config
+        guest_password = None
+        try:
+            install_config = _load_install_config(project_name)
+            if install_config:
+                guest_password = install_config.get("htaccess_guest_password", "").strip() or None
+        except Exception:
+            pass  # If config can't be loaded, guest_password stays None (public access)
+        
+        # Import helpers
+        from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
+        from hh.deploy.http.nginx_config_helpers import (
+            get_security_headers_ssl, get_rate_limiting, get_block_hidden_files,
+            get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
+            get_server_configs, detect_flask_ports, generate_http_redirect_block
+        )
+        from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+        
+        # Get static locations
+        whitelist_result = generate_nginx_static_locations(project_name)
+        static_locations = whitelist_result['config'] if isinstance(whitelist_result, dict) else whitelist_result
+
+        # Add root-level mappings for files in MISC_WHITELIST
+        try:
+            from hh.deploy.deploy_utils import load_whitelist_with_extensions
+            MISC_WHITELIST = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
+            from pathlib import Path as _P
+            misc_blocks = []
+            for item in MISC_WHITELIST:
+                filename = _P(item).name
+                if not filename:
+                    continue
+                misc_blocks.append(f"""    location /{filename} {{
+        alias {deploy_path}/{project_name}/site/{filename};
+        expires off;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }}""")
+            if misc_blocks:
+                static_locations = f"{static_locations}\n\n" + "\n\n".join(misc_blocks)
+        except Exception:
+            pass
+        
+        config_lines = [
+            "# Local-only HTTPS configuration (bound to specific IPs, prevents external access)",
+            "",
+        ]
+        
+        # Add HTTP to HTTPS redirect for all domains (bound to same IPs)
+        all_domains = [domain, f'www.{domain}', f'admin.{domain}', f'panel.{domain}']
+        for bind_ip in bind_ips:
+            config_lines.append(f"# HTTP to HTTPS redirect (bound to {bind_ip})")
+            config_lines.append("server {")
+            config_lines.append(f"    listen {bind_ip}:80;")
+            config_lines.append(f"    server_name {' '.join(all_domains)};")
+            config_lines.append("")
+            config_lines.append("    location / {")
+            config_lines.append("        return 301 https://$host$request_uri;")
+            config_lines.append("    }")
+            config_lines.append("}")
+            config_lines.append("")
+        
+        # Detect media port
+        ports = detect_flask_ports(project_name)
+        media_port = ports.get('media', 5005)
+        
+        # Get server configurations
+        servers = get_server_configs(domain, project_name)
+        
+        # Generate HTTPS blocks for each server, bound to each IP
+        for server in servers:
+            for bind_ip in bind_ips:
+                block_lines = _generate_local_https_server_block(
+                    server['names'],
+                    server['port'],
+                    static_locations,
+                    certificate_path,
+                    server['label'],
+                    rate_limit="admin" if server['label'] != "Main Site (Guest)" else "general",
+                    project_name=project_name,
+                    media_port=media_port,
+                    bind_ip=bind_ip,
+                    deploy_path=deploy_path,
+                    guest_password=guest_password
+                )
+                config_lines.extend(block_lines)
+        
+        config = '\n'.join(config_lines)
+        trace_out()
+        return config
+    except Exception as e:
+        warn(f"Failed to generate Nginx SSL config for local deployment: {e}")
+        trace_out()
+        return ""
+
+def _generate_local_https_server_block(server_names: List[str], port: int, static_locations: str,
+                                      certificate_path: str, label: str = "", rate_limit: str = "general",
+                                      project_name: str = "henhouse", media_port: Optional[int] = None,
+                                      bind_ip: str = "127.0.0.1", deploy_path: Path = Path("/srv"),
+                                      guest_password: Optional[str] = None) -> List[str]:
+    """Generate an HTTPS server block that binds to a specific local IP."""
+    from hh.deploy.http.nginx_config_helpers import (
+        get_security_headers_ssl, get_rate_limiting, get_block_hidden_files,
+        get_auth_block, get_media_server_proxy_block, get_flask_proxy_block
+    )
+    from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+    
+    lines = []
+    
+    # Detect media port if not provided
+    if media_port is None:
+        from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+        ports = detect_flask_ports(project_name)
+        media_port = ports.get('media', 5005)
+    
+    # Add label comment if provided
+    if label:
+        lines.append(f"# {label} (bound to {bind_ip})")
+    
+    lines.append("server {")
+    lines.append(f"    listen {bind_ip}:443 ssl http2;")
+    lines.append(f"    server_name {' '.join(server_names)};")
+    lines.append("")
+    
+    # Add SSL certificates
+    lines.append("    ssl_certificate {}/fullchain.pem;".format(certificate_path))
+    lines.append("    ssl_certificate_key {}/privkey.pem;".format(certificate_path))
+    lines.append("")
+    
+    # Add security headers (includes HSTS)
+    lines.extend(get_security_headers_ssl())
+    
+    # Add rate limiting
+    burst = "100" if rate_limit == "admin" else "100"
+    zone = rate_limit
+    lines.append("    # Rate limiting")
+    lines.append(f"    limit_req zone={zone} burst={burst} nodelay;")
+    lines.append("")
+    
+    # Add static file whitelist locations
+    lines.append("    # Static file whitelist locations (served directly by Nginx)")
+    for line in static_locations.split('\n'):
+        if line.strip():  # Skip empty lines
+            lines.append(f"    {line}")
+    lines.append("")
+    
+    # Add hidden file blocking (but allow .well-known for Let's Encrypt)
+    lines.extend(get_block_hidden_files())
+    
+    # Add authentication for guest/admin/panel subdomains
+    from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+    ports = detect_flask_ports(project_name)
+    tier = None
+    for t, p in ports.items():
+        if t != 'media' and port == p:
+            tier = t
+            break
+    
+    if tier and tier in HENHOUSE_TIERS:
+        lines.extend(get_auth_block(project_name, tier, guest_password))
+    
+    # Add media server proxy
+    lines.extend(get_media_server_proxy_block(media_port))
+    
+    # Add Flask proxy
+    lines.extend(get_flask_proxy_block(port))
+    
+    lines.append("}")
+    lines.append("")
+    
+    return lines
 from hh.deploy.conf.deploy_whitelist import (
     FLASK_APP_SOURCE,
     MEDIA_SERVER_SOURCE,
@@ -81,31 +303,71 @@ def deploy() -> bool:
     HH_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'HH_EXTRA_DEPLOY_FILES')
     EXT_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXT_EXTRA_DEPLOY_FILES')
     
-    # Get starting port from gateway args, or from install config, or default 5001
+    # Load deployment configuration from install config
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        warn(f"Install config not found: {cfg_path}")
+        report_error("action", f"Install config not found: {cfg_path}")
+        trace_out()
+        return False
+    
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if "install" not in parser:
+        warn(f"Missing [install] section in {cfg_path}")
+        report_error("action", f"Missing [install] section in {cfg_path}")
+        trace_out()
+        return False
+    
+    sec = parser["install"]
+    
+    # Get starting port
     start_port_arg = gateway.get_arg('start_port')
     if start_port_arg:
         start_port = int(start_port_arg)
     else:
-        # Load from install config
-        start_port = 5001  # Default
+        port_str = sec.get("flask_start_port", "5001").strip()
         try:
-            import configparser
-            cfg_path = _install_config_path(project_name)
-            if cfg_path.exists():
-                parser = configparser.ConfigParser()
-                parser.read(cfg_path)
-                if "install" in parser:
-                    port_str = parser["install"].get("flask_start_port", "5001").strip()
-                    try:
-                        start_port = int(port_str)
-                    except ValueError:
-                        pass
-        except Exception:
-            pass
+            start_port = int(port_str)
+        except ValueError:
+            start_port = 5001
+    
+    # Get domain (required for HTTP deployment)
+    domain = sec.get("domain", "").strip()
+    if not domain:
+        warn("Domain not set in install config")
+        report_error("action", "Domain not set in install config")
+        trace_out()
+        return False
+    
+    # Get deploy path (defaults to /srv)
+    deploy_path_str = sec.get("deploy_path", "/srv").strip()
+    deploy_path = Path(deploy_path_str)
+    
+    # Get SSL certificate directory (defaults to /etc/letsencrypt/live)
+    ssl_cert_dir_str = sec.get("ssl_cert_dir", "/etc/letsencrypt/live").strip()
+    ssl_cert_dir = Path(ssl_cert_dir_str)
+    
+    # Get local allow block (IP pattern for local deployments)
+    local_allow_block = sec.get("local_allow_block", "192.168.1.").strip()
+    
+    # Determine certificate path (directory + domain)
+    # For Let's Encrypt: /etc/letsencrypt/live/{domain}/
+    # For self-signed: /etc/nginx/ssl/{domain}/
+    certificate_path = ssl_cert_dir / domain
+    
+    # Determine if local deployment
+    is_local = (domain.endswith('.local') or 
+                domain.lower() in ['localhost', '127.0.0.1'] or
+                domain.startswith('127.') or
+                domain.startswith('192.168.') or
+                domain.startswith('10.') or
+                (domain.startswith('172.') and len(domain.split('.')) >= 2 and 
+                 domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
     
     source = current_path
-    dest = Path(f'/srv/{project_name}')
-    log(f"Deploying from {source} to {dest} (starting port: {start_port})")
+    dest = deploy_path / project_name
+    log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
     # Stop running daemons prior to deployment
     if not is_error():
@@ -345,7 +607,7 @@ def deploy() -> bool:
                     content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
                     
                     # Replace the log file path with tier-specific path
-                    log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
+                    log_file = f'{deploy_path}/{project_name}/logs/flask_{project_name}_{tier}.log'
                     content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
                     
                     # Write the modified content
@@ -377,7 +639,7 @@ def deploy() -> bool:
                 content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {media_port}')
                 
                 # Replace the log file path with media server path
-                log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
+                log_file = f'{deploy_path}/{project_name}/logs/flask_{project_name}_media.log'
                 content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
                 
                 # Write the modified content
@@ -795,15 +1057,178 @@ def deploy() -> bool:
             warn(f"Failed to restart daemons after deployment: {e}")
             report_error("backend", f"Failed to restart daemons after deployment: {e}")
 
+    # Step: HTTP/SSL Deployment (NGINX setup and certificate management)
+    nginx_deployed = False
+    certificate_created = False
+    bind_ips = []
+    if not is_error():
+        try:
+            log(f"Starting HTTP/SSL deployment for domain: {domain}")
+            
+            # Import NGINX helpers
+            from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+            from hh.deploy.http.http_deploy_ssl import create_nginx_ssl_config, install_nginx_ssl_config, check_nginx_status
+            
+            # Determine certificate file path
+            # NGINX always expects fullchain.pem and privkey.pem
+            # For Let's Encrypt: /etc/letsencrypt/live/{domain}/fullchain.pem
+            # For self-signed: {ssl_cert_dir}/{domain}/fullchain.pem (created by generate_self_signed_certificate)
+            cert_file_path = certificate_path / "fullchain.pem"
+            
+            # Check for certificate creation flags
+            create_mode = None
+            if gateway.get_arg('self_cert') or gateway.get_arg('self-cert'):
+                create_mode = "self-cert"
+            elif gateway.get_arg('get_cert') or gateway.get_arg('get-cert'):
+                create_mode = "get-cert"
+                if is_local:
+                    warn("Cannot obtain Let's Encrypt certificate for local domain")
+                    warn(f"Domain '{domain}' is detected as local - use -self-cert flag instead")
+                    report_error("action", "Cannot obtain Let's Encrypt certificate for local domain")
+                    trace_out()
+                    return False
+            
+            # Check certificate existence and permissions (but don't create yet - NGINX needs to be up first for Let's Encrypt)
+            cert_exists = cert_file_path.exists()
+            if not cert_exists and create_mode is None:
+                warn(f"Certificate not found at {cert_file_path}")
+                warn("Use -self-cert flag to generate self-signed certificate, or -get-cert flag to obtain Let's Encrypt certificate")
+                report_error("action", f"Certificate not found at {cert_file_path}")
+                trace_out()
+                return False
+            
+            # Set up NGINX with SSL configuration (pointing to certificate path)
+            # This will work even if cert doesn't exist yet (for Let's Encrypt flow)
+            log("Installing NGINX SSL configuration...")
+            
+            if is_local:
+                # For local deployments, bind to specific IPs to prevent external access
+                bind_ips = get_ips_matching_pattern(local_allow_block)
+                if not bind_ips:
+                    warn(f"No IPs found matching pattern '{local_allow_block}'")
+                    warn("Falling back to 127.0.0.1 for local deployment")
+                    bind_ips = ['127.0.0.1']
+                
+                log(f"Local deployment: binding to IPs: {', '.join(bind_ips)}")
+                
+                # Generate local SSL config
+                config_content = create_nginx_ssl_config_local(domain, project_name, bind_ips, str(certificate_path), deploy_path)
+                if not config_content:
+                    warn("Failed to generate local NGINX SSL configuration")
+                    report_error("action", "Failed to generate local NGINX SSL configuration")
+                else:
+                    # Write to sites-available
+                    config_file = Path(f'/etc/nginx/sites-available/{domain}')
+                    config_file.write_text(config_content)
+                    log(f"Local NGINX SSL config written to: {config_file}")
+                    
+                    # Ensure symlink exists in sites-enabled
+                    enabled_file = Path(f'/etc/nginx/sites-enabled/{domain}')
+                    if enabled_file.exists():
+                        enabled_file.unlink()
+                    enabled_file.symlink_to(config_file)
+                    log(f"Symlink created: {enabled_file}")
+                    
+                    # Test Nginx configuration
+                    test_result = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
+                    if test_result.returncode != 0:
+                        warn(f"Nginx configuration test failed: {test_result.stderr}")
+                        report_error("action", f"Nginx configuration test failed: {test_result.stderr}")
+                    else:
+                        log("Nginx SSL configuration test passed")
+                        
+                        # Reload Nginx
+                        reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
+                        if reload_result.returncode != 0:
+                            restart_result = subprocess.run(['systemctl', 'restart', 'nginx'], capture_output=True, text=True)
+                            if restart_result.returncode != 0:
+                                warn(f"Failed to reload/restart Nginx: {restart_result.stderr}")
+                                report_error("action", f"Failed to reload/restart Nginx: {restart_result.stderr}")
+                            else:
+                                log("Nginx restarted successfully")
+                                nginx_deployed = True
+                        else:
+                            log("Nginx reloaded successfully")
+                            nginx_deployed = True
+            else:
+                # For public deployments, use standard SSL config (binds to all interfaces)
+                if install_nginx_ssl_config(domain, project_name, str(certificate_path)):
+                    nginx_deployed = True
+                    log("NGINX SSL configuration installed successfully")
+                else:
+                    warn("NGINX SSL configuration installation failed")
+                    report_error("action", "NGINX SSL configuration installation failed")
+            
+            # Now create/get certificate if needed (NGINX is running, which is required for Let's Encrypt)
+            if not is_error() and create_mode:
+                log(f"Creating certificate using mode: {create_mode}")
+                
+                # For self-signed, use nginx user/group
+                # For Let's Encrypt, certbot manages its own permissions
+                cert_owner_user = "root" if create_mode == "self-cert" else "root"
+                cert_owner_group = "root" if create_mode == "self-cert" else "root"
+                
+                if create_mode == "self-cert":
+                    # Generate self-signed certificate
+                    from hh.deploy.deploy_utils import generate_self_signed_certificate
+                    cert_name = domain.replace('.', '_')  # Use domain as cert name base
+                    if generate_self_signed_certificate(certificate_path, cert_name, cert_owner_user, cert_owner_group):
+                        certificate_created = True
+                        log(f"Self-signed certificate generated at {certificate_path}")
+                    else:
+                        warn("Failed to generate self-signed certificate")
+                        report_error("action", "Failed to generate self-signed certificate")
+                elif create_mode == "get-cert":
+                    # Get Let's Encrypt certificate (NGINX must be running)
+                    from hh.deploy.deploy_utils import get_certificate_from_letsencrypt
+                    if get_certificate_from_letsencrypt(domain, certificate_path):
+                        certificate_created = True
+                        log(f"Let's Encrypt certificate obtained for {domain}")
+                    else:
+                        warn("Failed to obtain Let's Encrypt certificate")
+                        report_error("action", "Failed to obtain Let's Encrypt certificate")
+                
+                # Verify certificate exists and fix permissions if needed
+                if certificate_created and cert_file_path.exists():
+                    if not ensure_certificate_exists(
+                        cert_path=str(cert_file_path),
+                        cert_owner_user="root",
+                        cert_owner_group="root",
+                        create_mode=None  # Don't create, just verify/fix
+                    ):
+                        warn("Certificate verification failed after creation")
+                        report_error("action", "Certificate verification failed after creation")
+            
+            # Check NGINX status
+            nginx_status = check_nginx_status()
+            log(f"NGINX status: active={nginx_status.get('is_active', False)}")
+            
+        except Exception as e:
+            warn(f"Failed to deploy HTTP/SSL configuration: {e}")
+            report_error("action", f"Failed to deploy HTTP/SSL configuration: {e}")
 
     # Final result
     result = not is_error()
     if result:
         log("Deployment completed successfully")
+        
+        # Get NGINX status if available
+        nginx_status_data = {}
+        if 'nginx_status' in locals():
+            nginx_status_data = nginx_status
+        else:
+            try:
+                from hh.deploy.http.http_deploy_ssl import check_nginx_status
+                nginx_status_data = check_nginx_status()
+            except Exception:
+                pass
+        
         result_data = {
             "project_name": project_name,
             "source": str(source),
             "destination": str(dest),
+            "domain": domain,
+            "is_local": is_local,
             "code_deployed": code_deployed,
             "deployment_cleaned": deployment_cleaned,
             "cache_cleaned": cache_cleaned,
@@ -818,6 +1243,12 @@ def deploy() -> bool:
             "logs_permissions_set": logs_permissions_set,
             "flask_restart": flask_restart_info,
             "maintenance_restart": maintenance_restart_info,
+            "nginx_deployed": nginx_deployed,
+            "certificate_created": certificate_created,
+            "certificate_path": str(certificate_path),
+            "nginx_active": nginx_status_data.get('is_active', False),
+            "nginx_enabled_sites": nginx_status_data.get('enabled_sites', []),
+            "bind_ips": bind_ips if is_local else [],
             "status": "deployed"
         }
         gateway.response.set_action_response(success_payload(result_data))
@@ -948,8 +1379,19 @@ def setup_deployment_ownership_and_permissions(project_name: str) -> None:
             trace_out()
             return
         
-        # Set ownership of /srv/{project_name} to project highest level user with deploy group AFTER deployment
-        srv_project = Path(f'/srv/{project_name}')
+        # Get deploy_path from install config
+        deploy_path = Path("/srv")  # default
+        try:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                deploy_path_str = install_config.get("deploy_path", "/srv").strip()
+                deploy_path = Path(deploy_path_str)
+        except Exception:
+            pass
+        
+        # Set ownership of deployment directory to project highest level user with deploy group AFTER deployment
+        srv_project = deploy_path / project_name
         if srv_project.exists():
             try:
                 project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"

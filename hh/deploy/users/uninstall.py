@@ -228,9 +228,19 @@ def uninstall() -> bool:
             warn(f"Failed to update manifest removal timestamps: {e}")
 
     # Step 2: Remove project directory (only if project highest level user doesn't exist)
-    # Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are in different locations and NOT touched
+    # Note: {deploy_path}/images/{project_name}, {deploy_path}/files/{project_name}, {deploy_path}/audio/{project_name}, and {deploy_path}/video/{project_name} are in different locations and NOT touched
     if not is_error():
-        srv_project = Path(f'/srv/{project_name}')
+        # Get deploy_path from install config
+        deploy_path = "/srv"  # default
+        try:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                deploy_path = install_config.get("deploy_path", "/srv").strip()
+        except Exception:
+            pass
+        
+        srv_project = Path(f'{deploy_path}/{project_name}')
         project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
         if srv_project.exists():
             # Check if project highest level user doesn't exist (was deleted or never existed)
@@ -241,7 +251,7 @@ def uninstall() -> bool:
                 # User doesn't exist (was successfully deleted or never existed) - safe to delete
                 log(f"Removing project directory: {srv_project}")
                 shutil.rmtree(srv_project)
-                log(f"Note: /srv/images/{project_name}, /srv/files/{project_name}, /srv/audio/{project_name}, and /srv/video/{project_name} are preserved and left untouched")
+                log(f"Note: {deploy_path}/images/{project_name}, {deploy_path}/files/{project_name}, {deploy_path}/audio/{project_name}, and {deploy_path}/video/{project_name} are preserved and left untouched")
 
     # Step 3: Remove project owner from group BEFORE deleting the group
     if not is_error():
@@ -280,7 +290,16 @@ def uninstall() -> bool:
         
         # Consolidate all detailed information for the parser
         skipped_users = [user for user in users_to_remove if user not in removed_users]
-        srv_project = Path(f'/srv/{project_name}')
+        # Get deploy_path from install config
+        deploy_path = "/srv"  # default
+        try:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                deploy_path = install_config.get("deploy_path", "/srv").strip()
+        except Exception:
+            pass
+        srv_project = Path(f'{deploy_path}/{project_name}')
         project_directory_removed = not srv_project.exists()
         groups_deleted = []
         human_scripts_removed = []
@@ -732,12 +751,33 @@ def cleanup_root_user_scripts(project_name: str, project_path: Path, hen_script_
         trace_out()
 
 def remove_htpasswd_users(project_name: str) -> None:
-    """Remove users from .htpasswd files for admin and root tiers."""
+    """Remove users from .htpasswd files for guest, admin and root tiers."""
     trace_in()
     try:
-        # Get admin and root tier indices
+        # Get guest, admin and root tier indices
+        guest_idx = HENHOUSE_TIERS.index('guest') if 'guest' in HENHOUSE_TIERS else None
         admin_idx = HENHOUSE_TIERS.index('admin') if 'admin' in HENHOUSE_TIERS else None
         root_idx = HENHOUSE_TIERS.index('root') if 'root' in HENHOUSE_TIERS else None
+        
+        # Remove guest tier user (if it exists)
+        if guest_idx is not None:
+            guest_tier = HENHOUSE_TIERS[guest_idx]
+            guest_user = f"{project_name}_{guest_tier}"
+            htpasswd_file = f"/var/www/.htpasswd_{guest_tier}"
+            
+            # Use htpasswd -D to delete the user from the file
+            if Path(htpasswd_file).exists():
+                result = subprocess.run(['htpasswd', '-D', htpasswd_file, guest_user], 
+                                      capture_output=True, text=True)
+                if result.returncode == 0:
+                    log(f"Removed user {guest_user} from {htpasswd_file}")
+                else:
+                    if "not found" in result.stderr.lower():
+                        log(f"User {guest_user} not found in {htpasswd_file} (may have been already removed)")
+                    else:
+                        warn(f"Failed to remove user {guest_user} from {htpasswd_file}: {result.stderr}")
+            else:
+                log(f"{htpasswd_file} does not exist - skipping")
         
         if admin_idx is not None:
             admin_tier = HENHOUSE_TIERS[admin_idx]

@@ -9,8 +9,34 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.deploy.deploy_utils import detect_project_context
+from hh.deploy.deploy_utils import detect_project_context, ensure_certificate_exists
 from hh.deploy.users.install import _install_config_path
+
+def _extract_domain_from_host(host: str) -> Optional[str]:
+    """
+    Extract domain from database host.
+    
+    Examples:
+        db.example.com -> example.com
+        cache.example.com -> example.com
+        example.com -> example.com
+        localhost -> None
+        127.0.0.1 -> None
+    
+    Returns:
+        Domain string or None if host is localhost/127.0.0.1
+    """
+    if not host:
+        return None
+    host = host.strip().lower()
+    if host in ["localhost", "127.0.0.1", "::1"]:
+        return None
+    # Remove subdomain prefix (e.g., "db." or "cache.")
+    parts = host.split('.')
+    if len(parts) >= 2:
+        # Return the last two parts (domain.tld)
+        return '.'.join(parts[-2:])
+    return host
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -50,6 +76,8 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int
     }
     # SSL settings (optional)
     data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
+    # Database hosts (for domain extraction)
+    data["db_host"] = sec.get("db_host", "").strip()
     # Read ssl_verify_mode from root user's .{project}.cnf file (not install config)
     root_config_path = Path('/root') / f'.{project_name}.cnf'
     ssl_verify_mode = 2  # default
@@ -110,8 +138,57 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     root_password_cache = str(cfg["mysql_root_password_cache"])
     ssl_ca_path = str(cfg.get("ssl_ca_path", ""))
     ssl_verify_mode = int(cfg.get("ssl_verify_mode", 2))
+    db_host = str(cfg.get("db_host", ""))
+    
+    # Extract domain from db_host for Let's Encrypt certificates
+    domain = _extract_domain_from_host(db_host)
     
     cache_db_name = f"{project_name}_cache"
+    
+    # Step 1.5: Check MySQL user exists (hard error if missing)
+    try:
+        import pwd  # type: ignore[import-untyped]
+        try:
+            pwd.getpwnam('mysql')  # type: ignore[attr-defined]
+            log("MySQL user exists")
+        except KeyError:
+            warn("MySQL user 'mysql' does not exist - this is required for database initialization")
+            report_error("action", "MySQL user 'mysql' does not exist - this is required for database initialization")
+            trace_out()
+            return False
+    except ImportError:
+        # Windows or pwd not available - skip check
+        warn("Cannot verify MySQL user existence (pwd module not available)")
+    
+    # Step 1.6: Validate certificate if SSL is configured
+    if ssl_ca_path:
+        # Check for certificate creation flags
+        create_mode = None
+        if gateway.get_arg('self_cert') or gateway.get_arg('self-cert'):
+            create_mode = "self-cert"
+        elif gateway.get_arg('get_cert') or gateway.get_arg('get-cert'):
+            create_mode = "get-cert"
+            if not domain:
+                warn("Cannot obtain Let's Encrypt certificate for localhost or 127.0.0.1")
+                warn(f"db_host is set to '{db_host}' - Let's Encrypt requires a public domain name")
+                warn("Use -self-cert flag to generate a self-signed certificate instead")
+                report_error("action", "Cannot obtain Let's Encrypt certificate for localhost")
+                trace_out()
+                return False
+        
+        # Validate certificate exists and has correct permissions
+        if not ensure_certificate_exists(
+            cert_path=ssl_ca_path,
+            cert_owner_user="mysql",
+            cert_owner_group="mysql",
+            create_mode=create_mode,
+            domain=domain if create_mode == "get-cert" else None
+        ):
+            warn("Certificate validation failed")
+            report_error("action", "Certificate validation failed")
+            trace_out()
+            return False
+        log("Certificate validated successfully")
     
     # Step 2: Locate init scripts
     init_sql_path = project_path / "hh" / "deploy" / "db" / "init.sql"

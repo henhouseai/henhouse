@@ -41,9 +41,8 @@ def get_block_hidden_files() -> List[str]:
         "",
     ]
 
-def get_auth_block(project_name: str, tier: str) -> List[str]:
-    """Return HTTP Basic Auth configuration for admin/panel subdomains."""
-    # Only apply auth to admin and root tiers
+def get_auth_block(project_name: str, tier: str, guest_password: Optional[str] = None) -> List[str]:
+    """Return HTTP Basic Auth configuration for guest/admin/panel subdomains."""
     if tier not in HENHOUSE_TIERS:
         return []
     
@@ -53,9 +52,16 @@ def get_auth_block(project_name: str, tier: str) -> List[str]:
     except ValueError:
         return []
     
-    # Admin tier uses .htpasswd_{tier_name}, root tier uses .htpasswd_panel
-    if tier == 'admin':
+    # Guest tier uses .htpasswd_guest (only if password is provided)
+    if tier == 'guest':
+        if not guest_password or not guest_password.strip():
+            # No password set - public access, no auth
+            return []
+        htpasswd_file = "/var/www/.htpasswd_guest"
+    # Admin tier uses .htpasswd_{tier_name}
+    elif tier == 'admin':
         htpasswd_file = f"/var/www/.htpasswd_{tier}"
+    # Root tier uses .htpasswd_panel
     elif tier == 'root':
         htpasswd_file = "/var/www/.htpasswd_panel"
     else:
@@ -63,7 +69,7 @@ def get_auth_block(project_name: str, tier: str) -> List[str]:
         return []
     
     return [
-        "    # HTTP Basic Auth for admin/panel access",
+        "    # HTTP Basic Auth",
         f"    auth_basic \"{project_name.title()}\";",
         f"    auth_basic_user_file {htpasswd_file};",
         "",
@@ -301,7 +307,7 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
 
 def generate_https_server_block(server_names: List[str], port: int, static_locations: str,
                                certificate_path: str, label: str = "", rate_limit: str = "general",
-                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None) -> List[str]:
+                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None, guest_password: Optional[str] = None) -> List[str]:
     """Generate a complete Nginx HTTPS server block.
     
     Args:
@@ -362,7 +368,7 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
     # Add hidden file blocking
     lines.extend(get_block_hidden_files())
     
-    # Add authentication for admin/panel subdomains
+    # Add authentication for guest/admin/panel subdomains
     # Map port to tier using actual detected ports
     ports = detect_flask_ports(project_name)
     tier = None
@@ -372,7 +378,7 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
             break
     
     if tier and tier in HENHOUSE_TIERS:
-        lines.extend(get_auth_block(project_name, tier))
+        lines.extend(get_auth_block(project_name, tier, guest_password))
     
     # Add any extra blocks (like auth)
     if extra_blocks:

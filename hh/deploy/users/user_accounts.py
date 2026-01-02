@@ -129,7 +129,16 @@ def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen')
                     insert_idx = i + 1
             
             # Insert the Python path setup after future imports
-            path_setup = f"import sys\nimport os\nsys.path.insert(0, '/srv/{project_name}')\n"
+            # Get deploy_path from install config (default to /srv)
+            deploy_path = "/srv"
+            try:
+                from hh.deploy.users.install import _load_install_config
+                install_config = _load_install_config(project_name)
+                if install_config:
+                    deploy_path = install_config.get("deploy_path", "/srv").strip()
+            except Exception:
+                pass
+            path_setup = f"import sys\nimport os\nsys.path.insert(0, '{deploy_path}/{project_name}')\n"
             lines.insert(insert_idx, path_setup)
             
             with open(gateway_script, 'w') as f:

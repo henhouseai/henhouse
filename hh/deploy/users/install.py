@@ -45,13 +45,14 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
     lines = [
         "[install]",
         "# Database hosts (no hardcoded suffix; use your DB/cache subdomains)",
+        "# Domain will be extracted from db_host for Let's Encrypt certificates",
         "db_host = db.yourdomain.tld",
         "cache_host = cache.yourdomain.tld",
         "",
         "# Entry point script name (defaults to hen)",
         "hen_script_name = hen",
         "",
-        "# SSL CA paths (absolute)",
+        "# SSL CA paths (absolute, configurable)",
         "ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
         "",
@@ -66,11 +67,21 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
         "password_root = CHANGE_ME",
         "",
         "# htaccess passwords",
+        "# Leave htaccess_guest_password blank for public access, set password for private site",
+        "htaccess_guest_password = ",
         "htaccess_admin_password = CHANGE_ME",
         "htaccess_panel_password = CHANGE_ME",
         "",
         "# Flask daemon starting port (reserves 100 ports: start_port through start_port+99)",
         "flask_start_port = 5001",
+        "",
+        "# HTTP deployment settings",
+        "domain = yourdomain.tld",
+        "deploy_path = /srv",
+        "ssl_cert_dir = /etc/letsencrypt/live",
+        "# Local deployment IP binding (e.g., '192.168.1.' for subnet, '192.168.1.100' for specific IP)",
+        "# Only used for local deployments (.local domains or localhost/127.0.0.1)",
+        "local_allow_block = 192.168.1.",
         "",
     ]
     config_path.write_text("\n".join(lines), encoding="utf-8")
@@ -147,9 +158,11 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
         "password_verified": req("password_verified"),
         "password_admin": req("password_admin"),
         "password_root": req("password_root"),
+        "htaccess_guest_password": section.get("htaccess_guest_password", "").strip(),
         "htaccess_admin_password": req("htaccess_admin_password"),
         "htaccess_panel_password": req("htaccess_panel_password"),
         "flask_start_port": flask_start_port,
+        "deploy_path": section.get("deploy_path", "/srv").strip(),
     }
     data["manifest_users"] = manifest_users
     # Note: SSL CA paths are not validated here - they may not exist yet if certificates
@@ -356,6 +369,7 @@ def install() -> bool:
         password_verified = cfg["password_verified"]
         password_admin = cfg["password_admin"]
         password_root = cfg["password_root"]
+        htaccess_guest_password = cfg.get("htaccess_guest_password", "").strip()
         htaccess_admin_password = cfg["htaccess_admin_password"]
         htaccess_panel_password = cfg["htaccess_panel_password"]
         db_host = cfg["db_host"]
@@ -364,6 +378,7 @@ def install() -> bool:
         cache_ssl_ca_path = cfg["cache_ssl_ca_path"]
         hen_script_name = cfg.get("hen_script_name", "hen")
         flask_start_port = cfg.get("flask_start_port", 5001)
+        deploy_path = cfg.get("deploy_path", "/srv").strip()
         try:
             _validate_hen_script_name(hen_script_name)
         except Exception as e:
@@ -463,8 +478,8 @@ def install() -> bool:
                 trace_out()
                 return False
         
-        # Create/update .htpasswd files for admin and root tiers
-        setup_htpasswd_files(project_name, passwords, htaccess_admin_password, htaccess_panel_password)
+        # Create/update .htpasswd files for guest, admin and root tiers
+        setup_htpasswd_files(project_name, passwords, htaccess_guest_password, htaccess_admin_password, htaccess_panel_password)
         
         # Set up rest of project groups (after users created so their groups exist)
         setup_project_group(project_name, project_path)
@@ -514,19 +529,19 @@ def install() -> bool:
         )
         
         # Set up images directory with proper permissions
-        setup_images_directory(project_name)
+        setup_images_directory(project_name, deploy_path)
         
         # Set up files directory with proper permissions
-        setup_files_directory(project_name)
+        setup_files_directory(project_name, deploy_path)
         
         # Set up audio directory with proper permissions
-        setup_audio_directory(project_name)
+        setup_audio_directory(project_name, deploy_path)
         
         # Set up video directory with proper permissions
-        setup_video_directory(project_name)
+        setup_video_directory(project_name, deploy_path)
         
         # Set ownership and permissions for the created directory structure
-        from hh.deploy.srv.deploy import setup_deployment_ownership_and_permissions
+        from hh.deploy.http.deploy import setup_deployment_ownership_and_permissions
         setup_deployment_ownership_and_permissions(project_name)
         
         
@@ -534,7 +549,7 @@ def install() -> bool:
         result_data = {
             "project_name": project_name,
             "project_path": str(project_path),
-            "git_repo": f"/srv/{project_name}/git/{project_name}.git",
+            "git_repo": f"{deploy_path}/{project_name}/git/{project_name}.git",
             "git_branch": project_name,
             "project_owner": project_owner,
             "groups_created": [project_name, f"{project_name}_deploy"],
@@ -585,8 +600,19 @@ def check_existing_setup(project_name: str) -> List[str]:
                 conflicts.append(f"group {group}")
                 log(f"Found existing group: {group}")
         
-        # Check for existing project directory
-        srv_project = Path(f'/srv/{project_name}')
+        # Check for existing project directory (try to get deploy_path from config, default to /srv)
+        deploy_path = "/srv"  # default
+        try:
+            cfg_path = _install_config_path(project_name)
+            if cfg_path.exists():
+                parser = configparser.ConfigParser()
+                parser.read(cfg_path)
+                if parser.has_section("install"):
+                    deploy_path = parser.get("install", "deploy_path", fallback="/srv").strip()
+        except Exception:
+            pass
+        
+        srv_project = Path(f'{deploy_path}/{project_name}')
         if srv_project.exists():
             conflicts.append(f"directory {srv_project}")
             log(f"Found existing project directory: {srv_project}")
@@ -658,13 +684,13 @@ def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -
     
     return conflicts
 
-def setup_git_repository(project_name: str, project_path: Path) -> None:
+def setup_git_repository(project_name: str, project_path: Path, deploy_path: str = "/srv") -> None:
     trace_in()
     gateway = get_gateway()
     log("Setting up git repository")
     
-    # Create /srv/{project_name} directory structure
-    srv_project = Path(f'/srv/{project_name}')
+    # Create {deploy_path}/{project_name} directory structure
+    srv_project = Path(f'{deploy_path}/{project_name}')
     srv_project.mkdir(parents=True, exist_ok=True)
     
     # Create git directory
@@ -866,8 +892,8 @@ def create_fresh_users(
     trace_out()
     return user_data
 
-def setup_htpasswd_files(project_name: str, passwords: List[str], admin_htpasswd: str, panel_htpasswd: str) -> None:
-    """Create/update .htpasswd files for admin and root tiers."""
+def setup_htpasswd_files(project_name: str, passwords: List[str], guest_htpasswd: str, admin_htpasswd: str, panel_htpasswd: str) -> None:
+    """Create/update .htpasswd files for guest, admin and root tiers."""
     trace_in()
     try:
         # Check if htpasswd command exists
@@ -878,9 +904,30 @@ def setup_htpasswd_files(project_name: str, passwords: List[str], admin_htpasswd
             report_error("backend", error_msg)
             raise FileNotFoundError(error_msg)
         
-        # Get admin and root tier indices
+        # Get guest, admin and root tier indices
+        guest_idx = HENHOUSE_TIERS.index('guest') if 'guest' in HENHOUSE_TIERS else None
         admin_idx = HENHOUSE_TIERS.index('admin') if 'admin' in HENHOUSE_TIERS else None
         root_idx = HENHOUSE_TIERS.index('root') if 'root' in HENHOUSE_TIERS else None
+        
+        # Setup guest tier .htpasswd (only if password is provided)
+        if guest_idx is not None and guest_htpasswd:
+            guest_tier = HENHOUSE_TIERS[guest_idx]
+            guest_user = f"{project_name}_{guest_tier}"
+            guest_password = guest_htpasswd
+            htpasswd_file = f"/var/www/.htpasswd_{guest_tier}"
+            
+            # Use htpasswd to create/update the file (-b for batch mode, -c to create file)
+            file_exists = Path(htpasswd_file).exists()
+            cmd = ['htpasswd', '-b']
+            if not file_exists:
+                cmd.append('-c')  # Create file if it doesn't exist
+            cmd.extend([htpasswd_file, guest_user, guest_password])
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                log(f"Created/updated {htpasswd_file} with user {guest_user}")
+            else:
+                warn(f"Failed to create/update {htpasswd_file}: {result.stderr}")
         
         if admin_idx is not None:
             admin_tier = HENHOUSE_TIERS[admin_idx]
@@ -1013,15 +1060,15 @@ def setup_project_group(project_name: str, project_path: Path) -> None:
     finally:
         trace_out()
 
-def setup_images_directory(project_name: str) -> None:
+def setup_images_directory(project_name: str, deploy_path: str = "/srv") -> None:
     """Set up images directory with proper permissions during installation."""
     trace_in()
     gateway = get_gateway()
     try:
         log(f"Setting up images directory for project {project_name}")
         
-        # Create /srv/images/{project_name} directory
-        images_dir = Path(f'/srv/images/{project_name}')
+        # Create {deploy_path}/images/{project_name} directory
+        images_dir = Path(f'{deploy_path}/images/{project_name}')
         images_dir.mkdir(parents=True, exist_ok=True)
         gateway.files.chmod(str(images_dir), 0o2775)
         log(f"Created images directory with group write: {images_dir}")
@@ -1046,15 +1093,15 @@ def setup_images_directory(project_name: str) -> None:
     finally:
         trace_out()
 
-def setup_files_directory(project_name: str) -> None:
+def setup_files_directory(project_name: str, deploy_path: str = "/srv") -> None:
     """Set up files directory with proper permissions during installation."""
     trace_in()
     gateway = get_gateway()
     try:
         log(f"Setting up files directory for project {project_name}")
         
-        # Create /srv/files/{project_name} directory
-        files_dir = Path(f'/srv/files/{project_name}')
+        # Create {deploy_path}/files/{project_name} directory
+        files_dir = Path(f'{deploy_path}/files/{project_name}')
         files_dir.mkdir(parents=True, exist_ok=True)
         gateway.files.chmod(str(files_dir), 0o2775)
         log(f"Created files directory with group write: {files_dir}")
@@ -1079,15 +1126,15 @@ def setup_files_directory(project_name: str) -> None:
     finally:
         trace_out()
 
-def setup_audio_directory(project_name: str) -> None:
+def setup_audio_directory(project_name: str, deploy_path: str = "/srv") -> None:
     """Set up audio directory with proper permissions during installation."""
     trace_in()
     gateway = get_gateway()
     try:
         log(f"Setting up audio directory for project {project_name}")
         
-        # Create /srv/audio/{project_name} directory
-        audio_dir = Path(f'/srv/audio/{project_name}')
+        # Create {deploy_path}/audio/{project_name} directory
+        audio_dir = Path(f'{deploy_path}/audio/{project_name}')
         audio_dir.mkdir(parents=True, exist_ok=True)
         gateway.files.chmod(str(audio_dir), 0o2775)
         log(f"Created audio directory with group write: {audio_dir}")
@@ -1112,15 +1159,15 @@ def setup_audio_directory(project_name: str) -> None:
     finally:
         trace_out()
 
-def setup_video_directory(project_name: str) -> None:
+def setup_video_directory(project_name: str, deploy_path: str = "/srv") -> None:
     """Set up video directory with proper permissions during installation."""
     trace_in()
     gateway = get_gateway()
     try:
         log(f"Setting up video directory for project {project_name}")
         
-        # Create /srv/video/{project_name} directory
-        video_dir = Path(f'/srv/video/{project_name}')
+        # Create {deploy_path}/video/{project_name} directory
+        video_dir = Path(f'{deploy_path}/video/{project_name}')
         video_dir.mkdir(parents=True, exist_ok=True)
         gateway.files.chmod(str(video_dir), 0o2775)
         log(f"Created video directory with group write: {video_dir}")

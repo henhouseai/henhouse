@@ -77,6 +77,16 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         if not certificate_path:
             certificate_path = f"/etc/letsencrypt/live/{domain}"
         
+        # Load guest password from install config
+        from hh.deploy.users.install import _load_install_config
+        guest_password = None
+        try:
+            install_config = _load_install_config(project_name)
+            if install_config:
+                guest_password = install_config.get("htaccess_guest_password", "").strip() or None
+        except Exception:
+            pass  # If config can't be loaded, guest_password stays None (public access)
+        
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
         from hh.deploy.http.nginx_config_helpers import (
@@ -135,7 +145,8 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
             main_server['label'],
             rate_limit="general",
             project_name=project_name,
-            media_port=media_port
+            media_port=media_port,
+            guest_password=guest_password
         )
         config_lines.extend(block_lines)
         
@@ -149,7 +160,8 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
                 server['label'],
                 rate_limit="admin",
                 project_name=project_name,
-                media_port=media_port
+                media_port=media_port,
+                guest_password=guest_password
             )
             config_lines.extend(block_lines)
         
