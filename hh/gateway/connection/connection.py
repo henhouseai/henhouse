@@ -58,7 +58,11 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
     ssl_ca = config.get('client', f'{prefix}ssl_ca', fallback=None)
     ssl_cert = config.get('client', f'{prefix}ssl_cert', fallback=None)
     ssl_key = config.get('client', f'{prefix}ssl_key', fallback=None)
-    ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback='2')
+    # For verify_mode, if prefixed version doesn't exist, fall back to main ssl_verify_mode
+    if prefix and not config.has_option('client', f'{prefix}ssl_verify_mode'):
+        ssl_verify_mode = config.get('client', 'ssl_verify_mode', fallback='2')
+    else:
+        ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback='2')
     ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
 
     # Determine verify_mode from config (defaults to 2 if not set or invalid)
