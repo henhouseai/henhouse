@@ -32,7 +32,7 @@ The installer uses a single configuration file:
 On the first run, if the config file doesn't exist, the installer creates a template:
 
 ```bash
-sudo python -m hh.gateway.main install
+sudo python3 hen.py install
 ```
 
 The installer will:
@@ -226,7 +226,7 @@ The installer validates that:
 After editing the config file, run the installer again:
 
 ```bash
-sudo python -m hh.gateway.main install
+sudo python3 hen.py install
 ```
 
 The installer requires:
@@ -450,7 +450,7 @@ After logging back in, test the entry script:
 {entry_point_script_name} command-list
 ```
 
-You should no longer need to run `python -m hh.gateway.main` - the entry script handles it.
+You should no longer need to run `python3 hen.py` - the entry point script handles it.
 
 ### 4. Database Setup
 

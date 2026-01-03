@@ -407,7 +407,7 @@ This is your standard deployment workflow: make changes locally, push to server,
 - **Production code deployment**: All whitelisted files copied to `/srv/{project_name}`
 - **Web server configuration**: NGINX automatically configured for HTTP or HTTPS
 - **SSL certificate management**: Automatic certificate creation or obtaining
-- **Entry points**: Can use `{hen_script_name}` command instead of `python hen.py` on server
+- **Entry points**: Can use `{hen_script_name}` command instead of `python3 hen.py` on server
 - **Full deployment workflow**: Make changes locally, push, pull, and deploy in one cycle
 - **Running Flask applications**: Four tier-based Flask daemons serving web and MCP requests
 - **Maintenance daemon**: Background worker for cache refresh and job processing

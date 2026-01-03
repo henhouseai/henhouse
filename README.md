@@ -121,34 +121,34 @@ Many commands work immediately after cloning - no database or installation requi
 
 ```bash
 # Check dependencies (shows what's installed and what's missing)
-python hen.py dependency-list
+python3 hen.py dependency-list
 
 # List available commands
-python hen.py command-list
+python3 hen.py command-list
 
 # List available actions
-python hen.py action-list
+python3 hen.py action-list
 
 # List available backends
-python hen.py backend-list
+python3 hen.py backend-list
 
 # List available parsers
-python hen.py parser-list
+python3 hen.py parser-list
 
 # List available MCP tools
-python hen.py mcp-list
+python3 hen.py mcp-list
 
 # List available maintenance tools
-python hen.py maintenance-list
+python3 hen.py maintenance-list
 
 # List available page classes
-python hen.py class-list
+python3 hen.py class-list
 ```
 
 **Debugging**: Add `-log` to any command for debug output that traces the execution flow:
 
 ```bash
-python hen.py dependency-list -log
+python3 hen.py dependency-list -log
 ```
 
 **Quick Installation Sprint:**
@@ -177,16 +177,16 @@ sudo mv henhouse /
 cd /henhouse
 
 # Install system users and infrastructure (creates config template)
-sudo python hen.py install
+sudo python3 hen.py install
 
 # Edit the config file with your settings (see Chapter 5 for required fields)
 sudo vi /root/.henhouse-install.cnf
 # Set all passwords, domain names, database hosts, etc.
 
 # Run install again to complete setup
-sudo python hen.py install
+sudo python3 hen.py install
 
-# Log out and log back in to refresh user groups (you can now use 'hen' instead of 'python hen.py')
+# Log out and log back in to refresh user groups (you can now use 'hen' instead of 'python3 hen.py')
 
 # Set up database
 sudo hen init-db -root --confirm
@@ -214,7 +214,7 @@ sudo mv henhouse /foxhouse
 cd /foxhouse
 
 # Install with different project name
-sudo python hen.py install
+sudo python3 hen.py install
 sudo vi /root/.foxhouse-install.cnf
 # Set hen_script_name = fox (or your preferred name)
 # Set different domain, passwords, etc.
@@ -243,12 +243,12 @@ git clone https://github.com/henhouseai/henhouse.git
 sudo mv henhouse /foxhouse
 cd /foxhouse
 
-python hen.py dependency-list
+python3 hen.py dependency-list
 sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
 
-sudo python hen.py install
+sudo python3 hen.py install
 sudo vi /root/.foxhouse-install.cnf
-sudo python hen.py install
+sudo python3 hen.py install
 
 sudo fox init-db -root --confirm
 sudo fox add-db-users -root

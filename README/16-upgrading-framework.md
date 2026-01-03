@@ -39,20 +39,20 @@ cd ~/henhouse
 Run the upgrade command with the `--target` argument pointing to your existing project:
 
 ```bash
-python hen.py upgrade --target /path/to/existing/project
+python3 hen.py upgrade --target /path/to/existing/project
 ```
 
 **Example**: If upgrading a project called "foxhouse":
 
 ```bash
-python hen.py upgrade --target /root/foxhouse
+python3 hen.py upgrade --target /root/foxhouse
 ```
 
 ## Technical Details: Upgrade Command Implementation
 
 The upgrade command (`hh/deploy/upgrade.py`) performs a safe, atomic upgrade of the framework code:
 
-**Command**: `python hen.py upgrade --target /path/to/project`
+**Command**: `python3 hen.py upgrade --target /path/to/project`
 
 **Process Flow**:
 
@@ -270,7 +270,7 @@ rm -rf hh_backup_2  # If you have multiple backups
 
 1. Clone fresh Henhouse: `git clone https://github.com/henhouseai/henhouse.git`
 2. Change to fresh clone: `cd ~/henhouse`
-3. Run upgrade: `python hen.py upgrade --target /path/to/project`
+3. Run upgrade: `python3 hen.py upgrade --target /path/to/project`
 4. Test upgraded project: `cd /path/to/project && {hen_script_name} dependency-list`
 5. Deploy if production: `sudo {hen_script_name} deploy`
 6. Clean up backups: `rm -rf hh_backup` (after verifying everything works)

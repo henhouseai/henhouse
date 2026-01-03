@@ -30,7 +30,7 @@ Before smoke checking, you should have:
 The `dependency-list` command shows what Python packages Henhouse expects:
 
 ```bash
-python -m hh.gateway.main dependency-list
+python3 hen.py dependency-list
 ```
 
 Or if you have the entry script:
@@ -154,7 +154,7 @@ hen debugger
 
 Or:
 ```bash
-python -m hh.gateway.main debugger
+python3 hen.py debugger
 ```
 
 ### What the Debugger Shows
