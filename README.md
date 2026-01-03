@@ -216,9 +216,9 @@ cd /foxhouse
 # Install with different project name
 sudo python3 hen.py install
 sudo vi /root/.foxhouse-install.cnf
-# Set hen_script_name = fox (or your preferred name)
+# Set entry_point_script_name = fox (or your preferred name)
 # Set different domain, passwords, etc.
-sudo python hen.py install
+sudo python3 hen.py install
 
 # Log out and log back in
 
@@ -233,34 +233,7 @@ fox show-page -id 1
 sudo fox deploy
 ```
 
-**Customizing Project Name and Entry Point:**
-
-If you don't want your project named "henhouse" or your entry point script named "hen", or if you want to run multiple Henhouse installations on the same server, you can customize both. Here's a condensed example using "foxhouse" and "fox":
-
-```bash
-cd ~
-git clone https://github.com/henhouseai/henhouse.git
-sudo mv henhouse /foxhouse
-cd /foxhouse
-
-python3 hen.py dependency-list
-sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
-
-sudo python3 hen.py install
-sudo vi /root/.foxhouse-install.cnf
-sudo python3 hen.py install
-
-sudo fox init-db -root --confirm
-sudo fox add-db-users -root
-fox show-page -id 1
-sudo fox deploy
-sudo fox http-deploy -domain yourfox.com
-# Set up mirror sites
-sudo fox http-deploy -domain yourfox2.com
-sudo fox http-deploy -domain yourfox3.com
-```
-
-The key differences: rename the folder, set `hen_script_name = fox` in the install config, and then you can use `fox` instead of `hen` on the command line.
+**Note**: The key to running multiple installations is renaming the project folder (e.g., `/foxhouse` instead of `/henhouse`) and setting `entry_point_script_name` in the install config file. This allows you to use different command names (e.g., `fox` instead of `hen`) for each installation.
 
 **Git Workflows**: The `push-project` and `pull-project` commands are optional convenience tools for syncing code between your developer box and deployment box. The `stage` script is also available for staging operations. These are not required - you're free to use standard git push/pull commands or any git workflow you prefer. You don't have to use the git repository created during installation; you can use GitHub or any other git hosting service instead. See **Chapter 6: Git and Staging Workflows** in the `README/` folder for details.
 
