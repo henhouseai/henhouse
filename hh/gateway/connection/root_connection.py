@@ -90,8 +90,8 @@ class RootConnection(Connection):
                 except (ValueError, configparser.NoOptionError):
                     verify_mode = 2
         
-        # include ssl_ca if present (only for modes 1,2,3 - not mode 0)
-        if cfg.get("ssl_ca_path") and verify_mode > 0:
+        # Only include SSL/TLS if ssl_ca_path is present in config
+        if cfg.get("ssl_ca_path"):
             # Map verify_mode to Python SSL settings
             # Mode 3: verify_mode=2 + check_hostname=True
             # Mode 2: verify_mode=2 + check_hostname=False
@@ -103,9 +103,7 @@ class RootConnection(Connection):
             if verify_mode > 0:
                 ssl_dict['ca'] = str(cfg["ssl_ca_path"])
             dsn['ssl'] = ssl_dict
-        elif verify_mode == 0:
-            # Mode 0: no CA, no verification
-            dsn['ssl'] = {'verify_mode': 0, 'check_hostname': False}
+        # If no ssl_ca_path, don't include SSL (plain text connection)
         
         log(f"Root connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -149,15 +147,15 @@ class RootConnection(Connection):
                 except (ValueError, configparser.NoOptionError):
                     verify_mode = 2
         
-        if cfg.get("cache_ssl_ca_path") and verify_mode > 0:
+        # Only include SSL/TLS if cache_ssl_ca_path is present in config
+        if cfg.get("cache_ssl_ca_path"):
             python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
             check_hostname = verify_mode == 3
             ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
             if verify_mode > 0:
                 ssl_dict['ca'] = str(cfg["cache_ssl_ca_path"])
             dsn['ssl'] = ssl_dict
-        elif verify_mode == 0:
-            dsn['ssl'] = {'verify_mode': 0, 'check_hostname': False}
+        # If no cache_ssl_ca_path, don't include SSL (plain text connection)
         
         log(f"Root cache connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
         trace_out()
@@ -201,15 +199,15 @@ class RootConnection(Connection):
                     except (ValueError, configparser.NoOptionError):
                         verify_mode = 2
             
-            if cfg.get("ssl_ca_path") and verify_mode > 0:
+            # Only include SSL/TLS if ssl_ca_path is present in config
+            if cfg.get("ssl_ca_path"):
                 python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
                 check_hostname = verify_mode == 3
                 ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
                 if verify_mode > 0:
                     ssl_dict['ca'] = str(cfg["ssl_ca_path"])
                 dsn['ssl'] = ssl_dict
-            elif verify_mode == 0:
-                dsn['ssl'] = {'verify_mode': 0, 'check_hostname': False}
+            # If no ssl_ca_path, don't include SSL (plain text connection)
             log(f"Root history connection DSN: host={dsn.get('host')}, user={dsn.get('user')}, database={dsn.get('database')}")
             trace_out()
             return dsn

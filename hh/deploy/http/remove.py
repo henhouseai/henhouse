@@ -5,7 +5,7 @@ import configparser
 import json
 import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -61,12 +61,25 @@ def _manifest_clear_all_sites(project_name: str) -> None:
             parser.write(f)
         os.chmod(cfg_path, 0o600)
 
-def remove_nginx_config(domain: str) -> bool:
+def remove_nginx_config(domain: str, project_name: str, nginx_sites_available: Optional[Path] = None, nginx_sites_enabled: Optional[Path] = None) -> bool:
     """Remove Nginx configuration for domain."""
     trace_in()
     try:
+        # Load nginx paths from config if not provided
+        if nginx_sites_available is None or nginx_sites_enabled is None:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                nginx_sites_available_str = install_config.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+                nginx_sites_available = Path(nginx_sites_available_str)
+                nginx_sites_enabled_str = install_config.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+                nginx_sites_enabled = Path(nginx_sites_enabled_str)
+            else:
+                nginx_sites_available = Path("/etc/nginx/sites-available")
+                nginx_sites_enabled = Path("/etc/nginx/sites-enabled")
+        
         # Remove symlink from sites-enabled
-        enabled_file = Path(f'/etc/nginx/sites-enabled/{domain}')
+        enabled_file = nginx_sites_enabled / domain
         if enabled_file.exists():
             enabled_file.unlink()
             log(f"Removed symlink: {enabled_file}")
@@ -74,7 +87,7 @@ def remove_nginx_config(domain: str) -> bool:
             log(f"Symlink not found: {enabled_file}")
         
         # Remove config file from sites-available
-        config_file = Path(f'/etc/nginx/sites-available/{domain}')
+        config_file = nginx_sites_available / domain
         if config_file.exists():
             config_file.unlink()
             log(f"Removed config: {config_file}")
@@ -89,7 +102,7 @@ def remove_nginx_config(domain: str) -> bool:
         trace_out()
         return False
 
-def check_nginx_status() -> Dict[str, Any]:
+def check_nginx_status(project_name: Optional[str] = None) -> Dict[str, Any]:
     """Check current Nginx status."""
     trace_in()
     try:
@@ -99,7 +112,17 @@ def check_nginx_status() -> Dict[str, Any]:
         
         # Get enabled sites
         enabled_sites = []
-        sites_enabled_dir = Path('/etc/nginx/sites-enabled')
+        # Load nginx paths from config if project_name provided
+        if project_name:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                nginx_sites_enabled_str = install_config.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+                sites_enabled_dir = Path(nginx_sites_enabled_str)
+            else:
+                sites_enabled_dir = Path('/etc/nginx/sites-enabled')
+        else:
+            sites_enabled_dir = Path('/etc/nginx/sites-enabled')
         if sites_enabled_dir.exists():
             for site_file in sites_enabled_dir.iterdir():
                 if site_file.is_symlink() or not site_file.suffix:
@@ -176,7 +199,13 @@ def remove() -> bool:
     if not is_error():
         for domain in deployed_domains:
             try:
-                if remove_nginx_config(domain):
+                # Get nginx paths from config
+                nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+                nginx_sites_available = Path(nginx_sites_available_str)
+                nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+                nginx_sites_enabled = Path(nginx_sites_enabled_str)
+                
+                if remove_nginx_config(domain, project_name, nginx_sites_available, nginx_sites_enabled):
                     nginx_removed.append(domain)
                     log(f"Removed NGINX config for domain: {domain}")
                 else:
@@ -278,7 +307,7 @@ def remove() -> bool:
             report_error("backend", f"Failed to clear manifest: {e}")
     
     # Check NGINX status
-    nginx_status = check_nginx_status()
+    nginx_status = check_nginx_status(project_name)
     
     # Final result
     result = not is_error()

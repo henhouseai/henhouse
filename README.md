@@ -28,8 +28,8 @@ For detailed step-by-step installation instructions, see the numbered chapters i
 - **Chapter 5**: Installation
 - **Chapter 6**: Git and Staging Workflows
 - **Chapter 7**: Database Setup
-- **Chapter 8**: File Deployment
-- **Chapter 9**: HTTP/NGINX Configuration
+- **Chapter 8**: Deployment
+- **Chapter 9**: TBD
 - **Chapter 10**: Flask and Maintenance Daemons
 - **Chapter 11**: MCP Wrapper Setup in Cursor
 - **Chapter 12**: Security Considerations
@@ -79,7 +79,7 @@ For detailed step-by-step installation instructions, see the numbered chapters i
 
 - **Developer Box**: Your laptop, desktop, or development machine (Windows, Mac, or Linux) where you write code and use your IDE.
   - Developed and tested with Cursor as the agentic IDE, but other IDEs like GitHub Copilot should be compatible as well
-  - **No Henhouse installation** - developer box does NOT run Henhouse deployment
+  - **No Henhouse installation** - developer box does NOT run Henhouse deployment (system is designed with separate boxes in mind, though theoretically they could be the same machine on Linux - untested)
   - Just clone the repository and run Python code directly for testing
   - Wrapper scripts available (`.sh` for Mac/Linux, `.ps1` for Windows) - add project folder to PATH to use `hen` and `stage` commands
   - Entry points provide CLI interface to test features before pushing to server
@@ -153,40 +153,84 @@ python hen.py dependency-list -log
 
 **Quick Installation Sprint:**
 
-Once prerequisites are met (see Chapter 1-3), here's the complete installation flow:
+Starting from a fresh Ubuntu Server installation, here's the complete installation flow:
 
 ```bash
-# Clone the repository (see Chapter 4 for smoke checking first)
+# Update system
+sudo apt update
+sudo apt upgrade -y
+
+# Install all required system packages and Python dependencies
+sudo apt install python3 python3-pip git default-libmysqlclient-dev nginx mysql-server apache2-utils python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
+
+# Set MySQL root password (required before installation)
+sudo mysql
+# In MySQL prompt, run:
+# ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'your_secure_password';
+# FLUSH PRIVILEGES;
+# EXIT;
+
+# Clone the repository
 cd ~
 git clone https://github.com/henhouseai/henhouse.git
 sudo mv henhouse /
 cd /henhouse
 
-# Check dependencies before installing (see Chapter 4)
-python hen.py dependency-list
-sudo apt install python3-flask python3-pymysql python3-psutil python3-mutagen python3-pil ffmpeg -y
-
-# Install system users and infrastructure (see Chapter 5)
+# Install system users and infrastructure (creates config template)
 sudo python hen.py install
 
-# Edit the config file with your settings (see Chapter 5 for required fields) then run install again
+# Edit the config file with your settings (see Chapter 5 for required fields)
 sudo vi /root/.henhouse-install.cnf
+# Set all passwords, domain names, database hosts, etc.
+
+# Run install again to complete setup
 sudo python hen.py install
 
 # Log out and log back in to refresh user groups (you can now use 'hen' instead of 'python hen.py')
 
-# Set up database (see Chapter 7)
+# Set up database
 sudo hen init-db -root --confirm
 sudo hen add-db-users -root
 
 # Test that db connection works
 hen show-page -id 1
 
-# Deploy code to production (see Chapter 8)
+# Deploy code and configure NGINX (unified command)
 sudo hen deploy
 
-# Configure HTTP/NGINX (see Chapter 9) - any domain can be used, doesn't have to match project name
-sudo hen http-deploy -domain yourhen.com
+# For local deployments: configure /etc/hosts on client machines
+# For public deployments: ensure DNS records are configured
+```
+
+**Setting Up a Second Site:**
+
+To run multiple Henhouse installations on the same server:
+
+```bash
+# Clone and rename for second project
+cd ~
+git clone https://github.com/henhouseai/henhouse.git
+sudo mv henhouse /foxhouse
+cd /foxhouse
+
+# Install with different project name
+sudo python hen.py install
+sudo vi /root/.foxhouse-install.cnf
+# Set hen_script_name = fox (or your preferred name)
+# Set different domain, passwords, etc.
+sudo python hen.py install
+
+# Log out and log back in
+
+# Set up database (uses same MySQL server, creates separate databases)
+sudo fox init-db -root --confirm
+sudo fox add-db-users -root
+
+# Test connection
+fox show-page -id 1
+
+# Deploy
+sudo fox deploy
 ```
 
 **Customizing Project Name and Entry Point:**

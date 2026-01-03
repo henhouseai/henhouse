@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
 from hh.gateway.gateway import get_gateway
@@ -32,15 +32,27 @@ class SiteInfo:
         self.is_henhouse = is_henhouse
         self.has_ssl = has_ssl
 
-def scan_nginx_sites() -> List[SiteInfo]:
+def scan_nginx_sites(project_name: Optional[str] = None) -> List[SiteInfo]:
     """Scan nginx sites-available and sites-enabled directories."""
     trace_in()
     sites: list[SiteInfo] = []
     
     try:
-        # Get all files in sites-available
-        sites_available_dir = Path('/etc/nginx/sites-available')
-        sites_enabled_dir = Path('/etc/nginx/sites-enabled')
+        # Load nginx paths from config if project_name provided
+        if project_name:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                nginx_sites_available_str = install_config.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+                sites_available_dir = Path(nginx_sites_available_str)
+                nginx_sites_enabled_str = install_config.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+                sites_enabled_dir = Path(nginx_sites_enabled_str)
+            else:
+                sites_available_dir = Path('/etc/nginx/sites-available')
+                sites_enabled_dir = Path('/etc/nginx/sites-enabled')
+        else:
+            sites_available_dir = Path('/etc/nginx/sites-available')
+            sites_enabled_dir = Path('/etc/nginx/sites-enabled')
         
         if not sites_available_dir.exists():
             log("Nginx sites-available directory not found (running in non-nginx environment)")

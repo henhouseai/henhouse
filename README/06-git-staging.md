@@ -405,5 +405,5 @@ After setting up git sync:
 
 1. **Database Setup**: Proceed to Chapter 7 to initialize the database
 2. **File Deployment**: Deploy your code to `/srv/` (see Chapter 8)
-3. **HTTP/NGINX**: Configure web server (see Chapter 9)
+3. **Deployment**: Deploy code and configure web server (see Chapter 8)
 

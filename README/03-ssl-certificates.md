@@ -2,39 +2,88 @@
 
 ## Quick Reference
 
-Henhouse requires SSL certificates for secure database connections and HTTPS web access. This quick reference lists what you need to track and where it's used.
+Henhouse supports SSL/TLS certificates for secure database connections and HTTPS web access. **Note**: TLS/SSL is optional - for localhost deployments, plain text connections are supported (`mysql_tls_enabled = 0`, `ssl_enabled = 0`). This quick reference lists what you need to track and where it's used.
 
 ### Information to Track
 
-| Component | What You Need | Where It's Used |
-|-----------|---------------|-----------------|
-| **Main Domain Certificate** | Let's Encrypt cert for `example.com` | NGINX HTTPS configuration |
-| **Database Certificate** | Let's Encrypt cert for `db.example.com` | MySQL SSL, install config `ssl_ca_path` |
-| **Cache Certificate** | Let's Encrypt cert for `cache.example.com` | MySQL SSL, install config `cache_ssl_ca_path` |
-| **Webroot Path** | `/var/www/html` | Let's Encrypt ACME challenges |
-| **MySQL SSL Directory** | `/etc/mysql/ssl/` | MySQL SSL certificate storage |
-| **MySQL CA Path** | `/etc/mysql/ssl/ca.pem` | Install config: `ssl_ca_path`, `cache_ssl_ca_path` |
-| **Let's Encrypt Live** | `/etc/letsencrypt/live/{domain}/` | Source certificates |
-| **Renewal Hook** | `/etc/letsencrypt/renewal-hooks/deploy/` | Automatic certificate updates |
+| Component | Config Key | Default Value | Where It's Used |
+|-----------|-----------|---------------|-----------------|
+| **Main Domain Certificate** | (auto-detected) | Let's Encrypt or self-signed | NGINX HTTPS configuration |
+| **Database Certificate** | (auto-detected) | Let's Encrypt or self-signed | MySQL SSL (only if `mysql_tls_enabled = 1`) |
+| **Cache Certificate** | (auto-detected) | Let's Encrypt or self-signed | MySQL SSL (only if `mysql_tls_enabled = 1`) |
+| **Webroot Path** | `webroot_dir` | `/var/www/html` | Let's Encrypt ACME challenges |
+| **MySQL SSL Directory** | `mysql_ssl_dir` | `/etc/mysql/ssl` | MySQL SSL certificate storage |
+| **MySQL Server Cert Path** | `mysql_server_cert_path` | `/etc/mysql/ssl/server-cert.pem` | MySQL server certificate |
+| **MySQL Server Key Path** | `mysql_server_key_path` | `/etc/mysql/ssl/server-key.pem` | MySQL server private key |
+| **MySQL CA Path** | `ssl_ca_path` | `/etc/mysql/ssl/ca.pem` | Install config (only if `mysql_tls_enabled = 1`) |
+| **Cache CA Path** | `cache_ssl_ca_path` | `/etc/mysql/ssl/ca.pem` | Install config (only if `mysql_tls_enabled = 1`) |
+| **Let's Encrypt Live** | (fixed path) | `/etc/letsencrypt/live/{domain}/` | Source certificates |
+| **Renewal Hook** | (manual setup) | `/etc/letsencrypt/renewal-hooks/deploy/` | **Manual**: Certificate renewal updates (see below) |
 
-### Expected File Paths
+### File Paths
 
-**Let's Encrypt Certificates:**
-- `/etc/letsencrypt/live/{domain}/` - Live certificates for each domain
+**Hardcoded Paths (not configurable):**
+- `/etc/letsencrypt/live/{domain}/` - Let's Encrypt certificate storage (fixed by certbot)
   - `fullchain.pem` - Certificate chain (leaf + intermediate)
   - `privkey.pem` - Private key
   - `cert.pem` - Certificate only
   - `chain.pem` - Intermediate certificate
 
-**MySQL SSL Directory:**
-- `/etc/mysql/ssl/` - MySQL SSL certificate directory
-- `/etc/mysql/ssl/ca.pem` - CA bundle (root + intermediate, no leaf)
-- `/etc/mysql/ssl/server-cert.pem` - Server certificate (fullchain)
-- `/etc/mysql/ssl/server-key.pem` - Server private key
+**Configurable Paths (default values shown, can be changed in install config):**
+- `webroot_dir` - Default: `/var/www/html` - Webroot for Let's Encrypt ACME challenges
+- `mysql_ssl_dir` - Default: `/etc/mysql/ssl` - MySQL SSL certificate directory
+- `mysql_server_cert_path` - Default: `/etc/mysql/ssl/server-cert.pem` - Server certificate (fullchain)
+- `mysql_server_key_path` - Default: `/etc/mysql/ssl/server-key.pem` - Server private key
+- `ssl_ca_path` - Default: `/etc/mysql/ssl/ca.pem` - CA bundle (root + intermediate, no leaf) - Only used if `mysql_tls_enabled = 1`
+- `cache_ssl_ca_path` - Default: `/etc/mysql/ssl/ca.pem` - Cache CA path - Only used if `mysql_tls_enabled = 1`
 
 **NGINX Configuration:**
 - NGINX uses Let's Encrypt certificates directly from `/etc/letsencrypt/live/{domain}/`
 - No copying needed for web certificates
+
+## Quick Start: Automated Certificate Setup
+
+The easiest way to set up SSL certificates is using the automated methods built into Henhouse:
+
+### NGINX Certificates (Web)
+
+**For self-signed certificates** (local/testing):
+```bash
+deploy -self-cert
+```
+
+**For Let's Encrypt certificates** (public deployments):
+```bash
+deploy -get-cert
+```
+
+The `deploy` command automatically:
+- Generates or obtains certificates
+- Creates NGINX SSL configuration
+- Installs and enables the NGINX config
+- Reloads NGINX
+
+### MySQL Certificates (Database)
+
+**Only needed if `mysql_tls_enabled = 1` in your install config.**
+
+**For self-signed certificates** (local/testing):
+```bash
+init-db -root --confirm -self-cert
+```
+
+**For Let's Encrypt certificates** (public deployments):
+```bash
+init-db -root --confirm -get-cert
+```
+
+The `init-db` command automatically:
+- Generates or obtains certificates
+- Copies certificates to MySQL SSL directory
+- Sets correct ownership and permissions
+- Validates certificate setup
+
+**Note**: The automated methods handle certificate creation, but **you must manually set up the renewal hook** for MySQL certificates (see "Automatic Certificate Renewal" section below).
 
 ## SSL Certificate Architecture
 
@@ -46,11 +95,13 @@ Henhouse uses two types of SSL certificates:
    - Used by NGINX for HTTPS
    - Stored in `/etc/letsencrypt/live/{domain}/`
    - Accessed directly by NGINX (no copying needed)
+   - **Automated**: Use `deploy -self-cert` or `deploy -get-cert`
 
 2. **Database Certificates**: For `db.{domain}` and `cache.{domain}` subdomains
-   - Used by MySQL for SSL connections
+   - Used by MySQL for SSL connections (only if `mysql_tls_enabled = 1`)
    - Stored in `/etc/letsencrypt/live/db.{domain}/`
-   - **Copied** to `/etc/mysql/ssl/` (MySQL cannot use symlinks)
+   - **Copied** to `mysql_ssl_dir` (default: `/etc/mysql/ssl/`) - MySQL cannot use symlinks
+   - **Automated**: Use `init-db -self-cert` or `init-db -get-cert`
 
 ### Why Separate Database Certificates?
 
@@ -67,7 +118,7 @@ Database subdomains use separate certificates because:
 Before obtaining SSL certificates:
 1. **NGINX must be installed** (see Chapter 1)
 2. **DNS must be configured** (see Chapter 1)
-3. **HTTP deployment must be completed** (see `http-nginx.md` for HTTP-only setup)
+3. **Deployment must be completed** (see Chapter 8 for deployment setup)
 4. **Webroot directory exists**: `/var/www/html`
 
 ### Webroot Mode
@@ -113,9 +164,28 @@ This configuration:
 
 ## Obtaining Certificates
 
-### Main Domain Certificate
+### Automated Method (Recommended)
 
-For your main domain and web subdomains:
+**For NGINX certificates:**
+- Use `deploy -self-cert` for self-signed certificates (local/testing)
+- Use `deploy -get-cert` for Let's Encrypt certificates (public deployments)
+
+**For MySQL certificates** (only if `mysql_tls_enabled = 1`):
+- Use `init-db -root --confirm -self-cert` for self-signed certificates
+- Use `init-db -root --confirm -get-cert` for Let's Encrypt certificates
+
+The automated methods handle:
+- Certificate generation/obtainment
+- Directory creation
+- File copying (for MySQL)
+- Ownership and permissions
+- NGINX/MySQL configuration
+
+### Advanced: Manual Certificate Setup
+
+If you need custom certificate configuration or want to understand the process, you can obtain certificates manually:
+
+**Main Domain Certificate** (for NGINX):
 
 ```bash
 sudo certbot certonly --webroot -w /var/www/html \
@@ -125,9 +195,7 @@ sudo certbot certonly --webroot -w /var/www/html \
   -d panel.example.com
 ```
 
-### Database Certificate
-
-For database subdomains (required for MySQL SSL):
+**Database Certificate** (for MySQL, only if `mysql_tls_enabled = 1`):
 
 ```bash
 sudo certbot certonly --webroot -w /var/www/html \
@@ -135,17 +203,49 @@ sudo certbot certonly --webroot -w /var/www/html \
   -d cache.example.com
 ```
 
-**Important**: NGINX must serve `/.well-known/acme-challenge/` from `/var/www/html` for these domains.
+**Important**: NGINX must serve `/.well-known/acme-challenge/` from `webroot_dir` (default: `/var/www/html`) for these domains. The automated `deploy` command sets this up automatically.
 
 ## MySQL SSL Setup
 
-### 1. Create MySQL SSL Directory
+**Note**: MySQL SSL setup is only needed if `mysql_tls_enabled = 1` in your install config. For localhost deployments with `mysql_tls_enabled = 0`, skip this section.
+
+### Automated Method (Recommended)
+
+Use the automated certificate setup during database initialization:
+
+**For self-signed certificates:**
+```bash
+init-db -root --confirm -self-cert
+```
+
+**For Let's Encrypt certificates:**
+```bash
+init-db -root --confirm -get-cert
+```
+
+The automated method handles:
+1. Creating MySQL SSL directory (`mysql_ssl_dir` from config, default: `/etc/mysql/ssl`)
+2. Generating or obtaining certificates
+3. Copying certificates to MySQL SSL directory
+4. Setting ownership (`mysql:mysql`) and permissions (`644` for certs, `600` for key)
+5. Configuring MySQL config file (`mysql_config_path` from config)
+6. Validating certificate setup
+
+**Note**: The automated method does **not** create the renewal hook script. You must set that up manually (see "Automatic Certificate Renewal" section below).
+
+### Advanced: Manual MySQL SSL Setup
+
+If you need custom configuration or want to understand the process, you can set up MySQL SSL manually:
+
+**1. Create MySQL SSL Directory**
 
 ```bash
 sudo mkdir -p /etc/mysql/ssl
 ```
 
-### 2. Copy Certificates
+Or use your configured `mysql_ssl_dir` path.
+
+**2. Copy Certificates**
 
 Copy certificates from Let's Encrypt to MySQL SSL directory:
 
@@ -164,8 +264,9 @@ sudo cp -L /etc/letsencrypt/live/db.example.com/privkey.pem /etc/mysql/ssl/serve
 - `-L` dereferences symlinks (copies real files)
 - `server-cert.pem` must be `fullchain.pem` so MySQL presents the intermediate
 - `ca.pem` must be **root + intermediate only** (no leaf)
+- Use your configured paths (`mysql_server_cert_path`, `mysql_server_key_path`, `ssl_ca_path`) instead of hardcoded paths
 
-### 3. Set Ownership and Permissions
+**3. Set Ownership and Permissions**
 
 ```bash
 sudo chown mysql:mysql /etc/mysql/ssl/*
@@ -179,9 +280,9 @@ sudo chmod 600 /etc/mysql/ssl/server-key.pem
 - `600`: Readable/writable by owner only (private key)
 - `mysql:mysql`: Owned by MySQL user/group
 
-### 4. Configure MySQL
+**4. Configure MySQL**
 
-Add SSL configuration to MySQL config file (`/etc/mysql/mysql.conf.d/mysqld.cnf`):
+Add SSL configuration to MySQL config file (`mysql_config_path` from config, default: `/etc/mysql/mysql.conf.d/mysqld.cnf`):
 
 ```ini
 [mysqld]
@@ -190,9 +291,9 @@ ssl-cert = /etc/mysql/ssl/server-cert.pem
 ssl-key = /etc/mysql/ssl/server-key.pem
 ```
 
-**Important**: Use **absolute paths** (not relative paths). MySQL must be able to find the certificate files using the full path.
+**Important**: Use **absolute paths** (not relative paths). MySQL must be able to find the certificate files using the full path. Use your configured paths from the install config.
 
-### 5. Restart MySQL
+**5. Restart MySQL**
 
 ```bash
 sudo systemctl restart mysql
@@ -200,42 +301,58 @@ sudo systemctl restart mysql
 
 ## Automatic Certificate Renewal
 
-### Renewal Hook Script
+### NGINX Certificates (Automatic)
 
-Create a renewal hook to automatically update MySQL certificates when Let's Encrypt certificates are renewed:
+NGINX certificates renew automatically via Certbot's systemd timer. NGINX reads certificates directly from `/etc/letsencrypt/live/{domain}/`, so no additional configuration is needed. Certificates are renewed automatically when they expire within 30 days.
+
+### MySQL Certificates (Manual Setup Required)
+
+**Important**: The renewal hook for MySQL certificates is **not automated** by the installer. You must create it manually.
+
+When Let's Encrypt renews certificates, MySQL certificates must be copied from Let's Encrypt to the MySQL SSL directory. This requires a renewal hook script that you create and maintain.
+
+**Create the renewal hook directory:**
 
 ```bash
 sudo mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 ```
 
-Create `/etc/letsencrypt/renewal-hooks/deploy/copy-mysql-certs.sh`:
+**Create the renewal hook script** `/etc/letsencrypt/renewal-hooks/deploy/copy-mysql-certs.sh`:
 
 ```bash
 #!/bin/bash
 set -euo pipefail
 
+# Update these paths to match your install config values
 SSL_DIR=/etc/mysql/ssl
 LE_LIVE=/etc/letsencrypt/live/db.example.com
 ROOT_CA=/etc/ssl/certs/ISRG_Root_X1.pem
 
+# Copy certificates
 cp -L "$LE_LIVE/fullchain.pem" "$SSL_DIR/server-cert.pem"   # leaf + intermediate
 cat "$ROOT_CA" "$LE_LIVE/chain.pem" > "$SSL_DIR/ca.pem"     # root + intermediate
 cp -L "$LE_LIVE/privkey.pem" "$SSL_DIR/server-key.pem"
 
+# Set ownership and permissions
 chown mysql:mysql "$SSL_DIR"/server-cert.pem "$SSL_DIR"/server-key.pem "$SSL_DIR"/ca.pem
 chmod 644 "$SSL_DIR"/server-cert.pem "$SSL_DIR"/ca.pem
 chmod 600 "$SSL_DIR"/server-key.pem
 
+# Restart MySQL to use new certificates
 systemctl restart mysql
 ```
 
-Make it executable:
+**Make it executable:**
 
 ```bash
 sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/copy-mysql-certs.sh
 ```
 
-This hook runs automatically when Certbot renews certificates.
+**Important Notes:**
+- Update the paths in the script (`SSL_DIR`, `LE_LIVE`) to match your install config values
+- If you have multiple projects sharing the same database server, you may need to handle multiple domains in the hook
+- The hook runs automatically when Certbot renews certificates (twice daily checks)
+- Test the hook manually before relying on automatic renewal: `sudo /etc/letsencrypt/renewal-hooks/deploy/copy-mysql-certs.sh`
 
 ## Technical Details: Certificate Renewal Configuration
 
@@ -279,42 +396,112 @@ Certbot supports renewal hooks in `/etc/letsencrypt/renewal-hooks/`:
 
 The MySQL SSL deploy hook (see MySQL SSL setup section) copies certificates, sets permissions, and restarts MySQL automatically when certificates are renewed.
 
+## When to Use Automated vs. Manual Methods
+
+### Use Automated Methods When:
+- Setting up a standard deployment
+- You want the quickest path to a working system
+- You're comfortable with default configurations
+- You're doing initial setup
+
+**Automated commands:**
+- `deploy -self-cert` or `deploy -get-cert` for NGINX certificates
+- `init-db -root --confirm -self-cert` or `init-db -root --confirm -get-cert` for MySQL certificates
+
+### Use Manual Methods When:
+- You need custom certificate configurations
+- You want to understand the underlying process
+- You're troubleshooting certificate issues
+- You need to set up the renewal hook (always manual)
+
+**What automated methods handle:**
+- Certificate generation/obtainment
+- Directory creation
+- File copying (for MySQL)
+- Ownership and permissions
+- NGINX/MySQL configuration
+
+**What you still need to do manually:**
+- Create and configure the MySQL certificate renewal hook script
+- Custom certificate configurations (if needed)
+- Advanced troubleshooting
+
 ## Install Config Values
 
 The following SSL-related values go into `/root/.{project}-install.cnf`:
 
+**For localhost deployment (no SSL/TLS):**
 ```ini
 [install]
-# SSL CA paths (absolute paths)
+# TLS/SSL disabled for localhost
+mysql_tls_enabled = 0
+ssl_enabled = 0
+
+# SSL paths still need to be set (even if not used)
+mysql_ssl_dir = /etc/mysql/ssl
+mysql_server_cert_path = /etc/mysql/ssl/server-cert.pem
+mysql_server_key_path = /etc/mysql/ssl/server-key.pem
+mysql_config_path = /etc/mysql/mysql.conf.d/mysqld.cnf
 ssl_ca_path = /etc/mysql/ssl/ca.pem
 cache_ssl_ca_path = /etc/mysql/ssl/ca.pem
 ```
 
-**Note**: Both `ssl_ca_path` and `cache_ssl_ca_path` typically point to the same file (`/etc/mysql/ssl/ca.pem`) since both database subdomains use the same certificate.
+**For public deployment (TLS/SSL enabled):**
+```ini
+[install]
+# TLS/SSL enabled for public deployments
+mysql_tls_enabled = 1
+ssl_enabled = 1
+
+# SSL paths (all configurable)
+mysql_ssl_dir = /etc/mysql/ssl
+mysql_server_cert_path = /etc/mysql/ssl/server-cert.pem
+mysql_server_key_path = /etc/mysql/ssl/server-key.pem
+mysql_config_path = /etc/mysql/mysql.conf.d/mysqld.cnf
+ssl_ca_path = /etc/mysql/ssl/ca.pem
+cache_ssl_ca_path = /etc/mysql/ssl/ca.pem
+
+# NGINX webroot (for Let's Encrypt challenges)
+webroot_dir = /var/www/html
+```
+
+**Note**: Both `ssl_ca_path` and `cache_ssl_ca_path` typically point to the same file (`/etc/mysql/ssl/ca.pem`) since both database subdomains use the same certificate. All paths are configurable and can be changed from their defaults.
 
 ## Verification
 
-Before proceeding to installation, verify:
+After setting up certificates (automated or manual), verify:
 
-1. **Certificates exist**:
+1. **NGINX certificates exist** (if `ssl_enabled = 1`):
    ```bash
-   ls -la /etc/letsencrypt/live/db.example.com/
+   ls -la /etc/letsencrypt/live/example.com/
+   ```
+   Or for self-signed:
+   ```bash
+   ls -la /etc/nginx/ssl/example.com/
    ```
 
-2. **MySQL SSL files exist**:
+2. **MySQL SSL files exist** (only if `mysql_tls_enabled = 1`):
    ```bash
    ls -la /etc/mysql/ssl/
    ```
+   Or use your configured `mysql_ssl_dir` path.
 
-3. **MySQL SSL is configured**:
+3. **MySQL SSL is configured** (only if `mysql_tls_enabled = 1`):
    ```bash
    grep -E "ssl-ca|ssl-cert|ssl-key" /etc/mysql/mysql.conf.d/mysqld.cnf
    ```
+   Or use your configured `mysql_config_path`.
 
-4. **MySQL can read SSL files**:
+4. **MySQL can read SSL files** (only if `mysql_tls_enabled = 1`):
    ```bash
    sudo -u mysql ls -la /etc/mysql/ssl/
    ```
+
+5. **Renewal hook exists** (only if using Let's Encrypt for MySQL with `mysql_tls_enabled = 1`):
+   ```bash
+   ls -la /etc/letsencrypt/renewal-hooks/deploy/copy-mysql-certs.sh
+   ```
+   Verify it's executable and contains correct paths.
 
 ## Troubleshooting
 
@@ -359,7 +546,13 @@ Before proceeding to installation, verify:
 
 ## Next Steps
 
-Once SSL certificates are configured:
-1. Proceed to **Chapter 5: Installation** to run the installer
-2. The installer will use the SSL CA paths you configured
+**For localhost deployments** (`mysql_tls_enabled = 0`, `ssl_enabled = 0`):
+- No certificates needed
+- Proceed directly to **Chapter 5: Installation**
+
+**For public deployments** (`mysql_tls_enabled = 1` or `ssl_enabled = 1`):
+- Set up certificates using automated methods (`-self-cert` or `-get-cert` flags)
+- Create the MySQL renewal hook manually (if using Let's Encrypt for MySQL)
+- Proceed to **Chapter 5: Installation**
+- The installer will use the SSL CA paths you configured
 

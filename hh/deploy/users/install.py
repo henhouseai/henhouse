@@ -28,7 +28,7 @@ def _initialize_debug():
 
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.users.access import auto_scan_user_keys, generate_ssh_keys, add_user_key
-from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_hen_scripts, setup_user_entry_points, setup_human_user_home, setup_root_user_script, detect_project_owner
+from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_entry_point_scripts, setup_user_entry_points, setup_human_user_home, setup_root_user_script, detect_project_owner
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error
 
@@ -44,47 +44,114 @@ def _write_install_template(config_path: Path, project_name: str) -> None:
     """Create a placeholder-only template with required fields."""
     lines = [
         "[install]",
-        "# Database hosts (no hardcoded suffix; use your DB/cache subdomains)",
-        "# Domain will be extracted from db_host for Let's Encrypt certificates",
-        "db_host = db.yourdomain.tld",
-        "cache_host = cache.yourdomain.tld",
         "",
+        "# ========================================",
+        "# Entry Point Script",
+        "# ========================================",
         "# Entry point script name (defaults to hen)",
-        "hen_script_name = hen",
+        "entry_point_script_name = hen",
         "",
-        "# SSL CA paths (absolute, configurable)",
-        "ssl_ca_path = /etc/mysql/ssl/ca.pem",
-        "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "# ========================================",
+        "# Database Configuration",
+        "# ========================================",
+        "# Database hosts",
+        "# For localhost deployment (default - no changes needed for local testing):",
+        "db_host = localhost",
+        "cache_host = localhost",
+        "# For public deployment with subdomains:",
+        "# db_host = db.example.tld",
+        "# cache_host = cache.example.tld",
         "",
         "# MySQL root passwords (per DB host)",
         "mysql_root_password_main = CHANGE_ME",
         "mysql_root_password_cache = CHANGE_ME",
         "",
+        "# MySQL TLS/SSL Configuration",
+        "# TLS enabled (1 = enabled, 0 = disabled)",
+        "# For localhost deployment (plain text connections recommended for initial testing):",
+        "mysql_tls_enabled = 0",
+        "# For public deployment (TLS/SSL recommended):",
+        "# mysql_tls_enabled = 1",
+        "",
+        "# MySQL SSL Certificate Paths",
+        "# SSL CA paths (absolute paths, only used if mysql_tls_enabled = 1)",
+        "# For localhost deployment (self-signed certificates):",
+        "ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "# For public deployment (Let's Encrypt certificates):",
+        "# ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "# cache_ssl_ca_path = /etc/mysql/ssl/ca.pem",
+        "",
+        "# MySQL SSL Directory and Certificate Paths",
+        "# MySQL SSL directory (where SSL certificates are stored)",
+        "mysql_ssl_dir = /etc/mysql/ssl",
+        "# MySQL server certificate path (full path to server certificate)",
+        "mysql_server_cert_path = /etc/mysql/ssl/server-cert.pem",
+        "# MySQL server key path (full path to server private key)",
+        "mysql_server_key_path = /etc/mysql/ssl/server-key.pem",
+        "# MySQL configuration file path",
+        "mysql_config_path = /etc/mysql/mysql.conf.d/mysqld.cnf",
+        "",
+        "# ========================================",
+        "# Application Passwords",
+        "# ========================================",
         "# DB user passwords (guest, verified, admin, root)",
         "password_guest = CHANGE_ME",
         "password_verified = CHANGE_ME",
         "password_admin = CHANGE_ME",
         "password_root = CHANGE_ME",
         "",
-        "# htaccess passwords",
+        "# HTTP Basic Auth passwords",
         "# Leave htaccess_guest_password blank for public access, set password for private site",
         "htaccess_guest_password = ",
         "htaccess_admin_password = CHANGE_ME",
         "htaccess_panel_password = CHANGE_ME",
         "",
+        "# ========================================",
+        "# Flask Daemon Configuration",
+        "# ========================================",
         "# Flask daemon starting port (reserves 100 ports: start_port through start_port+99)",
         "flask_start_port = 5001",
         "",
-        "# HTTP deployment settings",
-        "domain = yourdomain.tld",
-        "# SSL enabled (1 = enabled, 0 = disabled, defaults to 1)",
-        "ssl_enabled = 1",
-        "# SSL certificate directories",
+        "# ========================================",
+        "# HTTP/NGINX Deployment Settings",
+        "# ========================================",
+        "# Domain name for web deployment",
+        "# For local network deployment (default - configure /etc/hosts on developer box):",
+        "domain = example.local",
+        "# For public deployment with domain name:",
+        "# domain = example.tld",
+        "# For local network deployment (IP address):",
+        "# domain = 192.168.1.100",
+        "",
+        "# SSL/TLS Configuration",
+        "# SSL enabled (1 = enabled, 0 = disabled)",
+        "# For localhost deployment (HTTP-only recommended for initial testing):",
+        "ssl_enabled = 0",
+        "# For public deployment (HTTPS recommended):",
+        "# ssl_enabled = 1",
+        "",
+        "# SSL Certificate Directories",
+        "# Let's Encrypt certificate directory (for public deployments)",
         "ssl_cert_dir_letsencrypt = /etc/letsencrypt/live",
+        "# Self-signed certificate directory (for local/testing deployments)",
         "ssl_cert_dir_self_signed = /etc/nginx/ssl",
-        "# Local deployment IP binding (e.g., '192.168.1.' for subnet, '192.168.1.100' for specific IP)",
-        "# Only used for local deployments (.local domains or localhost/127.0.0.1)",
+        "",
+        "# Local Deployment IP Binding",
+        "# IP pattern for local deployments (e.g., '192.168.1.' for subnet, '192.168.1.100' for specific IP)",
+        "# Only used for local deployments (.local domains, localhost, or private IP addresses)",
+        "# This restricts NGINX to bind only to matching IPs, preventing external access",
         "local_allow_block = 192.168.1.",
+        "",
+        "# NGINX Configuration Directories",
+        "# NGINX sites-available directory (where config files are stored)",
+        "nginx_sites_available = /etc/nginx/sites-available",
+        "# NGINX sites-enabled directory (where symlinks to enabled sites are stored)",
+        "nginx_sites_enabled = /etc/nginx/sites-enabled",
+        "# Webroot directory for Let's Encrypt ACME challenges",
+        "webroot_dir = /var/www/html",
+        "# HTTP Basic Auth htpasswd directory (where .htpasswd files are stored)",
+        "htpasswd_dir = /var/www",
         "",
     ]
     config_path.write_text("\n".join(lines), encoding="utf-8")
@@ -138,7 +205,7 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
         if not val:
             raise ValueError(f"Missing required field {key} in {cfg_path}")
         return val
-    hen_value = section.get("hen_script_name", "hen")
+    hen_value = section.get("entry_point_script_name", "hen")
     hen_value = hen_value.strip() if hen_value is not None else "hen"
     manifest_users: Dict[str, Dict[str, Any]] = {}
     if parser.has_section("manifest_users"):
@@ -152,9 +219,14 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
     data: Dict[str, Any] = {
         "db_host": req("db_host"),
         "cache_host": req("cache_host"),
+        "mysql_tls_enabled": section.get("mysql_tls_enabled", "0").strip(),
         "ssl_ca_path": req("ssl_ca_path"),
         "cache_ssl_ca_path": req("cache_ssl_ca_path"),
-        "hen_script_name": hen_value or "hen",
+        "mysql_ssl_dir": section.get("mysql_ssl_dir", "/etc/mysql/ssl").strip(),
+        "mysql_server_cert_path": section.get("mysql_server_cert_path", "/etc/mysql/ssl/server-cert.pem").strip(),
+        "mysql_server_key_path": section.get("mysql_server_key_path", "/etc/mysql/ssl/server-key.pem").strip(),
+        "mysql_config_path": section.get("mysql_config_path", "/etc/mysql/mysql.conf.d/mysqld.cnf").strip(),
+        "entry_point_script_name": hen_value or "hen",
         "mysql_root_password_main": req("mysql_root_password_main"),
         "mysql_root_password_cache": req("mysql_root_password_cache"),
         "password_guest": req("password_guest"),
@@ -165,6 +237,7 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
         "htaccess_admin_password": req("htaccess_admin_password"),
         "htaccess_panel_password": req("htaccess_panel_password"),
         "flask_start_port": flask_start_port,
+        "htpasswd_dir": section.get("htpasswd_dir", "/var/www").strip(),
     }
     data["manifest_users"] = manifest_users
     # Note: SSL CA paths are not validated here - they may not exist yet if certificates
@@ -172,12 +245,12 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Any]]:
     # This allows installation to proceed before SSL certificates are configured.
     return data
 
-def _validate_hen_script_name(name: str) -> None:
+def _validate_entry_point_script_name(name: str) -> None:
     if not name or any(c in name for c in ('/', '\\')):
-        raise ValueError("hen_script_name must be a simple filename (no slashes)")
+        raise ValueError("entry_point_script_name must be a simple filename (no slashes)")
     candidate = Path("/root") / name
     if candidate.exists():
-        raise ValueError(f"hen_script_name '{name}' already exists at {candidate}; choose a different name")
+        raise ValueError(f"entry_point_script_name '{name}' already exists at {candidate}; choose a different name")
 
 def _write_manifest_users(cfg_path: Path, manifest: Dict[str, Dict[str, Any]]) -> None:
     parser = configparser.ConfigParser()
@@ -378,10 +451,16 @@ def install() -> bool:
         cache_host = cfg["cache_host"]
         ssl_ca_path = cfg["ssl_ca_path"]
         cache_ssl_ca_path = cfg["cache_ssl_ca_path"]
-        hen_script_name = cfg.get("hen_script_name", "hen")
+        # Get MySQL TLS enabled setting
+        mysql_tls_enabled_str = cfg.get("mysql_tls_enabled", "0").strip()
+        try:
+            mysql_tls_enabled = int(mysql_tls_enabled_str) != 0
+        except ValueError:
+            mysql_tls_enabled = False  # Default to disabled if invalid value
+        entry_point_script_name = cfg.get("entry_point_script_name", "hen")
         flask_start_port = cfg.get("flask_start_port", 5001)
         try:
-            _validate_hen_script_name(hen_script_name)
+            _validate_entry_point_script_name(entry_point_script_name)
         except Exception as e:
             _fail_with_message(gateway, f"Install config invalid: {e}")
             trace_out()
@@ -404,7 +483,7 @@ def install() -> bool:
         
         # Check for script conflicts before proceeding
         project_owner = detect_project_owner(project_path)
-        script_conflicts = check_script_conflicts(project_owner, hen_script_name)
+        script_conflicts = check_script_conflicts(project_owner, entry_point_script_name)
         if script_conflicts:
             warn(f"Script conflicts detected: {', '.join(script_conflicts)}")
             report_error("action", f"Script conflicts detected. Please specify -hen flag with a custom script name. Found conflicts: {', '.join(script_conflicts)}")
@@ -418,7 +497,7 @@ def install() -> bool:
             log(f"Additional users to remove: {additional_users}")
         
         log(f"Project: {project_name} at {project_path}")
-        log(f"Using script name: {hen_script_name}")
+        log(f"Using script name: {entry_point_script_name}")
 
         # Optional clean flag to remove existing git metadata before reinstall
         if clean_install:
@@ -456,7 +535,8 @@ def install() -> bool:
             ssl_ca_path=ssl_ca_path,
             cache_host=cache_host,
             cache_ssl_ca_path=cache_ssl_ca_path,
-            ssl_verify_mode=ssl_verify_mode
+            ssl_verify_mode=ssl_verify_mode,
+            mysql_tls_enabled=mysql_tls_enabled
         )
         # Write manifest of created users/uids
         manifest: Dict[str, Dict[str, Any]] = {}
@@ -480,7 +560,8 @@ def install() -> bool:
                 return False
         
         # Create/update .htpasswd files for guest, admin and root tiers
-        setup_htpasswd_files(project_name, passwords, htaccess_guest_password, htaccess_admin_password, htaccess_panel_password)
+        htpasswd_dir = cfg.get("htpasswd_dir", "/var/www").strip()
+        setup_htpasswd_files(project_name, passwords, htaccess_guest_password, htaccess_admin_password, htaccess_panel_password, htpasswd_dir)
         
         # Set up rest of project groups (after users created so their groups exist)
         setup_project_group(project_name, project_path)
@@ -490,16 +571,16 @@ def install() -> bool:
         
         
         # Create user gateway scripts (with custom naming for root/human user)
-        create_user_gateway_scripts(project_name, hen_script_name)
+        create_user_gateway_scripts(project_name, entry_point_script_name)
         
-        # Create user hen scripts (with custom naming)
-        create_user_hen_scripts(project_name, hen_script_name)
+        # Create user entry point scripts (with custom naming)
+        create_user_entry_point_scripts(project_name, entry_point_script_name)
         
         # Update user paths
         update_user_paths(project_name)
         
         # Set up human user (project owner) home directory
-        setup_human_user_home(project_name, project_path, hen_script_name)
+        setup_human_user_home(project_name, project_path, entry_point_script_name)
         # Create .{project}.cnf for human user (admin creds)
         if project_owner:
             create_user_config_file(
@@ -508,14 +589,15 @@ def install() -> bool:
                 password_root,
                 db_user=f"{project_name}_root",
                 host=db_host,
-                ssl_ca=ssl_ca_path,
+                ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
                 cache_host=cache_host,
-                cache_ssl_ca=cache_ssl_ca_path,
-                ssl_verify_mode=ssl_verify_mode
+                cache_ssl_ca=cache_ssl_ca_path if mysql_tls_enabled else None,
+                ssl_verify_mode=ssl_verify_mode if mysql_tls_enabled else None,
+                mysql_tls_enabled=mysql_tls_enabled
             )
         
         # Set up root user entry point
-        setup_root_user_script(project_name, project_path, hen_script_name)
+        setup_root_user_script(project_name, project_path, entry_point_script_name)
         # Create .{project}.cnf for root user (root creds)
         create_user_config_file(
             "root",
@@ -523,10 +605,11 @@ def install() -> bool:
             password_root,
             db_user=f"{project_name}_root",
             host=db_host,
-            ssl_ca=ssl_ca_path,
+            ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
             cache_host=cache_host,
-            cache_ssl_ca=cache_ssl_ca_path,
-            ssl_verify_mode=ssl_verify_mode
+            cache_ssl_ca=cache_ssl_ca_path if mysql_tls_enabled else None,
+            ssl_verify_mode=ssl_verify_mode if mysql_tls_enabled else None,
+            mysql_tls_enabled=mysql_tls_enabled
         )
         
         # Set up images directory with proper permissions
@@ -558,8 +641,8 @@ def install() -> bool:
             "users_failed": [user["username"] for user in user_data if user.get("status") == "failed"],
             "ssh_keys_generated": len([user for user in user_data if user.get("status") == "created"]),
             "auto_scanned_keys": len(auto_scanned_keys) if auto_scanned_keys else 0,
-            "human_scripts_created": [f"/home/{project_owner}/{hen_script_name}"] if project_owner else [],
-            "root_scripts_created": [f"/root/{hen_script_name}"],
+            "human_scripts_created": [f"/home/{project_owner}/{entry_point_script_name}"] if project_owner else [],
+            "root_scripts_created": [f"/root/{entry_point_script_name}"],
             "project_ownership": f"{project_owner}:{project_name}" if project_owner else "Unknown",
             "status": "installed"
         }
@@ -626,8 +709,8 @@ def check_existing_setup(project_name: str) -> List[str]:
     
     return conflicts
 
-def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -> List[str]:
-    """Check for existing hen scripts in root and human user directories."""
+def check_script_conflicts(project_owner: Optional[str], entry_point_script_name: str) -> List[str]:
+    """Check for existing entry point scripts in root and human user directories."""
     trace_in()
     conflicts = []
     
@@ -635,31 +718,31 @@ def check_script_conflicts(project_owner: Optional[str], hen_script_name: str) -
         # Check root directory
         root_home = Path('/root')
         root_hen = root_home / 'hen'
-        root_expected_hen = root_home / hen_script_name
+        root_expected_hen = root_home / entry_point_script_name
         
         # Check if default hen exists when we want to use default name
-        if root_hen.exists() and hen_script_name == 'hen':
+        if root_hen.exists() and entry_point_script_name == 'hen':
             conflicts.append(f"/root/hen")
             log(f"Found existing script: /root/hen")
         # Check if our custom hen name already exists
-        elif root_expected_hen.exists() and hen_script_name != 'hen':
-            conflicts.append(f"/root/{hen_script_name}")
-            log(f"Found existing script: /root/{hen_script_name}")
+        elif root_expected_hen.exists() and entry_point_script_name != 'hen':
+            conflicts.append(f"/root/{entry_point_script_name}")
+            log(f"Found existing script: /root/{entry_point_script_name}")
         
         # Check human user directory
         if project_owner:
             human_home = Path(f'/home/{project_owner}')
             human_hen = human_home / 'hen'
-            human_expected_hen = human_home / hen_script_name
+            human_expected_hen = human_home / entry_point_script_name
             
             # Check if default hen exists when we want to use default name
-            if human_hen.exists() and hen_script_name == 'hen':
+            if human_hen.exists() and entry_point_script_name == 'hen':
                 conflicts.append(f"/home/{project_owner}/hen")
                 log(f"Found existing script: /home/{project_owner}/hen")
             # Check if our custom hen name already exists
-            elif human_expected_hen.exists() and hen_script_name != 'hen':
-                conflicts.append(f"/home/{project_owner}/{hen_script_name}")
-                log(f"Found existing script: /home/{project_owner}/{hen_script_name}")
+            elif human_expected_hen.exists() and entry_point_script_name != 'hen':
+                conflicts.append(f"/home/{project_owner}/{entry_point_script_name}")
+                log(f"Found existing script: /home/{project_owner}/{entry_point_script_name}")
         
         if conflicts:
             log(f"Found {len(conflicts)} script conflicts")
@@ -794,7 +877,8 @@ def create_fresh_users(
     ssl_ca_path: Optional[str] = None,
     cache_host: Optional[str] = None,
     cache_ssl_ca_path: Optional[str] = None,
-    ssl_verify_mode: int = 2
+    ssl_verify_mode: int = 2,
+    mysql_tls_enabled: bool = False
 ) -> List[Dict[str, Any]]:
     trace_in()
     gateway = get_gateway()
@@ -834,10 +918,11 @@ def create_fresh_users(
                 password,
                 db_user=user,
                 host=db_host,
-                ssl_ca=ssl_ca_path,
+                ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
                 cache_host=cache_host,
-                cache_ssl_ca=cache_ssl_ca_path,
-                ssl_verify_mode=ssl_verify_mode
+                cache_ssl_ca=cache_ssl_ca_path if mysql_tls_enabled else None,
+                ssl_verify_mode=ssl_verify_mode if mysql_tls_enabled else None,
+                mysql_tls_enabled=mysql_tls_enabled
             )
             
             # Add users to appropriate groups based on tier
@@ -882,7 +967,7 @@ def create_fresh_users(
     trace_out()
     return user_data
 
-def setup_htpasswd_files(project_name: str, passwords: List[str], guest_htpasswd: str, admin_htpasswd: str, panel_htpasswd: str) -> None:
+def setup_htpasswd_files(project_name: str, passwords: List[str], guest_htpasswd: str, admin_htpasswd: str, panel_htpasswd: str, htpasswd_dir: str = "/var/www") -> None:
     """Create/update .htpasswd files for guest, admin and root tiers."""
     trace_in()
     try:
@@ -904,7 +989,7 @@ def setup_htpasswd_files(project_name: str, passwords: List[str], guest_htpasswd
             guest_tier = HENHOUSE_TIERS[guest_idx]
             guest_user = f"{project_name}_{guest_tier}"
             guest_password = guest_htpasswd
-            htpasswd_file = f"/var/www/.htpasswd_{guest_tier}"
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_{guest_tier}"
             
             # Use htpasswd to create/update the file (-b for batch mode, -c to create file)
             file_exists = Path(htpasswd_file).exists()
@@ -923,7 +1008,7 @@ def setup_htpasswd_files(project_name: str, passwords: List[str], guest_htpasswd
             admin_tier = HENHOUSE_TIERS[admin_idx]
             admin_user = f"{project_name}_{admin_tier}"
             admin_password = admin_htpasswd
-            htpasswd_file = f"/var/www/.htpasswd_{admin_tier}"
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_{admin_tier}"
             
             # Use htpasswd to create/update the file (-b for batch mode, -c to create file)
             # Check if file exists to determine if we should use -c
@@ -944,7 +1029,7 @@ def setup_htpasswd_files(project_name: str, passwords: List[str], guest_htpasswd
             root_user = f"{project_name}_{root_tier}"
             root_password = panel_htpasswd
             # Use 'panel' as the suffix for root tier .htpasswd file
-            htpasswd_file = "/var/www/.htpasswd_panel"
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_panel"
             
             # Use htpasswd to create/update the file (-b for batch mode, -c to create file)
             file_exists = Path(htpasswd_file).exists()

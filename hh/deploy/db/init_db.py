@@ -74,8 +74,20 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int
         "mysql_root_password_main": req("mysql_root_password_main"),
         "mysql_root_password_cache": req("mysql_root_password_cache"),
     }
-    # SSL settings (optional)
+    # MySQL TLS enabled setting
+    mysql_tls_enabled_str = sec.get("mysql_tls_enabled", "0").strip()
+    try:
+        data["mysql_tls_enabled"] = int(mysql_tls_enabled_str) != 0
+    except ValueError:
+        data["mysql_tls_enabled"] = False  # Default to disabled if invalid value
+    # MySQL SSL paths (configurable)
+    data["mysql_ssl_dir"] = sec.get("mysql_ssl_dir", "/etc/mysql/ssl").strip()
+    data["mysql_server_cert_path"] = sec.get("mysql_server_cert_path", "/etc/mysql/ssl/server-cert.pem").strip()
+    data["mysql_server_key_path"] = sec.get("mysql_server_key_path", "/etc/mysql/ssl/server-key.pem").strip()
+    data["mysql_config_path"] = sec.get("mysql_config_path", "/etc/mysql/mysql.conf.d/mysqld.cnf").strip()
+    # SSL settings (optional, only used if mysql_tls_enabled = 1)
     data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
+    data["cache_ssl_ca_path"] = sec.get("cache_ssl_ca_path", "").strip()
     # Database hosts (for domain extraction)
     data["db_host"] = sec.get("db_host", "").strip()
     # Read ssl_verify_mode from root user's .{project}.cnf file (not install config)
@@ -136,7 +148,13 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     
     root_password_main = str(cfg["mysql_root_password_main"])
     root_password_cache = str(cfg["mysql_root_password_cache"])
+    mysql_tls_enabled = bool(cfg.get("mysql_tls_enabled", False))
+    mysql_ssl_dir = str(cfg.get("mysql_ssl_dir", "/etc/mysql/ssl"))
+    mysql_server_cert_path = str(cfg.get("mysql_server_cert_path", "/etc/mysql/ssl/server-cert.pem"))
+    mysql_server_key_path = str(cfg.get("mysql_server_key_path", "/etc/mysql/ssl/server-key.pem"))
+    mysql_config_path = str(cfg.get("mysql_config_path", "/etc/mysql/mysql.conf.d/mysqld.cnf"))
     ssl_ca_path = str(cfg.get("ssl_ca_path", ""))
+    cache_ssl_ca_path = str(cfg.get("cache_ssl_ca_path", ""))
     ssl_verify_mode = int(cfg.get("ssl_verify_mode", 2))
     db_host = str(cfg.get("db_host", ""))
     
@@ -160,8 +178,8 @@ def init_db(args: Optional[List[str]] = None) -> bool:
         # Windows or pwd not available - skip check
         warn("Cannot verify MySQL user existence (pwd module not available)")
     
-    # Step 1.6: Validate certificate if SSL is configured
-    if ssl_ca_path:
+    # Step 1.6: Validate certificate if TLS is enabled
+    if mysql_tls_enabled and ssl_ca_path:
         # Check for certificate creation flags
         create_mode = None
         if gateway.get_arg('self_cert') or gateway.get_arg('self-cert'):
@@ -189,6 +207,8 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             trace_out()
             return False
         log("Certificate validated successfully")
+    elif not mysql_tls_enabled:
+        log("MySQL TLS is disabled - skipping certificate validation")
     
     # Step 2: Locate init scripts
     init_sql_path = project_path / "hh" / "deploy" / "db" / "init.sql"
@@ -209,7 +229,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"[client]\n")
             opt_file.write(f"user=root\n")
             opt_file.write(f"password={root_password_main}\n")
-            if ssl_ca_path:
+            if mysql_tls_enabled and ssl_ca_path:
                 opt_file.write(f"ssl-ca={ssl_ca_path}\n")
                 # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
                 if ssl_verify_mode == 0:
@@ -289,7 +309,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"[client]\n")
             opt_file.write(f"user=root\n")
             opt_file.write(f"password={password}\n")
-            if ssl_ca_path:
+            if mysql_tls_enabled and ssl_ca_path:
                 opt_file.write(f"ssl-ca={ssl_ca_path}\n")
                 # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
                 if ssl_verify_mode == 0:

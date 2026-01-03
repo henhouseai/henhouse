@@ -105,15 +105,17 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
     """Generate Nginx SSL configuration bound to specific local IPs only."""
     trace_in()
     try:
-        # Load guest password from install config
+        # Load guest password and webroot_dir from install config
         from hh.deploy.users.install import _load_install_config
         guest_password = None
+        webroot_dir = "/var/www/html"
         try:
             install_config = _load_install_config(project_name)
             if install_config:
                 guest_password = install_config.get("htaccess_guest_password", "").strip() or None
+                webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
         except Exception:
-            pass  # If config can't be loaded, guest_password stays None (public access)
+            pass  # If config can't be loaded, use defaults
         
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
@@ -187,7 +189,8 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
                     project_name=project_name,
                     media_port=media_port,
                     bind_ip=bind_ip,
-                    guest_password=guest_password
+                    guest_password=guest_password,
+                    webroot_dir=webroot_dir
                 )
                 config_lines.extend(block_lines)
         
@@ -203,7 +206,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
                                       certificate_path: str, label: str = "", rate_limit: str = "general",  # rate_limit not used
                                       project_name: str = "henhouse", media_port: Optional[int] = None,
                                       bind_ip: str = "127.0.0.1",
-                                      guest_password: Optional[str] = None) -> List[str]:
+                                      guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate an HTTPS server block that binds to a specific local IP."""
     from hh.deploy.http.nginx_config_helpers import (
         get_security_headers_ssl, get_block_hidden_files,
@@ -246,7 +249,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     lines.append("")
     
     # Add hidden file blocking (but allow .well-known for Let's Encrypt)
-    lines.extend(get_block_hidden_files())
+    lines.extend(get_block_hidden_files(webroot_dir))
     
     # Add authentication for guest/admin/panel subdomains
     from hh.deploy.http.nginx_config_helpers import detect_flask_ports
@@ -275,15 +278,17 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
     """Generate Nginx HTTP-only configuration bound to specific local IPs only."""
     trace_in()
     try:
-        # Load guest password from install config
+        # Load guest password and webroot_dir from install config
         from hh.deploy.users.install import _load_install_config
         guest_password = None
+        webroot_dir = "/var/www/html"
         try:
             install_config = _load_install_config(project_name)
             if install_config:
                 guest_password = install_config.get("htaccess_guest_password", "").strip() or None
+                webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
         except Exception:
-            pass  # If config can't be loaded, guest_password stays None (public access)
+            pass  # If config can't be loaded, use defaults
         
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
@@ -341,7 +346,8 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
                     project_name=project_name,
                     media_port=media_port,
                     bind_ip=bind_ip,
-                    guest_password=guest_password
+                    guest_password=guest_password,
+                    webroot_dir=webroot_dir
                 )
                 config_lines.extend(block_lines)
         
@@ -356,7 +362,7 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
 def _generate_local_http_server_block(server_names: List[str], port: int, static_locations: str,
                                       label: str = "", project_name: str = "henhouse", 
                                       media_port: Optional[int] = None, bind_ip: str = "127.0.0.1",
-                                      guest_password: Optional[str] = None) -> List[str]:
+                                      guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate an HTTP server block that binds to a specific local IP."""
     from hh.deploy.http.nginx_config_helpers import (
         get_security_headers, get_block_hidden_files,
@@ -391,7 +397,7 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
     lines.append("")
     
     # Add hidden file blocking
-    lines.extend(get_block_hidden_files())
+    lines.extend(get_block_hidden_files(webroot_dir))
     
     # Add authentication for admin/panel subdomains
     from hh.deploy.http.nginx_config_helpers import detect_flask_ports
@@ -424,15 +430,17 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         if not certificate_path:
             certificate_path = f"/etc/letsencrypt/live/{domain}"
         
-        # Load guest password from install config
+        # Load guest password and webroot_dir from install config
         from hh.deploy.users.install import _load_install_config
         guest_password = None
+        webroot_dir = "/var/www/html"
         try:
             install_config = _load_install_config(project_name)
             if install_config:
                 guest_password = install_config.get("htaccess_guest_password", "").strip() or None
+                webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
         except Exception:
-            pass  # If config can't be loaded, guest_password stays None (public access)
+            pass  # If config can't be loaded, use defaults
         
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
@@ -472,7 +480,7 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         
         # Add HTTP to HTTPS redirect for all domains
         all_domains = [domain, f'www.{domain}', f'admin.{domain}', f'panel.{domain}']
-        config_lines.extend(generate_http_redirect_block(all_domains))
+        config_lines.extend(generate_http_redirect_block(all_domains, webroot_dir))
         
         # Detect media port
         ports = detect_flask_ports(project_name)
@@ -491,7 +499,8 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
             main_server['label'],
             project_name=project_name,
             media_port=media_port,
-            guest_password=guest_password
+            guest_password=guest_password,
+            webroot_dir=webroot_dir
         )
         config_lines.extend(block_lines)
         
@@ -505,7 +514,8 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
                 server['label'],
                 project_name=project_name,
                 media_port=media_port,
-                guest_password=guest_password
+                guest_password=guest_password,
+                webroot_dir=webroot_dir
             )
             config_lines.extend(block_lines)
         
@@ -517,10 +527,24 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         trace_out()
         return ""
 
-def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None) -> bool:
+def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: Optional[str] = None, nginx_sites_available: Optional[Path] = None, nginx_sites_enabled: Optional[Path] = None) -> bool:
     """Create Nginx SSL configuration file and enable site."""
     trace_in()
     try:
+        # Load nginx paths from config if not provided
+        if nginx_sites_available is None or nginx_sites_enabled is None:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                sec = install_config
+                nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+                nginx_sites_available = Path(nginx_sites_available_str)
+                nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+                nginx_sites_enabled = Path(nginx_sites_enabled_str)
+            else:
+                nginx_sites_available = Path("/etc/nginx/sites-available")
+                nginx_sites_enabled = Path("/etc/nginx/sites-enabled")
+        
         # Generate configuration
         config_content = create_nginx_ssl_config(domain, project_name, certificate_path)
         if not config_content:
@@ -529,12 +553,12 @@ def install_nginx_ssl_config(domain: str, project_name: str, certificate_path: O
             return False
         
         # Write to sites-available (overwrites existing HTTP config)
-        config_file = Path(f'/etc/nginx/sites-available/{domain}')
+        config_file = nginx_sites_available / domain
         config_file.write_text(config_content)
         log(f"Nginx SSL config written to: {config_file}")
         
         # Ensure symlink exists in sites-enabled
-        enabled_file = Path(f'/etc/nginx/sites-enabled/{domain}')
+        enabled_file = nginx_sites_enabled / domain
         if not enabled_file.exists():
             enabled_file.symlink_to(config_file)
             log(f"Symlink created: {enabled_file}")
@@ -575,6 +599,15 @@ def create_nginx_config(domain: str, project_name: str) -> str:
     """Generate Nginx configuration for the domain and its subdomains (HTTP only - public deployment)."""
     trace_in()
     try:
+        # Load webroot_dir from install config
+        from hh.deploy.users.install import _load_install_config
+        webroot_dir = "/var/www/html"
+        try:
+            install_config = _load_install_config(project_name)
+            if install_config:
+                webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
+        except Exception:
+            pass  # If config can't be loaded, use default
         
         # Import helpers
         from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
@@ -623,7 +656,8 @@ def create_nginx_config(domain: str, project_name: str) -> str:
                 static_locations,
                 server['label'],
                 project_name=project_name,
-                media_port=media_port
+                media_port=media_port,
+                webroot_dir=webroot_dir
             )
             config_lines.extend(block_lines)
         
@@ -635,10 +669,24 @@ def create_nginx_config(domain: str, project_name: str) -> str:
         trace_out()
         return ""
 
-def install_nginx_config(domain: str, project_name: str) -> bool:
+def install_nginx_config(domain: str, project_name: str, nginx_sites_available: Optional[Path] = None, nginx_sites_enabled: Optional[Path] = None) -> bool:
     """Create Nginx configuration file and enable site."""
     trace_in()
     try:
+        # Load nginx paths from config if not provided
+        if nginx_sites_available is None or nginx_sites_enabled is None:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                sec = install_config
+                nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+                nginx_sites_available = Path(nginx_sites_available_str)
+                nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+                nginx_sites_enabled = Path(nginx_sites_enabled_str)
+            else:
+                nginx_sites_available = Path("/etc/nginx/sites-available")
+                nginx_sites_enabled = Path("/etc/nginx/sites-enabled")
+        
         # Generate configuration
         config_content = create_nginx_config(domain, project_name)
         if not config_content:
@@ -647,12 +695,12 @@ def install_nginx_config(domain: str, project_name: str) -> bool:
             return False
         
         # Write to sites-available
-        config_file = Path(f'/etc/nginx/sites-available/{domain}')
+        config_file = nginx_sites_available / domain
         config_file.write_text(config_content)
         log(f"Nginx config written to: {config_file}")
         
         # Create symlink to sites-enabled
-        enabled_file = Path(f'/etc/nginx/sites-enabled/{domain}')
+        enabled_file = nginx_sites_enabled / domain
         if not enabled_file.exists():
             enabled_file.symlink_to(config_file)
             log(f"Symlink created: {enabled_file}")
@@ -823,6 +871,12 @@ def deploy() -> bool:
     
     # Get local allow block (IP pattern for local deployments)
     local_allow_block = sec.get("local_allow_block", "192.168.1.").strip()
+    
+    # Get NGINX configuration directories
+    nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+    nginx_sites_available = Path(nginx_sites_available_str)
+    nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+    nginx_sites_enabled = Path(nginx_sites_enabled_str)
     
     # Determine certificate path based on certificate type (will be set later based on create_mode)
     # For Let's Encrypt: {ssl_cert_dir_letsencrypt}/{domain}/
@@ -1649,12 +1703,12 @@ def deploy() -> bool:
                         report_error("action", "Failed to generate local NGINX SSL configuration")
                     else:
                         # Write to sites-available
-                        config_file = Path(f'/etc/nginx/sites-available/{domain}')
+                        config_file = nginx_sites_available / domain
                         config_file.write_text(config_content)
                         log(f"Local NGINX SSL config written to: {config_file}")
                         
                         # Ensure symlink exists in sites-enabled
-                        enabled_file = Path(f'/etc/nginx/sites-enabled/{domain}')
+                        enabled_file = nginx_sites_enabled / domain
                         if enabled_file.exists():
                             enabled_file.unlink()
                         enabled_file.symlink_to(config_file)
@@ -1683,7 +1737,7 @@ def deploy() -> bool:
                                 nginx_deployed = True
                 else:
                     # For public deployments, use standard SSL config (binds to all interfaces)
-                    if install_nginx_ssl_config(domain, project_name, str(certificate_path)):
+                    if install_nginx_ssl_config(domain, project_name, str(certificate_path), nginx_sites_available, nginx_sites_enabled):
                         nginx_deployed = True
                         log("NGINX SSL configuration installed successfully")
                     else:
@@ -1734,12 +1788,12 @@ def deploy() -> bool:
                         report_error("action", "Failed to generate local NGINX HTTP configuration")
                     else:
                         # Write to sites-available
-                        config_file = Path(f'/etc/nginx/sites-available/{domain}')
+                        config_file = nginx_sites_available / domain
                         config_file.write_text(config_content)
                         log(f"Local NGINX HTTP config written to: {config_file}")
                         
                         # Ensure symlink exists in sites-enabled
-                        enabled_file = Path(f'/etc/nginx/sites-enabled/{domain}')
+                        enabled_file = nginx_sites_enabled / domain
                         if enabled_file.exists():
                             enabled_file.unlink()
                         enabled_file.symlink_to(config_file)
@@ -1768,7 +1822,7 @@ def deploy() -> bool:
                                 nginx_deployed = True
                 else:
                     # For public deployments, use standard HTTP config (binds to all interfaces)
-                    if install_nginx_config(domain, project_name):
+                    if install_nginx_config(domain, project_name, nginx_sites_available, nginx_sites_enabled):
                         nginx_deployed = True
                         log("NGINX HTTP configuration installed successfully")
                     else:

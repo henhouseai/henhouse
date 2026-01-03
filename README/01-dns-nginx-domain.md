@@ -8,32 +8,66 @@
 - Accessible over the network (local-only or remote with static IP)
 - Running Linux server OS (Ubuntu Server recommended)
 - Capable of running all services (NGINX, MySQL, Flask daemons, maintenance daemons)
-- Designed to be part of a cluster of multiple deployment boxes for optimization
+- Designed to support cluster configurations (cluster deployment automation is under development)
 
 **Developer Box**: Your laptop, desktop, or development machine (Windows, Mac, or Linux) where you write code and use your IDE. The developer box:
-- Does NOT run Henhouse installation
+- Does NOT run Henhouse installation (system is designed with separate boxes in mind)
 - Connects to deployment boxes via SSH and MCP
 - Runs Cursor or other IDEs for development
-- Should NOT be used as a deployment box (Mac laptops can host NGINX, but are not suitable for full Henhouse deployment)
+- **Note**: Theoretically, the developer box and deployment box could be the same machine (e.g., on a Linux system), but this configuration has not been tested. All testing and design has been done with separate boxes in mind.
 
 ### Hardware Requirements
 
-**Minimum Requirements** (for single-box deployment):
-- **CPU**: Any modern x86_64 processor
-- **RAM**: 8GB minimum, 16GB recommended
-- **Storage**: 256GB minimum, 512GB recommended
-- **Network**: Ethernet connection (for remote access, static IP recommended)
+Henhouse has minimal hardware requirements and should run on most systems, including older hardware or even a Raspberry Pi (though performance may vary). More RAM is always beneficial, and more storage is recommended if you plan to host many files.
 
 **Test Hardware**:
-Henhouse is tested and developed on:
+Henhouse is currently tested and developed on:
 - **Model**: B-Link mini S mini PC
 - **CPU**: Intel N150 processor
 - **RAM**: 16GB
 - **Storage**: 512GB SSD
 - **OS**: Ubuntu Server 24.x (24.04 LTS)
 
-**Cluster Architecture**:
-Henhouse is designed to be deployed across multiple deployment boxes in a cluster configuration. You can start with a single box and expand to 4-5 boxes (or more) for optimization and load distribution. Each box can run different services or multiple Henhouse installations.
+This hardware serves as our reference configuration. As cluster development progresses, the cluster deployment architecture will consist of multiple copies of this same hardware configuration. The system is designed to scale horizontally by adding duplicate boxes of this specification.
+
+**Cluster Architecture** (Future Development):
+**Note**: Cluster deployment automation is still under development. The scope of this documentation and the installation scripts currently covers **single-box deployment only**, where NGINX, the main database, the cache database, and the future history database all run on the same box.
+
+The system is designed to support cluster configurations, and the envisioned architecture includes:
+- **Cluster of 5 boxes**: One NGINX/web server box, one main database box, one cache database box, one history database box (future), and one backup/archive box for automatically archiving state from all other drives
+- **Expansion options**: Additional boxes can be added (e.g., a 6th box could be another NGINX server pointing to the same database boxes, or hybrid configurations where a new box has its own main and cache databases but shares the history database and backup box with the existing cluster)
+
+These cluster configurations are theoretically possible to set up manually, but the automated installation process does not yet support multi-box deployments. All instructions in this documentation assume a single-box deployment where all services run on the same machine.
+
+### Deployment Modes
+
+Henhouse can be deployed in two main modes:
+
+**Local-Only Deployment**:
+- Single box on local network, accessible via local IP address
+- Uses `/etc/hosts` on client machines to map domain names to local IP addresses instead of public DNS records
+- Ideal for testing and development
+- Can be configured to bind to specific local IP addresses to prevent external access
+
+**Public-Facing Deployment**:
+- Box with static IP, accessible over the internet
+- Requires public DNS records pointing to your server
+- Can be configured as public (anyone can access guest tier) or private (guest tier behind password)
+- Admin and panel subdomains are always behind HTTP Basic Auth passwords
+
+**Deployment Configuration Options**:
+
+The system provides several configuration options that affect how your deployment behaves:
+
+- **SSL/TLS**: Enable or disable HTTPS via `ssl_enabled` setting in install config (default: enabled). For local deployments, HTTP-only mode is simpler for initial testing.
+
+- **Guest Access Control**: Set `htaccess_guest_password` in install config to require a password for the main site (guest tier). Leave blank for public access. Admin and panel subdomains always require passwords.
+
+- **Local IP Binding**: For local deployments, configure `local_allow_block` to restrict NGINX to specific IP addresses (e.g., `192.168.1.` for subnet, `192.168.1.100` for specific IP), preventing external access even if the server is public-facing.
+
+- **SSL Certificates**: For public deployments, you can use Let's Encrypt certificates (automatic) or self-signed certificates (for testing). For local deployments, self-signed certificates or HTTP-only mode are recommended.
+
+The installation process is the same for both local-only and remote deployments. The main difference is DNS configuration and certificate management. You will setup these config flags during the installation.
 
 ### Operating System
 
@@ -64,9 +98,9 @@ sudo apt install python3 python3-pip git default-libmysqlclient-dev nginx mysql-
 - **python3-pip** - Python package manager (optional, for developer boxes)
 - **Git** - Version control (for cloning henhouse repository)
 - **default-libmysqlclient-dev** - MySQL client libraries (required for pymysql)
-- **NGINX** - Web server (required for HTTP deployment - see Chapter 9)
+- **NGINX** - Web server (required for HTTP deployment - see Chapter 8)
 - **MySQL server** - Database server (required for database setup - see Chapter 2)
-- **apache2-utils** - Provides `htpasswd` command (required for HTTP Basic Auth - see Chapter 9)
+- **apache2-utils** - Provides `htpasswd` command (required for HTTP Basic Auth - see Chapter 8)
 - **Python dependencies** - Flask, pymysql, psutil, mutagen, Pillow (all available as apt packages)
 - **ffmpeg** - Audio/video processing (includes ffprobe)
 
@@ -80,13 +114,11 @@ sudo apt install python3 python3-pip git default-libmysqlclient-dev nginx mysql-
 
 ### Installation Scope
 
-This documentation covers installation for:
-- **Local-only deployment**: Single box on local network, accessible via local IP
-- **Remote deployment**: Box with static IP, accessible over the internet
-- **Single-box deployment**: All services (NGINX, MySQL, Flask) running on one box
-- **Multi-box cluster**: Services distributed across multiple deployment boxes (advanced setup)
+This documentation covers:
+- **Single-box deployment**: All services (NGINX, MySQL, Flask) running on one box (fully supported by installation scripts)
+- **Multi-box cluster**: Services distributed across multiple deployment boxes (system is designed to support this, but automated installation for multi-box clusters is not yet implemented - see "Cluster Architecture" section above)
 
-The installation process is the same for both local-only and remote deployments. The main difference is DNS configuration (local-only may use `/etc/hosts` instead of public DNS records).
+See "Deployment Modes" section above for details on local-only vs public-facing deployments.
 
 ## Quick Reference
 
@@ -94,47 +126,92 @@ Before setting up your Henhouse installation, you need to prepare the following 
 
 ### Information to Track
 
-| Component | What You Need | Where It's Used |
-|-----------|---------------|-----------------|
-| **Main Domain** | Your primary domain (e.g., `example.com`) | Install config: not directly stored, but used for DNS records and NGINX configs |
-| **WWW Subdomain** | `www.example.com` | DNS A record, NGINX server block |
-| **Admin Subdomain** | `admin.example.com` | DNS A record, NGINX server block with HTTP Basic Auth |
-| **Panel Subdomain** | `panel.example.com` | DNS A record, NGINX server block with HTTP Basic Auth |
-| **Database Subdomain** | `db.example.com` | DNS A record, MySQL SSL certificate, install config `db_host` |
-| **Cache Subdomain** | `cache.example.com` | DNS A record, MySQL SSL certificate, install config `cache_host` |
-| **Static IP Address** | Your deployment server's static IP | DNS A records, MySQL root user grants |
-| **NGINX Config Path** | `/etc/nginx/sites-available/{domain}` | Installer expects NGINX configs here |
-| **NGINX Enabled Path** | `/etc/nginx/sites-enabled/{domain}` | Installer creates symlinks here |
-| **Webroot Path** | `/var/www/html` | Let's Encrypt ACME challenges, SSL certificate webroot |
-| **htpasswd Files** | `/var/www/.htpasswd_admin`, `/var/www/.htpasswd_panel` | Created by installer, used by NGINX for Basic Auth |
+The following information is stored in the install config file (located at `/root/.{project_name}-install.cnf`):
 
-### Expected File Paths
+| Component | Config Key | Default Value | Description |
+|-----------|------------|---------------|-------------|
+| **Domain** | `domain` | `example.local` | Primary domain for web deployment (use `.local` for local network deployments) |
+| **Database Host** | `db_host` | `localhost` | MySQL main database host (subdomain for public deployments) |
+| **Cache Host** | `cache_host` | `localhost` | MySQL cache database host (subdomain for public deployments) |
+| **SSL Enabled** | `ssl_enabled` | `0` | Enable SSL/TLS (1 = enabled, 0 = disabled) |
+| **NGINX Sites Available** | `nginx_sites_available` | `/etc/nginx/sites-available` | Directory for NGINX site config files |
+| **NGINX Sites Enabled** | `nginx_sites_enabled` | `/etc/nginx/sites-enabled` | Directory for NGINX enabled site symlinks |
+| **Webroot Directory** | `webroot_dir` | `/var/www/html` | Directory for Let's Encrypt ACME challenges |
+| **SSL Cert Dir (Let's Encrypt)** | `ssl_cert_dir_letsencrypt` | `/etc/letsencrypt/live` | Let's Encrypt certificate directory |
+| **SSL Cert Dir (Self-Signed)** | `ssl_cert_dir_self_signed` | `/etc/nginx/ssl` | Self-signed certificate directory |
+| **SSL CA Path** | `ssl_ca_path` | `/etc/mysql/ssl/ca.pem` | MySQL SSL CA certificate path |
+| **Cache SSL CA Path** | `cache_ssl_ca_path` | `/etc/mysql/ssl/ca.pem` | Cache MySQL SSL CA certificate path |
+| **Local IP Binding** | `local_allow_block` | `192.168.1.` | IP pattern for local-only deployments |
+| **Flask Start Port** | `flask_start_port` | `5001` | Starting port for Flask daemons (reserves 100 ports) |
+| **Entry Script Name** | `entry_point_script_name` | `hen` | Name of the entry point script |
+| **Passwords** | Various | `CHANGE_ME` | MySQL root passwords, application passwords, HTTP Basic Auth passwords |
 
-The installer and deployment system expect the following paths to exist or be configured:
+**Additional Information (not in config file, but needed for setup):**
+- **Subdomains**: `www.{domain}`, `admin.{domain}`, `panel.{domain}`, `db.{domain}`, `cache.{domain}` - Used for DNS records and NGINX configs
+- **Static IP Address**: Your deployment server's static IP - Used for DNS A records and MySQL root user grants
 
-**NGINX Configuration:**
-- `/etc/nginx/sites-available/{domain}` - NGINX site configuration files
-- `/etc/nginx/sites-enabled/{domain}` - Symlinks to enabled sites
-- NGINX must be installed and running
+### File Paths
 
-**Web Server Directories:**
-- `/var/www/html` - Webroot for Let's Encrypt ACME challenges
-- `/var/www/.htpasswd_admin` - HTTP Basic Auth for admin subdomain (created by installer)
-- `/var/www/.htpasswd_panel` - HTTP Basic Auth for panel subdomain (created by installer)
+**Hardcoded Paths (not configurable):**
+- `/srv/{project_name}/` - Main project deployment directory (hardcoded)
+- `/srv/{project_name}/git/{project_name}.git` - Bare git repository (hardcoded)
+- `/srv/images/{project_name}/` - Image storage (hardcoded)
+- `/srv/files/{project_name}/` - File storage (hardcoded)
+- `/srv/audio/{project_name}/` - Audio storage (hardcoded)
+- `/srv/video/{project_name}/` - Video storage (hardcoded)
+- `/root/.{project_name}-install.cnf` - Install config file location (hardcoded)
 
-**Project Directories (created by installer):**
-- `/srv/{project_name}/` - Main project deployment directory
-- `/srv/{project_name}/git/{project_name}.git` - Bare git repository
-- `/srv/images/{project_name}/` - Image storage
-- `/srv/files/{project_name}/` - File storage
-- `/srv/audio/{project_name}/` - Audio storage
-- `/srv/video/{project_name}/` - Video storage
+**Configurable Paths (default values shown, can be changed in install config):**
+- `nginx_sites_available` - Default: `/etc/nginx/sites-available/{domain}` - NGINX site configuration files
+- `nginx_sites_enabled` - Default: `/etc/nginx/sites-enabled/{domain}` - Symlinks to enabled sites
+- `webroot_dir` - Default: `/var/www/html` - Webroot for Let's Encrypt ACME challenges
+- `ssl_cert_dir_letsencrypt` - Default: `/etc/letsencrypt/live` - Let's Encrypt certificates
+- `ssl_cert_dir_self_signed` - Default: `/etc/nginx/ssl` - Self-signed certificates
+- `htpasswd_dir` - Default: `/var/www` - HTTP Basic Auth htpasswd directory (where `.htpasswd_guest`, `.htpasswd_admin`, `.htpasswd_panel` files are stored)
+- `ssl_ca_path` - Default: `/etc/mysql/ssl/ca.pem` - MySQL SSL CA certificate
+- `cache_ssl_ca_path` - Default: `/etc/mysql/ssl/ca.pem` - Cache MySQL SSL CA certificate
 
 ## DNS Prerequisites
 
-### Required DNS Records
+### Local-Only Deployment: /etc/hosts Configuration
 
-You need to create DNS A records pointing to your deployment server's static IP address:
+For local-only deployments, you need to configure `/etc/hosts` on each client machine (developer box, etc.) to map domain names to your deployment server's IP address. This replaces public DNS records.
+
+**Example 1: Deployment box with static IP address**
+
+If your deployment box has a static IP address (e.g., `203.0.113.10`), add entries to `/etc/hosts` on your client machines:
+
+```
+203.0.113.10    example.local
+203.0.113.10    www.example.local
+203.0.113.10    admin.example.local
+203.0.113.10    panel.example.local
+203.0.113.10    db.example.local
+203.0.113.10    cache.example.local
+```
+
+**Example 2: Deployment box with local network IP address**
+
+If your deployment box has a local network IP address (e.g., `192.168.1.100`), add entries to `/etc/hosts` on your client machines:
+
+```
+192.168.1.100    mysite.local
+192.168.1.100    www.mysite.local
+192.168.1.100    admin.mysite.local
+192.168.1.100    panel.mysite.local
+192.168.1.100    db.mysite.local
+192.168.1.100    cache.mysite.local
+```
+
+**Important Notes**:
+- You must add these entries to `/etc/hosts` on **every client machine** that needs to access the deployment (developer box, other computers on the network, etc.)
+- The domain names you use (e.g., `example.local`, `mysite.local`) are arbitrary - you can use any domain name you want
+- All 6 subdomains (root, www, admin, panel, db, cache) must be configured
+- The IP address must be the deployment server's IP address (static IP or local network IP)
+
+### Public-Facing Deployment: Required DNS Records
+
+For public-facing deployments, you need to create DNS A records pointing to your deployment server's static IP address:
 
 | Record Type | Name | Value | Purpose |
 |-------------|------|-------|---------|
@@ -149,38 +226,23 @@ You need to create DNS A records pointing to your deployment server's static IP 
 
 ### DNS Setup Timeline
 
-DNS records should be configured **before** running the installer. The installer will need:
-- `db_host` = `db.yourdomain.tld` (for install config)
-- `cache_host` = `cache.yourdomain.tld` (for install config)
+**For local-only deployments**: Configure `/etc/hosts` on all client machines **before** running the installer.
 
-These values are used in the install config file (`/root/.{project}-install.cnf`) and must match your DNS configuration.
+**For public-facing deployments**: DNS records should be configured **before** running the installer.
+
+The installer will need:
+- `db_host` = `db.yourdomain.tld` (or `db.yourdomain.local` for local deployments)
+- `cache_host` = `cache.yourdomain.tld` (or `cache.yourdomain.local` for local deployments)
+
+These values are used in the install config file (`/root/.{project}-install.cnf`) and must match your DNS configuration (public DNS records) or `/etc/hosts` configuration (local-only deployments).
 
 ## NGINX Prerequisites
 
 ### Installation
 
-NGINX must be installed and running on your deployment server before you can deploy Henhouse sites. The installer does not install NGINX for you.
+NGINX must be installed on your deployment server before you can deploy Henhouse sites. NGINX is included in the package list in the "Initial System Setup" section above. After installation, NGINX should automatically start. You can verify it's running by accessing your server's IP address in a web browser - you should see the NGINX default welcome page.
 
-**Note**: NGINX should already be installed as part of the initial system setup (see "Initial System Setup" section above). If you haven't installed it yet, install it now:
-
-```bash
-sudo apt install nginx -y
-sudo systemctl start nginx
-sudo systemctl enable nginx
-```
-
-**Verify NGINX is running**:
-```bash
-sudo systemctl status nginx
-```
-
-### Expected Directory Structure
-
-The installer expects NGINX to use the standard Debian/Ubuntu configuration structure:
-
-- **Site configurations**: `/etc/nginx/sites-available/{domain}`
-- **Enabled sites**: `/etc/nginx/sites-enabled/{domain}` (symlinks to `sites-available`)
-- **Main config**: `/etc/nginx/nginx.conf` (typically includes `sites-enabled/*`)
+The NGINX configuration directory paths (`nginx_sites_available` and `nginx_sites_enabled`) are configurable in the install config file (see Chapter 5). By default, they use the standard Debian/Ubuntu paths: `/etc/nginx/sites-available` and `/etc/nginx/sites-enabled`.
 
 ## Technical Details: NGINX Configuration Structure
 
@@ -191,7 +253,7 @@ The HTTP deployment system generates NGINX configuration files with the followin
 - Port 80 (HTTP only)
 - ACME challenge location block for Let's Encrypt
 - Static file locations from whitelists
-- Security headers, rate limiting, hidden file blocking
+- Security headers, hidden file blocking
 - Flask proxy configuration to localhost ports
 
 **HTTPS Configuration (Stage 2)**:
@@ -201,11 +263,9 @@ The HTTP deployment system generates NGINX configuration files with the followin
 - HSTS header included
 - Same features as HTTP plus SSL/TLS encryption
 
-**Deployment Markers**: Config files include "Generated by henhouse deploy-http system" or "Generated by henhouse deploy-ssl system" markers. The `http-remove` command validates these markers before deleting configs (safety feature).
-
 ### Webroot Directory
 
-The installer expects `/var/www/html` to exist and be writable for Let's Encrypt ACME challenges:
+The webroot directory (configurable in the install config file as `webroot_dir`, default: `/var/www/html`) must exist and be writable for Let's Encrypt ACME challenges:
 
 ```bash
 sudo mkdir -p /var/www/html

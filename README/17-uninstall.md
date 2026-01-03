@@ -32,18 +32,24 @@ sudo {hen_script_name} maintenance-stop
 
 **Why**: Services run as tier users that will be removed during uninstall. Stopping them first prevents errors.
 
-### Step 2: Remove HTTP/NGINX Sites
+### Step 2: Remove Deployment
 
-**Required**: Remove all deployed HTTP/NGINX sites before uninstall:
+**Required**: Remove all deployed sites and files before uninstall:
 
 ```bash
-# Remove HTTP/NGINX configuration for each domain
-sudo {hen_script_name} http-remove -domain example.com
+# Remove deployment (removes NGINX configs, stops daemons, removes files)
+sudo {hen_script_name} remove
 ```
 
-Repeat for each domain you've deployed. The uninstall command checks for deployed sites and will refuse to run if any remain.
+This unified command removes:
+- All NGINX configurations for deployed domains
+- Stops Flask and maintenance daemons
+- Removes deployment files from `/srv/{project_name}/` (preserves git folder)
+- Clears deployment manifest
 
-**Why**: NGINX configuration references project users and groups. Removing sites first ensures clean uninstall.
+The uninstall command checks for deployed sites and will refuse to run if any remain.
+
+**Why**: NGINX configuration references project users and groups. Removing deployment first ensures clean uninstall.
 
 ### Step 3: Optional - Remove Database Users
 
@@ -174,12 +180,12 @@ The uninstall process preserves:
 Here's the complete workflow for uninstalling:
 
 ```bash
-# 1. Stop all services
+# 1. Stop all services (optional - remove command will stop them)
 sudo {hen_script_name} flask-stop
 sudo {hen_script_name} maintenance-stop
 
-# 2. Remove HTTP/NGINX sites (REQUIRED)
-sudo {hen_script_name} http-remove -domain example.com
+# 2. Remove deployment (REQUIRED - removes NGINX configs, stops daemons, removes files)
+sudo {hen_script_name} remove
 
 # 3. Optional: Remove database users
 sudo {hen_script_name} remove-db-users -root
@@ -200,23 +206,16 @@ sudo {hen_script_name} install
 
 This recreates users, groups, and infrastructure. The install config file (`/root/.{project}-install.cnf`) was preserved, so you can use the same configuration.
 
-### Step 2: Redeploy Code
+### Step 2: Redeploy (Files + HTTP/NGINX)
 
 ```bash
+# Unified deployment (files + HTTP/NGINX configuration)
 sudo {hen_script_name} deploy
 ```
 
-This deploys code to `/srv/{project_name}/` and starts services.
-
-### Step 3: Redeploy HTTP/NGINX
-
-```bash
-# HTTP deployment
-sudo {hen_script_name} http-deploy -domain example.com
-
-# SSL deployment (after certificates are installed)
-sudo {hen_script_name} http-deploy-ssl -domain example.com
-```
+This unified command handles both file deployment and NGINX configuration. It deploys code to `/srv/{project_name}/` and starts services. For SSL certificates, use flags:
+- `-self-cert` for self-signed certificates
+- `-get-cert` for Let's Encrypt certificates
 
 **Note**: You don't need to reinitialize the database. The database structure remains, and you can continue using it. If you want to start fresh, you can run `init-db` and `add-db-users` again, but it's not required.
 
@@ -264,9 +263,9 @@ DROP DATABASE {project_name}_cache;
 
 **Problem**: Uninstall fails with "deployed sites found" error
 
-**Solution**: Remove all HTTP/NGINX sites first:
+**Solution**: Remove deployment first:
 ```bash
-sudo {hen_script_name} http-remove -domain example.com
+sudo {hen_script_name} remove
 ```
 
 ### Services Still Running

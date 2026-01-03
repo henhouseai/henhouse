@@ -15,12 +15,12 @@ def get_security_headers() -> List[str]:
         "",
     ]
 
-def get_block_hidden_files() -> List[str]:
+def get_block_hidden_files(webroot_dir: str = "/var/www/html") -> List[str]:
     """Return location blocks to block hidden files but allow .well-known."""
     return [
         "    # Allow Let's Encrypt ACME challenges",
-        "    location /.well-known/acme-challenge/ {",
-        "        root /var/www/html;",
+        f"    location /.well-known/acme-challenge/ {{",
+        f"        root {webroot_dir};",
         "        try_files $uri =404;",
         "    }",
         "",
@@ -33,7 +33,7 @@ def get_block_hidden_files() -> List[str]:
         "",
     ]
 
-def get_auth_block(project_name: str, tier: str, guest_password: Optional[str] = None) -> List[str]:
+def get_auth_block(project_name: str, tier: str, guest_password: Optional[str] = None, htpasswd_dir: Optional[str] = None) -> List[str]:
     """Return HTTP Basic Auth configuration for guest/admin/panel subdomains."""
     if tier not in HENHOUSE_TIERS:
         return []
@@ -44,18 +44,30 @@ def get_auth_block(project_name: str, tier: str, guest_password: Optional[str] =
     except ValueError:
         return []
     
+    # Load htpasswd_dir from install config if not provided
+    if htpasswd_dir is None:
+        try:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                htpasswd_dir = install_config.get("htpasswd_dir", "/var/www").strip()
+            else:
+                htpasswd_dir = "/var/www"
+        except Exception:
+            htpasswd_dir = "/var/www"  # Default fallback
+    
     # Guest tier uses .htpasswd_guest (only if password is provided)
     if tier == 'guest':
         if not guest_password or not guest_password.strip():
             # No password set - public access, no auth
             return []
-        htpasswd_file = "/var/www/.htpasswd_guest"
+        htpasswd_file = f"{htpasswd_dir}/.htpasswd_guest"
     # Admin tier uses .htpasswd_{tier_name}
     elif tier == 'admin':
-        htpasswd_file = f"/var/www/.htpasswd_{tier}"
+        htpasswd_file = f"{htpasswd_dir}/.htpasswd_{tier}"
     # Root tier uses .htpasswd_panel
     elif tier == 'root':
-        htpasswd_file = "/var/www/.htpasswd_panel"
+        htpasswd_file = f"{htpasswd_dir}/.htpasswd_panel"
     else:
         # No auth for other tiers
         return []
@@ -98,7 +110,7 @@ def get_flask_proxy_block(port: int) -> List[str]:
     ]
 
 def generate_server_block(server_names: List[str], port: int, static_locations: str, 
-                         label: str = "", extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None) -> List[str]:
+                         label: str = "", extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate a complete Nginx server block.
     
     Args:
@@ -144,7 +156,7 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
     lines.append("")
     
     # Add hidden file blocking
-    lines.extend(get_block_hidden_files())
+    lines.extend(get_block_hidden_files(webroot_dir))
     
     # Add authentication for admin/panel subdomains
     # Map port to tier using actual detected ports
@@ -251,7 +263,7 @@ def get_security_headers_ssl() -> List[str]:
         "",
     ]
 
-def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
+def generate_http_redirect_block(all_domains: List[str], webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate HTTP to HTTPS redirect server block.
     
     Includes exception for Let's Encrypt ACME challenges which must be served on HTTP.
@@ -280,8 +292,8 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
         f"    server_name {' '.join(extended_domains)};",
         "",
         "    # Allow Let's Encrypt ACME challenges (must be on HTTP for webroot validation)",
-        "    location /.well-known/acme-challenge/ {",
-        "        root /var/www/html;",
+        f"    location /.well-known/acme-challenge/ {{",
+        f"        root {webroot_dir};",
         "        try_files $uri =404;",
         "    }",
         "",
@@ -296,7 +308,7 @@ def generate_http_redirect_block(all_domains: List[str]) -> List[str]:
 
 def generate_https_server_block(server_names: List[str], port: int, static_locations: str,
                                certificate_path: str, label: str = "",
-                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None, guest_password: Optional[str] = None) -> List[str]:
+                               extra_blocks: Optional[List[str]] = None, project_name: str = "henhouse", media_port: Optional[int] = None, guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate a complete Nginx HTTPS server block.
     
     Args:
@@ -348,7 +360,7 @@ def generate_https_server_block(server_names: List[str], port: int, static_locat
     lines.append("")
     
     # Add hidden file blocking
-    lines.extend(get_block_hidden_files())
+    lines.extend(get_block_hidden_files(webroot_dir))
     
     # Add authentication for guest/admin/panel subdomains
     # Map port to tier using actual detected ports

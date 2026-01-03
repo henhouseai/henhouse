@@ -10,7 +10,11 @@ Before running the installer, ensure you have completed:
 
 1. **Chapter 1**: DNS, NGINX, and domain setup
 2. **Chapter 2**: MySQL server setup
-3. **Chapter 3**: SSL certificates (can be done after installation, but database operations will fail until SSL is configured)
+   - **For localhost**: MySQL installed and root password set (no SSL required)
+   - **For public deployment**: MySQL installed, root password set, and SSL certificates configured (if `mysql_tls_enabled = 1`)
+3. **Chapter 3**: SSL certificates
+   - **For localhost**: Not required (can skip if `mysql_tls_enabled = 0` and `ssl_enabled = 0`)
+   - **For public deployment**: Required if `mysql_tls_enabled = 1` or `ssl_enabled = 1` (can be done after installation, but database operations will fail until SSL is configured)
 4. **Chapter 4**: Smoke check (optional, but recommended)
 
 ## Install Configuration File
@@ -53,45 +57,166 @@ sudo nano /root/.{project}-install.cnf
 
 ### Required Configuration Values
 
-All values in the `[install]` section must be set to real values (no placeholders):
+The template is pre-configured for **local network deployment** (simplest setup). For local deployment, you only need to change the passwords and domain name. All other values are already set correctly.
+
+**For local network deployment** (default - minimal changes needed):
+- `db_host = localhost` (already set - used for database connections)
+- `cache_host = localhost` (already set - used for cache database connections)
+- `mysql_tls_enabled = 0` (plain text connections, no SSL required)
+- `ssl_enabled = 0` (HTTP-only, no SSL required)
+- `domain = example.local` (already set - change to your desired `.local` domain name)
+
+**You only need to change:**
+- All password fields (replace `CHANGE_ME` with your secure passwords)
+- `domain` field (change `example.local` to your desired domain name, e.g., `mysite.local`)
+
+**For public-facing deployment**, uncomment and set the public values, and enable TLS/SSL:
+- Uncomment `db_host` and `cache_host` lines, set to your subdomains
+- Set `mysql_tls_enabled = 1` (TLS/SSL recommended for public deployments)
+- Set `ssl_enabled = 1` (HTTPS recommended for public deployments)
+- Set `domain` to your public domain name
+
+**Example template** (what you'll see in the generated file):
 
 ```ini
 [install]
-# Database hosts (use your DB/cache subdomains)
-db_host = db.yourdomain.tld
-cache_host = cache.yourdomain.tld
 
+# ========================================
+# Entry Point Script
+# ========================================
 # Entry point script name (defaults to hen)
-hen_script_name = hen
+entry_point_script_name = hen
 
-# SSL CA paths (absolute paths)
-ssl_ca_path = /etc/mysql/ssl/ca.pem
-cache_ssl_ca_path = /etc/mysql/ssl/ca.pem
+# ========================================
+# Database Configuration
+# ========================================
+# Database hosts
+# For localhost deployment (default - no changes needed for local testing):
+db_host = localhost
+cache_host = localhost
+# For public deployment with subdomains:
+# db_host = db.example.tld
+# cache_host = cache.example.tld
 
 # MySQL root passwords (per DB host)
-mysql_root_password_main = your_secure_password
-mysql_root_password_cache = your_secure_password
+mysql_root_password_main = CHANGE_ME
+mysql_root_password_cache = CHANGE_ME
 
+# MySQL TLS/SSL Configuration
+# TLS enabled (1 = enabled, 0 = disabled)
+# For localhost deployment (plain text connections recommended for initial testing):
+mysql_tls_enabled = 0
+# For public deployment (TLS/SSL recommended):
+# mysql_tls_enabled = 1
+
+# MySQL SSL Certificate Paths
+# SSL CA paths (absolute paths, only used if mysql_tls_enabled = 1)
+# For localhost deployment (self-signed certificates):
+ssl_ca_path = /etc/mysql/ssl/ca.pem
+cache_ssl_ca_path = /etc/mysql/ssl/ca.pem
+# For public deployment (Let's Encrypt certificates):
+# ssl_ca_path = /etc/mysql/ssl/ca.pem
+# cache_ssl_ca_path = /etc/mysql/ssl/ca.pem
+
+# MySQL SSL Directory and Certificate Paths
+# MySQL SSL directory (where SSL certificates are stored)
+mysql_ssl_dir = /etc/mysql/ssl
+# MySQL server certificate path (full path to server certificate)
+mysql_server_cert_path = /etc/mysql/ssl/server-cert.pem
+# MySQL server key path (full path to server private key)
+mysql_server_key_path = /etc/mysql/ssl/server-key.pem
+# MySQL configuration file path
+mysql_config_path = /etc/mysql/mysql.conf.d/mysqld.cnf
+
+# ========================================
+# Application Passwords
+# ========================================
 # DB user passwords (guest, verified, admin, root)
-password_guest = your_secure_password
-password_verified = your_secure_password
-password_admin = your_secure_password
-password_root = your_secure_password
+password_guest = CHANGE_ME
+password_verified = CHANGE_ME
+password_admin = CHANGE_ME
+password_root = CHANGE_ME
 
-# htaccess passwords
-htaccess_admin_password = your_secure_password
-htaccess_panel_password = your_secure_password
+# HTTP Basic Auth passwords
+# Leave htaccess_guest_password blank for public access, set password for private site
+htaccess_guest_password = 
+htaccess_admin_password = CHANGE_ME
+htaccess_panel_password = CHANGE_ME
 
+# ========================================
+# Flask Daemon Configuration
+# ========================================
 # Flask daemon starting port (reserves 100 ports: start_port through start_port+99)
 flask_start_port = 5001
+
+# ========================================
+# HTTP/NGINX Deployment Settings
+# ========================================
+# Domain name for web deployment
+# For local network deployment (default - configure /etc/hosts on developer box):
+domain = example.local
+# For public deployment with domain name:
+# domain = example.tld
+# For local network deployment (IP address):
+# domain = 192.168.1.100
+
+# SSL/TLS Configuration
+# SSL enabled (1 = enabled, 0 = disabled)
+# For localhost deployment (HTTP-only recommended for initial testing):
+ssl_enabled = 0
+# For public deployment (HTTPS recommended):
+# ssl_enabled = 1
+
+# SSL Certificate Directories
+# Let's Encrypt certificate directory (for public deployments)
+ssl_cert_dir_letsencrypt = /etc/letsencrypt/live
+# Self-signed certificate directory (for local/testing deployments)
+ssl_cert_dir_self_signed = /etc/nginx/ssl
+
+# Local Deployment IP Binding
+# IP pattern for local deployments (e.g., '192.168.1.' for subnet, '192.168.1.100' for specific IP)
+# Only used for local deployments (.local domains, localhost, or private IP addresses)
+# This restricts NGINX to bind only to matching IPs, preventing external access
+local_allow_block = 192.168.1.
+
+# NGINX Configuration Directories
+# NGINX sites-available directory (where config files are stored)
+nginx_sites_available = /etc/nginx/sites-available
+# NGINX sites-enabled directory (where symlinks to enabled sites are stored)
+nginx_sites_enabled = /etc/nginx/sites-enabled
+# Webroot directory for Let's Encrypt ACME challenges
+webroot_dir = /var/www/html
+# HTTP Basic Auth htpasswd directory (where .htpasswd files are stored)
+htpasswd_dir = /var/www
 ```
+
+### TLS/SSL Configuration Notes
+
+**For local network deployment** (default):
+- `mysql_tls_enabled = 0` and `ssl_enabled = 0` are set by default
+- No SSL certificates required
+- Plain text connections for MySQL, HTTP-only for web
+- Simplest setup - just change passwords and domain name, then configure `/etc/hosts` on your developer box
+
+**Enabling TLS/SSL for local deployments** (optional):
+- You can enable TLS/SSL for local network deployments if desired
+- Set `mysql_tls_enabled = 1` and/or `ssl_enabled = 1`
+- Requires additional steps: generate self-signed certificates (see Chapter 3)
+- Useful for testing SSL/TLS functionality locally
+
+**For public-facing deployment** (recommended):
+- **TLS/SSL is strongly recommended** for public deployments
+- Set `mysql_tls_enabled = 1` (encrypted database connections)
+- Set `ssl_enabled = 1` (HTTPS for web access)
+- Requires SSL certificate setup (see Chapter 3)
+- Use Let's Encrypt certificates for production deployments
 
 ### Configuration Validation
 
 The installer validates that:
 - All required fields are present
 - No placeholder values remain (`CHANGE_ME`, `yourdomain.tld`, `example.com`)
-- `hen_script_name` doesn't conflict with existing scripts
+- `entry_point_script_name` doesn't conflict with existing scripts
 - `flask_start_port` doesn't conflict with other active installations (checks 100-port range)
 
 ## Installation Process
@@ -134,7 +259,8 @@ The installer requires:
 
 5. **Creates User Config Files**:
    - `~/.{project}.cnf` for each user with database credentials
-   - Includes SSL CA paths for secure connections
+   - Includes SSL CA paths for secure connections (only if `mysql_tls_enabled = 1`)
+   - For localhost with `mysql_tls_enabled = 0`, creates plain text connection configs
 
 6. **Sets Up Git Repository**:
    - Creates `/srv/{project_name}/git/{project_name}.git` (bare repository)
@@ -143,8 +269,8 @@ The installer requires:
    - Configures Git safe.directory for shared repository access
 
 7. **Creates Entry Point Scripts**:
-   - `/root/{hen_script_name}` - Root user entry script
-   - `/home/{project_owner}/{hen_script_name}` - Human user entry script
+   - `/root/{entry_point_script_name}` - Root user entry script
+   - `/home/{project_owner}/{entry_point_script_name}` - Human user entry script
    - Wrapper scripts for all tier users
 
 8. **Sets Up Directories**:
@@ -160,8 +286,9 @@ The installer requires:
    - Git repository: Proper permissions for shared access
 
 10. **Creates HTTP Basic Auth Files**:
-    - `/var/www/.htpasswd_admin` - Admin subdomain authentication
-    - `/var/www/.htpasswd_panel` - Panel subdomain authentication
+    - `{htpasswd_dir}/.htpasswd_admin` - Admin subdomain authentication (default: `/var/www/.htpasswd_admin`)
+    - `{htpasswd_dir}/.htpasswd_panel` - Panel subdomain authentication (default: `/var/www/.htpasswd_panel`)
+    - `{htpasswd_dir}/.htpasswd_guest` - Guest subdomain authentication (only if `htaccess_guest_password` is set)
 
 ## Technical Details: Installation Process Implementation
 
@@ -239,14 +366,14 @@ This git repository is used by the git operations system for code synchronizatio
 
 ### Entry Point Scripts
 
-**Tier users**: Creates `gateway.py` and `{hen_script_name}` in each user's home
+**Tier users**: Creates `gateway.py` and `{entry_point_script_name}` in each user's home
 - `gateway.py`: Modified `hen.py` with `/srv/{project_name}` added to Python path
-- `{hen_script_name}`: Wrapper script that calls `python3 gateway.py "$@"`
+- `{entry_point_script_name}`: Wrapper script that calls `python3 gateway.py "$@"`
 
-**Project owner (human user)**: Creates `{hen_script_name}` in `/home/{project_owner}/`
+**Project owner (human user)**: Creates `{entry_point_script_name}` in `/home/{project_owner}/`
 - Points to project folder's `hen.py` (for testing experimental code)
 
-**Root user**: Creates `{hen_script_name}` in `/root/`
+**Root user**: Creates `{entry_point_script_name}` in `/root/`
 - Points to project folder's `hen.py` with cache cleanup after execution
 
 **PATH Configuration**: Updates `.profile` for all users to add their home directory (or `/root` for root) to PATH.
@@ -303,8 +430,8 @@ Should show four new user accounts: `{project}_guest`, `{project}_verified`, `{p
 
 **Check Entry Scripts**:
 ```bash
-ls -la /root/{hen_script_name}
-ls -la /home/{project_owner}/{hen_script_name}
+ls -la /root/{entry_point_script_name}
+ls -la /home/{project_owner}/{entry_point_script_name}
 ```
 Should show entry scripts exist.
 
@@ -320,7 +447,7 @@ Should now be accessible (group permissions activated).
 After logging back in, test the entry script:
 
 ```bash
-{hen_script_name} command-list
+{entry_point_script_name} command-list
 ```
 
 You should no longer need to run `python -m hh.gateway.main` - the entry script handles it.
@@ -330,14 +457,14 @@ You should no longer need to run `python -m hh.gateway.main` - the entry script 
 After installation, set up the database:
 
 ```bash
-sudo {hen_script_name} init-db -root -confirm
-sudo {hen_script_name} add-db-users -root
+sudo {entry_point_script_name} init-db -root -confirm
+sudo {entry_point_script_name} add-db-users -root
 ```
 
 **Note**: These commands require:
-- SSL certificates to be configured (see Chapter 3)
-- MySQL root user to have access from deployment box IP (see Chapter 2)
 - `-root` flag and sudo privileges
+- **For localhost**: MySQL root password set (no SSL required if `mysql_tls_enabled = 0`)
+- **For public deployment**: SSL certificates configured (if `mysql_tls_enabled = 1`) and MySQL root user access from deployment box IP (see Chapter 2)
 
 ### 5. Expected Warnings
 
@@ -349,10 +476,10 @@ Failed to initialize database connections: Access denied for user...
 
 This is **expected** if:
 - Database hasn't been initialized yet (`init-db` not run)
-- SSL certificates aren't configured yet
+- SSL certificates aren't configured yet (only if `mysql_tls_enabled = 1`)
 - Database doesn't exist yet
 
-These warnings are non-fatal and can be ignored until database setup is complete.
+These warnings are non-fatal and can be ignored until database setup is complete. For localhost deployments with `mysql_tls_enabled = 0`, you won't see SSL-related warnings.
 
 ## Port Management
 
@@ -377,22 +504,37 @@ The installer automatically:
 
 ### Install Config Fields
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `db_host` | Database host subdomain | `db.example.com` |
-| `cache_host` | Cache database host subdomain | `cache.example.com` |
-| `hen_script_name` | Entry point script name | `hen` |
-| `ssl_ca_path` | SSL CA certificate path for main DB | `/etc/mysql/ssl/ca.pem` |
-| `cache_ssl_ca_path` | SSL CA certificate path for cache DB | `/etc/mysql/ssl/ca.pem` |
-| `mysql_root_password_main` | MySQL root password for main DB | (secure password) |
-| `mysql_root_password_cache` | MySQL root password for cache DB | (secure password) |
-| `password_guest` | Guest tier database password | (secure password) |
-| `password_verified` | Verified tier database password | (secure password) |
-| `password_admin` | Admin tier database password | (secure password) |
-| `password_root` | Root tier database password | (secure password) |
-| `htaccess_admin_password` | HTTP Basic Auth for admin subdomain | (secure password) |
-| `htaccess_panel_password` | HTTP Basic Auth for panel subdomain | (secure password) |
-| `flask_start_port` | Starting port for Flask daemons | `5001` |
+| Field | Description | Default | Example |
+|-------|-------------|---------|---------|
+| `entry_point_script_name` | Entry point script name | `hen` | `hen` |
+| `db_host` | Database host | `localhost` | `db.example.com` |
+| `cache_host` | Cache database host | `localhost` | `cache.example.com` |
+| `mysql_root_password_main` | MySQL root password for main DB | (required) | (secure password) |
+| `mysql_root_password_cache` | MySQL root password for cache DB | (required) | (secure password) |
+| `mysql_tls_enabled` | Enable TLS for MySQL connections | `0` (disabled) | `1` (enabled) |
+| `mysql_ssl_dir` | MySQL SSL certificate directory | `/etc/mysql/ssl` | `/etc/mysql/ssl` |
+| `mysql_server_cert_path` | MySQL server certificate path | `/etc/mysql/ssl/server-cert.pem` | (configurable) |
+| `mysql_server_key_path` | MySQL server key path | `/etc/mysql/ssl/server-key.pem` | (configurable) |
+| `mysql_config_path` | MySQL configuration file path | `/etc/mysql/mysql.conf.d/mysqld.cnf` | (configurable) |
+| `ssl_ca_path` | SSL CA certificate path for main DB | `/etc/mysql/ssl/ca.pem` | (only if `mysql_tls_enabled = 1`) |
+| `cache_ssl_ca_path` | SSL CA certificate path for cache DB | `/etc/mysql/ssl/ca.pem` | (only if `mysql_tls_enabled = 1`) |
+| `password_guest` | Guest tier database password | (required) | (secure password) |
+| `password_verified` | Verified tier database password | (required) | (secure password) |
+| `password_admin` | Admin tier database password | (required) | (secure password) |
+| `password_root` | Root tier database password | (required) | (secure password) |
+| `htaccess_guest_password` | HTTP Basic Auth for guest (blank = public) | (empty) | (optional password) |
+| `htaccess_admin_password` | HTTP Basic Auth for admin subdomain | (required) | (secure password) |
+| `htaccess_panel_password` | HTTP Basic Auth for panel subdomain | (required) | (secure password) |
+| `flask_start_port` | Starting port for Flask daemons | `5001` | `5001` |
+| `domain` | Domain name for web deployment | `example.local` | `example.com` |
+| `ssl_enabled` | Enable SSL/HTTPS for web | `0` (disabled) | `1` (enabled) |
+| `ssl_cert_dir_letsencrypt` | Let's Encrypt certificate directory | `/etc/letsencrypt/live` | (configurable) |
+| `ssl_cert_dir_self_signed` | Self-signed certificate directory | `/etc/nginx/ssl` | (configurable) |
+| `local_allow_block` | IP pattern for local deployments | `192.168.1.` | (configurable) |
+| `nginx_sites_available` | NGINX sites-available directory | `/etc/nginx/sites-available` | (configurable) |
+| `nginx_sites_enabled` | NGINX sites-enabled directory | `/etc/nginx/sites-enabled` | (configurable) |
+| `webroot_dir` | Webroot for Let's Encrypt challenges | `/var/www/html` | (configurable) |
+| `htpasswd_dir` | HTTP Basic Auth htpasswd directory | `/var/www` | (configurable) |
 
 ## Troubleshooting
 
@@ -426,7 +568,7 @@ The installer automatically:
 
 **Solution**:
 1. Check for existing users: `id {project}_guest`
-2. Run uninstall first if users exist: `sudo {hen_script_name} uninstall`
+2. Run uninstall first if users exist: `sudo {entry_point_script_name} uninstall`
 3. Verify no conflicting user accounts
 
 ### Git Repository Setup Fails
@@ -465,6 +607,6 @@ After successful installation:
 1. **Git Sync Setup** (Optional): Set up git sync between developer box and server (see Chapter 6)
 2. **Database Setup**: Run `init-db` and `add-db-users` (see Chapter 7)
 3. **File Deployment**: Deploy your code to `/srv/` (see Chapter 8)
-4. **HTTP/NGINX**: Configure web server (see Chapter 9)
+4. **Deployment**: Deploy code and configure web server (see Chapter 8)
 5. **Daemon Management**: Verify and manage Flask and maintenance daemons (see Chapter 10)
 

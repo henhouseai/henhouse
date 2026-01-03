@@ -216,7 +216,7 @@ A powerful workflow combines Cursor IDE with the web browser:
 **Solutions**:
 1. Verify htaccess files exist: `ls -la /var/www/.htpasswd_admin` and `/var/www/.htpasswd_panel`
 2. Check credentials match install config
-3. Verify NGINX is configured for these subdomains (see Chapter 9)
+3. Verify NGINX is configured for these subdomains (see Chapter 8)
 4. Check Flask daemons are running (see Chapter 10)
 
 ### App Actions Not Appearing

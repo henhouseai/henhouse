@@ -30,7 +30,8 @@ def create_user_config_file(
     ssl_ca: Optional[str] = None,
     cache_host: Optional[str] = None,
     cache_ssl_ca: Optional[str] = None,
-    ssl_verify_mode: Optional[int] = None
+    ssl_verify_mode: Optional[int] = None,
+    mysql_tls_enabled: bool = False
 ) -> None:
     """Create project-specific config file for user."""
     trace_in()
@@ -48,14 +49,20 @@ def create_user_config_file(
             f"host={host_value}",
             f"database={project_name}",
         ]
-        if ssl_ca:
-            config_lines.append(f"ssl_ca={ssl_ca}")
-        if cache_host:
-            config_lines.append(f"cache_host={cache_host}")
-        if cache_ssl_ca:
-            config_lines.append(f"cache_ssl_ca={cache_ssl_ca}")
-        if ssl_verify_mode is not None:
-            config_lines.append(f"ssl_verify_mode={ssl_verify_mode}")
+        # Only write SSL/TLS config if TLS is enabled
+        if mysql_tls_enabled:
+            if ssl_ca:
+                config_lines.append(f"ssl_ca={ssl_ca}")
+            if cache_host:
+                config_lines.append(f"cache_host={cache_host}")
+            if cache_ssl_ca:
+                config_lines.append(f"cache_ssl_ca={cache_ssl_ca}")
+            if ssl_verify_mode is not None:
+                config_lines.append(f"ssl_verify_mode={ssl_verify_mode}")
+        else:
+            # Still write cache_host even if TLS is disabled (for connection routing)
+            if cache_host:
+                config_lines.append(f"cache_host={cache_host}")
         config_content = "\n".join(config_lines) + "\n"
         
         with open(config_file, 'w') as f:
@@ -100,7 +107,7 @@ def update_user_paths(project_name: str) -> None:
     finally:
         trace_out()
 
-def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen') -> None:
+def create_user_gateway_scripts(project_name: str, entry_point_script_name: str = 'hen') -> None:
     """Create gateway scripts for all user tiers."""
     trace_in()
     gateway = get_gateway()
@@ -109,8 +116,8 @@ def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen')
         
         # Get current hen.py content
         current_path = Path.cwd()
-        hen_script_path = current_path / 'hen.py'
-        with open(hen_script_path, 'r') as f:
+        hen_py_path = current_path / 'hen.py'
+        with open(hen_py_path, 'r') as f:
             hen_content = f.read()
         
         users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
@@ -144,30 +151,30 @@ def create_user_gateway_scripts(project_name: str, hen_script_name: str = 'hen')
     finally:
         trace_out()
 
-def create_user_hen_scripts(project_name: str, hen_script_name: str = 'hen') -> None:
-    """Create hen wrapper scripts for all user tiers."""
+def create_user_entry_point_scripts(project_name: str, entry_point_script_name: str = 'hen') -> None:
+    """Create entry point wrapper scripts for all user tiers."""
     trace_in()
     gateway = get_gateway()
     try:
-        log("Creating user hen scripts")
+        log("Creating user entry point scripts")
         
         users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
         for user in users:
             user_home = Path(f'/home/{user}')
-            hen_script = user_home / hen_script_name
-            hen_script_content = f'''#!/bin/bash
+            entry_point_script = user_home / entry_point_script_name
+            entry_point_script_content = f'''#!/bin/bash
 cd /home/{user}
 python3 gateway.py "$@"
 '''
-            with open(hen_script, 'w') as f:
-                f.write(hen_script_content)
-            gateway.files.chown(str(hen_script), user)
-            gateway.files.chmod(str(hen_script), 0o755)
-            log(f"Created hen script for {user}")
+            with open(entry_point_script, 'w') as f:
+                f.write(entry_point_script_content)
+            gateway.files.chown(str(entry_point_script), user)
+            gateway.files.chmod(str(entry_point_script), 0o755)
+            log(f"Created entry point script for {user}")
         
-        log("hen scripts created successfully")
+        log("Entry point scripts created successfully")
     except Exception as e:
-        warn(f"Failed to create hen scripts: {str(e)}")
+        warn(f"Failed to create entry point scripts: {str(e)}")
     finally:
         trace_out()
 
@@ -193,17 +200,17 @@ def detect_project_owner(project_path: Path) -> Optional[str]:
         trace_out()
         return None
 
-def setup_user_entry_points(project_name: str, project_path: Path, username: str, hen_script_name: str = 'hen', is_root: bool = False) -> None:
-    """Set up entry points (hen) for a user pointing to project codebase."""
+def setup_user_entry_points(project_name: str, project_path: Path, username: str, entry_point_script_name: str = 'hen', is_root: bool = False) -> None:
+    """Set up entry point scripts for a user pointing to project codebase."""
     trace_in()
     gateway = get_gateway()
     try:
         log(f"Setting up entry points for {'root' if is_root else username}")
         
         # Verify hen.py exists in project
-        hen_script_path = project_path / 'hen.py'
-        if not hen_script_path.exists():
-            warn(f"hen.py not found at {hen_script_path} - skipping script setup")
+        hen_py_path = project_path / 'hen.py'
+        if not hen_py_path.exists():
+            warn(f"hen.py not found at {hen_py_path} - skipping script setup")
             trace_out()
             return
         
@@ -222,19 +229,19 @@ def setup_user_entry_points(project_name: str, project_path: Path, username: str
             user_display = username
             chown_user = username
         
-        # Create hen script with custom name, calling hen.py directly
-        hen_script = user_home / hen_script_name
+        # Create entry point script with custom name, calling hen.py directly
+        entry_point_script = user_home / entry_point_script_name
         local_project_path = Path.cwd()  # Current working directory where init was run
-        hen_script_content = f'''#!/bin/bash
+        entry_point_script_content = f'''#!/bin/bash
 cd {local_project_path}
 python3 hen.py "$@"
 '''
         
-        with open(hen_script, 'w') as f:
-            f.write(hen_script_content)
-        gateway.files.chown(str(hen_script), chown_user)
-        gateway.files.chmod(str(hen_script), 0o755)
-        log(f"Created hen script for {user_display} pointing to {project_path}/hen.py")
+        with open(entry_point_script, 'w') as f:
+            f.write(entry_point_script_content)
+        gateway.files.chown(str(entry_point_script), chown_user)
+        gateway.files.chmod(str(entry_point_script), 0o755)
+        log(f"Created entry point script for {user_display} pointing to {project_path}/hen.py")
         
         
         # Update user's PATH to include their home directory and /root
@@ -259,8 +266,8 @@ python3 hen.py "$@"
     finally:
         trace_out()
 
-def setup_human_user_home(project_name: str, project_path: Path, hen_script_name: str = 'hen') -> None:
-    """Set up human user (project owner) home directory with hen script pointing to project codebase."""
+def setup_human_user_home(project_name: str, project_path: Path, entry_point_script_name: str = 'hen') -> None:
+    """Set up human user (project owner) home directory with entry point script pointing to project codebase."""
     trace_in()
     try:
         # Detect project owner (human user)
@@ -271,14 +278,14 @@ def setup_human_user_home(project_name: str, project_path: Path, hen_script_name
             return
         
         log(f"Setting up human user home directory for {project_owner}")
-        setup_user_entry_points(project_name, project_path, project_owner, hen_script_name, is_root=False)
+        setup_user_entry_points(project_name, project_path, project_owner, entry_point_script_name, is_root=False)
         
     except Exception as e:
         warn(f"Failed to setup human user home directory: {str(e)}")
     finally:
         trace_out()
 
-def setup_root_user_script(project_name: str, project_path: Path, hen_script_name: str = 'hen') -> None:
+def setup_root_user_script(project_name: str, project_path: Path, entry_point_script_name: str = 'hen') -> None:
     """Set up root user entry point for sudo operations with cache cleanup."""
     trace_in()
     gateway = get_gateway()
@@ -286,28 +293,28 @@ def setup_root_user_script(project_name: str, project_path: Path, hen_script_nam
         log("Setting up root user entry point")
         
         # Verify hen.py exists in project
-        hen_script_path = project_path / 'hen.py'
-        if not hen_script_path.exists():
-            warn(f"hen.py not found at {hen_script_path} - skipping root script setup")
+        hen_py_path = project_path / 'hen.py'
+        if not hen_py_path.exists():
+            warn(f"hen.py not found at {hen_py_path} - skipping root script setup")
             trace_out()
             return
         
-        # Create root hen script with cache cleanup, calling hen.py directly
+        # Create root entry point script with cache cleanup, calling hen.py directly
         root_home = Path('/root')
-        hen_script = root_home / hen_script_name
+        entry_point_script = root_home / entry_point_script_name
         local_project_path = Path.cwd()  # Current working directory where init was run
-        hen_script_content = f'''#!/bin/bash
+        entry_point_script_content = f'''#!/bin/bash
 cd {local_project_path}
 python3 hen.py "$@"
 find . -type d -name "__pycache__" -exec rm -rf {{}} + 2>/dev/null || true
 find . -type f -name "*.pyc" -delete 2>/dev/null || true
 '''
         
-        with open(hen_script, 'w') as f:
-            f.write(hen_script_content)
-        gateway.files.chown(str(hen_script), "root")
-        gateway.files.chmod(str(hen_script), 0o755)
-        log(f"Created root hen script with cache cleanup at {hen_script}")
+        with open(entry_point_script, 'w') as f:
+            f.write(entry_point_script_content)
+        gateway.files.chown(str(entry_point_script), "root")
+        gateway.files.chmod(str(entry_point_script), 0o755)
+        log(f"Created root entry point script with cache cleanup at {entry_point_script}")
         
         # Update root's PATH to include /root (same as working install - only .profile)
         profile_path = root_home / '.profile'

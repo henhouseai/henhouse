@@ -21,7 +21,7 @@ The installer requires a single configuration file that serves as the source of 
 - MySQL root passwords: `mysql_root_password_main`, `mysql_root_password_cache`
 - **Four tier database passwords**: `password_guest`, `password_verified`, `password_admin`, `password_root` (used for both main and cache databases)
 - **Two htaccess passwords**: `htaccess_admin_password`, `htaccess_panel_password`
-- Entry script name: `hen_script_name`
+- Entry script name: `entry_point_script_name`
 - Flask daemon starting port: `flask_start_port`
 
 ### Password Distribution and Storage
@@ -80,7 +80,7 @@ These passwords are used exclusively for database administration operations. See
 ## Installer Behavior
 
 - **Config-driven only**: No CLI passwords. If the install config is missing, a template is created and install exits with instructions.
-- **`hen_script_name` validation**: Must **not** already exist in `/root`; fail fast otherwise.
+- **`entry_point_script_name` validation**: Must **not** already exist in `/root`; fail fast otherwise.
 - **SSH-only posture**: Unix passwords are locked; at least one SSH key is required (auto-scanned from project owner); fail if none found.
 - **User `.cnf` files**: Emitted with main/cache hosts and SSL CAs from the root config (no hardcoded domains).
 - **htaccess passwords**: Come from the root config.

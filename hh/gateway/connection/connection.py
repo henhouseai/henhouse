@@ -46,10 +46,11 @@ class DatabaseRow(TypedDict, total=False):
     created_at: str
     updated_at: str
 
-def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict[str, Union[str, bool, int]]:
+def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Optional[Dict[str, Union[str, bool, int]]]:
     """Build SSL dictionary from config file for PyMySQL.
-
-    SSL is ALWAYS REQUIRED. verify_mode controls strictness:
+    
+    Returns None if no SSL/TLS configuration is present (plain text connection).
+    If SSL config is present, returns SSL dict with verify_mode controlling strictness:
     - 3: verify cert + hostname (VERIFY_IDENTITY - strictest)
     - 2: verify cert, hostname check disabled (VERIFY_CA)
     - 1: optional verify; hostname check disabled (CERT_OPTIONAL)
@@ -60,23 +61,30 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Dict
     ssl_key = config.get('client', f'{prefix}ssl_key', fallback=None)
     # For verify_mode, if prefixed version doesn't exist, fall back to main ssl_verify_mode
     if prefix and not config.has_option('client', f'{prefix}ssl_verify_mode'):
-        ssl_verify_mode = config.get('client', 'ssl_verify_mode', fallback='2')
+        ssl_verify_mode = config.get('client', 'ssl_verify_mode', fallback=None)
     else:
-        ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback='2')
+        ssl_verify_mode = config.get('client', f'{prefix}ssl_verify_mode', fallback=None)
+    
+    # If no SSL configuration is present at all, return None (plain text connection)
+    if not ssl_ca and not ssl_cert and not ssl_key and not ssl_verify_mode:
+        debug(f"No SSL/TLS configuration found for {prefix}, using plain text connection")
+        return None
+    
     ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
 
     # Determine verify_mode from config (defaults to 2 if not set or invalid)
     verify_mode = 2  # Default to strict
-    try:
-        verify_mode = int(ssl_verify_mode)
-        if verify_mode not in (0, 1, 2, 3):
+    if ssl_verify_mode:
+        try:
+            verify_mode = int(ssl_verify_mode)
+            if verify_mode not in (0, 1, 2, 3):
+                verify_mode = 2
+        except (ValueError, TypeError):
             verify_mode = 2
-    except (ValueError, TypeError):
-        verify_mode = 2
     
     debug(f"SSL config: ssl_verify_mode='{ssl_verify_mode}', verify_mode={verify_mode}, ssl_ca={ssl_ca}")
 
-    # Enforce SSL always; only relax verification based on verify_mode
+    # If verify_mode requires CA but CA is not present, raise error
     if verify_mode in (2, 3) and not ssl_ca:
         raise ValueError(f"SSL verify_mode={verify_mode} but {prefix}ssl_ca is not configured in config file")
 
@@ -124,8 +132,10 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dic
             'port': config.getint('client', 'port', fallback=3306)
         }
         
-        # SSL is ALWAYS REQUIRED for main database
-        dsn['ssl'] = _build_ssl_dict(config, '')
+        # SSL/TLS is optional - only include if configured
+        ssl_dict = _build_ssl_dict(config, '')
+        if ssl_dict is not None:
+            dsn['ssl'] = ssl_dict
         
         log(f"DSN loaded from config: {path}, host={dsn['host']}, database={dsn['database']}")
         
@@ -137,13 +147,14 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dic
             'port': config.getint('client', 'cache_port', fallback=dsn['port'])
         }
         
-        # SSL is ALWAYS REQUIRED for cache database
+        # SSL/TLS is optional for cache database - only include if configured
         # Try cache-specific SSL first, fallback to main SSL if cache_ssl_ca not present
-        try:
-            cache_dsn['ssl'] = _build_ssl_dict(config, 'cache_')
-        except ValueError:
+        cache_ssl_dict = _build_ssl_dict(config, 'cache_')
+        if cache_ssl_dict is None:
             # Fallback to main SSL config
-            cache_dsn['ssl'] = _build_ssl_dict(config, '')
+            cache_ssl_dict = _build_ssl_dict(config, '')
+        if cache_ssl_dict is not None:
+            cache_dsn['ssl'] = cache_ssl_dict
         
         # History database - only create DSN if explicitly configured (database doesn't exist yet)
         history_dsn = None
@@ -156,13 +167,14 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dic
                 'database': config.get('client', 'history_database', fallback=f"{dsn['database']}_history"),
                 'port': config.getint('client', 'history_port', fallback=dsn['port'])
             }
-            # SSL is ALWAYS REQUIRED for history database
+            # SSL/TLS is optional for history database - only include if configured
             # Try history-specific SSL first, fallback to main SSL if history_ssl_ca not present
-            try:
-                history_dsn['ssl'] = _build_ssl_dict(config, 'history_')
-            except ValueError:
+            history_ssl_dict = _build_ssl_dict(config, 'history_')
+            if history_ssl_dict is None:
                 # Fallback to main SSL config
-                history_dsn['ssl'] = _build_ssl_dict(config, '')
+                history_ssl_dict = _build_ssl_dict(config, '')
+            if history_ssl_dict is not None:
+                history_dsn['ssl'] = history_ssl_dict
         
         trace_out()
         return dsn, cache_dsn, history_dsn
@@ -299,15 +311,21 @@ class Connection:
                 trace_out()
                 return 0
             
-            # Extract SSL dict from main_dsn and pass separately
+            # Extract SSL dict from main_dsn and pass separately (only if present)
             main_ssl = main_dsn.pop('ssl', None) if isinstance(main_dsn.get('ssl'), dict) else None
-            self.main = pymysql.connect(**main_dsn, ssl=main_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
+            if main_ssl is not None:
+                self.main = pymysql.connect(**main_dsn, ssl=main_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
+            else:
+                self.main = pymysql.connect(**main_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
             log(f"Main database connection opened: host={main_dsn['host']}, database={main_dsn.get('database', 'None')}")
             
             # Open cache database connection
             if cache_dsn:
                 cache_ssl = cache_dsn.pop('ssl', None) if isinstance(cache_dsn.get('ssl'), dict) else None
-                self.cache = pymysql.connect(**cache_dsn, ssl=cache_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
+                if cache_ssl is not None:
+                    self.cache = pymysql.connect(**cache_dsn, ssl=cache_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
+                else:
+                    self.cache = pymysql.connect(**cache_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
                 log(f"Cache database connection opened: host={cache_dsn['host']}, database={cache_dsn['database']}")
             else:
                 warn("Cache DSN not available, using main database for cache")

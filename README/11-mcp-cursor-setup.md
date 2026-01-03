@@ -8,7 +8,7 @@ Configure the MCP (Model Context Protocol) wrapper script in Cursor IDE to enabl
 
 Before setting up MCP in Cursor, ensure you have:
 
-1. **Chapter 9**: HTTP/NGINX configuration completed (HTTPS must be configured)
+1. **Chapter 8**: Deployment completed (HTTPS must be configured if using SSL)
 2. **Chapter 10**: Flask and maintenance daemons running
 3. **Developer box**: Cursor IDE installed on your development machine
 4. **Project cloned**: Henhouse project cloned on your developer box
@@ -262,7 +262,7 @@ The wrapper validates file paths to prevent path traversal attacks.
    - `user={project}_root`
    - `password=<htaccess_panel_password>` (from install config)
    - `host=panel.yourdomain.tld`
-2. Check that HTTPS is configured (see Chapter 9)
+2. Check that HTTPS is configured (see Chapter 8)
 3. Verify Flask daemons are running (see Chapter 10)
 4. Test panel subdomain access: `curl https://panel.yourdomain.tld`
 
@@ -271,7 +271,7 @@ The wrapper validates file paths to prevent path traversal attacks.
 **Problem**: MCP wrapper can't connect to server
 
 **Solutions**:
-1. Verify HTTPS is configured and working (see Chapter 9)
+1. Verify HTTPS is configured and working (see Chapter 8)
 2. Check Flask daemons are running: `{hen_script_name} flask-status`
 3. Test panel subdomain: Open `https://panel.yourdomain.tld` in browser
 4. Verify firewall allows HTTPS connections (port 443)

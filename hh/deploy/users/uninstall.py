@@ -97,7 +97,7 @@ def uninstall() -> bool:
             trace_out()
             return False
     
-    # Get hen script name from install config - REQUIRED, no fallback
+    # Get entry point script name from install config - REQUIRED, no fallback
     if not cfg_path.exists():
         warn(f"Install config not found: {cfg_path}")
         report_error("action", f"Install config not found: {cfg_path}. Cannot determine script name.")
@@ -113,24 +113,24 @@ def uninstall() -> bool:
             trace_out()
             return False
         
-        hen_script_name = parser.get("install", "hen_script_name", fallback=None)
-        if not hen_script_name:
-            warn(f"hen_script_name not found in install config: {cfg_path}")
-            report_error("action", f"hen_script_name not found in install config: {cfg_path}. Cannot determine script name.")
+        entry_point_script_name = parser.get("install", "entry_point_script_name", fallback=None)
+        if not entry_point_script_name:
+            warn(f"entry_point_script_name not found in install config: {cfg_path}")
+            report_error("action", f"entry_point_script_name not found in install config: {cfg_path}. Cannot determine script name.")
             trace_out()
             return False
         
-        hen_script_name = hen_script_name.strip()
-        if not hen_script_name:
-            warn(f"hen_script_name is empty in install config: {cfg_path}")
-            report_error("action", f"hen_script_name is empty in install config: {cfg_path}. Cannot determine script name.")
+        entry_point_script_name = entry_point_script_name.strip()
+        if not entry_point_script_name:
+            warn(f"entry_point_script_name is empty in install config: {cfg_path}")
+            report_error("action", f"entry_point_script_name is empty in install config: {cfg_path}. Cannot determine script name.")
             trace_out()
             return False
         
-        log(f"Using hen script name from install config: {hen_script_name}")
+        log(f"Using entry point script name from install config: {entry_point_script_name}")
     except Exception as e:
-        warn(f"Could not read hen_script_name from install config: {e}")
-        report_error("action", f"Could not read hen_script_name from install config: {e}")
+        warn(f"Could not read entry_point_script_name from install config: {e}")
+        report_error("action", f"Could not read entry_point_script_name from install config: {e}")
         trace_out()
         return False
 
@@ -257,10 +257,10 @@ def uninstall() -> bool:
     # Step 4: Clean up human user (project owner) home directory
     # Only do this if we actually removed at least one project user (safety check)
     # This prevents accidentally deleting scripts from other projects on a second uninstall run
-    if not is_error() and removed_project_users and hen_script_name:
+    if not is_error() and removed_project_users and entry_point_script_name:
         log(f"Removed {len(removed_project_users)} project user(s) - proceeding with human/root script cleanup")
-        cleanup_human_user_home(project_name, project_path, hen_script_name)
-        cleanup_root_user_scripts(project_name, project_path, hen_script_name)
+        cleanup_human_user_home(project_name, project_path, entry_point_script_name)
+        cleanup_root_user_scripts(project_name, project_path, entry_point_script_name)
     elif not is_error() and not removed_project_users:
         log("No project users were removed - skipping human/root script cleanup for safety")
         warn("Skipping human/root script cleanup - no project users were found/removed. This prevents accidental deletion of scripts from other projects.")
@@ -295,18 +295,18 @@ def uninstall() -> bool:
                 groups_deleted.append(group)
         
         # Check what human scripts were removed
-        if project_owner and hen_script_name:
+        if project_owner and entry_point_script_name:
             human_home = Path(f'/home/{project_owner}')
-            hen_script = human_home / hen_script_name
-            if not hen_script.exists():
-                human_scripts_removed.append(f"/home/{project_owner}/{hen_script_name}")
+            entry_point_script = human_home / entry_point_script_name
+            if not entry_point_script.exists():
+                human_scripts_removed.append(f"/home/{project_owner}/{entry_point_script_name}")
         
         # Check what root scripts were removed
-        if hen_script_name:
+        if entry_point_script_name:
             root_home = Path('/root')
-            root_hen_script = root_home / hen_script_name
-            if not root_hen_script.exists():
-                root_scripts_removed.append(f"/root/{hen_script_name}")
+            root_entry_point_script = root_home / entry_point_script_name
+            if not root_entry_point_script.exists():
+                root_scripts_removed.append(f"/root/{entry_point_script_name}")
         
         result_data = {
             "project_name": project_name,
@@ -380,7 +380,7 @@ def validate_user_directory_for_deletion(user: str, project_name: str, user_home
         required_files = {
             '.profile',           # Our custom .profile
             'gateway.py',         # User's gateway script
-            'hen',                 # User's hen wrapper script
+            'hen',                 # User's entry point wrapper script
             '.ssh',               # SSH directory
             f'.{project_name}.cnf' # Project-specific config
         }
@@ -612,15 +612,15 @@ def reset_project_group_ownership(project_name: str, project_path: Path) -> None
     finally:
         trace_out()
 
-def cleanup_user_entry_points(project_name: str, project_path: Path, username: str, hen_script_name: Optional[str] = None, is_root: bool = False) -> None:
+def cleanup_user_entry_points(project_name: str, project_path: Path, username: str, entry_point_script_name: Optional[str] = None, is_root: bool = False) -> None:
     """Clean up entry points (hen) for a user."""
     trace_in()
     try:
         log(f"Cleaning up entry points for {'root' if is_root else username}")
         
         # Default to standard name if not provided
-        if not hen_script_name:
-            hen_script_name = 'hen'
+        if not entry_point_script_name:
+            entry_point_script_name = 'hen'
         
         # Determine home directory
         if is_root:
@@ -637,21 +637,21 @@ def cleanup_user_entry_points(project_name: str, project_path: Path, username: s
             trace_out()
             return
         
-        # Remove hen script if it exists and looks like our script (calls hen.py directly)
-        hen_script = user_home / hen_script_name
-        if hen_script.exists():
+        # Remove entry point script if it exists and looks like our script (calls hen.py directly)
+        entry_point_script = user_home / entry_point_script_name
+        if entry_point_script.exists():
             try:
-                with open(hen_script, 'r') as f:
+                with open(entry_point_script, 'r') as f:
                     content = f.read()
                 
                 # Check if it calls hen.py directly (root and human user behavior)
                 if 'python3 hen.py' in content:
-                    hen_script.unlink()
-                    log(f"Removed hen script ({hen_script_name}) from {user_display}'s home directory")
+                    entry_point_script.unlink()
+                    log(f"Removed entry point script ({entry_point_script_name}) from {user_display}'s home directory")
                 else:
-                    log(f"hen script ({hen_script_name}) in {user_display}'s home directory doesn't match our pattern - skipping")
+                    log(f"entry point script ({entry_point_script_name}) in {user_display}'s home directory doesn't match our pattern - skipping")
             except Exception as e:
-                warn(f"Failed to remove hen script from {user_display}'s home: {str(e)}")
+                warn(f"Failed to remove entry point script from {user_display}'s home: {str(e)}")
         
         
         # Remove PATH modification from .profile
@@ -683,7 +683,7 @@ def cleanup_user_entry_points(project_name: str, project_path: Path, username: s
     finally:
         trace_out()
 
-def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_name: Optional[str] = None) -> None:
+def cleanup_human_user_home(project_name: str, project_path: Path, entry_point_script_name: Optional[str] = None) -> None:
     """Clean up human user (project owner) home directory setup."""
     trace_in()
     try:
@@ -695,7 +695,7 @@ def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_na
             return
         
         log(f"Cleaning up human user home directory for {project_owner}")
-        cleanup_user_entry_points(project_name, project_path, project_owner, hen_script_name, is_root=False)
+        cleanup_user_entry_points(project_name, project_path, project_owner, entry_point_script_name, is_root=False)
         
         # Remove project-specific config file
         config_file = Path(f"/home/{project_owner}/.{project_name}.cnf")
@@ -711,12 +711,12 @@ def cleanup_human_user_home(project_name: str, project_path: Path, hen_script_na
     finally:
         trace_out()
 
-def cleanup_root_user_scripts(project_name: str, project_path: Path, hen_script_name: Optional[str] = None) -> None:
+def cleanup_root_user_scripts(project_name: str, project_path: Path, entry_point_script_name: Optional[str] = None) -> None:
     """Clean up root user entry points."""
     trace_in()
     try:
         log("Cleaning up root user entry points")
-        cleanup_user_entry_points(project_name, project_path, "root", hen_script_name, is_root=True)
+        cleanup_user_entry_points(project_name, project_path, "root", entry_point_script_name, is_root=True)
         # Remove project-specific config file
         config_file = Path(f"/root/.{project_name}.cnf")
         if config_file.exists():
@@ -735,6 +735,16 @@ def remove_htpasswd_users(project_name: str) -> None:
     """Remove users from .htpasswd files for guest, admin and root tiers."""
     trace_in()
     try:
+        # Load htpasswd_dir from install config
+        htpasswd_dir = "/var/www"  # Default fallback
+        try:
+            from hh.deploy.users.install import _load_install_config
+            install_config = _load_install_config(project_name)
+            if install_config:
+                htpasswd_dir = install_config.get("htpasswd_dir", "/var/www").strip()
+        except Exception:
+            pass  # Use default if config can't be loaded
+        
         # Get guest, admin and root tier indices
         guest_idx = HENHOUSE_TIERS.index('guest') if 'guest' in HENHOUSE_TIERS else None
         admin_idx = HENHOUSE_TIERS.index('admin') if 'admin' in HENHOUSE_TIERS else None
@@ -744,7 +754,7 @@ def remove_htpasswd_users(project_name: str) -> None:
         if guest_idx is not None:
             guest_tier = HENHOUSE_TIERS[guest_idx]
             guest_user = f"{project_name}_{guest_tier}"
-            htpasswd_file = f"/var/www/.htpasswd_{guest_tier}"
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_{guest_tier}"
             
             # Use htpasswd -D to delete the user from the file
             if Path(htpasswd_file).exists():
@@ -763,7 +773,7 @@ def remove_htpasswd_users(project_name: str) -> None:
         if admin_idx is not None:
             admin_tier = HENHOUSE_TIERS[admin_idx]
             admin_user = f"{project_name}_{admin_tier}"
-            htpasswd_file = f"/var/www/.htpasswd_{admin_tier}"
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_{admin_tier}"
             
             # Use htpasswd -D to delete the user from the file
             if Path(htpasswd_file).exists():
@@ -783,7 +793,7 @@ def remove_htpasswd_users(project_name: str) -> None:
             root_tier = HENHOUSE_TIERS[root_idx]
             root_user = f"{project_name}_{root_tier}"
             # Use 'panel' as the suffix for root tier .htpasswd file
-            htpasswd_file = "/var/www/.htpasswd_panel"
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_panel"
             
             # Use htpasswd -D to delete the user from the file
             if Path(htpasswd_file).exists():

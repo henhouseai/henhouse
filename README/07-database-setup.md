@@ -288,6 +288,6 @@ Database operations integrate with the code deployment system:
 After database setup is complete:
 
 1. **File Deployment**: Deploy your code to `/srv/` (see Chapter 8)
-2. **HTTP/NGINX**: Configure web server (see Chapter 9)
+2. **Deployment**: Deploy code and configure web server (see Chapter 8)
 3. **Daemon Management**: Verify and manage Flask and maintenance daemons (see Chapter 10)
 
