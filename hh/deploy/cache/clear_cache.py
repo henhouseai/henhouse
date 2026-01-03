@@ -39,13 +39,33 @@ def cleanup_python_bytecode():
         # Delete all __pycache__ directories
         for pycache_dir in root.rglob("__pycache__"):
             try:
-                shutil.rmtree(pycache_dir)
-                try:
-                    rel_path = pycache_dir.relative_to(root)
-                except Exception:
-                    rel_path = pycache_dir
-                pycache_dirs.append(str(rel_path))
-                log(f"Deleted __pycache__: {pycache_dir}")
+                pycache_path_str = str(pycache_dir)
+                # For deployed locations (/srv/), only delete contents, not the directory itself
+                if pycache_path_str.startswith('/srv/'):
+                    # Delete all files and subdirectories inside __pycache__, but leave the directory
+                    for item in pycache_dir.iterdir():
+                        try:
+                            if item.is_dir():
+                                shutil.rmtree(item)
+                            else:
+                                item.unlink()
+                        except Exception as e:
+                            warn(f"Failed to delete {item} in {pycache_dir}: {e}")
+                    try:
+                        rel_path = pycache_dir.relative_to(root)
+                    except Exception:
+                        rel_path = pycache_dir
+                    pycache_dirs.append(str(rel_path))
+                    log(f"Cleared contents of __pycache__: {pycache_dir}")
+                else:
+                    # For repo locations, delete the entire directory
+                    shutil.rmtree(pycache_dir)
+                    try:
+                        rel_path = pycache_dir.relative_to(root)
+                    except Exception:
+                        rel_path = pycache_dir
+                    pycache_dirs.append(str(rel_path))
+                    log(f"Deleted __pycache__: {pycache_dir}")
             except Exception as e:
                 warn(f"Failed to delete {pycache_dir}: {e}")
         
