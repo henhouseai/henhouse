@@ -42,14 +42,26 @@ class RootConnection(Connection):
             if not val:
                 raise ValueError(f"Missing required field {key} in {cfg_path}")
             return val
+        # MySQL TLS enabled setting
+        mysql_tls_enabled_str = sec.get("mysql_tls_enabled", "0").strip()
+        try:
+            mysql_tls_enabled = int(mysql_tls_enabled_str) != 0
+        except ValueError:
+            mysql_tls_enabled = False  # Default to disabled if invalid value
         data: Dict[str, Union[str, int]] = {
             "db_host": req("db_host"),
             "cache_host": req("cache_host"),
-            "ssl_ca_path": req("ssl_ca_path"),
-            "cache_ssl_ca_path": req("cache_ssl_ca_path"),
+            "mysql_tls_enabled": mysql_tls_enabled,
             "mysql_root_password_main": req("mysql_root_password_main"),
             "mysql_root_password_cache": req("mysql_root_password_cache"),
         }
+        # SSL paths are optional - only include if TLS is enabled
+        if mysql_tls_enabled:
+            data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
+            data["cache_ssl_ca_path"] = sec.get("cache_ssl_ca_path", "").strip()
+        else:
+            data["ssl_ca_path"] = ""
+            data["cache_ssl_ca_path"] = ""
         return data
     
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
@@ -90,8 +102,9 @@ class RootConnection(Connection):
                 except (ValueError, configparser.NoOptionError):
                     verify_mode = 2
         
-        # Only include SSL/TLS if ssl_ca_path is present in config
-        if cfg.get("ssl_ca_path"):
+        # Only include SSL/TLS if TLS is enabled and ssl_ca_path is present in config
+        mysql_tls_enabled = bool(cfg.get("mysql_tls_enabled", False))
+        if mysql_tls_enabled and cfg.get("ssl_ca_path"):
             # Map verify_mode to Python SSL settings
             # Mode 3: verify_mode=2 + check_hostname=True
             # Mode 2: verify_mode=2 + check_hostname=False
@@ -147,8 +160,9 @@ class RootConnection(Connection):
                 except (ValueError, configparser.NoOptionError):
                     verify_mode = 2
         
-        # Only include SSL/TLS if cache_ssl_ca_path is present in config
-        if cfg.get("cache_ssl_ca_path"):
+        # Only include SSL/TLS if TLS is enabled and cache_ssl_ca_path is present in config
+        mysql_tls_enabled = bool(cfg.get("mysql_tls_enabled", False))
+        if mysql_tls_enabled and cfg.get("cache_ssl_ca_path"):
             python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
             check_hostname = verify_mode == 3
             ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}
@@ -199,8 +213,9 @@ class RootConnection(Connection):
                     except (ValueError, configparser.NoOptionError):
                         verify_mode = 2
             
-            # Only include SSL/TLS if ssl_ca_path is present in config
-            if cfg.get("ssl_ca_path"):
+            # Only include SSL/TLS if TLS is enabled and ssl_ca_path is present in config
+            mysql_tls_enabled = bool(cfg.get("mysql_tls_enabled", False))
+            if mysql_tls_enabled and cfg.get("ssl_ca_path"):
                 python_verify_mode = 2 if verify_mode in (2, 3) else (1 if verify_mode == 1 else 0)
                 check_hostname = verify_mode == 3
                 ssl_dict: Dict[str, Union[str, bool, int]] = {'verify_mode': python_verify_mode, 'check_hostname': check_hostname}

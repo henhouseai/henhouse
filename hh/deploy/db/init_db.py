@@ -268,8 +268,8 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 opt_file.write(f"[client]\n")
                 opt_file.write(f"user=root\n")
                 opt_file.write(f"password={root_password_cache}\n")
-                if ssl_ca_path:
-                    opt_file.write(f"ssl-ca={ssl_ca_path}\n")
+                if mysql_tls_enabled and cache_ssl_ca_path:
+                    opt_file.write(f"ssl-ca={cache_ssl_ca_path}\n")
                     # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
                     if ssl_verify_mode == 0:
                         opt_file.write(f"ssl-mode=REQUIRED\n")
