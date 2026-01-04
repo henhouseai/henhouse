@@ -58,14 +58,6 @@ def _log_error_header(error_count: int, backend: str) -> None:
         if not log_file or not log_file.exists():
             return
         
-        # Get user tier level from gateway
-        tier_name = "unknown"
-        gateway = get_gateway()
-        if gateway and gateway.response:
-            tier_level = gateway.response.get_user_tier_level()
-            tier_names = {0: 'unknown', 1: 'guest', 2: 'verified', 3: 'admin', 4: 'root'}
-            tier_name = tier_names.get(tier_level, 'unknown')
-        
         # Create logger for error logging
         error_logger = logging.getLogger('henhouse.errors')
         error_logger.setLevel(logging.ERROR)
@@ -79,17 +71,12 @@ def _log_error_header(error_count: int, backend: str) -> None:
         file_handler.setFormatter(formatter)
         error_logger.addHandler(file_handler)
         
-        # Build header message
-        header_data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "backend": backend,
-            "user_tier": tier_name,
-            "header": True,
-            "error_count": error_count
-        }
+        # Simple header message
+        if error_count == 1:
+            log_message = "1 error found"
+        else:
+            log_message = f"{error_count} errors found"
         
-        # Format as JSON on single line
-        log_message = json.dumps(header_data, ensure_ascii=False, separators=(',', ':'))
         error_logger.error(log_message)
         
         # Clean up handler
