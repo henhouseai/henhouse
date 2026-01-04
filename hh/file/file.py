@@ -284,16 +284,8 @@ class File:
                 """,
                 (now, self.id),
             )
-            
-            # Verify the data was actually written by reading it back
-            verify_check = self.gateway.conn.read_cache(
-                "SELECT cache_built_at FROM files WHERE id = %s",
-                (self.id,),
-            )
-            if verify_check:
-                debug(f"_refresh_cached_file: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
-            else:
-                warn(f"_refresh_cached_file: Verification failed - cache entry not found after write")
+            # Note: Cache writes are buffered, so verification would fail until write_cache() is called
+            # Verification removed since buffered writes aren't immediately visible in cache DB
             
             debug(f"Refreshed cache for file {self.id}: usage={len(self.pages) if self.pages else 0}")
         except Exception as exc:

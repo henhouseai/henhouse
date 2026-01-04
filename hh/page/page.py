@@ -1193,15 +1193,8 @@ class Page:
                 (now, self.id),
             )
             
-            # Verify the data was actually written by reading it back
-            verify_check = self.gateway.conn.read_cache(
-                "SELECT display_name, cache_built_at FROM pages WHERE id = %s",
-                (self.id,),
-            )
-            if verify_check:
-                debug(f"_refresh_cached_page: Verification - cache entry has display_name='{verify_check[0].get('display_name')}', cache_built_at={verify_check[0].get('cache_built_at')}")
-            else:
-                warn(f"_refresh_cached_page: Verification failed - cache entry not found after write")
+            # Note: Cache writes are buffered, so verification would fail until write_cache() is called
+            # Verification removed since buffered writes aren't immediately visible in cache DB
             
             debug(f"Refreshed cache for page {self.id}")
         except Exception as exc:
