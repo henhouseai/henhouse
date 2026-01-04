@@ -260,9 +260,9 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                     value=safe_str(cert_status)
                 )
             
-            # Server IP binding (local deployments only)
+            # Server IP binding
             server_ip = source_data.get('server_ip')
-            if is_local and server_ip and isinstance(server_ip, str):
+            if server_ip and isinstance(server_ip, str):
                 http_data.add_row(
                     'bind_ips',
                     value=safe_str(server_ip)

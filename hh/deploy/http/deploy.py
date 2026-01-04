@@ -1583,6 +1583,8 @@ def deploy() -> bool:
     # Step: HTTP/SSL Deployment (NGINX setup and certificate management)
     nginx_deployed = False
     certificate_created = False
+    server_ip = get_server_ip()  # Detect server IP for all deployments
+    log(f"Detected server IP: {server_ip}")
     deployment_mode = "https"  # Track deployment mode for manifest
     if not is_error():
         try:
@@ -1873,7 +1875,7 @@ def deploy() -> bool:
             "nginx_active": nginx_status_data.get('is_active', False),
             "nginx_enabled_sites": nginx_status_data.get('enabled_sites', []),
             "local_allow_block": local_allow_block if is_local else None,
-            "server_ip": server_ip if is_local else None,
+            "server_ip": server_ip,
             "status": "deployed"
         }
         gateway.response.set_action_response(success_payload(result_data))
