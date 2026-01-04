@@ -3,6 +3,7 @@ from typing import Dict, List, Union, Any, Optional
 import logging
 import json
 from pathlib import Path
+from datetime import datetime, timezone
 from hh.gateway.registry.registry import (
     register_parser, register_http, register_mcp, register_maintenance, register_download
 )
@@ -49,6 +50,53 @@ def _get_error_log_file_path() -> Optional[Path]:
         return local_logs / f"errors_{project_name}.log"
     except Exception:
         return None
+
+def _log_error_header(error_count: int, backend: str) -> None:
+    """Log header line with error count. Fails silently if file doesn't exist."""
+    try:
+        log_file = _get_error_log_file_path()
+        if not log_file or not log_file.exists():
+            return
+        
+        # Get user tier level from gateway
+        tier_name = "unknown"
+        gateway = get_gateway()
+        if gateway and gateway.response:
+            tier_level = gateway.response.get_user_tier_level()
+            tier_names = {0: 'unknown', 1: 'guest', 2: 'verified', 3: 'admin', 4: 'root'}
+            tier_name = tier_names.get(tier_level, 'unknown')
+        
+        # Create logger for error logging
+        error_logger = logging.getLogger('henhouse.errors')
+        error_logger.setLevel(logging.ERROR)
+        error_logger.handlers.clear()
+        error_logger.propagate = False
+        
+        # Add file handler
+        file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+        file_handler.setLevel(logging.ERROR)
+        formatter = logging.Formatter('%(message)s')
+        file_handler.setFormatter(formatter)
+        error_logger.addHandler(file_handler)
+        
+        # Build header message
+        header_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "backend": backend,
+            "user_tier": tier_name,
+            "header": True,
+            "error_count": error_count
+        }
+        
+        # Format as JSON on single line
+        log_message = json.dumps(header_data, ensure_ascii=False, separators=(',', ':'))
+        error_logger.error(log_message)
+        
+        # Clean up handler
+        error_logger.removeHandler(file_handler)
+    except Exception:
+        # Fail silently
+        pass
 
 def _log_error_to_file(error_entry: ErrorEntry, backend: str) -> None:
     """Log error entry to error log file. Fails silently if file doesn't exist."""
@@ -192,7 +240,8 @@ def parser_error() -> bool:
         trace_out()
         return True
     
-    # Log each error to error log file
+    # Log header and each error to error log file
+    _log_error_header(len(global_errors), "parser")
     for error_entry in global_errors:
         _log_error_to_file(error_entry, "parser")
     
@@ -255,7 +304,8 @@ def http_error() -> bool:
         trace_out()
         return True
     
-    # Log each error to error log file
+    # Log header and each error to error log file
+    _log_error_header(len(global_errors), "http")
     for error_entry in global_errors:
         _log_error_to_file(error_entry, "http")
     
@@ -318,7 +368,8 @@ def mcp_error() -> bool:
         trace_out()
         return True
     
-    # Log each error to error log file
+    # Log header and each error to error log file
+    _log_error_header(len(global_errors), "mcp")
     for error_entry in global_errors:
         _log_error_to_file(error_entry, "mcp")
     
@@ -359,7 +410,8 @@ def maintenance_error() -> bool:
         trace_out()
         return True
 
-    # Log each error to error log file
+    # Log header and each error to error log file
+    _log_error_header(len(global_errors), "maintenance")
     for error_entry in global_errors:
         _log_error_to_file(error_entry, "maintenance")
 
@@ -393,7 +445,8 @@ def download_error() -> bool:
         trace_out()
         return True
 
-    # Log each error to error log file
+    # Log header and each error to error log file
+    _log_error_header(len(global_errors), "download")
     for error_entry in global_errors:
         _log_error_to_file(error_entry, "download")
 
