@@ -35,9 +35,9 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_command("regex_text")
-@register_action("regex_text")
-def regex_text() -> bool:
+@register_command("page_name_update")
+@register_action("page_name_update")
+def page_name_update() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -53,7 +53,7 @@ def regex_text() -> bool:
         log("No page_name_update job available")
         gateway.response.set_action_response(
                 success_payload({
-                    "operation": "regex_text",
+                    "operation": "page_name_update",
                     "job_id": None,
                     "resolution_id": None,
                     "done": True,
@@ -147,8 +147,8 @@ def regex_text() -> bool:
     return not is_error()
 
 
-@register_parser("regex_text")
-def regex_text_parser() -> bool:
+@register_parser("page_name_update")
+def page_name_update_parser() -> bool:
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -223,13 +223,13 @@ def regex_text_parser() -> bool:
                     log(f"Updated job {job_id} progress and set to pending: last_page_id={resolution_id}, processed={pages_processed}, modified={pages_modified}")
         
         # Render output
-        lines = [render_header_block("l_regex_text_header")]
+        lines = [render_header_block("l_page_name_update_header")]
         
         table = TableData()
         
         # Add header row (visual anchor)
         table.add_row(
-            "regex_text_header",
+            "page_name_update_header",
             info="",
         )
         
@@ -262,7 +262,7 @@ def regex_text_parser() -> bool:
                 # Error row
                 error_msg = "An error occurred during processing"
                 table.add_row(
-                    "regex_text_error",
+                    "page_name_update_error",
                     info=error_msg,
                 )
             elif result:
@@ -271,7 +271,7 @@ def regex_text_parser() -> bool:
                 modified = result.get("modified", False)
                 status_msg = f"Processed: {processed}, Modified: {modified}"
                 table.add_row(
-                    "regex_text_status",
+                    "page_name_update_status",
                     info=status_msg,
                 )
         
@@ -279,9 +279,9 @@ def regex_text_parser() -> bool:
             render_block(
                 table,
                 FieldConfig()
-                .add_header("regex_text_header")
-                .add_simple(["no_more_pages", "no_job_available", "job_id", "resolution_id", "regex_text_status"])
-                .add_simple_color("regex_text_error", "red"),
+                .add_header("page_name_update_header")
+                .add_simple(["no_more_pages", "no_job_available", "job_id", "resolution_id", "page_name_update_status"])
+                .add_simple_color("page_name_update_error", "red"),
                 block_type="maintenance",
                 table_overrides={"margin_l": 4},
             )
@@ -298,4 +298,4 @@ def regex_text_parser() -> bool:
         return False
 
 
-register_maintenance_tool("regex_text")
+register_maintenance_tool("page_name_update")
