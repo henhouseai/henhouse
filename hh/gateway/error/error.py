@@ -80,11 +80,11 @@ def _log_error_to_file(error_entry: ErrorEntry, backend: str) -> None:
         
         # Build log message with all error details
         error_data = {
+            "timestamp": error_entry.timestamp,
             "backend": backend,
             "user_tier": tier_name,
             "error_type": error_entry.error_type.value,
-            "content": error_entry.content,
-            "timestamp": error_entry.timestamp
+            "content": error_entry.content
         }
         
         # Format as JSON on single line
