@@ -1,5 +1,6 @@
 import subprocess
 import time
+from pathlib import Path
 from typing import Dict, Any
 from hh.gateway.registry.registry import register_action
 from hh.gateway.registry.registry import register_command
@@ -26,6 +27,48 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+def _create_log_file(log_file_path: Path, project_name: str, gateway) -> None:
+    """Create log file with proper ownership and permissions.
+    
+    - Owner: {project}_root
+    - Group: {project}_deploy
+    - Permissions: 664 (group-writable)
+    - If file exists, append (don't delete/recreate)
+    """
+    trace_in()
+    try:
+        # Ensure parent directory exists
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Create file if it doesn't exist (append mode, so existing files are preserved)
+        if not log_file_path.exists():
+            log_file_path.touch()
+            log(f"Created log file: {log_file_path}")
+        else:
+            log(f"Log file already exists: {log_file_path} (will append)")
+        
+        # Set ownership: {project}_root:{project}_deploy
+        project_root_user = f"{project_name}_root"
+        deploy_group_name = f"{project_name}_deploy"
+        
+        user_info = gateway.os.get_user_by_name(project_root_user)
+        if not user_info:
+            warn(f"User not found: {project_root_user}, skipping ownership change")
+            trace_out()
+            return
+        
+        project_root_uid = user_info["uid"]
+        subprocess.run(['chown', f'{project_root_uid}:{deploy_group_name}', str(log_file_path)], check=True)
+        
+        # Set permissions: 664 (group-writable)
+        gateway.files.chmod(str(log_file_path), 0o664)
+        
+        log(f"Set log file ownership and permissions: {log_file_path} -> {project_root_user}:{deploy_group_name} (664)")
+    except Exception as e:
+        warn(f"Failed to create/setup log file {log_file_path}: {e}")
+    finally:
+        trace_out()
 
 def setup_logrotate(project_name: str) -> None:
     """Configure logrotate for Flask daemon logs."""
@@ -217,6 +260,34 @@ def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
 def run_flask_start(project_name: str, start_port: int = 5001) -> Dict[str, Any]:
     trace_in()
     remove_logrotate(project_name)
+    
+    gateway = get_gateway()
+    if not gateway or not gateway.os:
+        warn("Gateway or ProcessManager not available for log file creation")
+    else:
+        # Determine logs directory (deployed vs local dev)
+        pm = gateway.os
+        project_root = pm.find_project_root()
+        is_deployed = pm.is_deployed(project_name)
+        
+        if is_deployed:
+            logs_dir = Path(f"/srv/{project_name}/logs")
+        else:
+            logs_dir = project_root / "logs"
+        
+        # Create log files for all Flask tiers
+        for tier in HENHOUSE_TIERS:
+            log_file = logs_dir / f"flask_{project_name}_{tier}.log"
+            _create_log_file(log_file, project_name, gateway)
+        
+        # Create log file for media server
+        media_log_file = logs_dir / f"flask_{project_name}_media.log"
+        _create_log_file(media_log_file, project_name, gateway)
+        
+        # Create error log file
+        error_log_file = logs_dir / f"errors_{project_name}.log"
+        _create_log_file(error_log_file, project_name, gateway)
+    
     results = []
     for i, tier in enumerate(HENHOUSE_TIERS):
         port = start_port + i

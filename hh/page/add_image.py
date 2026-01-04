@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any
 from hh.gateway.registry.registry import register_action, register_command
+from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -92,3 +93,6 @@ def add_image() -> bool:
         log(f"Successfully added image {new_image_id} to page {target_page_id}: {page_name}")
     trace_out()
     return not is_error()
+
+
+register_maintenance_tool("add_image")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -64,6 +65,48 @@ def _get_process_filter(project_name: str, is_deployed: bool) -> str:
         return "worker.py"
 
 
+def _create_log_file(log_file_path: Path, project_name: str, gateway) -> None:
+    """Create log file with proper ownership and permissions.
+    
+    - Owner: {project}_root
+    - Group: {project}_deploy
+    - Permissions: 664 (group-writable)
+    - If file exists, append (don't delete/recreate)
+    """
+    trace_in()
+    try:
+        # Ensure parent directory exists
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Create file if it doesn't exist (append mode, so existing files are preserved)
+        if not log_file_path.exists():
+            log_file_path.touch()
+            log(f"Created log file: {log_file_path}")
+        else:
+            log(f"Log file already exists: {log_file_path} (will append)")
+        
+        # Set ownership: {project}_root:{project}_deploy
+        project_root_user = f"{project_name}_root"
+        deploy_group_name = f"{project_name}_deploy"
+        
+        user_info = gateway.os.get_user_by_name(project_root_user)
+        if not user_info:
+            warn(f"User not found: {project_root_user}, skipping ownership change")
+            trace_out()
+            return
+        
+        project_root_uid = user_info["uid"]
+        subprocess.run(['chown', f'{project_root_uid}:{deploy_group_name}', str(log_file_path)], check=True)
+        
+        # Set permissions: 664 (group-writable)
+        gateway.files.chmod(str(log_file_path), 0o664)
+        
+        log(f"Set log file ownership and permissions: {log_file_path} -> {project_root_user}:{deploy_group_name} (664)")
+    except Exception as e:
+        warn(f"Failed to create/setup log file {log_file_path}: {e}")
+    finally:
+        trace_out()
+
 def start_maintenance_process(project_name: str) -> Dict[str, Any]:
     """Start maintenance daemon."""
     trace_in()
@@ -81,6 +124,9 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
         worker_path = _get_worker_path(project_name, is_deployed, project_root)
         log_file = _get_log_file(project_name, is_deployed, project_root)
         process_name = _get_process_filter(project_name, is_deployed)
+        
+        # Create log file before starting daemon
+        _create_log_file(log_file, project_name, gateway)
         
         # Check if worker file exists
         if not gateway.files or not gateway.files.file_exists(str(worker_path)):
@@ -200,7 +246,9 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
             log_file = Path(f"/srv/{project_name}/logs/{daemon_name}_{project_name}.log")
         else:
             log_file = project_root / "logs" / f"{daemon_name}_{project_name}.log"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Create log file before starting daemon
+        _create_log_file(log_file, project_name, gateway)
         
         # Check if worker file exists
         if not gateway.files or not gateway.files.file_exists(str(worker_path)):
@@ -287,12 +335,44 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
 
 def run_maintenance_start(project_name: str) -> Dict[str, Any]:
     trace_in()
+    
+    gateway = get_gateway()
+    if gateway and gateway.os:
+        pm = gateway.os
+        project_root = pm.find_project_root()
+        is_deployed = pm.is_deployed(project_name)
+        
+        # Determine logs directory
+        if is_deployed:
+            logs_dir = Path(f"/srv/{project_name}/logs")
+        else:
+            logs_dir = project_root / "logs"
+        
+        # Look for EXT maintenance workers and create log files for them
+        if is_deployed:
+            ext_maint_dir = Path(f"/srv/{project_name}")
+            # Check for deployed EXT workers (pattern: {project_name}_maintenance_{daemon_name}.py)
+            for worker_file in ext_maint_dir.glob(f"{project_name}_maintenance_*.py"):
+                if worker_file.name == f"{project_name}_maintenance.py":
+                    continue  # Skip main maintenance worker
+                # Extract daemon name: henhouse_maintenance_migration.py -> migration
+                daemon_name = worker_file.stem.replace(f"{project_name}_maintenance_", "")
+                if daemon_name:
+                    log_file = logs_dir / f"{daemon_name}_{project_name}.log"
+                    _create_log_file(log_file, project_name, gateway)
+        else:
+            ext_maint_dir = project_root / "ext" / "deploy" / "maintenance"
+            if ext_maint_dir.exists():
+                for worker_file in ext_maint_dir.glob("*_worker.py"):
+                    daemon_name = worker_file.stem.replace("_worker", "")
+                    log_file = logs_dir / f"{daemon_name}_{project_name}.log"
+                    _create_log_file(log_file, project_name, gateway)
+    
     # Start main maintenance daemon
     main_result = start_maintenance_process(project_name)
     
     # Start EXT daemons
     ext_results = {}
-    gateway = get_gateway()
     if gateway and gateway.os:
         pm = gateway.os
         project_root = pm.find_project_root()

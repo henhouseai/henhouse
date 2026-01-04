@@ -36,7 +36,8 @@ app.secret_key = os.getenv('SECRET_KEY', f'{PROJECT_NAME}-media-secret-key-chang
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB limit
 
 # Configure Flask's logger to write to our log file
-if LOG_FILE:
+# Note: Log file should already exist (created by flask_start script)
+if LOG_FILE and Path(LOG_FILE).exists():
     logging.basicConfig(
         filename=LOG_FILE,
         level=logging.INFO,

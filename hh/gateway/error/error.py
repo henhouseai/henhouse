@@ -1,5 +1,8 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Union, Any, Optional
+import logging
+import json
+from pathlib import Path
 from hh.gateway.registry.registry import (
     register_parser, register_http, register_mcp, register_maintenance, register_download
 )
@@ -8,8 +11,9 @@ from hh.render.config.config import dc, break_section, safe_str
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import get_data
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.error.error_store import get_errors
+from hh.gateway.error.error_store import get_errors, ErrorEntry
 from hh.render.text.color import get_color, apply_color_code, RESET_COLOR
+from hh.deploy.deploy_utils import detect_project_context
 
 trace_in = lambda message=None: None
 trace_out = lambda message=None: None
@@ -25,6 +29,73 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+def _get_error_log_file_path() -> Optional[Path]:
+    """Get error log file path based on deployment status.
+    
+    - Deployed: /srv/{project}/logs/errors_{project}.log
+    - Local dev: {project_root}/logs/errors_{project}.log
+    """
+    try:
+        project_name, project_root = detect_project_context()
+        
+        # Check if deployed (same pattern as maintenance worker)
+        deployed_logs = Path(f"/srv/{project_name}/logs")
+        if deployed_logs.exists():
+            return deployed_logs / f"errors_{project_name}.log"
+        
+        # Local dev - use project root
+        local_logs = project_root / "logs"
+        return local_logs / f"errors_{project_name}.log"
+    except Exception:
+        return None
+
+def _log_error_to_file(error_entry: ErrorEntry, backend: str) -> None:
+    """Log error entry to error log file. Fails silently if file doesn't exist."""
+    try:
+        log_file = _get_error_log_file_path()
+        if not log_file or not log_file.exists():
+            return
+        
+        # Get user tier level from gateway
+        tier_name = "unknown"
+        gateway = get_gateway()
+        if gateway and gateway.response:
+            tier_level = gateway.response.get_user_tier_level()
+            tier_names = {0: 'unknown', 1: 'guest', 2: 'verified', 3: 'admin', 4: 'root'}
+            tier_name = tier_names.get(tier_level, 'unknown')
+        
+        # Create logger for error logging
+        error_logger = logging.getLogger('henhouse.errors')
+        error_logger.setLevel(logging.ERROR)
+        error_logger.handlers.clear()
+        error_logger.propagate = False
+        
+        # Add file handler
+        file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+        file_handler.setLevel(logging.ERROR)
+        formatter = logging.Formatter('%(message)s')
+        file_handler.setFormatter(formatter)
+        error_logger.addHandler(file_handler)
+        
+        # Build log message with all error details
+        error_data = {
+            "backend": backend,
+            "user_tier": tier_name,
+            "error_type": error_entry.error_type.value,
+            "content": error_entry.content,
+            "timestamp": error_entry.timestamp
+        }
+        
+        # Format as JSON on single line
+        log_message = json.dumps(error_data, ensure_ascii=False, separators=(',', ':'))
+        error_logger.error(log_message)
+        
+        # Clean up handler
+        error_logger.removeHandler(file_handler)
+    except Exception:
+        # Fail silently
+        pass
 
 def render_error_details(error_list: List[Dict], error_type: str, lines: List[str]) -> None:
     trace_in()
@@ -121,6 +192,10 @@ def parser_error() -> bool:
         trace_out()
         return True
     
+    # Log each error to error log file
+    for error_entry in global_errors:
+        _log_error_to_file(error_entry, "parser")
+    
     log(f"Processing {len(global_errors)} errors from global error store")
     lines = []
     lines.append(render_header_block('l_error'))
@@ -179,6 +254,10 @@ def http_error() -> bool:
         log("No errors to display")
         trace_out()
         return True
+    
+    # Log each error to error log file
+    for error_entry in global_errors:
+        _log_error_to_file(error_entry, "http")
     
     log(f"Processing {len(global_errors)} errors from global error store")
     lines = []
@@ -239,6 +318,10 @@ def mcp_error() -> bool:
         trace_out()
         return True
     
+    # Log each error to error log file
+    for error_entry in global_errors:
+        _log_error_to_file(error_entry, "mcp")
+    
     log(f"Processing {len(global_errors)} errors from global error store")
     
     # Convert ErrorEntry objects to dicts for JSON serialization (same structure as response_mcp.py)
@@ -276,6 +359,10 @@ def maintenance_error() -> bool:
         trace_out()
         return True
 
+    # Log each error to error log file
+    for error_entry in global_errors:
+        _log_error_to_file(error_entry, "maintenance")
+
     errors_data = [
         {
             "type": error.error_type.value,
@@ -305,6 +392,10 @@ def download_error() -> bool:
         log("No errors to display")
         trace_out()
         return True
+
+    # Log each error to error log file
+    for error_entry in global_errors:
+        _log_error_to_file(error_entry, "download")
 
     errors_data = [
         {

@@ -156,27 +156,27 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
         
         # Collect from HH folder
         if hh_total > 0:
-            all_lost.extend([f"hh/{f}" for f in hh_diffs_lost])
-            all_restored.extend([f"hh/{f}" for f in hh_diffs_restored])
-            all_created.extend([f"hh/{f}" for f in hh_diffs_created])
-            all_updated.extend([f"hh/{f}" for f in hh_diffs_updated])
-            all_preserved.extend([f"hh/{f}" for f in hh_diffs_preserved])
+            all_lost.extend(hh_diffs_lost)
+            all_restored.extend(hh_diffs_restored)
+            all_created.extend(hh_diffs_created)
+            all_updated.extend(hh_diffs_updated)
+            all_preserved.extend(hh_diffs_preserved)
         
         # Collect from Context folder
         if has_context_diffs and context_total > 0:
-            all_lost.extend([f"context/{f}" for f in context_diffs_lost])
-            all_restored.extend([f"context/{f}" for f in context_diffs_restored])
-            all_created.extend([f"context/{f}" for f in context_diffs_created])
-            all_updated.extend([f"context/{f}" for f in context_diffs_updated])
-            all_preserved.extend([f"context/{f}" for f in context_diffs_preserved])
+            all_lost.extend(context_diffs_lost)
+            all_restored.extend(context_diffs_restored)
+            all_created.extend(context_diffs_created)
+            all_updated.extend(context_diffs_updated)
+            all_preserved.extend(context_diffs_preserved)
         
         # Collect from README folder
         if has_readme_diffs and readme_total > 0:
-            all_lost.extend([f"README/{f}" for f in readme_diffs_lost])
-            all_restored.extend([f"README/{f}" for f in readme_diffs_restored])
-            all_created.extend([f"README/{f}" for f in readme_diffs_created])
-            all_updated.extend([f"README/{f}" for f in readme_diffs_updated])
-            all_preserved.extend([f"README/{f}" for f in readme_diffs_preserved])
+            all_lost.extend(readme_diffs_lost)
+            all_restored.extend(readme_diffs_restored)
+            all_created.extend(readme_diffs_created)
+            all_updated.extend(readme_diffs_updated)
+            all_preserved.extend(readme_diffs_preserved)
         
         # Collect from top-level files
         top_level_diffs_restored_raw: Any = source_data.get('top_level_diffs_restored', [])

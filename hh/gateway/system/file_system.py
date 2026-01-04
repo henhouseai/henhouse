@@ -165,6 +165,31 @@ class FileSystem:
         log(f"Scheduled directory tree copy: {from_path} -> {to_path}")
         trace_out()
     
+    def schedule_create_directory(self, path: str, parents: bool = True, mode: Optional[int] = None) -> None:
+        """Schedule a directory creation operation to be executed on commit.
+        If directory already exists, no-op (doesn't schedule creation or rollback)."""
+        trace_in()
+        path_obj = Path(path)
+        
+        # Check if directory already exists
+        if path_obj.exists() and path_obj.is_dir():
+            log(f"Directory already exists, skipping creation: {path}")
+            trace_out()
+            return
+        
+        # Directory doesn't exist, schedule creation
+        operation = {
+            'type': 'create_directory',
+            'from_path': None,  # Not applicable for create
+            'to_path': path,
+            'status': 'scheduled',
+            'parents': parents,
+            'mode': mode
+        }
+        self._operations.append(operation)
+        log(f"Scheduled directory creation: {path}")
+        trace_out()
+    
     def commit(self) -> bool:
         """Execute all scheduled file operations. Returns True if all succeed, False otherwise. If dry_run is enabled, skips execution."""
         trace_in()
@@ -190,13 +215,14 @@ class FileSystem:
                 log(f"Skipping operation {operation['type']} (status: {operation['status']})")
                 continue
             
-            log(f"Processing {operation['type']} operation: {operation['from_path']} -> {operation['to_path']}")
+            log(f"Processing {operation['type']} operation: {operation.get('from_path', 'N/A')} -> {operation['to_path']}")
             
             try:
-                from_path = Path(operation['from_path'])
+                from_path = Path(operation['from_path']) if operation.get('from_path') else None
                 to_path = Path(operation['to_path'])
                 
-                if not from_path.exists():
+                # Check source file existence (only for operations that have a source)
+                if from_path and not from_path.exists():
                     warn(f"Source file does not exist: {from_path}")
                     report_error("file_operation", f"Source file does not exist: {from_path}")
                     operation['status'] = 'failed'
@@ -204,6 +230,12 @@ class FileSystem:
                     return False
                 
                 if operation['type'] == 'move':
+                    if not from_path:
+                        warn(f"Move operation missing source path")
+                        report_error("file_operation", f"Move operation missing source path")
+                        operation['status'] = 'failed'
+                        trace_out()
+                        return False
                     to_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(from_path), str(to_path))
                     log(f"Moved file: {from_path} -> {to_path}")
@@ -211,6 +243,12 @@ class FileSystem:
                     completed_count += 1
                     
                 elif operation['type'] == 'delete':
+                    if not from_path:
+                        warn(f"Delete operation missing source path")
+                        report_error("file_operation", f"Delete operation missing source path")
+                        operation['status'] = 'failed'
+                        trace_out()
+                        return False
                     if operation.get('hard_delete', False):
                         # Hard delete (Windows) - actually remove the file
                         if from_path.is_dir():
@@ -230,6 +268,12 @@ class FileSystem:
                 
                 elif operation['type'] == 'copy':
                     # Single file copy with metadata preservation (like shutil.copy2)
+                    if not from_path:
+                        warn(f"Copy operation missing source path")
+                        report_error("file_operation", f"Copy operation missing source path")
+                        operation['status'] = 'failed'
+                        trace_out()
+                        return False
                     to_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(str(from_path), str(to_path))
                     log(f"Copied file: {from_path} -> {to_path}")
@@ -239,6 +283,12 @@ class FileSystem:
                 elif operation['type'] == 'copy_tree':
                     # Recursive directory copy (like shutil.copytree)
                     # Note: copytree requires destination to not exist
+                    if not from_path:
+                        warn(f"Copy_tree operation missing source path")
+                        report_error("file_operation", f"Copy_tree operation missing source path")
+                        operation['status'] = 'failed'
+                        trace_out()
+                        return False
                     if to_path.exists():
                         warn(f"Destination directory already exists: {to_path}")
                         report_error("file_operation", f"Destination directory already exists: {to_path}")
@@ -250,9 +300,42 @@ class FileSystem:
                     log(f"Copied directory tree: {from_path} -> {to_path}")
                     operation['status'] = 'completed'
                     completed_count += 1
+                
+                elif operation['type'] == 'create_directory':
+                    # Directory creation
+                    # Check again at commit time (may have been created by another operation)
+                    if to_path.exists() and to_path.is_dir():
+                        log(f"Directory already exists at commit time: {to_path}")
+                        # Mark as completed but note it was a no-op (for rollback logic)
+                        operation['status'] = 'completed'
+                        operation['was_noop'] = True
+                        completed_count += 1
+                    else:
+                        to_path.mkdir(parents=operation.get('parents', True), exist_ok=True)
+                        # Set permissions on Unix-like systems
+                        mode = operation.get('mode')
+                        if mode is not None and self._os_type in ('linux', 'ubuntu', 'macos'):
+                            try:
+                                os.chmod(str(to_path), mode)
+                                debug(f"Set directory permissions: {to_path} -> {oct(mode)}")
+                            except Exception as e:
+                                warn(f"Failed to set directory permissions: {to_path}: {e}")
+                        log(f"Created directory: {to_path}")
+                        operation['status'] = 'completed'
+                        operation['was_noop'] = False
+                        completed_count += 1
                     
             except Exception as e:
-                warn(f"Failed to execute file operation {operation['type']}: {from_path} -> {to_path}: {str(e)}")
+                # Handle case where from_path might not be defined (e.g., if exception during Path creation)
+                try:
+                    from_path_str = str(from_path) if from_path else 'N/A'
+                except NameError:
+                    from_path_str = str(operation.get('from_path', 'N/A'))
+                try:
+                    to_path_str = str(to_path)
+                except NameError:
+                    to_path_str = str(operation.get('to_path', 'N/A'))
+                warn(f"Failed to execute file operation {operation['type']}: {from_path_str} -> {to_path_str}: {str(e)}")
                 report_error("file_operation", f"Failed to {operation['type']} file: {str(e)}")
                 operation['status'] = 'failed'
                 trace_out()
@@ -285,14 +368,14 @@ class FileSystem:
             if operation['status'] != 'completed':
                 continue
             
-            log(f"Rolling back operation: {operation['type']} from {operation['from_path']} to {operation['to_path']}")
+            log(f"Rolling back operation: {operation['type']} from {operation.get('from_path', 'N/A')} to {operation['to_path']}")
             
             try:
-                from_path = Path(operation['from_path'])
+                from_path = Path(operation['from_path']) if operation.get('from_path') else None
                 to_path = Path(operation['to_path'])
                 
                 if operation['type'] == 'move':
-                    if to_path.exists():
+                    if to_path.exists() and from_path:
                         from_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.move(str(to_path), str(from_path))
                         log(f"Rolled back move: {to_path} -> {from_path}")
@@ -308,11 +391,12 @@ class FileSystem:
                 elif operation['type'] == 'delete':
                     if operation.get('hard_delete', False):
                         # Hard delete cannot be rolled back
-                        warn(f"Cannot rollback hard delete: {from_path}")
+                        if from_path:
+                            warn(f"Cannot rollback hard delete: {from_path}")
                         operation['status'] = 'rollback_not_supported'
                         # Don't fail the whole rollback, just skip this one
                         continue
-                    elif to_path and to_path.exists():
+                    elif to_path and to_path.exists() and from_path:
                         from_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.move(str(to_path), str(from_path))
                         log(f"Rolled back delete: {to_path} -> {from_path}")
@@ -353,9 +437,35 @@ class FileSystem:
                         # Don't fail - directory may have been deleted already
                         operation['status'] = 'rolled_back'
                         rolled_back_count += 1
+                
+                elif operation['type'] == 'create_directory':
+                    # Rollback create_directory: delete the directory if we actually created it
+                    if operation.get('was_noop', False):
+                        # Directory already existed, we didn't create it, so don't delete it
+                        log(f"Skipping rollback of create_directory (was no-op): {to_path}")
+                        operation['status'] = 'rolled_back'
+                        rolled_back_count += 1
+                    elif to_path.exists():
+                        # We created it, so delete it
+                        if to_path.is_dir():
+                            shutil.rmtree(str(to_path))
+                            log(f"Rolled back create_directory: deleted {to_path}")
+                            operation['status'] = 'rolled_back'
+                            rolled_back_count += 1
+                        else:
+                            warn(f"Path exists but is not a directory for rollback: {to_path}")
+                            operation['status'] = 'rollback_failed'
+                            trace_out()
+                            return False
+                    else:
+                        # Directory doesn't exist (may have been deleted already)
+                        log(f"Directory does not exist for rollback (may have been deleted): {to_path}")
+                        operation['status'] = 'rolled_back'
+                        rolled_back_count += 1
                     
             except Exception as e:
-                warn(f"Failed to rollback file operation {operation['type']}: {str(e)}")
+                from_path_str = str(from_path) if from_path else 'N/A'
+                warn(f"Failed to rollback file operation {operation['type']}: {from_path_str} -> {to_path}: {str(e)}")
                 report_error("file_operation", f"Failed to rollback {operation['type']}: {str(e)}")
                 operation['status'] = 'rollback_failed'
                 trace_out()

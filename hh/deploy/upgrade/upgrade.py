@@ -94,10 +94,10 @@ def create_unified_backup(target_path: Path, gateway) -> Path:
         backup_path = target_path / backup_name
         counter += 1
     
-    # Create backup directory (skip in dry-run mode)
+    # Schedule backup directory creation (skip in dry-run mode)
     if not dry_run:
-        gateway.files.create_directory(str(backup_path))
-        log(f"Created backup directory: {backup_path}")
+        gateway.files.schedule_create_directory(str(backup_path))
+        log(f"Scheduled backup directory creation: {backup_path}")
     else:
         log(f"Would create backup directory: {backup_path} (dry-run)")
     
@@ -218,17 +218,11 @@ def restore_preserved(target_path: Path, backup_path: Path, gateway, preserve_se
     restored_files = []
     
     # Schedule restore of each file in preserve set
+    # preserve_set now contains project-relative paths (e.g., "hh/deploy/site/js/...", "context/...", "accounting.md")
     for rel_path_str in preserve_set:
-        # Convert normalized path back to Path object (handle both / and \)
-        rel_path = Path(rel_path_str.replace('/', '\\') if '\\' in str(backup_path) else rel_path_str.replace('\\', '/'))
-        
-        # Determine backup location: try hh/ first (for hh/ files), then top-level (for other files)
-        backup_file = backup_path / "hh" / rel_path
-        # If path doesn't start with hh/, it's a top-level file
-        if not rel_path_str.startswith('hh/'):
-            backup_file = backup_path / rel_path
-        
-        target_file = target_path / rel_path
+        # Backup structure matches project-relative paths: backup/hh/..., backup/context/..., backup/README/..., backup/accounting.md
+        backup_file = backup_path / rel_path_str
+        target_file = target_path / rel_path_str
         
         # Schedule restore - file will be in backup location when this executes during commit
         gateway.files.schedule_copy(str(backup_file), str(target_file))
@@ -349,7 +343,7 @@ def load_preserve_list(target_path: Path) -> Set[str]:
     return preserve_set
 
 
-def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Optional[Set[str]] = None) -> FileDifferences:
+def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Optional[Set[str]] = None, project_root: Optional[Path] = None) -> FileDifferences:
     """Compare two directories recursively and return categorized file differences.
     
     Returns FileDifferences object with files categorized as:
@@ -390,9 +384,16 @@ def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Option
     
     # Compare files that exist in source
     for source_file in source_files:
-        rel_path = source_file.relative_to(source_dir)
-        rel_path_str = normalize_path(str(rel_path))
-        target_file = target_dir / rel_path
+        # For preserve_set check: use path relative to project_root if provided
+        if project_root:
+            rel_path_for_preserve = source_file.relative_to(project_root)
+        else:
+            rel_path_for_preserve = source_file.relative_to(source_dir)
+        rel_path_str = normalize_path(str(rel_path_for_preserve))
+        
+        # For file operations: use path relative to source_dir
+        rel_path_for_file = source_file.relative_to(source_dir)
+        target_file = target_dir / rel_path_for_file
         
         source_hash = compute_file_hash(source_file)
         if source_hash is None:
@@ -404,23 +405,33 @@ def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Option
         if target_hash is None:
             # File exists in source but not in target - will be created
             differences.will_be_created.append(rel_path_str)
-            log(f"File will be created: {rel_path}")
+            log(f"File will be created: {rel_path_str}")
         elif source_hash != target_hash:
             # File exists but is different
             if is_preserved:
                 # Would be updated but is preserved - won't actually change
                 differences.will_be_preserved.append(rel_path_str)
-                log(f"File would be updated but is preserved: {rel_path}")
+                log(f"File would be updated but is preserved: {rel_path_str}")
             else:
                 # Will be updated
                 differences.will_be_updated.append(rel_path_str)
-                log(f"File will be updated: {rel_path}")
+                log(f"File will be updated: {rel_path_str}")
     
     # Find files that exist in target but not in source
     for target_file in target_files:
-        rel_path = target_file.relative_to(target_dir)
-        rel_path_str = normalize_path(str(rel_path))
-        source_file = source_dir / rel_path
+        target_rel_to_dir = target_file.relative_to(target_dir)
+        
+        # For preserve_set check: use path relative to project_root if provided
+        if project_root:
+            # Compute path relative to project root (e.g., hh/deploy/site/js/file.js)
+            rel_path_for_preserve = project_root / target_dir.name / target_rel_to_dir
+            rel_path_for_preserve = rel_path_for_preserve.relative_to(project_root)
+        else:
+            rel_path_for_preserve = target_rel_to_dir
+        rel_path_str = normalize_path(str(rel_path_for_preserve))
+        
+        # For file operations: use path relative to source_dir
+        source_file = source_dir / target_rel_to_dir
         
         if not source_file.exists():
             # File exists in target but not in source
@@ -428,11 +439,11 @@ def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Option
             if is_preserved:
                 # Will be lost but restored from backup
                 differences.will_be_restored.append(rel_path_str)
-                log(f"File will be restored from backup: {rel_path}")
+                log(f"File will be restored from backup: {rel_path_str}")
             else:
                 # Will be lost
                 differences.will_be_lost.append(rel_path_str)
-                log(f"File will be lost: {rel_path}")
+                log(f"File will be lost: {rel_path_str}")
     
     total = differences.total_count()
     log(f"Found {total} different files: {len(differences.will_be_lost)} lost, {len(differences.will_be_restored)} restored, {len(differences.will_be_created)} created, {len(differences.will_be_updated)} updated, {len(differences.will_be_preserved)} preserved")
@@ -559,7 +570,7 @@ def do_upgrade() -> bool:
     
     log("Comparing hh/ directories...")
     if source_hh.exists() and target_hh.exists():
-        hh_diffs = compare_directories(source_hh, target_hh, preserve_set)
+        hh_diffs = compare_directories(source_hh, target_hh, preserve_set, source_path)
         log(f"Found {hh_diffs.total_count()} files that differ in hh/")
     elif source_hh.exists():
         # Target hh/ doesn't exist yet, all files will be new
@@ -580,7 +591,7 @@ def do_upgrade() -> bool:
     target_context = target_path / "context"
     log("Comparing context/ directories...")
     if source_context.exists() and target_context.exists():
-        context_diffs = compare_directories(source_context, target_context, preserve_set)
+        context_diffs = compare_directories(source_context, target_context, preserve_set, source_path)
         log(f"Found {context_diffs.total_count()} files that differ in context/")
     elif source_context.exists():
         # Target context/ doesn't exist yet, all files will be new
@@ -601,7 +612,7 @@ def do_upgrade() -> bool:
     target_readme = target_path / "README"
     log("Comparing README/ directories...")
     if source_readme.exists() and target_readme.exists():
-        readme_diffs = compare_directories(source_readme, target_readme, preserve_set)
+        readme_diffs = compare_directories(source_readme, target_readme, preserve_set, source_path)
         log(f"Found {readme_diffs.total_count()} files that differ in README/")
     elif source_readme.exists():
         # Target README/ doesn't exist yet, all files will be new
@@ -732,13 +743,7 @@ def do_upgrade() -> bool:
     if not dry_run:
         restored_files = restore_preserved(target_path, backup_path, gateway, preserve_set)
     
-    # Commit all scheduled file operations
-    if not gateway.files.commit():
-        warn("Failed to commit file operations")
-        report_error("action", "Failed to commit file operations")
-        trace_out()
-        return False
-    
+    # File operations will be committed automatically by gateway dispatch
     # Clean up cache files (skip if dry_run)
     if not dry_run:
         target_hh = target_path / "hh"

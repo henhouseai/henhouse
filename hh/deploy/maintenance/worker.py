@@ -82,13 +82,15 @@ def configure_logging() -> None:
     root_logger.addHandler(stderr_handler)
     
     # Add file handler
-    try:
-        file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-        logging.info(f"Logging to file: {log_file}")
-    except Exception as e:
-        logging.warning(f"Could not open log file {log_file}: {e}")
+    # Note: Log file should already exist (created by maintenance_start script)
+    if log_file.exists():
+        try:
+            file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+            logging.info(f"Logging to file: {log_file}")
+        except Exception as e:
+            logging.warning(f"Could not open log file {log_file}: {e}")
 
 
 def parse_args() -> argparse.Namespace:

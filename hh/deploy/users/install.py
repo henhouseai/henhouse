@@ -1129,6 +1129,15 @@ def setup_project_group(project_name: str, project_path: Path) -> None:
         except subprocess.CalledProcessError as e:
             log(f"Failed to add www-data to groups (may not exist yet): {e.stderr.decode()}")
         
+        # Add root tier user to admin group so it can write to admin-owned directories
+        root_tier = HENHOUSE_TIERS[-1]  # Last tier is root
+        root_user = f"{project_name}_{root_tier}"
+        try:
+            subprocess.run(['usermod', '-a', '-G', admin_group_name, root_user], check=True, capture_output=True)
+            log(f"Added {root_user} to group {admin_group_name}")
+        except subprocess.CalledProcessError as e:
+            warn(f"Failed to add {root_user} to group {admin_group_name}: {e.stderr.decode()}")
+        
         # Group ownership will be set at the end of init process
         
     except Exception as e:
