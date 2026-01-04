@@ -15,6 +15,49 @@ def get_security_headers() -> List[str]:
         "",
     ]
 
+def get_client_ip_access_control(local_allow_block: str) -> List[str]:
+    """
+    Generate nginx allow/deny directives for client IP access control.
+    
+    Args:
+        local_allow_block: Comma-separated CIDR notation (e.g., "192.168.1.0/24,10.0.0.0/8")
+                          or single IP/CIDR. Always includes 127.0.0.1 if not present.
+    
+    Returns:
+        List of nginx directive strings for allow/deny rules.
+    """
+    lines = [
+        "    # Client IP access control (intranet only)",
+    ]
+    
+    # Parse comma-separated values
+    allow_ranges = [r.strip() for r in local_allow_block.split(',') if r.strip()]
+    
+    # Always allow localhost (unless already present)
+    has_localhost = any('127.0.0.1' in r or '::1' in r for r in allow_ranges)
+    if not has_localhost:
+        lines.append("    allow 127.0.0.1;")
+    
+    # Add each allowed range
+    for range_str in allow_ranges:
+        # Validate basic format (simple check - IP or CIDR)
+        if '/' in range_str or range_str.replace('.', '').replace('/', '').isdigit():
+            lines.append(f"    allow {range_str};")
+        else:
+            # If it looks like an IP without CIDR, add /32
+            parts = range_str.split('.')
+            if len(parts) == 4 and all(p.isdigit() for p in parts):
+                lines.append(f"    allow {range_str}/32;")
+            else:
+                # Invalid format, skip with warning (could log here)
+                continue
+    
+    # Deny all other IPs
+    lines.append("    deny all;")
+    lines.append("")
+    
+    return lines
+
 def get_block_hidden_files(webroot_dir: str = "/var/www/html") -> List[str]:
     """Return location blocks to block hidden files but allow .well-known."""
     return [

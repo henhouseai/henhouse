@@ -57,18 +57,15 @@ def _manifest_add_site(project_name: str, domain: str, mode: str) -> None:
         parser.write(f)
     os.chmod(cfg_path, 0o600)
 
-def get_ips_matching_pattern(pattern: str) -> List[str]:
+def get_server_ip() -> str:
     """
-    Get IP addresses on the system that match the given pattern.
-    
-    Args:
-        pattern: IP pattern like "192.168.1." (matches all 192.168.1.x) or "192.168.1.100" (specific IP)
+    Get the first non-localhost IP address from the server's network interfaces.
+    Falls back to 127.0.0.1 if no other IP is found.
     
     Returns:
-        List of matching IP addresses found on the system
+        IP address string (e.g., "192.168.1.100")
     """
     trace_in()
-    matching_ips = []
     try:
         # Get all network interfaces
         result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True)
@@ -80,29 +77,17 @@ def get_ips_matching_pattern(pattern: str) -> List[str]:
                     if len(parts) >= 2:
                         ip_with_cidr = parts[1]
                         ip = ip_with_cidr.split('/')[0]
-                        
-                        # Check if IP matches pattern
-                        if pattern.endswith('.'):
-                            # Pattern like "192.168.1." - match all IPs starting with that prefix
-                            if ip.startswith(pattern):
-                                matching_ips.append(ip)
-                        else:
-                            # Specific IP pattern - exact match
-                            if ip == pattern:
-                                matching_ips.append(ip)
+                        trace_out()
+                        return ip
     except Exception as e:
-        warn(f"Failed to get IPs matching pattern {pattern}: {e}")
+        warn(f"Failed to detect server IP: {e}")
     
-    # Fallback: if no matches and pattern is specific IP, return it anyway (user might know what they're doing)
-    if not matching_ips and not pattern.endswith('.'):
-        matching_ips.append(pattern)
-        log(f"No matching IPs found for pattern {pattern}, using pattern as-is")
-    
+    # Fallback to localhost
     trace_out()
-    return matching_ips
+    return "127.0.0.1"
 
-def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List[str], certificate_path: str) -> str:
-    """Generate Nginx SSL configuration bound to specific local IPs only."""
+def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_block: str, server_ip: str, certificate_path: str) -> str:
+    """Generate Nginx SSL configuration with client IP access control for local deployments."""
     trace_in()
     try:
         # Load guest password and webroot_dir from install config
@@ -122,7 +107,8 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
         from hh.deploy.http.nginx_config_helpers import (
             get_security_headers_ssl, get_block_hidden_files,
             get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
-            get_server_configs, detect_flask_ports, generate_http_redirect_block
+            get_server_configs, detect_flask_ports, generate_http_redirect_block,
+            get_client_ip_access_control
         )
         from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
         
@@ -151,23 +137,23 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
             pass
         
         config_lines = [
-            "# Local-only HTTPS configuration (bound to specific IPs, prevents external access)",
+            "# Local-only HTTPS configuration (client IP access control, prevents external access)",
             "",
         ]
         
-        # Add HTTP to HTTPS redirect for all domains (bound to same IPs)
+        # Add HTTP to HTTPS redirect for all domains (with client IP access control)
         all_domains = [domain, f'www.{domain}', f'admin.{domain}', f'panel.{domain}']
-        for bind_ip in bind_ips:
-            config_lines.append(f"# HTTP to HTTPS redirect (bound to {bind_ip})")
-            config_lines.append("server {")
-            config_lines.append(f"    listen {bind_ip}:80;")
-            config_lines.append(f"    server_name {' '.join(all_domains)};")
-            config_lines.append("")
-            config_lines.append("    location / {")
-            config_lines.append("        return 301 https://$host$request_uri;")
-            config_lines.append("    }")
-            config_lines.append("}")
-            config_lines.append("")
+        config_lines.append("# HTTP to HTTPS redirect (with client IP access control)")
+        config_lines.append("server {")
+        config_lines.append(f"    listen {server_ip}:80;")
+        config_lines.append(f"    server_name {' '.join(all_domains)};")
+        config_lines.append("")
+        config_lines.extend(get_client_ip_access_control(local_allow_block))
+        config_lines.append("    location / {")
+        config_lines.append("        return 301 https://$host$request_uri;")
+        config_lines.append("    }")
+        config_lines.append("}")
+        config_lines.append("")
         
         # Detect media port
         ports = detect_flask_ports(project_name)
@@ -176,23 +162,23 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
         # Get server configurations
         servers = get_server_configs(domain, project_name)
         
-        # Generate HTTPS blocks for each server, bound to each IP
+        # Generate HTTPS blocks for each server (with client IP access control)
         for server in servers:
-            for bind_ip in bind_ips:
-                block_lines = _generate_local_https_server_block(
-                    server['names'],
-                    server['port'],
-                    static_locations,
-                    certificate_path,
-                    server['label'],
-                    rate_limit="general",  # Not used anymore, but kept for function signature compatibility
-                    project_name=project_name,
-                    media_port=media_port,
-                    bind_ip=bind_ip,
-                    guest_password=guest_password,
-                    webroot_dir=webroot_dir
-                )
-                config_lines.extend(block_lines)
+            block_lines = _generate_local_https_server_block(
+                server['names'],
+                server['port'],
+                static_locations,
+                certificate_path,
+                server['label'],
+                rate_limit="general",  # Not used anymore, but kept for function signature compatibility
+                project_name=project_name,
+                media_port=media_port,
+                server_ip=server_ip,
+                local_allow_block=local_allow_block,
+                guest_password=guest_password,
+                webroot_dir=webroot_dir
+            )
+            config_lines.extend(block_lines)
         
         config = '\n'.join(config_lines)
         trace_out()
@@ -205,12 +191,14 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, bind_ips: List
 def _generate_local_https_server_block(server_names: List[str], port: int, static_locations: str,
                                       certificate_path: str, label: str = "", rate_limit: str = "general",  # rate_limit not used
                                       project_name: str = "henhouse", media_port: Optional[int] = None,
-                                      bind_ip: str = "127.0.0.1",
+                                      server_ip: str = "127.0.0.1",
+                                      local_allow_block: str = "192.168.1.0/24,10.0.0.0/8",
                                       guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
-    """Generate an HTTPS server block that binds to a specific local IP."""
+    """Generate an HTTPS server block with client IP access control for local deployments."""
     from hh.deploy.http.nginx_config_helpers import (
         get_security_headers_ssl, get_block_hidden_files,
-        get_auth_block, get_media_server_proxy_block, get_flask_proxy_block
+        get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
+        get_client_ip_access_control
     )
     from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
     
@@ -224,12 +212,15 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     
     # Add label comment if provided
     if label:
-        lines.append(f"# {label} (bound to {bind_ip})")
+        lines.append(f"# {label} (local deployment with client IP access control)")
     
     lines.append("server {")
-    lines.append(f"    listen {bind_ip}:443 ssl http2;")
+    lines.append(f"    listen {server_ip}:443 ssl http2;")
     lines.append(f"    server_name {' '.join(server_names)};")
     lines.append("")
+    
+    # Add client IP access control
+    lines.extend(get_client_ip_access_control(local_allow_block))
     
     # Add SSL certificates
     lines.append("    ssl_certificate {}/fullchain.pem;".format(certificate_path))
@@ -274,8 +265,8 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     
     return lines
 
-def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str]) -> str:
-    """Generate Nginx HTTP-only configuration bound to specific local IPs only."""
+def create_nginx_config_local(domain: str, project_name: str, local_allow_block: str, server_ip: str) -> str:
+    """Generate Nginx HTTP-only configuration with client IP access control for local deployments."""
     trace_in()
     try:
         # Load guest password and webroot_dir from install config
@@ -323,7 +314,7 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
             pass
         
         config_lines = [
-            "# Local-only HTTP configuration (intranet access only)",
+            "# Local-only HTTP configuration (client IP access control, intranet access only)",
             "# Generated by henhouse deploy-http-local system",
             "",
         ]
@@ -335,21 +326,21 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
         # Get server configurations
         servers = get_server_configs(domain, project_name)
         
-        # Generate HTTP blocks for each server, bound to each IP
+        # Generate HTTP blocks for each server (with client IP access control)
         for server in servers:
-            for bind_ip in bind_ips:
-                block_lines = _generate_local_http_server_block(
-                    server['names'],
-                    server['port'],
-                    static_locations,
-                    server['label'],
-                    project_name=project_name,
-                    media_port=media_port,
-                    bind_ip=bind_ip,
-                    guest_password=guest_password,
-                    webroot_dir=webroot_dir
-                )
-                config_lines.extend(block_lines)
+            block_lines = _generate_local_http_server_block(
+                server['names'],
+                server['port'],
+                static_locations,
+                server['label'],
+                project_name=project_name,
+                media_port=media_port,
+                server_ip=server_ip,
+                local_allow_block=local_allow_block,
+                guest_password=guest_password,
+                webroot_dir=webroot_dir
+            )
+            config_lines.extend(block_lines)
         
         config = '\n'.join(config_lines)
         trace_out()
@@ -361,12 +352,14 @@ def create_nginx_config_local(domain: str, project_name: str, bind_ips: List[str
 
 def _generate_local_http_server_block(server_names: List[str], port: int, static_locations: str,
                                       label: str = "", project_name: str = "henhouse", 
-                                      media_port: Optional[int] = None, bind_ip: str = "127.0.0.1",
+                                      media_port: Optional[int] = None, server_ip: str = "127.0.0.1",
+                                      local_allow_block: str = "192.168.1.0/24,10.0.0.0/8",
                                       guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
-    """Generate an HTTP server block that binds to a specific local IP."""
+    """Generate an HTTP server block with client IP access control for local deployments."""
     from hh.deploy.http.nginx_config_helpers import (
         get_security_headers, get_block_hidden_files,
-        get_auth_block, get_media_server_proxy_block, get_flask_proxy_block
+        get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
+        get_client_ip_access_control
     )
     from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
     
@@ -380,12 +373,15 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
     
     # Add label comment if provided
     if label:
-        lines.append(f"# {label} (bound to {bind_ip})")
+        lines.append(f"# {label} (local deployment with client IP access control)")
     
     lines.append("server {")
-    lines.append(f"    listen {bind_ip}:80;")
+    lines.append(f"    listen {server_ip}:80;")
     lines.append(f"    server_name {' '.join(server_names)};")
     lines.append("")
+    
+    # Add client IP access control
+    lines.extend(get_client_ip_access_control(local_allow_block))
     
     # Add security headers
     lines.extend(get_security_headers())
@@ -1587,7 +1583,6 @@ def deploy() -> bool:
     # Step: HTTP/SSL Deployment (NGINX setup and certificate management)
     nginx_deployed = False
     certificate_created = False
-    bind_ips = []
     deployment_mode = "https"  # Track deployment mode for manifest
     if not is_error():
         try:
@@ -1687,17 +1682,13 @@ def deploy() -> bool:
                 log("Installing NGINX SSL configuration...")
                 
                 if is_local:
-                    # For local deployments, bind to specific IPs to prevent external access
-                    bind_ips = get_ips_matching_pattern(local_allow_block)
-                    if not bind_ips:
-                        warn(f"No IPs found matching pattern '{local_allow_block}'")
-                        warn("Falling back to 127.0.0.1 for local deployment")
-                        bind_ips = ['127.0.0.1']
-                    
-                    log(f"Local deployment: binding to IPs: {', '.join(bind_ips)}")
+                    # For local deployments, detect server IP and use client IP access control
+                    server_ip = get_server_ip()
+                    log(f"Local deployment: detected server IP: {server_ip}")
+                    log(f"Local deployment: using client IP access control: {local_allow_block}")
                     
                     # Generate local SSL config
-                    config_content = create_nginx_ssl_config_local(domain, project_name, bind_ips, str(certificate_path))
+                    config_content = create_nginx_ssl_config_local(domain, project_name, local_allow_block, server_ip, str(certificate_path))
                     if not config_content:
                         warn("Failed to generate local NGINX SSL configuration")
                         report_error("action", "Failed to generate local NGINX SSL configuration")
@@ -1772,17 +1763,13 @@ def deploy() -> bool:
                 log("Installing NGINX HTTP-only configuration...")
                 
                 if is_local:
-                    # For local deployments, bind to specific IPs to prevent external access
-                    bind_ips = get_ips_matching_pattern(local_allow_block)
-                    if not bind_ips:
-                        warn(f"No IPs found matching pattern '{local_allow_block}'")
-                        warn("Falling back to 127.0.0.1 for local deployment")
-                        bind_ips = ['127.0.0.1']
-                    
-                    log(f"Local deployment: binding to IPs: {', '.join(bind_ips)}")
+                    # For local deployments, detect server IP and use client IP access control
+                    server_ip = get_server_ip()
+                    log(f"Local deployment: detected server IP: {server_ip}")
+                    log(f"Local deployment: using client IP access control: {local_allow_block}")
                     
                     # Generate local HTTP config
-                    config_content = create_nginx_config_local(domain, project_name, bind_ips)
+                    config_content = create_nginx_config_local(domain, project_name, local_allow_block, server_ip)
                     if not config_content:
                         warn("Failed to generate local NGINX HTTP configuration")
                         report_error("action", "Failed to generate local NGINX HTTP configuration")
@@ -1885,7 +1872,8 @@ def deploy() -> bool:
             "certificate_path": str(certificate_path) if ssl_enabled and 'certificate_path' in locals() else None,
             "nginx_active": nginx_status_data.get('is_active', False),
             "nginx_enabled_sites": nginx_status_data.get('enabled_sites', []),
-            "bind_ips": bind_ips if is_local else [],
+            "local_allow_block": local_allow_block if is_local else None,
+            "server_ip": server_ip if is_local else None,
             "status": "deployed"
         }
         gateway.response.set_action_response(success_payload(result_data))

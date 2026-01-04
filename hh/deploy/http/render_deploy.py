@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Union, Any, Optional
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -225,12 +225,13 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
         http_data = TableData()
         domain = source_data.get('domain', '')
         is_local = source_data.get('is_local', False)
+        ssl_enabled = source_data.get('ssl_enabled', False)
         certificate_path = source_data.get('certificate_path', '')
         certificate_created = source_data.get('certificate_created', False)
         nginx_deployed = source_data.get('nginx_deployed', False)
         nginx_active = source_data.get('nginx_active', False)
-        bind_ips_raw: Any = source_data.get('bind_ips', [])
-        bind_ips: List[str] = bind_ips_raw if isinstance(bind_ips_raw, list) else []
+        local_allow_block_raw = source_data.get('local_allow_block')
+        local_allow_block: Optional[str] = local_allow_block_raw if isinstance(local_allow_block_raw, str) else None
         
         if domain:  # Only show HTTP section if domain is present
             log(f"Rendering HTTP/NGINX section for: {domain}")
@@ -241,11 +242,12 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                 value=safe_str(domain)
             )
             
-            # Port (443 for SSL, which we always use now)
+            # Port (443 for SSL, 80 for HTTP-only)
             if not gateway.is_no('config'):
+                port = '443' if ssl_enabled else '80'
                 http_data.add_row(
                     'port',
-                    value='443'
+                    value=port
                 )
             
             # Certificate path (always present since we always use SSL)
@@ -258,12 +260,19 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                     value=safe_str(cert_status)
                 )
             
-            # Bind IPs (local deployments only)
-            if is_local and bind_ips:
-                bind_ips_str = ', '.join(bind_ips)
+            # Server IP binding (local deployments only)
+            server_ip = source_data.get('server_ip')
+            if is_local and server_ip and isinstance(server_ip, str):
                 http_data.add_row(
                     'bind_ips',
-                    value=safe_str(bind_ips_str)
+                    value=safe_str(server_ip)
+                )
+            
+            # Client IP access control (local deployments only)
+            if is_local and local_allow_block:
+                http_data.add_row(
+                    'client_ip_access',
+                    value=safe_str(local_allow_block)
                 )
             
             # NGINX deployment status
@@ -289,7 +298,7 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                     http_data,
                     FieldConfig()
                         .add_header('domain_header')
-                        .add_simple(['port', 'certificate_path', 'bind_ips', 'nginx_deployed', 'nginx_active']),
+                        .add_simple(['port', 'certificate_path', 'bind_ips', 'client_ip_access', 'nginx_deployed', 'nginx_active']),
                     table_overrides={'margin_l': 4},
                     block_type=block
                 ))

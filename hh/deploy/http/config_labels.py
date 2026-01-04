@@ -32,6 +32,7 @@ from hh.render.config.config_registry import register_label
 @register_label('misc_whitelist',                     'Misc Whitelist:',                '📦')
 @register_label('context_whitelist',                   'Context Whitelist:',              '📂')
 @register_label('bind_ips',                           'Bound to:',                       '🔗')
+@register_label('client_ip_access',                   'Client IP Access:',                '🛡️')
 @register_label('project_header',                     'Project:',                        '📁')
 @register_label('deploy_header',                      'Deployment Status',               '🚀')
 @register_label('code_deployed',                      'Code Deployed:',                  '✅')

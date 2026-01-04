@@ -72,6 +72,32 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
         context_total: int = context_total_raw if isinstance(context_total_raw, int) else 0
         has_context_diffs = source_data.get('context_diffs_lost') is not None
         
+        # Get categorized README diffs
+        readme_diffs_lost_raw: Any = source_data.get('readme_diffs_lost', [])
+        readme_diffs_lost: List[str] = readme_diffs_lost_raw if isinstance(readme_diffs_lost_raw, list) else []
+        readme_diffs_restored_raw: Any = source_data.get('readme_diffs_restored', [])
+        readme_diffs_restored: List[str] = readme_diffs_restored_raw if isinstance(readme_diffs_restored_raw, list) else []
+        readme_diffs_created_raw: Any = source_data.get('readme_diffs_created', [])
+        readme_diffs_created: List[str] = readme_diffs_created_raw if isinstance(readme_diffs_created_raw, list) else []
+        readme_diffs_updated_raw: Any = source_data.get('readme_diffs_updated', [])
+        readme_diffs_updated: List[str] = readme_diffs_updated_raw if isinstance(readme_diffs_updated_raw, list) else []
+        readme_diffs_preserved_raw: Any = source_data.get('readme_diffs_preserved', [])
+        readme_diffs_preserved: List[str] = readme_diffs_preserved_raw if isinstance(readme_diffs_preserved_raw, list) else []
+        readme_total_raw: Any = source_data.get('readme_diff_count_total', 0)
+        readme_total: int = readme_total_raw if isinstance(readme_total_raw, int) else 0
+        has_readme_diffs = source_data.get('readme_diffs_lost') is not None
+        
+        # Get top-level files diffs
+        top_level_diffs_lost_raw: Any = source_data.get('top_level_diffs_lost', [])
+        top_level_diffs_lost: List[str] = top_level_diffs_lost_raw if isinstance(top_level_diffs_lost_raw, list) else []
+        top_level_diffs_created_raw: Any = source_data.get('top_level_diffs_created', [])
+        top_level_diffs_created: List[str] = top_level_diffs_created_raw if isinstance(top_level_diffs_created_raw, list) else []
+        top_level_diffs_updated_raw: Any = source_data.get('top_level_diffs_updated', [])
+        top_level_diffs_updated: List[str] = top_level_diffs_updated_raw if isinstance(top_level_diffs_updated_raw, list) else []
+        top_level_total_raw: Any = source_data.get('top_level_diff_count_total', 0)
+        top_level_total: int = top_level_total_raw if isinstance(top_level_total_raw, int) else 0
+        has_top_level_diffs = source_data.get('top_level_diffs_lost') is not None
+        
         log(f"Rendering upgrade section for: {target}")
         debug(f"Source data keys: {list(source_data.keys())}")
         debug(f"Dry run: {dry_run}, HH total: {hh_total}, Context total: {context_total}")
@@ -121,221 +147,154 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
                     value='None'
                 )
         
-        # File differences - HH folder (categorized)
-        # Each category is rendered as a separate section
-        if hh_total > 0:
-            # Files that will be lost (red)
-            if hh_diffs_lost:
-                count = len(hh_diffs_lost)
-                category_data = TableData()
-                category_data.add_row(
-                    'status',
-                    value=f'Will be lost ({count} files)'
-                )
-                for file_path in sorted(hh_diffs_lost):
-                    category_data.add_row(
-                        'hh_diff_lost',
-                        value=safe_str(file_path)
-                    )
-                lines.append(render_block(
-                    category_data,
-                    FieldConfig().add_simple(['status', 'hh_diff_lost']).add_simple_color('hh_diff_lost', 'red'),
-                    table_overrides={'margin_l': 4},
-                    block_type=block
-                ))
-                break_section(lines)
-            
-            # Files that will be restored (green)
-            if hh_diffs_restored:
-                count = len(hh_diffs_restored)
-                category_data = TableData()
-                category_data.add_row(
-                    'status',
-                    value=f'Will be restored ({count} files)'
-                )
-                for file_path in sorted(hh_diffs_restored):
-                    category_data.add_row(
-                        'hh_diff_restored',
-                        value=safe_str(file_path)
-                    )
-                lines.append(render_block(
-                    category_data,
-                    FieldConfig().add_simple(['status', 'hh_diff_restored']).add_simple_color('hh_diff_restored', 'green'),
-                    table_overrides={'margin_l': 4},
-                    block_type=block
-                ))
-                break_section(lines)
-            
-            # Files that will be created
-            if hh_diffs_created:
-                count = len(hh_diffs_created)
-                category_data = TableData()
-                category_data.add_row(
-                    'status',
-                    value=f'Will be created ({count} files)'
-                )
-                for file_path in sorted(hh_diffs_created):
-                    category_data.add_row(
-                        'hh_diff_created',
-                        value=safe_str(file_path)
-                    )
-                lines.append(render_block(
-                    category_data,
-                    FieldConfig().add_simple(['status', 'hh_diff_created']),
-                    table_overrides={'margin_l': 4},
-                    block_type=block
-                ))
-                break_section(lines)
-            
-            # Files that will be updated
-            if hh_diffs_updated:
-                count = len(hh_diffs_updated)
-                category_data = TableData()
-                category_data.add_row(
-                    'status',
-                    value=f'Will be updated ({count} files)'
-                )
-                for file_path in sorted(hh_diffs_updated):
-                    category_data.add_row(
-                        'hh_diff_updated',
-                        value=safe_str(file_path)
-                    )
-                lines.append(render_block(
-                    category_data,
-                    FieldConfig().add_simple(['status', 'hh_diff_updated']),
-                    table_overrides={'margin_l': 4},
-                    block_type=block
-                ))
-                break_section(lines)
-            
-            # Files that would be updated but are preserved (red warning)
-            if hh_diffs_preserved:
-                count = len(hh_diffs_preserved)
-                category_data = TableData()
-                category_data.add_row(
-                    'status',
-                    value=f'Would be updated but preserved ({count} files)'
-                )
-                for file_path in sorted(hh_diffs_preserved):
-                    category_data.add_row(
-                        'hh_diff_preserved',
-                        value=safe_str(file_path)
-                    )
-                lines.append(render_block(
-                    category_data,
-                    FieldConfig().add_simple(['status', 'hh_diff_preserved']).add_simple_color('hh_diff_preserved', 'red'),
-                    table_overrides={'margin_l': 4},
-                    block_type=block
-                ))
-                break_section(lines)
+        # Collect all files from all categories to merge into single tables
+        all_lost = []
+        all_restored = []
+        all_created = []
+        all_updated = []
+        all_preserved = []
         
-        # File differences - Context folder (if context upgrade was requested)
-        if has_context_diffs:
-            if context_total > 0:
-                # Files that will be lost (red)
-                if context_diffs_lost:
-                    count = len(context_diffs_lost)
-                    category_data = TableData()
-                    category_data.add_row(
-                        'status',
-                        value=f'Will be lost ({count} files)'
-                    )
-                    for file_path in sorted(context_diffs_lost):
-                        category_data.add_row(
-                            'context_diff_lost',
-                            value=safe_str(file_path)
-                        )
-                    lines.append(render_block(
-                        category_data,
-                        FieldConfig().add_simple(['status', 'context_diff_lost']).add_simple_color('context_diff_lost', 'red'),
-                        table_overrides={'margin_l': 4},
-                        block_type=block
-                    ))
-                    break_section(lines)
-                
-                # Files that will be restored (green)
-                if context_diffs_restored:
-                    count = len(context_diffs_restored)
-                    category_data = TableData()
-                    category_data.add_row(
-                        'status',
-                        value=f'Will be restored ({count} files)'
-                    )
-                    for file_path in sorted(context_diffs_restored):
-                        category_data.add_row(
-                            'context_diff_restored',
-                            value=safe_str(file_path)
-                        )
-                    lines.append(render_block(
-                        category_data,
-                        FieldConfig().add_simple(['status', 'context_diff_restored']).add_simple_color('context_diff_restored', 'green'),
-                        table_overrides={'margin_l': 4},
-                        block_type=block
-                    ))
-                    break_section(lines)
-                
-                # Files that will be created
-                if context_diffs_created:
-                    count = len(context_diffs_created)
-                    category_data = TableData()
-                    category_data.add_row(
-                        'status',
-                        value=f'Will be created ({count} files)'
-                    )
-                    for file_path in sorted(context_diffs_created):
-                        category_data.add_row(
-                            'context_diff_created',
-                            value=safe_str(file_path)
-                        )
-                    lines.append(render_block(
-                        category_data,
-                        FieldConfig().add_simple(['status', 'context_diff_created']),
-                        table_overrides={'margin_l': 4},
-                        block_type=block
-                    ))
-                    break_section(lines)
-                
-                # Files that will be updated
-                if context_diffs_updated:
-                    count = len(context_diffs_updated)
-                    category_data = TableData()
-                    category_data.add_row(
-                        'status',
-                        value=f'Will be updated ({count} files)'
-                    )
-                    for file_path in sorted(context_diffs_updated):
-                        category_data.add_row(
-                            'context_diff_updated',
-                            value=safe_str(file_path)
-                        )
-                    lines.append(render_block(
-                        category_data,
-                        FieldConfig().add_simple(['status', 'context_diff_updated']),
-                        table_overrides={'margin_l': 4},
-                        block_type=block
-                    ))
-                    break_section(lines)
-                
-                # Files that would be updated but are preserved (red warning)
-                if context_diffs_preserved:
-                    count = len(context_diffs_preserved)
-                    category_data = TableData()
-                    category_data.add_row(
-                        'status',
-                        value=f'Would be updated but preserved ({count} files)'
-                    )
-                    for file_path in sorted(context_diffs_preserved):
-                        category_data.add_row(
-                            'context_diff_preserved',
-                            value=safe_str(file_path)
-                        )
-                    lines.append(render_block(
-                        category_data,
-                        FieldConfig().add_simple(['status', 'context_diff_preserved']).add_simple_color('context_diff_preserved', 'red'),
-                        table_overrides={'margin_l': 4},
-                        block_type=block
-                    ))
-                    break_section(lines)
+        # Collect from HH folder
+        if hh_total > 0:
+            all_lost.extend([f"hh/{f}" for f in hh_diffs_lost])
+            all_restored.extend([f"hh/{f}" for f in hh_diffs_restored])
+            all_created.extend([f"hh/{f}" for f in hh_diffs_created])
+            all_updated.extend([f"hh/{f}" for f in hh_diffs_updated])
+            all_preserved.extend([f"hh/{f}" for f in hh_diffs_preserved])
+        
+        # Collect from Context folder
+        if has_context_diffs and context_total > 0:
+            all_lost.extend([f"context/{f}" for f in context_diffs_lost])
+            all_restored.extend([f"context/{f}" for f in context_diffs_restored])
+            all_created.extend([f"context/{f}" for f in context_diffs_created])
+            all_updated.extend([f"context/{f}" for f in context_diffs_updated])
+            all_preserved.extend([f"context/{f}" for f in context_diffs_preserved])
+        
+        # Collect from README folder
+        if has_readme_diffs and readme_total > 0:
+            all_lost.extend([f"README/{f}" for f in readme_diffs_lost])
+            all_restored.extend([f"README/{f}" for f in readme_diffs_restored])
+            all_created.extend([f"README/{f}" for f in readme_diffs_created])
+            all_updated.extend([f"README/{f}" for f in readme_diffs_updated])
+            all_preserved.extend([f"README/{f}" for f in readme_diffs_preserved])
+        
+        # Collect from top-level files
+        top_level_diffs_restored_raw: Any = source_data.get('top_level_diffs_restored', [])
+        top_level_diffs_restored: List[str] = top_level_diffs_restored_raw if isinstance(top_level_diffs_restored_raw, list) else []
+        top_level_diffs_preserved_raw: Any = source_data.get('top_level_diffs_preserved', [])
+        top_level_diffs_preserved: List[str] = top_level_diffs_preserved_raw if isinstance(top_level_diffs_preserved_raw, list) else []
+        if has_top_level_diffs and top_level_total > 0:
+            all_lost.extend(top_level_diffs_lost)
+            all_restored.extend(top_level_diffs_restored)
+            all_created.extend(top_level_diffs_created)
+            all_updated.extend(top_level_diffs_updated)
+            all_preserved.extend(top_level_diffs_preserved)
+        
+        # Render merged categories
+        # Files that will be lost (red)
+        if all_lost:
+            count = len(all_lost)
+            category_data = TableData()
+            category_data.add_row(
+                'diff_lost_header',
+                value=f'{count} files'
+            )
+            for file_path in sorted(all_lost):
+                category_data.add_row(
+                    'diff_lost',
+                    value=safe_str(file_path)
+                )
+            lines.append(render_block(
+                category_data,
+                FieldConfig().add_header('diff_lost_header').add_simple(['diff_lost']).add_simple_color('diff_lost', 'red'),
+                table_overrides={'margin_l': 4},
+                block_type=block
+            ))
+            break_section(lines)
+        
+        # Files that will be restored (green)
+        if all_restored:
+            count = len(all_restored)
+            category_data = TableData()
+            category_data.add_row(
+                'diff_restored_header',
+                value=f'{count} files'
+            )
+            for file_path in sorted(all_restored):
+                category_data.add_row(
+                    'diff_restored',
+                    value=safe_str(file_path)
+                )
+            lines.append(render_block(
+                category_data,
+                FieldConfig().add_header('diff_restored_header').add_simple(['diff_restored']).add_simple_color('diff_restored', 'green'),
+                table_overrides={'margin_l': 4},
+                block_type=block
+            ))
+            break_section(lines)
+        
+        # Files that will be created
+        if all_created:
+            count = len(all_created)
+            category_data = TableData()
+            category_data.add_row(
+                'diff_created_header',
+                value=f'{count} files'
+            )
+            for file_path in sorted(all_created):
+                category_data.add_row(
+                    'diff_created',
+                    value=safe_str(file_path)
+                )
+            lines.append(render_block(
+                category_data,
+                FieldConfig().add_header('diff_created_header').add_simple(['diff_created']),
+                table_overrides={'margin_l': 4},
+                block_type=block
+            ))
+            break_section(lines)
+        
+        # Files that will be updated
+        if all_updated:
+            count = len(all_updated)
+            category_data = TableData()
+            category_data.add_row(
+                'diff_updated_header',
+                value=f'{count} files'
+            )
+            for file_path in sorted(all_updated):
+                category_data.add_row(
+                    'diff_updated',
+                    value=safe_str(file_path)
+                )
+            lines.append(render_block(
+                category_data,
+                FieldConfig().add_header('diff_updated_header').add_simple(['diff_updated']),
+                table_overrides={'margin_l': 4},
+                block_type=block
+            ))
+            break_section(lines)
+        
+        # Files that would be updated but are preserved (red warning)
+        if all_preserved:
+            count = len(all_preserved)
+            category_data = TableData()
+            category_data.add_row(
+                'diff_preserved_header',
+                value=f'{count} files'
+            )
+            for file_path in sorted(all_preserved):
+                category_data.add_row(
+                    'diff_preserved',
+                    value=safe_str(file_path)
+                )
+            lines.append(render_block(
+                category_data,
+                FieldConfig().add_header('diff_preserved_header').add_simple(['diff_preserved']).add_simple_color('diff_preserved', 'red'),
+                table_overrides={'margin_l': 4},
+                block_type=block
+            ))
+            break_section(lines)
         
         # Reminder messages (only if not dry run)
         if not dry_run:

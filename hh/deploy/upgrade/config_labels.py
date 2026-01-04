@@ -8,31 +8,17 @@ from hh.render.config.config_registry import register_label
 @register_label('backup_reminder',                       'Reminder:',                       '💡')
 @register_label('test_reminder',                         'Reminder:',                       '💡')
 
-# HH folder difference categories
-@register_label('hh_diff_header',                        'hh/ folder differences',          '📁')
-@register_label('hh_diff_lost_header',                   'Will be lost',                    '❌')
-@register_label('hh_diff_lost',                          '',                                '')
-@register_label('hh_diff_restored_header',                'Will be restored',                '✅')
-@register_label('hh_diff_restored',                      '',                                '')
-@register_label('hh_diff_created_header',                'Will be created',                 '➕')
-@register_label('hh_diff_created',                       '',                                '')
-@register_label('hh_diff_updated_header',                 'Will be updated',                 '🔄')
-@register_label('hh_diff_updated',                       '',                                '')
-@register_label('hh_diff_preserved_header',              'Would be updated but preserved',  '❌')
-@register_label('hh_diff_preserved',                     '',                                '')
-
-# Context folder difference categories
-@register_label('context_diff_header',                   'context/ folder differences',     '📚')
-@register_label('context_diff_lost_header',               'Will be lost',                    '❌')
-@register_label('context_diff_lost',                     '',                                '')
-@register_label('context_diff_restored_header',          'Will be restored',                '✅')
-@register_label('context_diff_restored',                  '',                                '')
-@register_label('context_diff_created_header',            'Will be created',                 '➕')
-@register_label('context_diff_created',                   '',                                '')
-@register_label('context_diff_updated_header',            'Will be updated',                 '🔄')
-@register_label('context_diff_updated',                   '',                                '')
-@register_label('context_diff_preserved_header',          'Would be updated but preserved',  '❌')
-@register_label('context_diff_preserved',                 '',                                '')
+# Generic difference categories (used for all folders)
+@register_label('diff_lost_header',                      'Total lost files',                '❌')
+@register_label('diff_lost',                             'Will be lost',                    '❌')
+@register_label('diff_restored_header',                  'Total restored files',            '✅')
+@register_label('diff_restored',                         'Will be restored',                '✅')
+@register_label('diff_created_header',                  'Total created files',             '➕')
+@register_label('diff_created',                          'Will be created',                 '➕')
+@register_label('diff_updated_header',                  'Total updated files',             '🔄')
+@register_label('diff_updated',                          'Will be updated',                 '🔄')
+@register_label('diff_preserved_header',                 'Total preserved files',           '❌')
+@register_label('diff_preserved',                        'Would be updated but preserved',  '❌')
 def _register_config():
     pass
 

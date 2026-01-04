@@ -77,59 +77,56 @@ def validate_target(target_path: Path, source_path: Path) -> bool:
     return True
 
 
-def create_backup(target_path: Path, gateway) -> Path:
-    """Schedule backup of hh/ folder with incrementing names if backup already exists."""
+def create_unified_backup(target_path: Path, gateway) -> Path:
+    """Create a unified backup folder and move items into it. Returns the backup folder path."""
     trace_in()
+    
+    # Check for dry_run flag
+    dry_run = gateway.is_set('dry-run') or gateway.is_set('dry_run')
+    
+    # Find available backup name
+    backup_name = "backup"
+    backup_path = target_path / backup_name
+    counter = 2
+    
+    while backup_path.exists():
+        backup_name = f"backup_{counter}"
+        backup_path = target_path / backup_name
+        counter += 1
+    
+    # Create backup directory (skip in dry-run mode)
+    if not dry_run:
+        gateway.files.create_directory(str(backup_path))
+        log(f"Created backup directory: {backup_path}")
+    else:
+        log(f"Would create backup directory: {backup_path} (dry-run)")
+    
+    # Move hh/ into backup/hh/
     hh_path = target_path / "hh"
+    if hh_path.exists():
+        backup_hh = backup_path / "hh"
+        gateway.files.schedule_move(str(hh_path), str(backup_hh))
+        log(f"Scheduled backup: {hh_path} -> {backup_hh}")
     
-    if not hh_path.exists():
-        warn(f"hh/ folder does not exist: {hh_path}")
-        report_error("action", f"hh/ folder does not exist: {hh_path}")
-        trace_out()
-        raise ValueError(f"hh/ folder does not exist: {hh_path}")
-    
-    # Find available backup name
-    backup_name = "hh_backup"
-    backup_path = target_path / backup_name
-    counter = 2
-    
-    while backup_path.exists():
-        backup_name = f"hh_backup_{counter}"
-        backup_path = target_path / backup_name
-        counter += 1
-    
-    # Schedule rename hh/ to backup
-    gateway.files.schedule_move(str(hh_path), str(backup_path))
-    log(f"Scheduled backup: {hh_path} -> {backup_path}")
     trace_out()
     return backup_path
 
 
-def create_context_backup(target_path: Path, gateway) -> Optional[Path]:
-    """Schedule backup of context/ folder with incrementing names if backup already exists."""
+def move_to_backup(target_path: Path, backup_path: Path, item_name: str, gateway) -> bool:
+    """Move an item (folder or file) into the backup folder."""
     trace_in()
-    context_path = target_path / "context"
+    item_path = target_path / item_name
     
-    if not context_path.exists():
-        log(f"context/ folder does not exist: {context_path}, skipping backup")
+    if not item_path.exists():
+        log(f"{item_name} does not exist: {item_path}, skipping backup")
         trace_out()
-        return None
+        return False
     
-    # Find available backup name
-    backup_name = "context_backup"
-    backup_path = target_path / backup_name
-    counter = 2
-    
-    while backup_path.exists():
-        backup_name = f"context_backup_{counter}"
-        backup_path = target_path / backup_name
-        counter += 1
-    
-    # Schedule rename context/ to backup
-    gateway.files.schedule_move(str(context_path), str(backup_path))
-    log(f"Scheduled context backup: {context_path} -> {backup_path}")
+    backup_item = backup_path / item_name
+    gateway.files.schedule_move(str(item_path), str(backup_item))
+    log(f"Scheduled backup: {item_path} -> {backup_item}")
     trace_out()
-    return backup_path
+    return True
 
 
 def copy_hh(source_path: Path, target_path: Path, gateway) -> bool:
@@ -172,8 +169,51 @@ def copy_context(source_path: Path, target_path: Path, gateway) -> bool:
     return True
 
 
+def copy_readme(source_path: Path, target_path: Path, gateway) -> bool:
+    """Schedule copy of README/ folder from source to target."""
+    trace_in()
+    source_readme = source_path / "README"
+    target_readme = target_path / "README"
+    
+    if not source_readme.exists():
+        warn(f"Source README/ folder does not exist: {source_readme}")
+        report_error("action", f"Source README/ folder does not exist: {source_readme}")
+        trace_out()
+        return False
+    
+    # Schedule copy of entire README/ folder (no exclusions)
+    gateway.files.schedule_copy_tree(str(source_readme), str(target_readme))
+    log(f"Scheduled copy of README/ to {target_readme}")
+    
+    trace_out()
+    return True
+
+
+def copy_top_level_files(source_path: Path, target_path: Path, gateway) -> List[str]:
+    """Schedule copy of top-level files (not directories) from source to target. Returns list of copied files."""
+    trace_in()
+    copied_files = []
+    
+    # Get all top-level files in source (excluding directories)
+    for item in source_path.iterdir():
+        if item.is_file():
+            target_file = target_path / item.name
+            gateway.files.schedule_copy(str(item), str(target_file))
+            copied_files.append(item.name)
+            log(f"Scheduled copy of top-level file: {item.name}")
+    
+    log(f"Scheduled copy of {len(copied_files)} top-level files")
+    trace_out()
+    return copied_files
+
+
 def restore_preserved(target_path: Path, backup_path: Path, gateway, preserve_set: Set[str]) -> List[str]:
-    """Schedule restore of files from backup that are listed in upgrade_preserve.py."""
+    """Schedule restore of files from backup that are listed in upgrade_preserve.py.
+    
+    Note: backup_path is now the unified backup folder, so hh/ files are in backup_path/hh/
+    Files are scheduled to restore from backup location, trusting that moves will have
+    completed by the time restore operations execute during commit.
+    """
     trace_in()
     restored_files = []
     
@@ -181,15 +221,19 @@ def restore_preserved(target_path: Path, backup_path: Path, gateway, preserve_se
     for rel_path_str in preserve_set:
         # Convert normalized path back to Path object (handle both / and \)
         rel_path = Path(rel_path_str.replace('/', '\\') if '\\' in str(backup_path) else rel_path_str.replace('\\', '/'))
-        backup_file = backup_path / rel_path
+        
+        # Determine backup location: try hh/ first (for hh/ files), then top-level (for other files)
+        backup_file = backup_path / "hh" / rel_path
+        # If path doesn't start with hh/, it's a top-level file
+        if not rel_path_str.startswith('hh/'):
+            backup_file = backup_path / rel_path
+        
         target_file = target_path / rel_path
         
-        if backup_file.exists():
-            gateway.files.schedule_copy(str(backup_file), str(target_file))
-            restored_files.append(rel_path_str)
-            log(f"Scheduled restore: {rel_path_str}")
-        else:
-            warn(f"Preserved file not found in backup: {rel_path_str}")
+        # Schedule restore - file will be in backup location when this executes during commit
+        gateway.files.schedule_copy(str(backup_file), str(target_file))
+        restored_files.append(rel_path_str)
+        log(f"Scheduled restore: {rel_path_str}")
     
     log(f"Scheduled restore of {len(restored_files)} files from backup")
     trace_out()
@@ -396,7 +440,7 @@ def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Option
     return differences
 
 
-def report_results(target_path: Path, backup_path: Path, restored_files: List[str], context_backup_path: Optional[Path] = None, hh_diffs: Optional[FileDifferences] = None, context_diffs: Optional[FileDifferences] = None, dry_run: bool = False) -> dict:
+def report_results(target_path: Path, backup_path: Path, restored_files: List[str], hh_diffs: Optional[FileDifferences] = None, context_diffs: Optional[FileDifferences] = None, readme_diffs: Optional[FileDifferences] = None, top_level_diffs: Optional[FileDifferences] = None, top_level_files: Optional[List[str]] = None, dry_run: bool = False) -> dict:
     """Create result payload for upgrade operation."""
     trace_in()
     result_data = {
@@ -408,9 +452,9 @@ def report_results(target_path: Path, backup_path: Path, restored_files: List[st
         "status": "upgraded" if not dry_run else "dry_run",
         "dry_run": dry_run
     }
-    if context_backup_path:
-        result_data["context_backup"] = str(context_backup_path)
-        result_data["context_backup_name"] = context_backup_path.name
+    if top_level_files:
+        result_data["top_level_files"] = top_level_files
+        result_data["top_level_files_count"] = len(top_level_files)
     
     # Add file differences (categorized)
     if hh_diffs is not None:
@@ -437,6 +481,33 @@ def report_results(target_path: Path, backup_path: Path, restored_files: List[st
         result_data["context_diff_count_updated"] = len(context_diffs.will_be_updated)
         result_data["context_diff_count_preserved"] = len(context_diffs.will_be_preserved)
         result_data["context_diff_count_total"] = context_diffs.total_count()
+    if readme_diffs is not None:
+        result_data["readme_diffs_lost"] = readme_diffs.will_be_lost
+        result_data["readme_diffs_restored"] = readme_diffs.will_be_restored
+        result_data["readme_diffs_created"] = readme_diffs.will_be_created
+        result_data["readme_diffs_updated"] = readme_diffs.will_be_updated
+        result_data["readme_diffs_preserved"] = readme_diffs.will_be_preserved
+        result_data["readme_diff_count_lost"] = len(readme_diffs.will_be_lost)
+        result_data["readme_diff_count_restored"] = len(readme_diffs.will_be_restored)
+        result_data["readme_diff_count_created"] = len(readme_diffs.will_be_created)
+        result_data["readme_diff_count_updated"] = len(readme_diffs.will_be_updated)
+        result_data["readme_diff_count_preserved"] = len(readme_diffs.will_be_preserved)
+        result_data["readme_diff_count_total"] = readme_diffs.total_count()
+    if top_level_diffs is not None:
+        result_data["top_level_diffs_lost"] = top_level_diffs.will_be_lost
+        result_data["top_level_diffs_restored"] = top_level_diffs.will_be_restored
+        result_data["top_level_diffs_created"] = top_level_diffs.will_be_created
+        result_data["top_level_diffs_updated"] = top_level_diffs.will_be_updated
+        result_data["top_level_diffs_preserved"] = top_level_diffs.will_be_preserved
+        result_data["top_level_diff_count_lost"] = len(top_level_diffs.will_be_lost)
+        result_data["top_level_diff_count_restored"] = len(top_level_diffs.will_be_restored)
+        result_data["top_level_diff_count_created"] = len(top_level_diffs.will_be_created)
+        result_data["top_level_diff_count_updated"] = len(top_level_diffs.will_be_updated)
+        result_data["top_level_diff_count_preserved"] = len(top_level_diffs.will_be_preserved)
+        result_data["top_level_diff_count_total"] = top_level_diffs.total_count()
+    if top_level_files:
+        result_data["top_level_files"] = top_level_files
+        result_data["top_level_files_count"] = len(top_level_files)
     
     trace_out()
     return result_data
@@ -473,9 +544,6 @@ def do_upgrade() -> bool:
         trace_out()
         return False
     
-    # Check if context folder should be upgraded
-    upgrade_context = gateway.is_set('context')
-    
     # Check for dry_run flag
     dry_run = gateway.is_set('dry-run') or gateway.is_set('dry_run')
     if dry_run:
@@ -506,61 +574,163 @@ def do_upgrade() -> bool:
     else:
         log("Source hh/ does not exist - cannot compare")
     
-    # Compare context/ if requested
+    # Compare context/
     context_diffs: Optional[FileDifferences] = None
-    if upgrade_context:
-        source_context = source_path / "context"
-        target_context = target_path / "context"
-        log("Comparing context/ directories...")
-        if source_context.exists() and target_context.exists():
-            context_diffs = compare_directories(source_context, target_context, preserve_set)
-            log(f"Found {context_diffs.total_count()} files that differ in context/")
-        elif source_context.exists():
-            # Target context/ doesn't exist yet, all files will be new
-            log("Target context/ does not exist - all files will be new")
-            context_diffs = FileDifferences()
-            for file_path in source_context.rglob('*'):
-                if file_path.is_file() and not is_cache_file(file_path):
-                    rel_path = file_path.relative_to(source_context)
-                    # Normalize path
-                    rel_path_str = str(rel_path).replace('\\', '/')
-                    context_diffs.will_be_created.append(rel_path_str)
-        else:
-            log("Source context/ does not exist - cannot compare")
+    source_context = source_path / "context"
+    target_context = target_path / "context"
+    log("Comparing context/ directories...")
+    if source_context.exists() and target_context.exists():
+        context_diffs = compare_directories(source_context, target_context, preserve_set)
+        log(f"Found {context_diffs.total_count()} files that differ in context/")
+    elif source_context.exists():
+        # Target context/ doesn't exist yet, all files will be new
+        log("Target context/ does not exist - all files will be new")
+        context_diffs = FileDifferences()
+        for file_path in source_context.rglob('*'):
+            if file_path.is_file() and not is_cache_file(file_path):
+                rel_path = file_path.relative_to(source_context)
+                # Normalize path
+                rel_path_str = str(rel_path).replace('\\', '/')
+                context_diffs.will_be_created.append(rel_path_str)
+    else:
+        log("Source context/ does not exist - cannot compare")
     
-    # Create backup
+    # Compare README/
+    readme_diffs: Optional[FileDifferences] = None
+    source_readme = source_path / "README"
+    target_readme = target_path / "README"
+    log("Comparing README/ directories...")
+    if source_readme.exists() and target_readme.exists():
+        readme_diffs = compare_directories(source_readme, target_readme, preserve_set)
+        log(f"Found {readme_diffs.total_count()} files that differ in README/")
+    elif source_readme.exists():
+        # Target README/ doesn't exist yet, all files will be new
+        log("Target README/ does not exist - all files will be new")
+        readme_diffs = FileDifferences()
+        for file_path in source_readme.rglob('*'):
+            if file_path.is_file() and not is_cache_file(file_path):
+                rel_path = file_path.relative_to(source_readme)
+                # Normalize path
+                rel_path_str = str(rel_path).replace('\\', '/')
+                readme_diffs.will_be_created.append(rel_path_str)
+    else:
+        log("Source README/ does not exist - cannot compare")
+    
+    # Compare top-level files
+    top_level_diffs: Optional[FileDifferences] = None
+    top_level_files_list: List[str] = []
+    log("Comparing top-level files...")
+    top_level_diffs = FileDifferences()
+    
+    # Get all top-level files from source (excluding directories and backup folder)
+    source_files = {}
+    for item in source_path.iterdir():
+        if item.is_file():
+            source_files[item.name] = item
+    
+    # Get all top-level files from target (excluding any existing backup folders)
+    target_files = {}
+    for item in target_path.iterdir():
+        if item.is_file() and not item.name.startswith('backup'):
+            target_files[item.name] = item
+    
+    # Normalize preserve_set paths for comparison
+    def normalize_path(path: str) -> str:
+        return str(path).replace('\\', '/')
+    
+    # Compare files
+    for filename, source_file in source_files.items():
+        target_file = target_files.get(filename)
+        source_hash = compute_file_hash(source_file)
+        if source_hash is None:
+            continue
+        
+        # Check if file is preserved (preserve_set uses paths relative to hh/, so top-level files use just filename)
+        is_preserved = normalize_path(filename) in preserve_set
+        
+        if target_file is None:
+            # File exists in source but not in target - will be created
+            top_level_diffs.will_be_created.append(filename)
+            top_level_files_list.append(filename)
+            log(f"Top-level file will be created: {filename}")
+        else:
+            target_hash = compute_file_hash(target_file)
+            if target_hash is None or source_hash != target_hash:
+                # File exists but is different
+                if is_preserved:
+                    # Would be updated but is preserved
+                    top_level_diffs.will_be_preserved.append(filename)
+                    log(f"Top-level file would be updated but is preserved: {filename}")
+                else:
+                    # Will be updated
+                    top_level_diffs.will_be_updated.append(filename)
+                    top_level_files_list.append(filename)
+                    log(f"Top-level file will be updated: {filename}")
+    
+    # Find files that exist in target but not in source
+    for filename, target_file in target_files.items():
+        if filename not in source_files:
+            # Check if file is preserved
+            is_preserved = normalize_path(filename) in preserve_set
+            if is_preserved:
+                # Will be lost but restored from backup
+                top_level_diffs.will_be_restored.append(filename)
+                log(f"Top-level file will be restored from backup: {filename}")
+            else:
+                # Will be lost
+                top_level_diffs.will_be_lost.append(filename)
+                log(f"Top-level file will be lost: {filename}")
+    
+    log(f"Found {top_level_diffs.total_count()} top-level files that differ")
+    
+    # Create unified backup folder
     try:
-        backup_path = create_backup(target_path, gateway)
+        backup_path = create_unified_backup(target_path, gateway)
     except Exception as e:
-        warn(f"Failed to schedule backup: {e}")
-        report_error("action", f"Failed to schedule backup: {e}")
+        warn(f"Failed to create backup folder: {e}")
+        report_error("action", f"Failed to create backup folder: {e}")
         trace_out()
         return False
     
-    # Create context backup if requested
-    context_backup_path = None
-    if upgrade_context:
-        try:
-            context_backup_path = create_context_backup(target_path, gateway)
-        except Exception as e:
-            warn(f"Failed to schedule context backup: {e}")
-            report_error("action", f"Failed to schedule context backup: {e}")
-            trace_out()
-            return False
+    # Move context/ to backup
+    if not move_to_backup(target_path, backup_path, "context", gateway):
+        log("context/ does not exist, skipping backup")
+    
+    # Move README/ to backup
+    if not move_to_backup(target_path, backup_path, "README", gateway):
+        log("README/ does not exist, skipping backup")
+    
+    # Move top-level files to backup
+    top_level_files_backed_up = []
+    for item in target_path.iterdir():
+        if item.is_file() and item.name != backup_path.name:
+            backup_file = backup_path / item.name
+            gateway.files.schedule_move(str(item), str(backup_file))
+            top_level_files_backed_up.append(item.name)
+            log(f"Scheduled backup of top-level file: {item.name}")
     
     # Schedule copy of new hh/
     if not copy_hh(source_path, target_path, gateway):
         trace_out()
         return False
     
-    # Schedule copy of context/ if requested
-    if upgrade_context:
-        if not copy_context(source_path, target_path, gateway):
-            trace_out()
-            return False
+    # Schedule copy of context/
+    if not copy_context(source_path, target_path, gateway):
+        trace_out()
+        return False
     
-    # Schedule restore of preserved files
-    restored_files = restore_preserved(target_path, backup_path, gateway, preserve_set)
+    # Schedule copy of README/
+    if not copy_readme(source_path, target_path, gateway):
+        trace_out()
+        return False
+    
+    # Schedule copy of top-level files
+    top_level_files_copied = copy_top_level_files(source_path, target_path, gateway)
+    
+    # Schedule restore of preserved files (skip in dry-run mode)
+    restored_files = []
+    if not dry_run:
+        restored_files = restore_preserved(target_path, backup_path, gateway, preserve_set)
     
     # Commit all scheduled file operations
     if not gateway.files.commit():
@@ -628,7 +798,7 @@ def do_upgrade() -> bool:
             log("Dry run completed successfully")
         else:
             log("Upgrade completed successfully")
-        result_data = report_results(target_path, backup_path, restored_files, context_backup_path, hh_diffs, context_diffs, dry_run)
+        result_data = report_results(target_path, backup_path, restored_files, hh_diffs, context_diffs, readme_diffs, top_level_diffs, top_level_files_list, dry_run)
         gateway.response.set_action_response(success_payload(result_data))
     else:
         log("Upgrade encountered problems")

@@ -52,5 +52,5 @@ stage/
 aoc/
 
 # Henhouse upgrade backups
-hh_backup/
-hh_backup_*/
+backup/
+backup_*/
