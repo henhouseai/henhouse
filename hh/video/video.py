@@ -5,8 +5,7 @@ TABLE OF CONTENTS (Alphabetical Order)
 __init__()                    Line 48
 _check_extra_actions()        Line 132
 _dump_json()                  Line 198
-_ensure_video_cache_entry()   Line 201
-_flag_cache_refresh()         Line 244
+_flag_cache_refresh()         Line 201
 _get_usage_data()             Line 248
 _is_file_shared()             Line 322
 _json_default()               Line 334
@@ -110,60 +109,80 @@ class Video:
         self.cache_hydrated = False
         self._cache_needs_refresh = False
         
-        # Load video data from main database
-        query = "SELECT * FROM video WHERE id = %s"
-        try:
-            results = self.gateway.conn.read(query, [video_id])
-            if not results:
-                warn(f"Video with id {video_id} not found")
-                report_error("action", f"Video with id {video_id} not found")
-                trace_out()
-                return
-            
-            video_data = results[0]
-            self.caption = video_data.get('caption')
-            self.username = video_data.get('username')
-            self.uploaded = video_data.get('uploaded')
-            self.visibility = video_data.get('visibility')
-            self.view_count = video_data.get('viewCount')
-            self.last_modified = video_data.get('last_modified')
-            self.comments = video_data.get('comments')
-            self.cache_built_at = video_data.get('cache_built_at')
-            log(f"Loaded video {video_id}: {self.caption}")
-            
-            # Try to hydrate from cache database if available and fresh
-            if not is_error():
-                # Check if cache exists and is fresh
-                cache_built_at_dt = normalize_datetime(self.cache_built_at)
-                last_modified_dt = normalize_datetime(self.last_modified)
-                
-                if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
-                    debug(f"Cache for video {self.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
-                elif cache_built_at_dt is None:
-                    debug(f"Cache for video {self.id} does not exist (cache_built_at is NULL)")
+        # Try to hydrate from cache database first (check cache before main DB)
+        cache_hydrated = False
+        if not is_error():
+            # Get entire cache row to check staleness (no main DB read needed)
+            cache_query = """
+                SELECT id, caption, username, uploaded, last_modified, comments, visibility, viewCount,
+                       instances, pages, cache_built_at
+                FROM video
+                WHERE id = %s
+            """
+            try:
+                cache_results = self.gateway.conn.read_cache(cache_query, [video_id])
+                if cache_results:
+                    cache_row = cache_results[0]
+                    cache_last_modified = cache_row.get('last_modified')
+                    cache_built_at = cache_row.get('cache_built_at')
+                    
+                    # Check staleness using cache DB only: cache.last_modified vs cache.cache_built_at
+                    cache_last_modified_dt = normalize_datetime(cache_last_modified)
+                    cache_built_at_dt = normalize_datetime(cache_built_at)
+                    
+                    if cache_built_at_dt is None:
+                        debug(f"Cache for video {video_id} does not exist (cache_built_at is NULL)")
+                    elif cache_last_modified_dt and cache_built_at_dt and cache_built_at_dt < cache_last_modified_dt:
+                        debug(f"Cache for video {video_id} is stale (cache_built_at={cache_built_at_dt}, cache.last_modified={cache_last_modified_dt})")
+                    else:
+                        # Cache is fresh - hydrate entirely from cache DB (no main DB access)
+                        self.caption = cache_row.get('caption')
+                        self.username = cache_row.get('username')
+                        self.uploaded = cache_row.get('uploaded')
+                        self.visibility = cache_row.get('visibility')
+                        self.view_count = cache_row.get('viewCount')
+                        self.last_modified = cache_last_modified
+                        self.comments = cache_row.get('comments')
+                        # Load expensive pre-computed data from cache database directly into live fields
+                        self.instances = deserialize_json_blob(cache_row.get('instances'), [])
+                        # Use cached_usage for now to match existing code, but this should be renamed to pages
+                        self.cached_usage = deserialize_json_blob(cache_row.get('pages'), [])
+                        self.cache_built_at = cache_built_at
+                        self.cache_hydrated = True
+                        cache_hydrated = True
+                        log(f"Loaded video {video_id} entirely from cache: {self.caption}")
+                        debug(f"Hydrated video {video_id} entirely from cache (built_at={cache_built_at_dt})")
                 else:
-                    # Get cache row from cache database
-                    cache_query = """
-                        SELECT id, instances, pages, cache_built_at
-                        FROM video
-                        WHERE id = %s
-                    """
-                    try:
-                        cache_results = self.gateway.conn.read_cache(cache_query, [self.id])
-                        if cache_results:
-                            cache_row = cache_results[0]
-                            # Load expensive pre-computed data from cache database directly into live fields
-                            self.instances = deserialize_json_blob(cache_row.get('instances'), [])
-                            # Use cached_usage for now to match existing code, but this should be renamed to pages
-                            self.cached_usage = deserialize_json_blob(cache_row.get('pages'), [])
-                            self.cache_hydrated = True
-                            debug(f"Hydrated video {self.id} from cache (built_at={self.cache_built_at})")
-                    except Exception as e:
-                        warn(f"Failed to hydrate video {self.id} from cache: {e}")
-                        # Don't report error - cache hydration failure is not critical
-        except Exception as e:
-            warn(f"Failed to load video {video_id}: {e}")
-            report_error("connection", f"Failed to load video {video_id}: {e}")
+                    debug(f"Cache for video {video_id} does not exist (no cache row found)")
+            except Exception as e:
+                warn(f"Failed to hydrate video {video_id} from cache: {e}")
+                # Don't report error - cache hydration failure is not critical, will fall back to main DB
+        
+        # If cache is stale/missing, fall back to main database
+        if not cache_hydrated and not is_error():
+            # Load video data from main database
+            query = "SELECT * FROM video WHERE id = %s"
+            try:
+                results = self.gateway.conn.read(query, [video_id])
+                if not results:
+                    warn(f"Video with id {video_id} not found")
+                    report_error("action", f"Video with id {video_id} not found")
+                    trace_out()
+                    return
+                
+                video_data = results[0]
+                self.caption = video_data.get('caption')
+                self.username = video_data.get('username')
+                self.uploaded = video_data.get('uploaded')
+                self.visibility = video_data.get('visibility')
+                self.view_count = video_data.get('viewCount')
+                self.last_modified = video_data.get('last_modified')
+                self.comments = video_data.get('comments')
+                self.cache_built_at = video_data.get('cache_built_at')
+                log(f"Loaded video {video_id} from main DB: {self.caption}")
+            except Exception as e:
+                warn(f"Failed to load video {video_id}: {e}")
+                report_error("connection", f"Failed to load video {video_id}: {e}")
         
         trace_out()
 
@@ -221,49 +240,6 @@ class Video:
 
     def _dump_json(self, value: Any) -> str:
         return json.dumps(value, ensure_ascii=False, separators=(',', ':'), default=self._json_default)
-
-    def _ensure_video_cache_entry(self) -> bool:
-        """Ensure cache entry exists in cache database. Only creates if missing."""
-        trace_in()
-        try:
-            existing = self.gateway.conn.read_cache(
-                "SELECT 1 FROM video WHERE id = %s",
-                (self.id,),
-            )
-        except Exception as exc:
-            warn(f"Failed to check cache entry for video {self.id}: {exc}")
-            report_error("connection", f"Failed to verify cache for video {self.id}")
-            trace_out()
-            return False
-
-        if existing:
-            trace_out()
-            return True
-
-        now = dt.datetime.now()
-        try:
-            self.gateway.conn.create_cache(
-                """
-                    INSERT INTO video (id, instances, pages, metadata, cache_built_at)
-                    VALUES (%s, %s, %s, %s, %s)
-                """,
-                (
-                    self.id,
-                    self._dump_json([]),  # Empty instances initially
-                    self._dump_json([]),  # Empty pages initially
-                    self._dump_json({}),  # Empty metadata initially
-                    now,
-                ),
-            )
-            debug(f"Created cache entry for video {self.id}")
-        except Exception as exc:
-            warn(f"Failed to insert cache entry for video {self.id}: {exc}")
-            report_error("connection", f"Failed to create cache entry for video {self.id}")
-            trace_out()
-            return False
-
-        trace_out()
-        return True
 
     def _flag_cache_refresh(self) -> None:
         """Flag that the cache needs to be refreshed. Called by getters when they derive/calculate data."""
@@ -486,11 +462,6 @@ class Video:
             warn(f"_refresh_cached_video: gateway or connection not available for video {self.id}")
             trace_out()
             return False
-        if not self._ensure_video_cache_entry():
-            debug(f"_refresh_cached_video: Failed to ensure cache entry for video {self.id}")
-            trace_out()
-            return False
-
         # Ensure both fields are populated by calling their internal mixin methods
         # The getters check if field is populated first, and only hydrate if empty
         # The getters set the attributes themselves, so we just call them
@@ -506,41 +477,44 @@ class Video:
         instances_json = self._dump_json(self.instances) if self.instances else None
         usage_json = self._dump_json(self.cached_usage) if self.cached_usage else None
         
-        # Zip all main database fields into metadata for cache backup
-        # This allows full video hydration from cache database without main DB access
-        main_db_metadata = {
-            'caption': self.caption,
-            'username': self.username,
-            'uploaded': self.uploaded.isoformat() if self.uploaded else None,
-            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
-            'comments': self.comments,
-            'visibility': self.visibility,
-            'viewCount': self.view_count,
-        }
-        metadata_json = self._dump_json(main_db_metadata)
-        
         now = dt.datetime.now()
         
         try:
-            # Update cache database
-            affected = self.gateway.conn.update_cache(
+            # Buffer cache database write with all main DB fields as first-class columns
+            # plus derived fields
+            # Uses INSERT ... ON DUPLICATE KEY UPDATE to handle both insert and update cases
+            self.gateway.conn.buffer_cache(
+                "video",
                 """
-                    UPDATE video
-                    SET instances = %s,
-                        pages = %s,
-                        metadata = %s,
-                        cache_built_at = %s
-                    WHERE id = %s
+                    INSERT INTO video (id, caption, username, uploaded, last_modified, comments, visibility, viewCount, instances, pages, cache_built_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        caption = VALUES(caption),
+                        username = VALUES(username),
+                        uploaded = VALUES(uploaded),
+                        last_modified = VALUES(last_modified),
+                        comments = VALUES(comments),
+                        visibility = VALUES(visibility),
+                        viewCount = VALUES(viewCount),
+                        instances = VALUES(instances),
+                        pages = VALUES(pages),
+                        cache_built_at = VALUES(cache_built_at)
                 """,
                 (
+                    self.id,
+                    self.caption,
+                    self.username,
+                    self.uploaded,
+                    self.last_modified,
+                    self.comments,
+                    self.visibility,
+                    self.view_count,
                     instances_json,
                     usage_json,
-                    metadata_json,
                     now,
-                    self.id,
                 ),
             )
-            # Always bump main database cache_built_at even when UPDATE is a no-op
+            # Always bump main database cache_built_at
             self.gateway.conn.update(
                 """
                     UPDATE video
@@ -549,8 +523,6 @@ class Video:
                 """,
                 (now, self.id),
             )
-            if affected == 0:
-                debug(f"_refresh_cached_video: UPDATE affected 0 rows for video {self.id} - no change needed")
             # Verify the data was actually written by reading it back
             verify_check = self.gateway.conn.read_cache(
                 "SELECT cache_built_at FROM video WHERE id = %s",
@@ -559,9 +531,9 @@ class Video:
             if verify_check:
                 debug(f"_refresh_cached_video: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
             else:
-                warn(f"_refresh_cached_video: Verification failed - cache entry not found after UPDATE")
+                warn(f"_refresh_cached_video: Verification failed - cache entry not found after write")
             
-            debug(f"Refreshed cache for video {self.id}: rows={affected}, instances={len(self.instances) if self.instances else 0}, usage={len(self.cached_usage) if self.cached_usage else 0}")
+            debug(f"Refreshed cache for video {self.id}: instances={len(self.instances) if self.instances else 0}, usage={len(self.cached_usage) if self.cached_usage else 0}")
         except Exception as exc:
             warn(f"Failed to update cache for video {self.id}: {exc}")
             report_error("connection", f"Failed to update cache for video {self.id}")

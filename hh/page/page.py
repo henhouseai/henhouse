@@ -18,8 +18,7 @@ _delete_all_image_groups()     Line 642
 _delete_page_class_information() Line 678
 _dump_json()                  Line 681
 _enqueue_maintenance_job()     Line 883
-_ensure_cache_entry()         Line 703
-_flag_cache_refresh()         Line 742
+_flag_cache_refresh()         Line 703
 _flag_related_file()          Line 411
 _flag_related_image()          Line 402
 _get_child_page_data()         Line 331
@@ -253,102 +252,150 @@ class Page:
         self.cache_hydrated = False
         self._cache_needs_refresh = False
         
-        # Load page data from main database
-        query = "SELECT * FROM pages WHERE id = %s"
-        try:
-            results = self.gateway.conn.read(query, [id])
-            if not results:
-                warn(f"Page with id {id} not found")
-                report_error("action", f"Page with id {id} not found")
-                trace_out()
-                return
-            
-            page_data = results[0]
-            self.name = page_data.get('name')
-            self.link = page_data.get('link')
-            self.parent = page_data.get('parent')
-            self.class_name = page_data.get('class')
-            self.visibility = page_data.get('visibility')
-            self.displayStyle = page_data.get('displayStyle')
-            self.text = page_data.get('text')
-            self.last_modified = page_data.get('last_modified')
-            self.cache_built_at = page_data.get('cache_built_at')
-            self.username = page_data.get('username')
-            self.comments = page_data.get('comments')
-            metadata_raw = page_data.get('metadata')
-            if metadata_raw in (None, '', b''):
-                self.metadata = {}
-            else:
-                try:
-                    if isinstance(metadata_raw, (bytes, bytearray)):
-                        metadata_raw = metadata_raw.decode('utf-8')
-                    self.metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
-                    if not isinstance(self.metadata, dict):
-                        self.metadata = {}
-                except (ValueError, TypeError):
-                    self.metadata = {}
-            
-            # Call hook for subclasses to handle pre-metadata-extraction setup
-            # This allows subclasses to prepare before metadata fields are extracted as attributes
-            if not is_error():
-                self._before_metadata_extraction()
-            
-            # Automatically extract all metadata fields as attributes
-            # This allows subclasses to access metadata fields directly (e.g., self.path, self.language)
-            # without needing to manually extract them
-            # Only sets attributes that don't already exist, automatically protecting existing fields
-            if isinstance(self.metadata, dict):
-                for key, value in self.metadata.items():
-                    # Only set if attribute doesn't already exist (protects existing Page fields)
-                    if not hasattr(self, key):
-                        setattr(self, key, value)
-                        debug(f"Extracted metadata field: {key} = {value}")
+        # Try to hydrate from cache database first (check cache before main DB)
+        cache_hydrated = False
+        if not is_error():
+            # Get entire cache row to check staleness (no main DB read needed)
+            cache_query = """
+                SELECT id, name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount,
+                       display_name, prepared_text, children_summary, image_summary, file_summary, links_out, metadata, cache_built_at
+                FROM pages
+                WHERE id = %s
+            """
+            try:
+                cache_results = self.gateway.conn.read_cache(cache_query, [id])
+                if cache_results:
+                    cache_row = cache_results[0]
+                    cache_last_modified = cache_row.get('last_modified')
+                    cache_built_at = cache_row.get('cache_built_at')
+                    
+                    # Check staleness using cache DB only: cache.last_modified vs cache.cache_built_at
+                    cache_last_modified_dt = normalize_datetime(cache_last_modified)
+                    cache_built_at_dt = normalize_datetime(cache_built_at)
+                    
+                    if cache_built_at_dt is None:
+                        debug(f"Cache for page {id} does not exist (cache_built_at is NULL)")
+                    elif cache_last_modified_dt and cache_built_at_dt and cache_built_at_dt < cache_last_modified_dt:
+                        debug(f"Cache for page {id} is stale (cache_built_at={cache_built_at_dt}, cache.last_modified={cache_last_modified_dt})")
                     else:
-                        debug(f"Skipped metadata field '{key}' - attribute already exists")
-            
-            # Call hook for subclasses to handle post-metadata-extraction setup
-            # This allows subclasses to normalize metadata, set defaults, or set up lazy computation
-            if not is_error():
-                self._after_metadata_extraction()
-            
-            text_length = len(self.text) if self.text else 0
-            log(f"Loaded page {id}: {self.name}")
-            
-            # Try to hydrate from cache database if available and fresh
-            if not is_error():
-                # Check if cache exists and is fresh
-                cache_built_at_dt = normalize_datetime(self.cache_built_at)
-                last_modified_dt = normalize_datetime(self.last_modified)
-                
-                if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
-                    debug(f"Cache for page {self.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
-                elif cache_built_at_dt is None:
-                    debug(f"Cache for page {self.id} does not exist (cache_built_at is NULL)")
+                        # Cache is fresh - hydrate entirely from cache DB (no main DB access)
+                        self.name = cache_row.get('name')
+                        self.link = cache_row.get('link')
+                        self.text = cache_row.get('text')
+                        self.parent = cache_row.get('parent')
+                        self.class_name = cache_row.get('class')
+                        self.visibility = cache_row.get('visibility')
+                        self.displayStyle = cache_row.get('displayStyle')
+                        self.last_modified = cache_last_modified
+                        self.username = cache_row.get('username')
+                        self.comments = cache_row.get('comments')
+                        metadata_raw = cache_row.get('metadata')
+                        if metadata_raw in (None, '', b''):
+                            self.metadata = {}
+                        else:
+                            try:
+                                if isinstance(metadata_raw, (bytes, bytearray)):
+                                    metadata_raw = metadata_raw.decode('utf-8')
+                                self.metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
+                                if not isinstance(self.metadata, dict):
+                                    self.metadata = {}
+                            except (ValueError, TypeError):
+                                self.metadata = {}
+                        
+                        # Call hook for subclasses to handle pre-metadata-extraction setup
+                        if not is_error():
+                            self._before_metadata_extraction()
+                        
+                        # Extract metadata fields as attributes
+                        if isinstance(self.metadata, dict):
+                            for key, value in self.metadata.items():
+                                if not hasattr(self, key):
+                                    setattr(self, key, value)
+                                    debug(f"Extracted metadata field: {key} = {value}")
+                                else:
+                                    debug(f"Skipped metadata field '{key}' - attribute already exists")
+                        
+                        # Call hook for subclasses to handle post-metadata-extraction setup
+                        if not is_error():
+                            self._after_metadata_extraction()
+                        
+                        # Load expensive pre-computed data from cache database directly into the 5 derived fields
+                        self.display_name = cache_row.get('display_name')
+                        self.prepared_text = deserialize_json_blob(cache_row.get('prepared_text'), None)
+                        self.children_by_class = deserialize_json_blob(cache_row.get('children_summary'), {})
+                        self.images = deserialize_json_blob(cache_row.get('image_summary'), [])
+                        self.files = deserialize_json_blob(cache_row.get('file_summary'), [])
+                        self.cache_built_at = cache_built_at
+                        self.cache_hydrated = True
+                        cache_hydrated = True
+                        text_length = len(self.text) if self.text else 0
+                        log(f"Loaded page {id} entirely from cache: {self.name}")
+                        debug(f"Hydrated page {id} entirely from cache (built_at={cache_built_at_dt})")
                 else:
-                    # Get cache row from cache database
-                    cache_query = """
-                        SELECT id, display_name, prepared_text, children_summary, image_summary, file_summary, links_out, cache_built_at
-                        FROM pages
-                        WHERE id = %s
-                    """
+                    debug(f"Cache for page {id} does not exist (no cache row found)")
+            except Exception as e:
+                warn(f"Failed to hydrate page {id} from cache: {e}")
+                # Don't report error - cache hydration failure is not critical, will fall back to main DB
+        
+        # If cache is stale/missing, fall back to main database
+        if not cache_hydrated and not is_error():
+            # Load page data from main database
+            query = "SELECT * FROM pages WHERE id = %s"
+            try:
+                results = self.gateway.conn.read(query, [id])
+                if not results:
+                    warn(f"Page with id {id} not found")
+                    report_error("action", f"Page with id {id} not found")
+                    trace_out()
+                    return
+                
+                page_data = results[0]
+                self.name = page_data.get('name')
+                self.link = page_data.get('link')
+                self.parent = page_data.get('parent')
+                self.class_name = page_data.get('class')
+                self.visibility = page_data.get('visibility')
+                self.displayStyle = page_data.get('displayStyle')
+                self.text = page_data.get('text')
+                self.last_modified = page_data.get('last_modified')
+                self.cache_built_at = page_data.get('cache_built_at')
+                self.username = page_data.get('username')
+                self.comments = page_data.get('comments')
+                metadata_raw = page_data.get('metadata')
+                if metadata_raw in (None, '', b''):
+                    self.metadata = {}
+                else:
                     try:
-                        cache_results = self.gateway.conn.read_cache(cache_query, [self.id])
-                        if cache_results:
-                            cache_row = cache_results[0]
-                            # Load expensive pre-computed data from cache database directly into the 5 derived fields
-                            self.display_name = cache_row.get('display_name')
-                            self.prepared_text = deserialize_json_blob(cache_row.get('prepared_text'), None)
-                            self.children_by_class = deserialize_json_blob(cache_row.get('children_summary'), {})
-                            self.images = deserialize_json_blob(cache_row.get('image_summary'), [])
-                            self.files = deserialize_json_blob(cache_row.get('file_summary'), [])
-                            self.cache_hydrated = True
-                            debug(f"Hydrated page {self.id} from cache (built_at={self.cache_built_at})")
-                    except Exception as e:
-                        warn(f"Failed to hydrate page {self.id} from cache: {e}")
-                        # Don't report error - cache hydration failure is not critical
-        except Exception as e:
-            warn(f"Failed to load page {id}: {e}")
-            report_error("connection", f"Failed to load page {id}: {e}")
+                        if isinstance(metadata_raw, (bytes, bytearray)):
+                            metadata_raw = metadata_raw.decode('utf-8')
+                        self.metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
+                        if not isinstance(self.metadata, dict):
+                            self.metadata = {}
+                    except (ValueError, TypeError):
+                        self.metadata = {}
+                
+                # Call hook for subclasses to handle pre-metadata-extraction setup
+                if not is_error():
+                    self._before_metadata_extraction()
+                
+                # Automatically extract all metadata fields as attributes
+                if isinstance(self.metadata, dict):
+                    for key, value in self.metadata.items():
+                        if not hasattr(self, key):
+                            setattr(self, key, value)
+                            debug(f"Extracted metadata field: {key} = {value}")
+                        else:
+                            debug(f"Skipped metadata field '{key}' - attribute already exists")
+                
+                # Call hook for subclasses to handle post-metadata-extraction setup
+                if not is_error():
+                    self._after_metadata_extraction()
+                
+                text_length = len(self.text) if self.text else 0
+                log(f"Loaded page {id} from main DB: {self.name}")
+            except Exception as e:
+                warn(f"Failed to load page {id}: {e}")
+                report_error("connection", f"Failed to load page {id}: {e}")
         
         trace_out()
 
@@ -1029,45 +1076,6 @@ class Page:
             return list(value)
         return value
 
-    def _ensure_cache_entry(self) -> bool:
-        trace_in()
-        try:
-            existing = self.gateway.conn.read_cache(
-                "SELECT 1 FROM pages WHERE id = %s",
-                (self.id,),
-            )
-        except Exception as exc:
-            warn(f"Failed to check cache entry for page {self.id}: {exc}")
-            report_error("connection", f"Failed to verify cache for page {self.id}")
-            trace_out()
-            return False
-
-        if existing:
-            trace_out()
-            return True
-
-        now = dt.datetime.now()
-        try:
-            self.gateway.conn.create_cache(
-                """
-                    INSERT INTO pages (id, cache_built_at)
-                    VALUES (%s, %s)
-                """,
-                (
-                    self.id,
-                    now,
-                ),
-            )
-            debug(f"Created cache entry for page {self.id}")
-        except Exception as exc:
-            warn(f"Failed to insert cache entry for page {self.id}: {exc}")
-            report_error("connection", f"Failed to create cache entry for page {self.id}")
-            trace_out()
-            return False
-
-        trace_out()
-        return True
-
     def _flag_cache_refresh(self) -> None:
         """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
         self._cache_needs_refresh = True
@@ -1085,11 +1093,6 @@ class Page:
             self._cache_needs_refresh = False
             trace_out()
             return True
-
-        if not self._ensure_cache_entry():
-            debug(f"_refresh_cached_page: Failed to ensure cache entry for page {self.id}")
-            trace_out()
-            return False
 
         # Ensure all 5 fields are populated by calling their internal mixin methods
         # The getters check if field is populated first, and only hydrate if empty
@@ -1118,46 +1121,58 @@ class Page:
         images_json = self._dump_json(self.images) if self.images else None
         files_json = self._dump_json(self.files) if self.files else None
         
-        # Zip all main database fields into metadata for cache backup
-        # This allows full page hydration from cache database without main DB access
-        main_db_metadata = {
-            'name': self.name,
-            'link': self.link,
-            'text': self.text,
-            'parent': self.parent,
-            'class': self.class_name,
-            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
-            'username': self.username,
-            'comments': self.comments,
-            'visibility': self.visibility,
-            'displayStyle': getattr(self, 'displayStyle', None),
-            'viewCount': getattr(self, 'viewCount', None),
-        }
-        # Include existing metadata if present (merge with main DB fields)
+        # Get existing metadata (only the metadata JSON field, not main DB fields)
+        # Main DB fields are now stored as first-class columns, not in metadata
         existing_metadata = getattr(self, 'metadata', {}) or {}
-        if isinstance(existing_metadata, dict):
-            # Merge existing metadata, but main DB fields take precedence
-            main_db_metadata.update(existing_metadata)
-        metadata_json = self._dump_json(main_db_metadata)
+        if not isinstance(existing_metadata, dict):
+            existing_metadata = {}
+        metadata_json = self._dump_json(existing_metadata)
         
         now = dt.datetime.now()
         
         try:
-            # Update cache database
-            affected = self.gateway.conn.update_cache(
+            # Buffer cache database write with all main DB fields as first-class columns
+            # plus derived fields and metadata (which now only contains custom metadata, not main DB fields)
+            # Uses INSERT ... ON DUPLICATE KEY UPDATE to handle both insert and update cases
+            self.gateway.conn.buffer_cache(
+                "pages",
                 """
-                    UPDATE pages
-                    SET display_name = %s,
-                        prepared_text = %s,
-                        children_summary = %s,
-                        image_summary = %s,
-                        file_summary = %s,
-                        links_out = %s,
-                        metadata = %s,
-                        cache_built_at = %s
-                    WHERE id = %s
+                    INSERT INTO pages (id, name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount, display_name, prepared_text, children_summary, image_summary, file_summary, links_out, metadata, cache_built_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        link = VALUES(link),
+                        text = VALUES(text),
+                        parent = VALUES(parent),
+                        class = VALUES(class),
+                        last_modified = VALUES(last_modified),
+                        username = VALUES(username),
+                        comments = VALUES(comments),
+                        visibility = VALUES(visibility),
+                        displayStyle = VALUES(displayStyle),
+                        viewCount = VALUES(viewCount),
+                        display_name = VALUES(display_name),
+                        prepared_text = VALUES(prepared_text),
+                        children_summary = VALUES(children_summary),
+                        image_summary = VALUES(image_summary),
+                        file_summary = VALUES(file_summary),
+                        links_out = VALUES(links_out),
+                        metadata = VALUES(metadata),
+                        cache_built_at = VALUES(cache_built_at)
                 """,
                 (
+                    self.id,
+                    self.name,
+                    self.link,
+                    self.text,
+                    self.parent,
+                    self.class_name,
+                    self.last_modified,
+                    self.username,
+                    self.comments,
+                    self.visibility,
+                    getattr(self, 'displayStyle', 1),
+                    getattr(self, 'viewCount', 0),
                     display_name_str,
                     prepared_json,
                     children_json,
@@ -1166,10 +1181,9 @@ class Page:
                     self._dump_json({}),  # links_out - currently not used, store empty dict
                     metadata_json,
                     now,
-                    self.id,
                 ),
             )
-            # Always bump main database cache_built_at even when UPDATE is a no-op
+            # Always bump main database cache_built_at
             self.gateway.conn.update(
                 """
                     UPDATE pages
@@ -1187,11 +1201,9 @@ class Page:
             if verify_check:
                 debug(f"_refresh_cached_page: Verification - cache entry has display_name='{verify_check[0].get('display_name')}', cache_built_at={verify_check[0].get('cache_built_at')}")
             else:
-                warn(f"_refresh_cached_page: Verification failed - cache entry not found after UPDATE")
-            if affected == 0:
-                debug(f"_refresh_cached_page: UPDATE affected 0 rows for page {self.id} - no change needed")
+                warn(f"_refresh_cached_page: Verification failed - cache entry not found after write")
             
-            debug(f"Refreshed cache for page {self.id}: rows={affected}")
+            debug(f"Refreshed cache for page {self.id}")
         except Exception as exc:
             warn(f"Failed to update cache for page {self.id}: {exc}")
             report_error("connection", f"Failed to update cache for page {self.id}")

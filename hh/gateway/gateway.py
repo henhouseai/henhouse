@@ -276,7 +276,6 @@ class Gateway:
                 duration = time.time() - start_time
                 warn("Backend execution raised an exception.")
                 report_error("backend", f"Backend execution raised an exception in {duration:.3f}s: {e}")
-        self._process_errors()
         self._commit()
         
         # Close database connections before flushing debug (so close logs are captured)
@@ -287,6 +286,7 @@ class Gateway:
         self.response._prepare_output()
         
         self.flush_debug()
+        self._process_errors()
         return self.response.get_output()
 
     def get_arg(self, name: str) -> Any:
@@ -506,15 +506,24 @@ class Gateway:
         
         # Check for errors again after file operations and cache refresh
         if not is_error():
-            # Always commit database transactions (will no-op if no transaction)
-            log("Committing database transactions...")
+            # Always commit main database transactions (will no-op if no transaction)
+            log("Committing main database transactions...")
             try:
                 self.conn.commit()
             except Exception as e:
-                warn(f"Database commit failed: {e}")
+                warn(f"Main database commit failed: {e}")
                 # Rollback file operations if DB commit fails
                 self.files.rollback()
-                report_error("connection", f"Database commit failed: {e}")
+                report_error("connection", f"Main database commit failed: {e}")
+            
+            # Write all buffered cache operations in independent transaction
+            if not is_error():
+                log("Writing buffered cache operations...")
+                try:
+                    self.conn.write_cache()
+                except Exception as e:
+                    warn(f"Cache write failed: {e}")
+                    report_error("cache_refresh", f"Cache write failed: {e}")
         else:
             # Errors detected after file operations, rollback everything
             warn("Errors detected after file operations, rolling back")

@@ -213,9 +213,11 @@ class Connection:
         self.main: Optional[Any] = None
         self.cache: Optional[Any] = None
         self.history: Optional[Any] = None
-        self._transaction_started: bool = False
+        self._main_transaction_started: bool = False
+        self._cache_transaction_started: bool = False
         self._initialized: bool = False
         self._dry_run: bool = dry_run
+        self._cache_buffer: List[Tuple[str, str, Optional[Sequence[Union[str, int, float, bool, None]]]]] = []
     
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get main database DSN. Override in subclasses for root/MySQL connections."""
@@ -385,81 +387,59 @@ class Connection:
                 warn(f"Error closing main connection: {e}")
             self.main = None
         
-        self._transaction_started = False
+        self._main_transaction_started = False
+        self._cache_transaction_started = False
+        self._cache_buffer.clear()
         self._initialized = False
         log("All database connections closed successfully")
         trace_out()
-    
-    def has_transaction(self) -> bool:
-        """Check if a transaction is currently active."""
-        return self._transaction_started
     
     def is_initialized(self) -> bool:
         """Check if connections have been initialized."""
         return self._initialized
     
     def commit(self) -> None:
-        """Commit all active transactions on all databases. If dry_run is enabled, rolls back instead."""
+        """Commit the main database transaction. If dry_run is enabled, rolls back instead.
+        Cache transactions are handled independently by write_cache()."""
         trace_in()
-        if not self._transaction_started:
-            log("No transaction to commit")
+        if not self._main_transaction_started:
+            log("No main transaction to commit")
             trace_out()
             return
         
         if self._dry_run:
-            log("Dry run mode enabled - rolling back transactions instead of committing")
+            log("Dry run mode enabled - rolling back main transaction instead of committing")
             self.rollback()
             trace_out()
             return
         
-        log("Committing transactions on all databases...")
+        log("Committing main database transaction...")
         
         try:
-            if self.history and self.history is not self.main and self.history is not self.cache:
-                self.history.commit()
-                log("Transaction committed on history database")
-            
-            if self.cache and self.cache is not self.main:
-                self.cache.commit()
-                log("Transaction committed on cache database")
-            
             if self.main:
                 self.main.commit()
                 log("Transaction committed on main database")
             
-            self._transaction_started = False
-            log("All transactions committed successfully")
+            self._main_transaction_started = False
+            log("Main transaction committed successfully")
         except Exception as e:
-            warn(f"Failed to commit transactions: {e}")
+            warn(f"Failed to commit main transaction: {e}")
             raise
         finally:
             trace_out()
     
     def rollback(self) -> None:
-        """Rollback all active transactions on all databases."""
+        """Rollback the main database transaction.
+        Cache transactions are handled independently by write_cache()."""
         trace_in()
-        if not self._transaction_started:
-            log("No transaction to rollback")
+        if not self._main_transaction_started:
+            log("No main transaction to rollback")
             trace_out()
             return
         
-        log("Rolling back transactions on all databases...")
+        log("Rolling back main database transaction...")
         
         try:
-            if self.history and self.history is not self.main and self.history is not self.cache:
-                try:
-                    self.history.rollback()
-                    log("Transaction rolled back on history database")
-                except Exception as e:
-                    warn(f"Error rolling back history transaction: {e}")
-            
-            if self.cache and self.cache is not self.main:
-                try:
-                    self.cache.rollback()
-                    log("Transaction rolled back on cache database")
-                except Exception as e:
-                    warn(f"Error rolling back cache transaction: {e}")
-            
             if self.main:
                 try:
                     self.main.rollback()
@@ -467,20 +447,21 @@ class Connection:
                 except Exception as e:
                     warn(f"Error rolling back main transaction: {e}")
             
-            self._transaction_started = False
-            log("All transactions rolled back")
+            self._main_transaction_started = False
+            log("Main transaction rolled back")
         except Exception as e:
-            warn(f"Error during transaction rollback: {e}")
+            warn(f"Error during main transaction rollback: {e}")
         finally:
             trace_out()
     
-    def _start_transaction(self) -> None:
-        """Start a transaction on all active databases. Called automatically on first write."""
-        if self._transaction_started:
+    def _start_main_transaction(self) -> None:
+        """Start a transaction on the main database only. Called automatically on first write.
+        Cache transactions are handled independently by write_cache()."""
+        if self._main_transaction_started:
             return
         
         trace_in()
-        log("Starting transaction on all databases...")
+        log("Starting transaction on main database...")
         
         try:
             if self.main:
@@ -488,20 +469,13 @@ class Connection:
                     cur.execute("START TRANSACTION")
                 log("Transaction started on main database")
             
-            if self.cache and self.cache is not self.main:
-                with self.cache.cursor() as cur:
-                    cur.execute("START TRANSACTION")
-                log("Transaction started on cache database")
+            # Cache database transactions are handled independently by write_cache()
+            # Do not start cache transaction here
             
-            if self.history and self.history is not self.main and self.history is not self.cache:
-                with self.history.cursor() as cur:
-                    cur.execute("START TRANSACTION")
-                log("Transaction started on history database")
-            
-            self._transaction_started = True
-            log("All transactions started successfully")
+            self._main_transaction_started = True
+            log("Main transaction started successfully")
         except Exception as e:
-            warn(f"Failed to start transactions: {e}")
+            warn(f"Failed to start main transaction: {e}")
             raise
         finally:
             trace_out()
@@ -555,7 +529,7 @@ class Connection:
             trace_out()
             return 0
         
-        self._start_transaction()
+        self._start_main_transaction()
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
         log(f"Main DB CREATE: {sql_preview}, params={params}")
@@ -583,7 +557,7 @@ class Connection:
             trace_out()
             return 0
         
-        self._start_transaction()
+        self._start_main_transaction()
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
         log(f"Main DB UPDATE: {sql_preview}, params={params}")
@@ -611,7 +585,7 @@ class Connection:
             trace_out()
             return 0
         
-        self._start_transaction()
+        self._start_main_transaction()
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
         log(f"Main DB DELETE: {sql_preview}, params={params}")
@@ -625,6 +599,34 @@ class Connection:
                 return rowcount
         except Exception as exc:
             warn(f"Main DB DELETE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.main)
+            trace_out()
+            raise
+    
+    def upsert_main(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT ... ON DUPLICATE KEY UPDATE query on the main database. Returns lastrowid (0 if updated, non-zero if inserted)."""
+        trace_in()
+        if not self._initialized or not self.main:
+            warn("Connection not initialized, returning 0")
+            trace_out()
+            return 0
+        
+        self._start_main_transaction()
+        
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Main DB UPSERT: {sql_preview}, params={params}")
+        
+        try:
+            with self.main.cursor() as cur:
+                cur.execute(sql, params or [])
+                lastrowid = cur.lastrowid
+                log(f"Main DB UPSERT executed successfully: lastrowid={lastrowid}")
+                trace_out()
+                return lastrowid
+        except Exception as exc:
+            warn(f"Main DB UPSERT execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
             self._classify_and_attach_error(exc, self.main)
@@ -664,148 +666,114 @@ class Connection:
             trace_out()
             raise
     
-    def create_cache(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
-        """Execute an INSERT query on the cache database. Returns lastrowid."""
+    def upsert_cache(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT ... ON DUPLICATE KEY UPDATE query on the cache database. Returns lastrowid (0 if updated, non-zero if inserted).
+        Note: This method assumes a cache transaction is already started. Use buffer_cache() + write_cache() for buffered writes."""
         trace_in()
         if not self._initialized or not self.cache:
             warn("Cache connection not initialized, returning 0")
             trace_out()
             return 0
         
-        self._start_transaction()
+        if not self._cache_transaction_started:
+            warn("Cache transaction not started - call write_cache() instead of upsert_cache() directly")
+            trace_out()
+            return 0
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"Cache DB CREATE: {sql_preview}, params={params}")
+        log(f"Cache DB UPSERT: {sql_preview}, params={params}")
         
         try:
             with self.cache.cursor() as cur:
                 cur.execute(sql, params or [])
                 lastrowid = cur.lastrowid
-                log(f"Cache DB CREATE executed successfully: lastrowid={lastrowid}")
+                log(f"Cache DB UPSERT executed successfully: lastrowid={lastrowid}")
                 trace_out()
                 return lastrowid
         except Exception as exc:
-            warn(f"Cache DB CREATE execution failed: {exc}")
+            warn(f"Cache DB UPSERT execution failed: {exc}")
             setattr(exc, 'sql', sql)
             setattr(exc, 'params', params or [])
             self._classify_and_attach_error(exc, self.cache)
             trace_out()
             raise
     
-    def update_cache(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
-        """Execute an UPDATE query on the cache database. Returns rowcount."""
+    def buffer_cache(self, table_name: str, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> None:
+        """Buffer a cache database write for later execution. Does not execute immediately."""
         trace_in()
         if not self._initialized or not self.cache:
-            warn("Cache connection not initialized, returning 0")
+            warn("Cache connection not initialized, buffering skipped")
             trace_out()
-            return 0
+            return
         
-        self._start_transaction()
-        
+        self._cache_buffer.append((table_name, sql, params))
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"Cache DB UPDATE: {sql_preview}, params={params}")
-        
-        try:
-            with self.cache.cursor() as cur:
-                cur.execute(sql, params or [])
-                rowcount = cur.rowcount
-                log(f"Cache DB UPDATE executed successfully: {rowcount} rows affected")
-                trace_out()
-                return rowcount
-        except Exception as exc:
-            warn(f"Cache DB UPDATE execution failed: {exc}")
-            setattr(exc, 'sql', sql)
-            setattr(exc, 'params', params or [])
-            self._classify_and_attach_error(exc, self.cache)
-            trace_out()
-            raise
+        log(f"Cache DB BUFFER: table={table_name}, sql={sql_preview}, params={params} (buffered, {len(self._cache_buffer)} items in buffer)")
+        trace_out()
     
-    # History database operations (no delete)
-    def read_history(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[DatabaseRow]:
-        """Execute a SELECT query on the history database. Returns list of dict rows."""
+    def write_cache(self) -> None:
+        """Execute all buffered cache writes in a single independent transaction. Clears buffer after execution."""
         trace_in()
-        if not self._initialized or not self.history:
-            warn("History connection not initialized, returning empty result")
+        if not self._initialized or not self.cache:
+            warn("Cache connection not initialized, cannot write buffer")
             trace_out()
-            return []
+            return
         
-        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"History DB READ: {sql_preview}, params={params}")
+        if not self._cache_buffer:
+            log("Cache buffer is empty, nothing to write")
+            trace_out()
+            return
         
+        log(f"Writing {len(self._cache_buffer)} buffered cache operations...")
+        
+        # Start independent cache transaction
         try:
-            with self.history.cursor() as cur:
-                cur.execute(sql, params or [])
-                rows = cur.fetchall()
-                if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
-                    columns = [d[0] for d in cur.description]
-                    result = [dict(zip(columns, r)) for r in rows]
-                    log(f"History DB READ executed successfully: {len(result)} rows returned (converted to dict)")
-                else:
-                    result = list(rows)
-                    log(f"History DB READ executed successfully: {len(result)} rows returned")
-                trace_out()
-                return cast(List[DatabaseRow], result)
-        except Exception as exc:
-            warn(f"History DB READ execution failed: {exc}")
-            setattr(exc, 'sql', sql)
-            setattr(exc, 'params', params or [])
-            self._classify_and_attach_error(exc, self.history if self.history else self.main)
+            if self.cache and self.cache is not self.main:
+                with self.cache.cursor() as cur:
+                    cur.execute("START TRANSACTION")
+                log("Cache transaction started")
+                self._cache_transaction_started = True
+        except Exception as e:
+            warn(f"Failed to start cache transaction: {e}")
+            self._cache_buffer.clear()
             trace_out()
-            raise
+            return
+        
+        # Execute all buffered writes
+        failed_count = 0
+        try:
+            for table_name, sql, params in self._cache_buffer:
+                try:
+                    self.upsert_cache(sql, params)
+                except Exception as exc:
+                    failed_count += 1
+                    warn(f"Failed to write buffered cache operation for table {table_name}: {exc}")
+                    # Continue with remaining items
+                    continue
+            
+            if failed_count > 0:
+                warn(f"Some cache writes failed ({failed_count} of {len(self._cache_buffer)}), rolling back cache transaction")
+                if self.cache and self.cache is not self.main:
+                    self.cache.rollback()
+                    log("Cache transaction rolled back due to failures")
+                self._cache_transaction_started = False
+            else:
+                # Commit cache transaction
+                if self.cache and self.cache is not self.main:
+                    self.cache.commit()
+                    log(f"Cache transaction committed successfully ({len(self._cache_buffer)} operations)")
+                self._cache_transaction_started = False
+        except Exception as e:
+            warn(f"Fatal error during cache write: {e}, rolling back")
+            if self.cache and self.cache is not self.main:
+                try:
+                    self.cache.rollback()
+                    log("Cache transaction rolled back due to fatal error")
+                except Exception as rollback_exc:
+                    warn(f"Error during cache rollback: {rollback_exc}")
+            self._cache_transaction_started = False
+        finally:
+            # Clear buffer
+            self._cache_buffer.clear()
+            trace_out()
     
-    def create_history(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
-        """Execute an INSERT query on the history database. Returns lastrowid."""
-        trace_in()
-        if not self._initialized or not self.history:
-            warn("History connection not initialized, returning 0")
-            trace_out()
-            return 0
-        
-        self._start_transaction()
-        
-        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"History DB CREATE: {sql_preview}, params={params}")
-        
-        try:
-            with self.history.cursor() as cur:
-                cur.execute(sql, params or [])
-                lastrowid = cur.lastrowid
-                log(f"History DB CREATE executed successfully: lastrowid={lastrowid}")
-                trace_out()
-                return lastrowid
-        except Exception as exc:
-            warn(f"History DB CREATE execution failed: {exc}")
-            setattr(exc, 'sql', sql)
-            setattr(exc, 'params', params or [])
-            self._classify_and_attach_error(exc, self.history if self.history else self.main)
-            trace_out()
-            raise
-    
-    def update_history(self, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
-        """Execute an UPDATE query on the history database. Returns rowcount."""
-        trace_in()
-        if not self._initialized or not self.history:
-            warn("History connection not initialized, returning 0")
-            trace_out()
-            return 0
-        
-        self._start_transaction()
-        
-        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"History DB UPDATE: {sql_preview}, params={params}")
-        
-        try:
-            with self.history.cursor() as cur:
-                cur.execute(sql, params or [])
-                rowcount = cur.rowcount
-                log(f"History DB UPDATE executed successfully: {rowcount} rows affected")
-                trace_out()
-                return rowcount
-        except Exception as exc:
-            warn(f"History DB UPDATE execution failed: {exc}")
-            setattr(exc, 'sql', sql)
-            setattr(exc, 'params', params or [])
-            self._classify_and_attach_error(exc, self.history if self.history else self.main)
-            trace_out()
-            raise
-

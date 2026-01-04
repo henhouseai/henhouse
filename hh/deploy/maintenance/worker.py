@@ -249,10 +249,10 @@ def get_jobs_status(verbose_debug: bool = False) -> Optional[Dict[str, Any]]:
     
     if response and response.get("status") == "ok":
         data = response.get("data", {})
-        # Log useful status info only when there's work OR during heartbeat
-        if data.get("has_work", False) or verbose_debug:
-            logging.info(f"maintenance-jobs-status response: {response}")
-            logging.info(f"Status data: {data}")
+        # Log detailed status info as debug (only during heartbeat when verbose_debug=True)
+        if verbose_debug:
+            logging.debug(f"maintenance-jobs-status response: {response}")
+            logging.debug(f"Status data: {data}")
         return data
     else:
         logging.error(f"Failed to get jobs status - exit_code: {exit_code}, response: {response}")
@@ -460,7 +460,9 @@ def run_cycle(last_heartbeat: datetime) -> tuple[bool, datetime]:
                         error_msg = errors[0].get("content", error_msg)
                 logging.error(f"{command}: FAILED - {error_msg}")
     
-    return True, last_heartbeat
+    # Update heartbeat timer if it's heartbeat time (regardless of work status)
+    new_last_heartbeat = now if is_heartbeat_time else last_heartbeat
+    return True, new_last_heartbeat
 
 
 def main() -> int:

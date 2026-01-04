@@ -4,8 +4,7 @@ TABLE OF CONTENTS (Alphabetical Order)
 
 __init__()                    Line 50
 _dump_json()                  Line 132
-_ensure_file_cache_entry()    Line 140
-_flag_cache_refresh()         Line 187
+_flag_cache_refresh()         Line 140
 _json_default()               Line 191
 _move_to_deleted()            Line 196
 _refresh_cached_file()        Line 219
@@ -95,57 +94,83 @@ class File:
         self.cache_hydrated = False
         self._cache_needs_refresh = False
         
-        # Load file data from main database
-        query = "SELECT * FROM files WHERE id = %s"
-        try:
-            results = self.gateway.conn.read(query, [file_id])
-            if not results:
-                warn(f"File with id {file_id} not found")
-                report_error("action", f"File with id {file_id} not found")
-                trace_out()
-                return
-            
-            file_data = results[0]
-            self.file_name = file_data.get('file_name')
-            self.file_path = file_data.get('file_path')
-            self.description = file_data.get('description')
-            self.mime_type = file_data.get('mime_type')
-            self.size_bytes = file_data.get('size_bytes')
-            self.username = file_data.get('username')
-            self.uploaded = file_data.get('uploaded')
-            self.last_modified = file_data.get('last_modified')
-            self.comments = file_data.get('comments')
-            self.visibility = file_data.get('visibility')
-            self.cache_built_at = file_data.get('cache_built_at')
-            log(f"Loaded file {file_id}: {self.file_name}")
-            
-            # Try to hydrate from cache database if available and fresh
-            if not is_error():
-                cache_built_at_dt = normalize_datetime(self.cache_built_at)
-                last_modified_dt = normalize_datetime(self.last_modified)
-                
-                if last_modified_dt and cache_built_at_dt and cache_built_at_dt < last_modified_dt:
-                    debug(f"Cache for file {self.id} is stale (cache_built_at={cache_built_at_dt}, last_modified={last_modified_dt})")
-                elif cache_built_at_dt is None:
-                    debug(f"Cache for file {self.id} does not exist (cache_built_at is NULL)")
+        # Try to hydrate from cache database first (check cache before main DB)
+        cache_hydrated = False
+        if not is_error():
+            # Get entire cache row to check staleness (no main DB read needed)
+            cache_query = """
+                SELECT id, file_name, file_path, description, mime_type, size_bytes, username, uploaded, last_modified, comments, visibility,
+                       pages, cache_built_at
+                FROM files
+                WHERE id = %s
+            """
+            try:
+                cache_results = self.gateway.conn.read_cache(cache_query, [file_id])
+                if cache_results:
+                    cache_row = cache_results[0]
+                    cache_last_modified = cache_row.get('last_modified')
+                    cache_built_at = cache_row.get('cache_built_at')
+                    
+                    # Check staleness using cache DB only: cache.last_modified vs cache.cache_built_at
+                    cache_last_modified_dt = normalize_datetime(cache_last_modified)
+                    cache_built_at_dt = normalize_datetime(cache_built_at)
+                    
+                    if cache_built_at_dt is None:
+                        debug(f"Cache for file {file_id} does not exist (cache_built_at is NULL)")
+                    elif cache_last_modified_dt and cache_built_at_dt and cache_built_at_dt < cache_last_modified_dt:
+                        debug(f"Cache for file {file_id} is stale (cache_built_at={cache_built_at_dt}, cache.last_modified={cache_last_modified_dt})")
+                    else:
+                        # Cache is fresh - hydrate entirely from cache DB (no main DB access)
+                        self.file_name = cache_row.get('file_name')
+                        self.file_path = cache_row.get('file_path')
+                        self.description = cache_row.get('description')
+                        self.mime_type = cache_row.get('mime_type')
+                        self.size_bytes = cache_row.get('size_bytes')
+                        self.username = cache_row.get('username')
+                        self.uploaded = cache_row.get('uploaded')
+                        self.last_modified = cache_last_modified
+                        self.comments = cache_row.get('comments')
+                        self.visibility = cache_row.get('visibility')
+                        self.pages = deserialize_json_blob(cache_row.get('pages'), [])
+                        self.cache_built_at = cache_built_at
+                        self.cache_hydrated = True
+                        cache_hydrated = True
+                        log(f"Loaded file {file_id} entirely from cache: {self.file_name}")
+                        debug(f"Hydrated file {file_id} entirely from cache (built_at={cache_built_at_dt})")
                 else:
-                    cache_query = """
-                        SELECT id, pages, cache_built_at
-                        FROM files
-                        WHERE id = %s
-                    """
-                    try:
-                        cache_results = self.gateway.conn.read_cache(cache_query, [self.id])
-                        if cache_results:
-                            cache_row = cache_results[0]
-                            self.pages = deserialize_json_blob(cache_row.get('pages'), [])
-                            self.cache_hydrated = True
-                            debug(f"Hydrated file {self.id} from cache (built_at={self.cache_built_at})")
-                    except Exception as e:
-                        warn(f"Failed to hydrate file {self.id} from cache: {e}")
-        except Exception as e:
-            warn(f"Failed to load file {file_id}: {e}")
-            report_error("connection", f"Failed to load file {file_id}: {e}")
+                    debug(f"Cache for file {file_id} does not exist (no cache row found)")
+            except Exception as e:
+                warn(f"Failed to hydrate file {file_id} from cache: {e}")
+                # Don't report error - cache hydration failure is not critical, will fall back to main DB
+        
+        # If cache is stale/missing, fall back to main database
+        if not cache_hydrated and not is_error():
+            # Load file data from main database
+            query = "SELECT * FROM files WHERE id = %s"
+            try:
+                results = self.gateway.conn.read(query, [file_id])
+                if not results:
+                    warn(f"File with id {file_id} not found")
+                    report_error("action", f"File with id {file_id} not found")
+                    trace_out()
+                    return
+                
+                file_data = results[0]
+                self.file_name = file_data.get('file_name')
+                self.file_path = file_data.get('file_path')
+                self.description = file_data.get('description')
+                self.mime_type = file_data.get('mime_type')
+                self.size_bytes = file_data.get('size_bytes')
+                self.username = file_data.get('username')
+                self.uploaded = file_data.get('uploaded')
+                self.last_modified = file_data.get('last_modified')
+                self.comments = file_data.get('comments')
+                self.visibility = file_data.get('visibility')
+                self.cache_built_at = file_data.get('cache_built_at')
+                log(f"Loaded file {file_id} from main DB: {self.file_name}")
+            except Exception as e:
+                warn(f"Failed to load file {file_id}: {e}")
+                report_error("connection", f"Failed to load file {file_id}: {e}")
         
         trace_out()
 
@@ -156,53 +181,6 @@ class File:
             separators=(',', ':'),
             default=self._json_default,
         )
-
-    def _ensure_file_cache_entry(self) -> bool:
-        """Ensure cache entry exists in cache database. Only creates if missing."""
-        trace_in()
-        if not self.gateway or not self.gateway.conn:
-            warn("Gateway or connection not available for cache entry check")
-            report_error("connection", f"Failed to verify cache for file {self.id}")
-            trace_out()
-            return False
-        try:
-            existing = self.gateway.conn.read_cache(
-                "SELECT 1 FROM files WHERE id = %s",
-                (self.id,),
-            )
-        except Exception as exc:
-            warn(f"Failed to check cache entry for file {self.id}: {exc}")
-            report_error("connection", f"Failed to verify cache for file {self.id}")
-            trace_out()
-            return False
-
-        if existing:
-            trace_out()
-            return True
-
-        now = dt.datetime.now()
-        try:
-            self.gateway.conn.create_cache(
-                """
-                    INSERT INTO files (id, pages, metadata, cache_built_at)
-                    VALUES (%s, %s, %s, %s)
-                """,
-                (
-                    self.id,
-                    self._dump_json([]),  # Empty pages initially
-                    self._dump_json({}),  # Empty metadata initially
-                    now,
-                ),
-            )
-            debug(f"Created cache entry for file {self.id}")
-        except Exception as exc:
-            warn(f"Failed to insert cache entry for file {self.id}: {exc}")
-            report_error("connection", f"Failed to create cache entry for file {self.id}")
-            trace_out()
-            return False
-
-        trace_out()
-        return True
 
     def _flag_cache_refresh(self) -> None:
         """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
@@ -245,11 +223,6 @@ class File:
             trace_out()
             return False
         
-        if not self._ensure_file_cache_entry():
-            debug(f"_refresh_cached_file: Failed to ensure cache entry for file {self.id}")
-            trace_out()
-            return False
-
         # Ensure pages field is populated by calling internal mixin method
         # The getter checks if field is populated first, and only hydrates if empty
         # The getter sets the attribute itself, so we just call it
@@ -261,42 +234,48 @@ class File:
         # Serialize all data
         pages_json = self._dump_json(self.pages) if self.pages else None
         
-        # Zip all main database fields into metadata for cache backup
-        # This allows full file hydration from cache database without main DB access
-        main_db_metadata = {
-            'file_name': self.file_name,
-            'file_path': self.file_path,
-            'description': self.description,
-            'mime_type': self.mime_type,
-            'size_bytes': self.size_bytes,
-            'username': self.username,
-            'uploaded': self.uploaded.isoformat() if self.uploaded else None,
-            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
-            'comments': self.comments,
-            'visibility': self.visibility,
-        }
-        metadata_json = self._dump_json(main_db_metadata)
-        
         now = dt.datetime.now()
         
         try:
-            # Update cache database
-            affected = self.gateway.conn.update_cache(
+            # Buffer cache database write with all main DB fields as first-class columns
+            # plus derived fields
+            # Uses INSERT ... ON DUPLICATE KEY UPDATE to handle both insert and update cases
+            self.gateway.conn.buffer_cache(
+                "files",
                 """
-                    UPDATE files
-                    SET pages = %s,
-                        metadata = %s,
-                        cache_built_at = %s
-                    WHERE id = %s
+                    INSERT INTO files (id, file_name, file_path, description, mime_type, size_bytes, username, uploaded, last_modified, comments, visibility, pages, cache_built_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        file_name = VALUES(file_name),
+                        file_path = VALUES(file_path),
+                        description = VALUES(description),
+                        mime_type = VALUES(mime_type),
+                        size_bytes = VALUES(size_bytes),
+                        username = VALUES(username),
+                        uploaded = VALUES(uploaded),
+                        last_modified = VALUES(last_modified),
+                        comments = VALUES(comments),
+                        visibility = VALUES(visibility),
+                        pages = VALUES(pages),
+                        cache_built_at = VALUES(cache_built_at)
                 """,
                 (
-                    pages_json,
-                    metadata_json,
-                    now,
                     self.id,
+                    self.file_name,
+                    self.file_path,
+                    self.description,
+                    self.mime_type,
+                    self.size_bytes,
+                    self.username,
+                    self.uploaded,
+                    self.last_modified,
+                    self.comments,
+                    self.visibility,
+                    pages_json,
+                    now,
                 ),
             )
-            # Always bump main database cache_built_at even when UPDATE is a no-op
+            # Always bump main database cache_built_at
             self.gateway.conn.update(
                 """
                     UPDATE files
@@ -314,11 +293,9 @@ class File:
             if verify_check:
                 debug(f"_refresh_cached_file: Verification - cache entry has cache_built_at={verify_check[0].get('cache_built_at')}")
             else:
-                warn(f"_refresh_cached_file: Verification failed - cache entry not found after UPDATE")
-            if affected == 0:
-                warn(f"_refresh_cached_file: UPDATE affected 0 rows for file {self.id} - cache entry may not exist")
+                warn(f"_refresh_cached_file: Verification failed - cache entry not found after write")
             
-            debug(f"Refreshed cache for file {self.id}: rows={affected}, usage={len(self.pages) if self.pages else 0}")
+            debug(f"Refreshed cache for file {self.id}: usage={len(self.pages) if self.pages else 0}")
         except Exception as exc:
             warn(f"Failed to update cache for file {self.id}: {exc}")
             report_error("connection", f"Failed to update cache for file {self.id}")
