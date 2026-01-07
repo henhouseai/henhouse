@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Get site name from argument, default to henhouse
+# Get site name from command line argument (passed by monitor action)
 SITE="${1:-henhouse}"
 
 # Check for -kill flag
@@ -36,10 +36,9 @@ tmux send-keys -t "${SESSION_NAME}:0.0" "htop" Enter
 # Select the middle pane and tail the maintenance log
 tmux send-keys -t "${SESSION_NAME}:0.1" "tail -F /srv/${SITE}/logs/maintenance_${SITE}.log" Enter
 
-# Select the bottom pane and launch the flask aggregator
-tmux send-keys -t "${SESSION_NAME}:0.2" "python3 hh/deploy/maintenance/flask_aggregator.py ${SITE}" Enter
+# Select the bottom pane and launch the flask aggregator (in same directory)
+tmux send-keys -t "${SESSION_NAME}:0.2" "python3 flask_aggregator.py ${SITE}" Enter
 
 # Focus on the bottom pane (flask aggregator) and attach session
 tmux select-pane -t "${SESSION_NAME}:0.2"
 tmux -2 attach-session -t "$SESSION_NAME"
-

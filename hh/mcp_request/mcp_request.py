@@ -29,7 +29,7 @@ update_request()               Line 303
 from __future__ import annotations
 
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from hh.gateway.registry.debug import (
     get_trace_in,
