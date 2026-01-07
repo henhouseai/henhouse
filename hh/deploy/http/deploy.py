@@ -1139,43 +1139,20 @@ def deploy() -> bool:
 
     # Clean cache files
     if not is_error():
-        cache_cleaned = {
-            'pycache_dirs': 0,
-            'pyc_files': 0,
-            'cache_files': 0,
-            'cache_dirs': 0
-        }
         try:
-            # Remove __pycache__ directories
-            for pycache_dir in dest.rglob('__pycache__'):
-                shutil.rmtree(pycache_dir)
-                cache_cleaned['pycache_dirs'] += 1
-                log(f"Removed __pycache__ directory: {pycache_dir}")
-            
-            # Remove .pyc files
-            for pyc_file in dest.rglob('*.pyc'):
-                pyc_file.unlink()
-                cache_cleaned['pyc_files'] += 1
-                log(f"Removed .pyc file: {pyc_file}")
-            
-            # Remove cache files
-            cache_patterns = ['*-reg.json', '*.cycle.json', 'cache.json', '*.cache']
-            for pattern in cache_patterns:
-                for cache_file in dest.rglob(pattern):
-                    cache_file.unlink()
-                    cache_cleaned['cache_files'] += 1
-                    log(f"Removed cache file: {cache_file}")
-            
-            # Remove .cache directories
-            for cache_dir in dest.rglob('.cache'):
-                shutil.rmtree(cache_dir)
-                cache_cleaned['cache_dirs'] += 1
-                log(f"Removed .cache directory: {cache_dir}")
-            
-            log(f"Cache cleanup complete: {cache_cleaned['pycache_dirs']} __pycache__ dirs, {cache_cleaned['pyc_files']} .pyc files, {cache_cleaned['cache_files']} cache files, {cache_cleaned['cache_dirs']} .cache dirs")
+            from hh.deploy.cache.cache_cleanup_registry import clean_all_caches
+            cache_results = clean_all_caches()
+            cache_cleaned = cache_results.get('_aggregated', {})
+            log(f"Cache cleanup complete: {cache_cleaned.get('pycache_dirs', 0)} __pycache__ dirs, {cache_cleaned.get('pyc_files', 0)} .pyc files, {cache_cleaned.get('cache_files', 0)} cache files, {cache_cleaned.get('cache_dirs', 0)} .cache dirs")
         except Exception as e:
             warn(f"Failed to clean cache files: {e}")
             report_error("backend", f"Failed to clean cache files: {e}")
+            cache_cleaned = {
+                'pycache_dirs': 0,
+                'pyc_files': 0,
+                'cache_files': 0,
+                'cache_dirs': 0
+            }
 
     # Deploy Flask app with tier suffixes
     if not is_error():
