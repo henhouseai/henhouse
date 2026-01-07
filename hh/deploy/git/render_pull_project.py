@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Union, Any, cast
 from hh.gateway.registry.registry import register_parser
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -90,14 +90,48 @@ def render_pull_project_section(source_data: Dict[str, Union[str, int, bool]], l
                 value=safe_str(time_ago)
             )
         
-        # Cache cleared - show each cache separately
+        # Cache cleared - show summary counts
         if not gateway.is_no('cache'):
-            if cache_cleared:
-                for cache_path in cache_cleared:
+            # Get aggregated cache counts from source data if available
+            aggregated_raw: Any = source_data.get('cache_aggregated', {})
+            aggregated: Dict[str, Any] = aggregated_raw if isinstance(aggregated_raw, dict) else {}
+            if aggregated:
+                if aggregated.get('pycache_dirs', 0) > 0:
                     pull_data.add_row(
                         'cache_cleared',
-                        value=safe_str(cache_path)
+                        value=safe_str(f"{aggregated['pycache_dirs']} __pycache__ dirs")
                     )
+                if aggregated.get('pyc_files', 0) > 0:
+                    pull_data.add_row(
+                        'cache_cleared',
+                        value=safe_str(f"{aggregated['pyc_files']} .pyc files")
+                    )
+                if aggregated.get('cache_files', 0) > 0:
+                    pull_data.add_row(
+                        'cache_cleared',
+                        value=safe_str(f"{aggregated['cache_files']} cache files")
+                    )
+                if aggregated.get('cache_dirs', 0) > 0:
+                    pull_data.add_row(
+                        'cache_cleared',
+                        value=safe_str(f"{aggregated['cache_dirs']} .cache dirs")
+                    )
+                # Show total count
+                total_cleared = (aggregated.get('pycache_dirs', 0) +
+                               aggregated.get('pyc_files', 0) +
+                               aggregated.get('cache_files', 0) +
+                               aggregated.get('cache_dirs', 0))
+                if total_cleared > 0:
+                    pull_data.add_row(
+                        'cache_cleared',
+                        value=safe_str(f"Total: {total_cleared} items")
+                    )
+            elif cache_cleared:
+                # Fallback: show count of individual items if no aggregated data
+                pull_data.add_row(
+                    'cache_cleared',
+                    value=safe_str(f"{len(cache_cleared)} items")
+                )
             else:
                 pull_data.add_row(
                     'cache_cleared',

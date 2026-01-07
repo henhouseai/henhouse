@@ -187,6 +187,7 @@ def pull_project() -> bool:
             "commit_message": git_info.get('commit_message', 'Unknown'),
             "time_ago": git_info.get('time_ago', 'Unknown'),
             "cache_cleared": cache_cleared,
+            "cache_aggregated": aggregated,
             "status": "pulled"
         }
         gateway.response.set_action_response(success_payload(result_data))
