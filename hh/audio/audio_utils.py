@@ -17,7 +17,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.system.dependency import register_dependency
 
 if TYPE_CHECKING:
-    from mutagen import File as MutagenFile
+    from mutagen import File as MutagenFile  # type: ignore
 
 # Register dependencies
 MutagenFile = None
@@ -27,7 +27,7 @@ _ffmpeg_available = False
 def _load_mutagen():
     global MutagenFile
     try:
-        from mutagen import File as _MutagenFile
+        from mutagen import File as _MutagenFile  # type: ignore
         MutagenFile = _MutagenFile
         return True
     except ImportError:
