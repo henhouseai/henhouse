@@ -44,16 +44,16 @@ def build_request(parsed: ParsedCommandStream, request: Request) -> Request:
             if flag.value:
                 if flag.value.as_value is not None:
                     request.num_args[flag.name] = flag.value.as_value
-                    debug(f"Added flag with numeric value: '{flag.name}'={flag.value.as_value}")
+                    log(f"Added flag with numeric value: '{flag.name}'={flag.value.as_value}")
                     string_arg_count += 1
                 else:
                     request.string_args[flag.name] = flag.value.raw
-                    debug(f"Added flag with string value: '{flag.name}'='{flag.value.raw}'")
+                    log(f"Added flag with string value: '{flag.name}'='{flag.value.raw}'")
                     string_arg_count += 1
             else:
                 request.flag_args.append(flag.name)
                 flag_count += 1
-                debug(f"Added boolean flag: '{flag.name}'")
+                log(f"Added boolean flag: '{flag.name}'")
     log(f"Processed flags: {no_flag_count} no-flags, {flag_count} boolean flags, {string_arg_count} value flags")
     request.extra_commands = [cmd.name for cmd in parsed.additional_commands]
     request.extra_command_defaults = {cmd.name: None for cmd in parsed.additional_commands}

@@ -112,7 +112,7 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
                     order.append(flag)
                     i = next_i
                     state = ParserState.EXPECT_FLAG_VALUE_OR_NEXT
-                    debug(f"Converted COMMAND '{flag.name}' to FLAG, now expecting value or next element")
+                    log(f"Converted COMMAND '{flag.name}' to FLAG, now expecting value or next element")
                 elif token.kind == TokenKind.VALUE:
                     error_msg = f"Value without owner: '{token.text}' at position {token.origin_index}"
                     warn(error_msg)
@@ -158,12 +158,12 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
                             flag_name=flags[-1].name,
                             origin_index=token.origin_index
                         ))
-                        debug(f"Added number value '{value.raw}' (as_value={value.as_value}) to flag '{flags[-1].name}'")
+                        log(f"Added number value '{value.raw}' (as_value={value.as_value}) to flag '{flags[-1].name}'")
                     else:
                         warn("Number token found but no flags available")
                     i += 1
                     state = ParserState.EXPECT_ELEMENT
-                    debug("Processed flag number value, back to element state")
+                    log("Processed flag number value, back to element state")
                 elif token.kind == TokenKind.COMMAND:
                     # Context-aware: convert COMMAND to VALUE (unquoted string value)
                     if flags:
@@ -174,16 +174,16 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
                             flag_name=flags[-1].name,
                             origin_index=token.origin_index
                         ))
-                        debug(f"Converted COMMAND '{token.text}' to VALUE for flag '{flags[-1].name}'")
+                        log(f"Converted COMMAND '{token.text}' to VALUE for flag '{flags[-1].name}'")
                     else:
                         warn("Command token found as value but no flags available")
                     i += 1
                     state = ParserState.EXPECT_ELEMENT
-                    debug("Processed command as flag value, back to element state")
+                    log("Processed command as flag value, back to element state")
                 else:
                     # No value provided - flag becomes boolean (truthy)
                     state = ParserState.EXPECT_ELEMENT
-                    debug("No value found, flag remains boolean, back to element state")
+                    log("No value found, flag remains boolean, back to element state")
     except GrammarError as e:
         # Error encountered during token processing - return partial results
         # Everything parsed before the error is kept, error token and everything after discarded
@@ -284,31 +284,31 @@ def _parse_value(token: Token) -> ParsedValue:
 def _parse_number_value(token: Token) -> ParsedValue:
     """Parse a NUMBER token as ParsedValue with numeric conversion."""
     trace_in()
-    debug(f"Parsing number value: '{token.text}' at position {token.origin_index}")
+    log(f"Parsing number value: '{token.text}' at position {token.origin_index}")
     as_value: Optional[Union[int, float]] = None
     try:
         # Try integer first
         if re.match(r'^-?\d+$', token.text):
             as_value = int(token.text)
-            debug(f"Number '{token.text}' converted to integer: {as_value}")
+            log(f"Number '{token.text}' converted to integer: {as_value}")
         else:
             # Try float
             float_value = float(token.text)
             # If it's a whole number, store as int
             if float_value.is_integer():
                 as_value = int(float_value)
-                debug(f"Number '{token.text}' converted to integer: {as_value}")
+                log(f"Number '{token.text}' converted to integer: {as_value}")
             else:
                 as_value = float_value
-                debug(f"Number '{token.text}' converted to float: {as_value}")
+                log(f"Number '{token.text}' converted to float: {as_value}")
     except ValueError as e:
-        debug(f"Failed to convert '{token.text}' to number: {e}")
+        log(f"Failed to convert '{token.text}' to number: {e}")
     result = ParsedValue(
         raw=token.text,
         as_value=as_value,
         origin_index=token.origin_index
     )
-    debug(f"Parsed number value: raw='{result.raw}', as_value={result.as_value}")
+    log(f"Parsed number value: raw='{result.raw}', as_value={result.as_value}")
     trace_out()
     return result
 
@@ -316,27 +316,27 @@ def _parse_command_as_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFla
     """Convert a COMMAND token to a ParsedFlag (context-aware conversion)."""
     trace_in()
     command_token = tokens[start_i]
-    debug(f"Converting COMMAND '{command_token.text}' to FLAG at position {start_i}")
+    log(f"Converting COMMAND '{command_token.text}' to FLAG at position {start_i}")
     result = ParsedFlag(
         name=command_token.text,
         value=None,
         origin_index=command_token.origin_index,
         is_no=False
     )
-    debug(f"Converted COMMAND to flag: '{result.name}'")
+    log(f"Converted COMMAND to flag: '{result.name}'")
     trace_out()
     return result, start_i + 1
 
 def _parse_command_as_value(token: Token) -> ParsedValue:
     """Convert a COMMAND token to a ParsedValue (unquoted string value)."""
     trace_in()
-    debug(f"Converting COMMAND '{token.text}' to VALUE at position {token.origin_index}")
+    log(f"Converting COMMAND '{token.text}' to VALUE at position {token.origin_index}")
     # Command becomes an unquoted string value
     result = ParsedValue(
         raw=token.text,
         as_value=None,
         origin_index=token.origin_index
     )
-    debug(f"Converted COMMAND to value: raw='{result.raw}'")
+    log(f"Converted COMMAND to value: raw='{result.raw}'")
     trace_out()
     return result

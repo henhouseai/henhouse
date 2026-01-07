@@ -652,18 +652,33 @@ class Audio:
     def flag_audio_modification(self, comments: str) -> bool:
         trace_in()
         note = comments or ""
-        now = dt.datetime.now()
+        # Get NOW() from database for consistency
+        if not is_error():
+            now_results = self.gateway.conn.read("SELECT NOW() as db_now")
+            now = now_results[0]['db_now'] if now_results else dt.datetime.now()
         if not is_error():
             user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
+        
+        # Validate timestamp: last_modified must be strictly greater than cache_built_at
+        if not is_error():
+            if self.cache_built_at is not None:
+                if now < self.cache_built_at:
+                    report_error("action", f"flag_audio_modification: last_modified ({now}) cannot be less than cache_built_at ({self.cache_built_at})")
+                elif now == self.cache_built_at:
+                    # Increment by 1 second to ensure strict inequality
+                    now = now + dt.timedelta(seconds=1)
+                    # Verify it's now greater
+                    if now <= self.cache_built_at:
+                        report_error("action", f"flag_audio_modification: After incrementing, last_modified ({now}) is still not greater than cache_built_at ({self.cache_built_at})")
+        
         if not is_error():
             affected = self.gateway.conn.update(
                 """
                 UPDATE audio
                 SET last_modified = %s,
                     username = %s,
-                    comments = %s,
-                    cache_built_at = NULL
+                    comments = %s
                 WHERE id = %s
                 """,
                 (now, db_user, note, self.id),
@@ -674,6 +689,8 @@ class Audio:
             self.last_modified = now
             self.username = db_user
             self.comments = note
+            # Buffer lightweight cache flag update (last_modified only)
+            self.gateway.conn.buffer_cache_flag_modification("audio", self.id, now)
         trace_out()
         return not is_error()
 

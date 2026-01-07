@@ -3,7 +3,7 @@ import subprocess
 import configparser
 import tempfile
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
@@ -27,8 +27,8 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
-    """Load root install config and return MySQL root passwords."""
+def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+    """Load root install config and return MySQL root passwords and TLS settings."""
     cfg_path = _install_config_path(project_name)
     if not cfg_path.exists():
         warn(f"Root install config not found: {cfg_path}")
@@ -44,10 +44,38 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
         if not val:
             raise ValueError(f"Missing required field {key} in {cfg_path}")
         return val
-    data = {
+    data: Dict[str, Union[str, int]] = {
         "mysql_root_password_main": req("mysql_root_password_main"),
         "mysql_root_password_cache": req("mysql_root_password_cache"),
     }
+    # MySQL TLS enabled setting
+    mysql_tls_enabled_str = sec.get("mysql_tls_enabled", "0").strip()
+    try:
+        data["mysql_tls_enabled"] = int(mysql_tls_enabled_str) != 0
+    except ValueError:
+        data["mysql_tls_enabled"] = False  # Default to disabled if invalid value
+    # MySQL SSL paths (configurable)
+    data["mysql_ssl_dir"] = sec.get("mysql_ssl_dir", "/etc/mysql/ssl").strip()
+    data["mysql_server_cert_path"] = sec.get("mysql_server_cert_path", "/etc/mysql/ssl/server-cert.pem").strip()
+    data["mysql_server_key_path"] = sec.get("mysql_server_key_path", "/etc/mysql/ssl/server-key.pem").strip()
+    data["mysql_config_path"] = sec.get("mysql_config_path", "/etc/mysql/mysql.conf.d/mysqld.cnf").strip()
+    # SSL settings (optional, only used if mysql_tls_enabled = 1)
+    data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
+    data["cache_ssl_ca_path"] = sec.get("cache_ssl_ca_path", "").strip()
+    # Database hosts (for domain extraction)
+    data["db_host"] = sec.get("db_host", "").strip()
+    # Read ssl_verify_mode from root user's .{project}.cnf file (not install config)
+    root_config_path = Path('/root') / f'.{project_name}.cnf'
+    ssl_verify_mode = 2  # default
+    if root_config_path.exists():
+        root_config = configparser.ConfigParser()
+        root_config.read(root_config_path)
+        if 'client' in root_config:
+            try:
+                ssl_verify_mode = int(root_config.get('client', 'ssl_verify_mode', fallback='2'))
+            except (ValueError, configparser.NoOptionError):
+                ssl_verify_mode = 2
+    data["ssl_verify_mode"] = ssl_verify_mode
     return data
 
 @register_action('clean_db')
@@ -92,8 +120,12 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
         trace_out()
         return False
     
-    root_password_main = cfg["mysql_root_password_main"]
-    root_password_cache = cfg["mysql_root_password_cache"]
+    root_password_main = str(cfg["mysql_root_password_main"])
+    root_password_cache = str(cfg["mysql_root_password_cache"])
+    mysql_tls_enabled = bool(cfg.get("mysql_tls_enabled", False))
+    ssl_ca_path = str(cfg.get("ssl_ca_path", ""))
+    cache_ssl_ca_path = str(cfg.get("cache_ssl_ca_path", ""))
+    ssl_verify_mode = 0  # Hardcoded to disable SSL verification
     
     cache_db_name = f"{project_name}_cache"
     
@@ -108,7 +140,7 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
             else:
                 log(f"Using SQL file: {path}")
     
-    def run_clean_script(target_db: str, sql_path: Path, label: str, password: str) -> bool:
+    def run_clean_script(target_db: str, sql_path: Path, label: str, password: str, ssl_ca_path: str) -> bool:
         if is_error():
             return False
         # Create temporary MySQL option file to avoid password on command line
@@ -117,6 +149,19 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"[client]\n")
             opt_file.write(f"user=root\n")
             opt_file.write(f"password={password}\n")
+            if mysql_tls_enabled and ssl_ca_path:
+                opt_file.write(f"ssl-ca={ssl_ca_path}\n")
+                # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
+                if ssl_verify_mode == 0:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 1:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 2:
+                    opt_file.write(f"ssl-mode=VERIFY_CA\n")
+                elif ssl_verify_mode == 3:
+                    opt_file.write(f"ssl-mode=VERIFY_IDENTITY\n")
+                else:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
             opt_file_path = opt_file.name
         try:
             os.chmod(opt_file_path, 0o600)
@@ -132,13 +177,13 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
             if result.returncode != 0:
                 warn(f"{label} failed with return code {result.returncode}")
                 warn(f"{label} stderr: {result.stderr}")
-                report_error("backend", f"{label} failed: {result.stderr}")
+                report_error("action", f"{label} failed: {result.stderr}")
                 return False
             log(f"{label} completed successfully")
             return True
         except Exception as e:
             warn(f"{label} execution failed: {str(e)}")
-            report_error("backend", f"{label} execution failed: {str(e)}")
+            report_error("action", f"{label} execution failed: {str(e)}")
             return False
         finally:
             # Clean up temporary option file
@@ -149,8 +194,8 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
                 pass
     
     # Step 3: Execute clean scripts
-    run_clean_script(project_name, clean_sql_path, "Main DB cleanup", root_password_main)
-    run_clean_script(cache_db_name, clean_cache_sql_path, "Cache DB cleanup", root_password_cache)
+    run_clean_script(project_name, clean_sql_path, "Main DB cleanup", root_password_main, ssl_ca_path)
+    run_clean_script(cache_db_name, clean_cache_sql_path, "Cache DB cleanup", root_password_cache, cache_ssl_ca_path)
     
     # Step 4: Verify tables were dropped
     remaining_tables = []
@@ -162,7 +207,7 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
             log(f"Remaining tables after cleanup (main): {len(remaining_tables)}")
         except Exception as e:
             warn(f"Failed to verify main table cleanup: {str(e)}")
-            report_error("backend", f"Failed to verify main table cleanup: {str(e)}")
+            report_error("action", f"Failed to verify main table cleanup: {str(e)}")
     
     if not is_error():
         try:
@@ -177,7 +222,7 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
                 log(f"Remaining tables after cleanup (cache): {len(cache_remaining_tables)}")
         except Exception as e:
             warn(f"Failed to verify cache table cleanup: {str(e)}")
-            report_error("backend", f"Failed to verify cache table cleanup: {str(e)}")
+            report_error("action", f"Failed to verify cache table cleanup: {str(e)}")
     
     # Step 5: Prepare response data
     if not is_error():

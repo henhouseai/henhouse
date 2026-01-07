@@ -93,7 +93,7 @@ def _load_mcp_utils_for_page_class(PageClass: type) -> None:
                     log(f"Loaded mcp_utils for {base_class.__name__} ({module_name}): {mcp_utils_module}")
                 except ImportError:
                     # mcp_utils doesn't exist for this module, that's okay
-                    debug(f"No mcp_utils found for {base_class.__name__} ({module_name})")
+                    log(f"No mcp_utils found for {base_class.__name__} ({module_name})")
     except Exception as e:
         warn(f"Error loading mcp_utils for {PageClass.__name__}: {e}")
     trace_out()
@@ -108,7 +108,7 @@ def get_page(page_id: int) -> Optional[Any]:
         return None
     
     # Check hot cache first
-    debug(f"Checking if page {page_id} is in hot cache")
+    log(f"Checking if page {page_id} is in hot cache")
     if page_id in _page_cache:
         cached_page = _page_cache[page_id]
         log(f"Returning cached page {page_id}: '{cached_page.name}' (class: {cached_page.class_name if hasattr(cached_page, 'class_name') else 'unknown'})")
@@ -192,7 +192,7 @@ def refresh_stale_page_caches() -> None:
     refresh_count = 0
     for page_id, page_obj in list(_page_cache.items()):
         if getattr(page_obj, '_cache_needs_refresh', False):
-            debug(f"Refreshing cache for page {page_id}")
+            log(f"Refreshing cache for page {page_id}")
             try:
                 # Call the refresh method on the page object
                 # Page uses self.gateway.conn which is already in a transaction

@@ -1,5 +1,6 @@
 import os
 import configparser
+import datetime as dt
 from typing import Any, Optional, Dict, List, Sequence, Union, Tuple, TypedDict, TYPE_CHECKING, cast
 from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
@@ -67,7 +68,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Opti
     
     # If no SSL configuration is present at all, return None (plain text connection)
     if not ssl_ca and not ssl_cert and not ssl_key and not ssl_verify_mode:
-        debug(f"No SSL/TLS configuration found for {prefix}, using plain text connection")
+        log(f"No SSL/TLS configuration found for {prefix}, using plain text connection")
         return None
     
     ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
@@ -82,7 +83,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Opti
         except (ValueError, TypeError):
             verify_mode = 2
     
-    debug(f"SSL config: ssl_verify_mode='{ssl_verify_mode}', verify_mode={verify_mode}, ssl_ca={ssl_ca}")
+    log(f"SSL config: ssl_verify_mode='{ssl_verify_mode}', verify_mode={verify_mode}, ssl_ca={ssl_ca}")
 
     # If verify_mode requires CA but CA is not present, raise error
     if verify_mode in (2, 3) and not ssl_ca:
@@ -110,7 +111,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Opti
     if ssl_key:
         ssl_dict['key'] = ssl_key
 
-    debug(f"SSL dict built: {ssl_dict}")
+    log(f"SSL dict built: {ssl_dict}")
     return ssl_dict
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:
@@ -218,6 +219,7 @@ class Connection:
         self._initialized: bool = False
         self._dry_run: bool = dry_run
         self._cache_buffer: List[Tuple[str, str, Optional[Sequence[Union[str, int, float, bool, None]]]]] = []
+        self._cache_flag_buffer: Dict[Tuple[str, int], dt.datetime] = {}
     
     def _get_main_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get main database DSN. Override in subclasses for root/MySQL connections."""
@@ -390,6 +392,7 @@ class Connection:
         self._main_transaction_started = False
         self._cache_transaction_started = False
         self._cache_buffer.clear()
+        self._cache_flag_buffer.clear()
         self._initialized = False
         log("All database connections closed successfully")
         trace_out()
@@ -681,7 +684,10 @@ class Connection:
             return 0
         
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"Cache DB UPSERT: {sql_preview}, params={params}")
+        # Truncate params representation to avoid huge log entries
+        params_str = str(params) if params else 'None'
+        params_preview = params_str[:1000] + ('...' if len(params_str) > 1000 else '')
+        log(f"Cache DB UPSERT: {sql_preview}, params={params_preview}")
         
         try:
             with self.cache.cursor() as cur:
@@ -708,23 +714,45 @@ class Connection:
         
         self._cache_buffer.append((table_name, sql, params))
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
-        log(f"Cache DB BUFFER: table={table_name}, sql={sql_preview}, params={params} (buffered, {len(self._cache_buffer)} items in buffer)")
+        # Truncate params representation to avoid huge log entries
+        params_str = str(params) if params else 'None'
+        params_preview = params_str[:1000] + ('...' if len(params_str) > 1000 else '')
+        log(f"Cache DB BUFFER: table={table_name}, sql={sql_preview}, params={params_preview} (buffered, {len(self._cache_buffer)} items in buffer)")
+        trace_out()
+    
+    def buffer_cache_flag_modification(self, table_name: str, id: int, last_modified: dt.datetime) -> None:
+        """Buffer a lightweight cache flag modification (last_modified update only) for later execution.
+        Deduplicates by keeping only the most recent timestamp for each (table_name, id)."""
+        trace_in()
+        if not self._initialized or not self.cache:
+            warn("Cache connection not initialized, flag buffering skipped")
+            trace_out()
+            return
+        
+        key = (table_name, id)
+        # Keep only the most recent timestamp for each (table, id)
+        if key not in self._cache_flag_buffer or last_modified > self._cache_flag_buffer[key]:
+            self._cache_flag_buffer[key] = last_modified
+            log(f"Cache DB FLAG BUFFER: table={table_name}, id={id}, last_modified={last_modified} (buffered, {len(self._cache_flag_buffer)} items in flag buffer)")
         trace_out()
     
     def write_cache(self) -> None:
-        """Execute all buffered cache writes in a single independent transaction. Clears buffer after execution."""
+        """Execute all buffered cache writes in a single independent transaction. 
+        Processes full cache refreshes first, then lightweight flag modifications.
+        Clears both buffers after execution."""
         trace_in()
         if not self._initialized or not self.cache:
-            warn("Cache connection not initialized, cannot write buffer")
+            log("Cache connection not initialized, cannot write buffer")
             trace_out()
             return
         
-        if not self._cache_buffer:
-            log("Cache buffer is empty, nothing to write")
+        if not self._cache_buffer and not self._cache_flag_buffer:
+            log("Cache buffers are empty, nothing to write")
             trace_out()
             return
         
-        log(f"Writing {len(self._cache_buffer)} buffered cache operations...")
+        total_ops = len(self._cache_buffer) + len(self._cache_flag_buffer)
+        log(f"Writing {len(self._cache_buffer)} full cache refresh(es) and {len(self._cache_flag_buffer)} flag modification(s)...")
         
         # Start independent cache transaction
         try:
@@ -736,23 +764,55 @@ class Connection:
         except Exception as e:
             warn(f"Failed to start cache transaction: {e}")
             self._cache_buffer.clear()
+            self._cache_flag_buffer.clear()
             trace_out()
             return
         
         # Execute all buffered writes
         failed_count = 0
+        # Track which (table_name, id) pairs had full cache refreshes
+        full_refresh_keys: set[tuple[str, int]] = set()
+        
         try:
+            # Phase 1: Process full cache refreshes first
             for table_name, sql, params in self._cache_buffer:
                 try:
                     self.upsert_cache(sql, params)
+                    # Extract ID from params (typically first param is the ID)
+                    if params and len(params) > 0:
+                        record_id = params[0]
+                        if isinstance(record_id, int):
+                            full_refresh_keys.add((table_name, record_id))
                 except Exception as exc:
                     failed_count += 1
                     warn(f"Failed to write buffered cache operation for table {table_name}: {exc}")
                     # Continue with remaining items
                     continue
             
+            # Phase 2: Process lightweight flag modifications
+            # Skip flag modifications for records that already had full cache refreshes
+            for (table_name, id), last_modified in self._cache_flag_buffer.items():
+                # Skip if this record already had a full cache refresh in this batch
+                if (table_name, id) in full_refresh_keys:
+                    log(f"Skipping flag modification for {table_name} id={id} (already had full cache refresh)")
+                    continue
+                try:
+                    sql = f"UPDATE {table_name} SET last_modified = %s WHERE id = %s"
+                    with self.cache.cursor() as cur:
+                        cur.execute(sql, (last_modified, id))
+                        affected = cur.rowcount
+                        if affected == 0:
+                            log(f"Flag modification for {table_name} id={id} affected 0 rows (record may not exist in cache DB)")
+                        else:
+                            log(f"Flag modification for {table_name} id={id}: last_modified={last_modified}")
+                except Exception as exc:
+                    failed_count += 1
+                    warn(f"Failed to write flag modification for {table_name} id={id}: {exc}")
+                    # Continue with remaining items
+                    continue
+            
             if failed_count > 0:
-                warn(f"Some cache writes failed ({failed_count} of {len(self._cache_buffer)}), rolling back cache transaction")
+                warn(f"Some cache writes failed ({failed_count} of {total_ops}), rolling back cache transaction")
                 if self.cache and self.cache is not self.main:
                     self.cache.rollback()
                     log("Cache transaction rolled back due to failures")
@@ -761,7 +821,7 @@ class Connection:
                 # Commit cache transaction
                 if self.cache and self.cache is not self.main:
                     self.cache.commit()
-                    log(f"Cache transaction committed successfully ({len(self._cache_buffer)} operations)")
+                    log(f"Cache transaction committed successfully ({total_ops} operations)")
                 self._cache_transaction_started = False
         except Exception as e:
             warn(f"Fatal error during cache write: {e}, rolling back")
@@ -773,7 +833,8 @@ class Connection:
                     warn(f"Error during cache rollback: {rollback_exc}")
             self._cache_transaction_started = False
         finally:
-            # Clear buffer
+            # Clear both buffers
             self._cache_buffer.clear()
+            self._cache_flag_buffer.clear()
             trace_out()
     

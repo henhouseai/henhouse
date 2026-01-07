@@ -768,7 +768,8 @@ class FileSystem:
             trace_out()
             return False
         except Exception as e:
-            warn(f"Failed to chown {path} to {ownership_str}: {e}")
+            ownership_display = f"{username}:{group}" if group else username
+            warn(f"Failed to chown {path} to {ownership_display}: {e}")
             trace_out()
             return False
 

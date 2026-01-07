@@ -74,7 +74,12 @@ class Task(WorkPage):
     def allow_inside_of(cls, parent_class: str) -> bool:
         """Tasks can only be inside asks."""
         return parent_class == 'ask'
-    
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return list of link names for task section header."""
+        return ['Tasks']
+
     @staticmethod
     def _get_children_query(parent_id: int) -> tuple[str, list]:
         """Return query for getting task children (steps), ordered by sort_order."""

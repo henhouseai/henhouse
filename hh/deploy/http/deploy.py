@@ -86,6 +86,72 @@ def get_server_ip() -> str:
     trace_out()
     return "127.0.0.1"
 
+def create_local_decoy(server_ip: str, nginx_sites_available: Path, nginx_sites_enabled: Path) -> bool:
+    """Create a decoy server for local deployments to prevent IP-based access from hijacking local sites."""
+    trace_in()
+    try:
+        default_config_path = Path("/etc/nginx/sites-available/default")
+        if not default_config_path.exists():
+            warn("Default NGINX config not found, cannot create decoy")
+            trace_out()
+            return False
+
+        # Read the default configuration
+        default_config = default_config_path.read_text()
+
+        # Modify listen directives to use specific IP with default_server
+        # Change: listen 80 default_server; -> listen {server_ip}:80 default_server;
+        # Remove IPv6 listen directive entirely - decoy only handles IPv4
+        modified_config = default_config
+        modified_config = modified_config.replace(
+            "listen 80 default_server;",
+            f"listen {server_ip}:80 default_server;"
+        )
+        # Remove the entire IPv6 listen line to prevent conflicts
+        import re
+        modified_config = re.sub(r'listen \[::\]:80.*;\s*', '', modified_config)
+
+        # Write the decoy configuration
+        decoy_config_path = nginx_sites_available / "decoy"
+        decoy_config_path.write_text(modified_config)
+        log(f"Decoy NGINX config written to: {decoy_config_path}")
+
+        # Create symlink in sites-enabled
+        decoy_enabled_path = nginx_sites_enabled / "decoy"
+        if decoy_enabled_path.exists():
+            decoy_enabled_path.unlink()
+        decoy_enabled_path.symlink_to(decoy_config_path)
+        log(f"Decoy symlink created: {decoy_enabled_path}")
+
+        # Test and reload NGINX to activate the decoy
+        test_result = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
+        if test_result.returncode != 0:
+            warn(f"Nginx configuration test failed after decoy creation: {test_result.stderr}")
+            trace_out()
+            return False
+        else:
+            log("Nginx configuration test passed after decoy creation")
+            # Reload Nginx
+            reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
+            if reload_result.returncode != 0:
+                restart_result = subprocess.run(['systemctl', 'restart', 'nginx'], capture_output=True, text=True)
+                if restart_result.returncode != 0:
+                    warn(f"Failed to reload/restart Nginx after decoy creation: {restart_result.stderr}")
+                    trace_out()
+                    return False
+                else:
+                    log("Nginx restarted successfully after decoy creation")
+            else:
+                log("Nginx reloaded successfully after decoy creation")
+
+        trace_out()
+        return True
+
+    except Exception as e:
+        warn(f"Failed to create local decoy: {e}")
+        trace_out()
+        return False
+
 def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_block: str, server_ip: str, certificate_path: str) -> str:
     """Generate Nginx SSL configuration with client IP access control for local deployments."""
     trace_in()
@@ -1714,7 +1780,7 @@ def deploy() -> bool:
                             report_error("action", f"Nginx configuration test failed: {test_result.stderr}")
                         else:
                             log("Nginx SSL configuration test passed")
-                            
+
                             # Reload Nginx
                             reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
                             if reload_result.returncode != 0:
@@ -1728,6 +1794,11 @@ def deploy() -> bool:
                             else:
                                 log("Nginx reloaded successfully")
                                 nginx_deployed = True
+
+                            # Create decoy server for local deployments
+                            if nginx_deployed:
+                                if not create_local_decoy(server_ip, nginx_sites_available, nginx_sites_enabled):
+                                    warn("Failed to create local decoy server")
                 else:
                     # For public deployments, use standard SSL config (binds to all interfaces)
                     if install_nginx_ssl_config(domain, project_name, str(certificate_path), nginx_sites_available, nginx_sites_enabled):
@@ -1795,7 +1866,7 @@ def deploy() -> bool:
                             report_error("action", f"Nginx configuration test failed: {test_result.stderr}")
                         else:
                             log("Nginx HTTP configuration test passed")
-                            
+
                             # Reload Nginx
                             reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
                             if reload_result.returncode != 0:
@@ -1809,6 +1880,11 @@ def deploy() -> bool:
                             else:
                                 log("Nginx reloaded successfully")
                                 nginx_deployed = True
+
+                            # Create decoy server for local deployments
+                            if nginx_deployed:
+                                if not create_local_decoy(server_ip, nginx_sites_available, nginx_sites_enabled):
+                                    warn("Failed to create local decoy server")
                 else:
                     # For public deployments, use standard HTTP config (binds to all interfaces)
                     if install_nginx_config(domain, project_name, nginx_sites_available, nginx_sites_enabled):

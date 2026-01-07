@@ -4,7 +4,7 @@ import configparser
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
@@ -28,8 +28,8 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
-    """Load root install config and return MySQL root passwords."""
+def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int]]]:
+    """Load root install config and return MySQL root passwords and TLS settings."""
     cfg_path = _install_config_path(project_name)
     if not cfg_path.exists():
         warn(f"Root install config not found: {cfg_path}")
@@ -45,10 +45,38 @@ def _load_install_config(project_name: str) -> Optional[Dict[str, str]]:
         if not val:
             raise ValueError(f"Missing required field {key} in {cfg_path}")
         return val
-    data = {
+    data: Dict[str, Union[str, int]] = {
         "mysql_root_password_main": req("mysql_root_password_main"),
         "mysql_root_password_cache": req("mysql_root_password_cache"),
     }
+    # MySQL TLS enabled setting
+    mysql_tls_enabled_str = sec.get("mysql_tls_enabled", "0").strip()
+    try:
+        data["mysql_tls_enabled"] = int(mysql_tls_enabled_str) != 0
+    except ValueError:
+        data["mysql_tls_enabled"] = False  # Default to disabled if invalid value
+    # MySQL SSL paths (configurable)
+    data["mysql_ssl_dir"] = sec.get("mysql_ssl_dir", "/etc/mysql/ssl").strip()
+    data["mysql_server_cert_path"] = sec.get("mysql_server_cert_path", "/etc/mysql/ssl/server-cert.pem").strip()
+    data["mysql_server_key_path"] = sec.get("mysql_server_key_path", "/etc/mysql/ssl/server-key.pem").strip()
+    data["mysql_config_path"] = sec.get("mysql_config_path", "/etc/mysql/mysql.conf.d/mysqld.cnf").strip()
+    # SSL settings (optional, only used if mysql_tls_enabled = 1)
+    data["ssl_ca_path"] = sec.get("ssl_ca_path", "").strip()
+    data["cache_ssl_ca_path"] = sec.get("cache_ssl_ca_path", "").strip()
+    # Database hosts (for domain extraction)
+    data["db_host"] = sec.get("db_host", "").strip()
+    # Read ssl_verify_mode from root user's .{project}.cnf file (not install config)
+    root_config_path = Path('/root') / f'.{project_name}.cnf'
+    ssl_verify_mode = 2  # default
+    if root_config_path.exists():
+        root_config = configparser.ConfigParser()
+        root_config.read(root_config_path)
+        if 'client' in root_config:
+            try:
+                ssl_verify_mode = int(root_config.get('client', 'ssl_verify_mode', fallback='2'))
+            except (ValueError, configparser.NoOptionError):
+                ssl_verify_mode = 2
+    data["ssl_verify_mode"] = ssl_verify_mode
     return data
 
 def _collect_table_info(gateway, db_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -167,9 +195,14 @@ def import_db(args: Optional[List[str]] = None) -> bool:
     
     # Determine which password to use based on target database
     if target_db == f"{project_name}_cache":
-        root_password = cfg["mysql_root_password_cache"]
+        root_password = str(cfg["mysql_root_password_cache"])
     else:
-        root_password = cfg["mysql_root_password_main"]
+        root_password = str(cfg["mysql_root_password_main"])
+
+    mysql_tls_enabled = bool(cfg.get("mysql_tls_enabled", False))
+    ssl_ca_path = str(cfg.get("ssl_ca_path", ""))
+    cache_ssl_ca_path = str(cfg.get("cache_ssl_ca_path", ""))
+    ssl_verify_mode = 0  # Hardcoded to disable SSL verification
     
     # Step 1: Get current table information before import
     current_table_info: List[Dict[str, Any]] = []
@@ -183,7 +216,7 @@ def import_db(args: Optional[List[str]] = None) -> bool:
             log(f"Current table info collection completed: {len(current_table_info)} tables processed")
         except Exception as e:
             warn(f"Failed to get current table information: {str(e)}")
-            report_error("backend", f"Failed to get current table information: {str(e)}")
+            report_error("action", f"Failed to get current table information: {str(e)}")
     
     # Step 2: Run mysql import
     if not is_error():
@@ -192,6 +225,19 @@ def import_db(args: Optional[List[str]] = None) -> bool:
             opt_file.write(f"[client]\n")
             opt_file.write(f"user=root\n")
             opt_file.write(f"password={root_password}\n")
+            if mysql_tls_enabled and ssl_ca_path:
+                opt_file.write(f"ssl-ca={ssl_ca_path}\n")
+                # Map verify_mode to MySQL ssl-mode (fallback to less strict if mode not supported)
+                if ssl_verify_mode == 0:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 1:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
+                elif ssl_verify_mode == 2:
+                    opt_file.write(f"ssl-mode=VERIFY_CA\n")
+                elif ssl_verify_mode == 3:
+                    opt_file.write(f"ssl-mode=VERIFY_IDENTITY\n")
+                else:
+                    opt_file.write(f"ssl-mode=REQUIRED\n")
             opt_file_path = opt_file.name
         try:
             os.chmod(opt_file_path, 0o600)
@@ -207,10 +253,10 @@ def import_db(args: Optional[List[str]] = None) -> bool:
                 if result.returncode != 0:
                     warn(f"mysql import failed with return code {result.returncode}")
                     warn(f"mysql stderr: {result.stderr}")
-                    report_error("backend", f"Database import failed: {result.stderr}")
+                    report_error("action", f"Database import failed: {result.stderr}")
             except Exception as e:
                 warn(f"mysql import execution failed: {str(e)}")
-                report_error("backend", f"mysql import execution failed: {str(e)}")
+                report_error("action", f"mysql import execution failed: {str(e)}")
             finally:
                 # Clean up temporary option file
                 try:
@@ -220,7 +266,7 @@ def import_db(args: Optional[List[str]] = None) -> bool:
                     pass
         except Exception as e:
             warn(f"Failed to create MySQL option file: {str(e)}")
-            report_error("backend", f"Failed to create MySQL option file: {str(e)}")
+            report_error("action", f"Failed to create MySQL option file: {str(e)}")
     
     # Step 3: Get table information after import
     final_table_info: List[Dict[str, Any]] = []
@@ -234,7 +280,7 @@ def import_db(args: Optional[List[str]] = None) -> bool:
             log(f"Final table info collection completed: {len(final_table_info)} tables processed")
         except Exception as e:
             warn(f"Failed to get final table information: {str(e)}")
-            report_error("backend", f"Failed to get final table information: {str(e)}")
+            report_error("action", f"Failed to get final table information: {str(e)}")
     
     # Step 4: Prepare response data
     try:

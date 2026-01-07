@@ -38,11 +38,19 @@ def render_check_db_section(source_data, lines):
         # Render the pre-formatted table data from the action
         table_info = source_data.get('table_info', [])
         if table_info:
+            # Convert table_info list to TableData object
+            table_data = TableData()
+            for row in table_info:
+                table_data.add_row(
+                    row.get('field_type', 'table_info'),
+                    label=row.get('label', ''),
+                    name=row.get('name', ''),
+                    row_count=row.get('row_count', '')
+                )
             lines.append(render_block(
-                table_info,
+                table_data,
                 FieldConfig()
-                    .add_header('project_header')
-                    .add_simple(['table_count', 'table_info', 'name', 'row_count']),
+                    .add_simple(['label', 'name', 'row_count']),
                 table_overrides={'margin_l': 4}
             ))
     except Exception as e:

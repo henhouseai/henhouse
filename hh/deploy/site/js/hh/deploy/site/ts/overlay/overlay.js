@@ -2,12 +2,10 @@
  * Overlay - Base overlay component (modal window).
  * Handles lifecycle, rendering, and state management.
  */
-import { OverlayManager } from './overlay-manager.js';
 import { OverlayBackdrop } from './overlay-backdrop.js';
 import { OverlayWindow } from './overlay-window.js';
 import { OverlayHeader } from './overlay-header.js';
 import { OverlayContent } from './overlay-content.js';
-import { OverlayDebugTable } from './overlay-debug-table.js';
 import { OverlayDebugOptions } from './overlay-debug-options.js';
 import { PageManager } from '../page-manager.js';
 import { getSeedData } from '../seed.js';
@@ -580,48 +578,10 @@ export class Overlay {
      * Show debug table in a separate overlay window (stacked on top).
      */
     showDebugTable(debugData, requestInfo) {
-        // Create debug table
-        const debugTable = new OverlayDebugTable();
-        const debugElement = debugTable.render(debugData);
-        // Build request info display
-        let requestInfoHtml = '';
-        if (requestInfo) {
-            requestInfoHtml = `
-        <div class="overlay-form-section">
-          <h3 class="overlay-section-title">Request:</h3>
-          <div class="overlay-form-group">
-            <label><strong>Tool:</strong></label>
-            <div>${this.escapeHtml(requestInfo.method)}</div>
-          </div>
-          <div class="overlay-form-group">
-            <label><strong>Arguments:</strong></label>
-            <pre class="overlay-debug-request-params">${this.escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
-          </div>
-        </div>
-      `;
-        }
-        // Combine request info and debug table
-        const contentHtml = requestInfoHtml + debugElement.outerHTML;
-        // Create new overlay window for debug info
-        const overlayManager = OverlayManager.getInstance();
-        overlayManager.show({
-            header: 'Debug Information',
-            content: [contentHtml],
-            contentHeaders: [''],
-            mode: 'fixed',
-            closable: true,
-            cancelLabel: 'Close',
-            showSubmit: false,
-            className: 'overlay-debug-window'
+        // Import and delegate to shared function
+        import('../rpc-client.js').then(({ showDebugOverlay }) => {
+            showDebugOverlay(debugData, requestInfo);
         });
-    }
-    /**
-     * Escape HTML to prevent XSS.
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
     /**
      * Handle redirect after fade using standardized redirect patterns.

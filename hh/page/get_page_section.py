@@ -148,93 +148,101 @@ def get_page_section_action() -> bool:
                 trace_out()
                 return False
             
-            # Get children data with requested view_type using static getChildrenOf method
+            # Check if page class has custom get_section_html hook
             from hh.page.page_class_registry import get_page_class
             PageClass = get_page_class(class_name)
-            if PageClass:
-                children_data = PageClass.getChildrenOf(page.id, view_type=view_type)
-            else:
+            if not PageClass:
                 warn(f"Page class '{class_name}' not found")
                 report_error("action", f"Page class '{class_name}' not found")
-                children_data = []
-            if children_data:
-                if view_type == "tile":
-                    # Render as tiles (no headers for get_page_section - only content)
-                    page_id_str = str(page_id)
-                    class_name_safe = class_name.replace('_', '-')
-                    content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
-                    page_group = PageGroup(children_data, page_id, class_name, target_width=300,
-                                          wrapper_id=content_id, wrapper_extra_classes=wrapper_extra_classes)
-                    dom_content = page_group.render()  # Returns HTML string (includes wrapper divs)
-                else:
-                    # Render as table (shouldn't happen for MCP, but handle it)
-                    from hh.render.render import FieldConfig, TableData, render_block
-                    from hh.render.config.config import safe_str
-                    # Get all field names dynamically from first child
-                    first_child = children_data[0]
-                    field_names = [k for k in first_child.keys() if not k.startswith('_') and k != 'field_type' and k != '_format']
-                    
-                    # Check if any child has children - if not, remove num_children column
-                    if 'num_children' in field_names:
-                        has_any_children = any(child.get('num_children', 0) > 0 for child in children_data)
-                        if not has_any_children:
-                            field_names.remove('num_children')
-                    
-                    # Create header row dynamically
-                    children_rows = TableData()
-                    header_kwargs = {}
-                    for field_name in field_names:
-                        header_kwargs[field_name] = field_name.replace('_', ' ').title()
-                    children_rows.add_row('children_header', **header_kwargs)
-                    
-                    # Collect all unique field_types
-                    field_types = set()
-                    for child in children_data:
-                        field_type = child.get('field_type', 'page')
-                        field_types.add(field_type)
-                    field_types_list = sorted(list(field_types))
-                    
-                    # Create data rows
-                    for child in children_data:
-                        child_id = child.get('id')
-                        data_kwargs = {}
-                        for field_name in field_names:
-                            value = child.get(field_name)
-                            if value is None:
-                                data_kwargs[field_name] = 'N/A'
-                            elif isinstance(value, str):
-                                data_kwargs[field_name] = safe_str(value)
-                            else:
-                                data_kwargs[field_name] = str(value)
-                        field_type = child.get('field_type', 'page')
-                        children_rows.add_row(field_type, **data_kwargs)
-                        
-                        if child_id is not None and isinstance(child_id, int):
-                            children_rows.add_page_link_to_column('label', child_id)
-                            if len(field_names) > 0:
-                                children_rows.add_page_link_to_column(field_names[0], child_id)
-                            if len(field_names) > 1:
-                                children_rows.add_page_link_to_column(field_names[1], child_id)
-                    
-                    if children_rows.num_rows() > 0:
+                trace_out()
+                return False
+
+            custom_html = None
+            if view_type not in ("tile"):
+                custom_html = PageClass.get_section_html(page.id, section, view_type, class_name)
+            if custom_html is not None:
+                dom_content = custom_html
+            else:
+                # Use default rendering pipeline for standard view types
+                children_data = PageClass.getChildrenOf(page.id, view_type=view_type)
+                if children_data:
+                    if view_type == "tile":
+                        # Render as tiles (no headers for get_page_section - only content)
                         page_id_str = str(page_id)
                         class_name_safe = class_name.replace('_', '-')
                         content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
-                        # Render block with wrapper configuration
-                        dom_content = render_block(
-                            children_rows,
-                            FieldConfig()
-                                .add_header('children_header')
-                                .add_simple(field_types_list),
-                            table_overrides={'margin_l': 4},
-                            block_type='children',
-                            backend='http',  # Force HTTP for MCP
-                            wrapper_id=content_id,
-                            wrapper_extra_classes=wrapper_extra_classes
-                        )
-            else:
-                warn(f"No children found for class '{class_name}'")
-                dom_content = ""
+                        page_group = PageGroup(children_data, page_id, class_name, target_width=300,
+                                              wrapper_id=content_id, wrapper_extra_classes=wrapper_extra_classes)
+                        dom_content = page_group.render()  # Returns HTML string (includes wrapper divs)
+                    else:
+                        # Render as table (shouldn't happen for MCP, but handle it)
+                        from hh.render.render import FieldConfig, TableData, render_block
+                        from hh.render.config.config import safe_str
+                        # Get all field names dynamically from first child
+                        first_child = children_data[0]
+                        field_names = [k for k in first_child.keys() if not k.startswith('_') and k != 'field_type' and k != '_format']
+                        
+                        # Check if any child has children - if not, remove num_children column
+                        if 'num_children' in field_names:
+                            has_any_children = any(child.get('num_children', 0) > 0 for child in children_data)
+                            if not has_any_children:
+                                field_names.remove('num_children')
+                        
+                        # Create header row dynamically
+                        children_rows = TableData()
+                        header_kwargs = {}
+                        for field_name in field_names:
+                            header_kwargs[field_name] = field_name.replace('_', ' ').title()
+                        children_rows.add_row('children_header', **header_kwargs)
+                        
+                        # Collect all unique field_types
+                        field_types = set()
+                        for child in children_data:
+                            field_type = child.get('field_type', 'page')
+                            field_types.add(field_type)
+                        field_types_list = sorted(list(field_types))
+                        
+                        # Create data rows
+                        for child in children_data:
+                            child_id = child.get('id')
+                            data_kwargs = {}
+                            for field_name in field_names:
+                                value = child.get(field_name)
+                                if value is None:
+                                    data_kwargs[field_name] = 'N/A'
+                                elif isinstance(value, str):
+                                    data_kwargs[field_name] = safe_str(value)
+                                else:
+                                    data_kwargs[field_name] = str(value)
+                            field_type = child.get('field_type', 'page')
+                            children_rows.add_row(field_type, **data_kwargs)
+                            
+                            if child_id is not None and isinstance(child_id, int):
+                                children_rows.add_page_link_to_column('label', child_id)
+                                if len(field_names) > 0:
+                                    children_rows.add_page_link_to_column(field_names[0], child_id)
+                                if len(field_names) > 1:
+                                    children_rows.add_page_link_to_column(field_names[1], child_id)
+                        
+                        if children_rows.num_rows() > 0:
+                            page_id_str = str(page_id)
+                            class_name_safe = class_name.replace('_', '-')
+                            content_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_{page_id_str}"
+                            # Render block with wrapper configuration
+                            dom_content = render_block(
+                                children_rows,
+                                FieldConfig()
+                                    .add_header('children_header')
+                                    .add_simple(field_types_list),
+                                table_overrides={'margin_l': 4},
+                                block_type='children',
+                                backend='http',  # Force HTTP for MCP
+                                wrapper_id=content_id,
+                                wrapper_extra_classes=wrapper_extra_classes
+                            )
+                else:
+                    warn(f"No children found for class '{class_name}'")
+                    dom_content = ""
         elif section == "files":
             # Files section - render as table
             files_data = page.get_files_data()

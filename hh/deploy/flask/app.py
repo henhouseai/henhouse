@@ -11,7 +11,7 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from flask import Flask, send_from_directory, request, send_file
+from flask import Flask, send_from_directory, request, send_file  # type: ignore
 import tempfile
 import uuid
 

@@ -123,7 +123,12 @@ class McpRequest(Page):
     def allow_inside_of(cls, parent_class: str) -> bool:
         """MCP requests can only be inside pages."""
         return parent_class == 'page'
-    
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return list of link names for MCP request section header."""
+        return ['MCP Requests']
+
     def _ensure_metadata_defaults(self) -> Dict[str, Any]:
         """Ensure metadata has all required fields with defaults."""
         metadata = self._get_metadata_dict()

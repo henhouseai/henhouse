@@ -60,9 +60,9 @@ def tokenize(argv: Sequence[str]) -> List[Token]:
                 raise TokenizationError(error_msg)
         else:
             text = arg
-            debug(f"Using unquoted text: '{text}'")
+            log(f"Using unquoted text: '{text}'")
         kind, processed_text = _classify_token_basic(text, quote_style)
-        debug(f"Classified token as: {kind.value}")
+        log(f"Classified token as: {kind.value}")
         raw_tokens.append(Token(
             kind=kind,
             text=processed_text,
@@ -70,10 +70,10 @@ def tokenize(argv: Sequence[str]) -> List[Token]:
             span=(i, i + 1),
             quote_style=quote_style
         ))
-        debug(f"Added token: {kind.value}='{processed_text}' at position {i}")
-    debug(f"Created {len(raw_tokens)} raw tokens")
+        log(f"Added token: {kind.value}='{processed_text}' at position {i}")
+    log(f"Created {len(raw_tokens)} raw tokens")
     # No second pass needed - all classification happens in _classify_token_basic()
-    debug(f"Tokenization complete: {len(raw_tokens)} final tokens")
+    log(f"Tokenization complete: {len(raw_tokens)} final tokens")
     trace_out()
     return raw_tokens
 
@@ -121,31 +121,31 @@ def _classify_token_basic(text: str, quote_style: QuoteStyle) -> tuple[TokenKind
     
     # If contains whitespace, it must be a string (quotes were stripped by shell)
     if ' ' in text or '\t' in text:
-        debug(f"Text '{text}' contains whitespace, classified as VALUE (quotes stripped by shell)")
+        log(f"Text '{text}' contains whitespace, classified as VALUE (quotes stripped by shell)")
         trace_out()
         return (TokenKind.VALUE, text)
     
     # If quoted, it's already a string value (handled in tokenize, but double-check)
     if quote_style != QuoteStyle.NONE:
-        debug(f"Quoted text '{text}' classified as VALUE")
+        log(f"Quoted text '{text}' classified as VALUE")
         trace_out()
         return (TokenKind.VALUE, text)
     
     # Check for numbers first (before flags, since negative numbers start with -)
     if _is_number(text):
-        debug(f"Text '{text}' classified as NUMBER")
+        log(f"Text '{text}' classified as NUMBER")
         trace_out()
         return (TokenKind.NUMBER, text)
     
     # Check for no-flags (--no- or --no_)
     if text.startswith('--no-'):
         name = text[5:]  # Strip '--no-'
-        debug(f"Text '{text}' classified as NO_FLAG, name='{name}'")
+        log(f"Text '{text}' classified as NO_FLAG, name='{name}'")
         trace_out()
         return (TokenKind.NO_FLAG, name)
     elif text.startswith('--no_'):
         name = text[5:]  # Strip '--no_'
-        debug(f"Text '{text}' classified as NO_FLAG, name='{name}'")
+        log(f"Text '{text}' classified as NO_FLAG, name='{name}'")
         trace_out()
         return (TokenKind.NO_FLAG, name)
     
@@ -153,12 +153,12 @@ def _classify_token_basic(text: str, quote_style: QuoteStyle) -> tuple[TokenKind
     if text.startswith('-'):
         # Strip all leading dashes
         name = text.lstrip('-')
-        debug(f"Text '{text}' classified as FLAG, name='{name}'")
+        log(f"Text '{text}' classified as FLAG, name='{name}'")
         trace_out()
         return (TokenKind.FLAG, name)
     
     # Otherwise it's a command
-    debug(f"Text '{text}' classified as COMMAND")
+    log(f"Text '{text}' classified as COMMAND")
     trace_out()
     return (TokenKind.COMMAND, text)
 
@@ -177,7 +177,7 @@ def _is_number(text: str) -> bool:
     # Optional sign, optional integer part, optional decimal point with digits, optional exponent
     pattern = r'^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$'
     is_number = re.match(pattern, text) is not None
-    debug(f"Text '{text}' number check: {is_number}")
+    log(f"Text '{text}' number check: {is_number}")
     trace_out()
     return is_number
 

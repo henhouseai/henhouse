@@ -116,7 +116,12 @@ class McpActionRequest(Page):
     def allow_inside_of(cls, parent_class: str) -> bool:
         """MCP action requests can be inside pages or mcp_request."""
         return parent_class in ('page', 'mcp_request')
-    
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return list of link names for MCP action request section header."""
+        return ['MCP Action Requests']
+
     def _ensure_metadata_defaults(self) -> Dict[str, Any]:
         """Ensure metadata has all required fields with defaults."""
         metadata = self._get_metadata_dict()

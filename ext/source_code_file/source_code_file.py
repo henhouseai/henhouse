@@ -125,7 +125,12 @@ class SourceCodeFile(Page):
     def allow_inside_of(cls, parent_class: str) -> bool:
         """Source code files can only be inside pages."""
         return parent_class == 'page'
-    
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return list of link names for source code file section header."""
+        return ['Source Code Files']
+
     def _get_display_name(self) -> str:
         """
         Override to return filename from file_path when name is None.

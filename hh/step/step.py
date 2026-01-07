@@ -73,7 +73,12 @@ class Step(WorkPage):
     def allow_inside_of(cls, parent_class: str) -> bool:
         """Steps can only be inside tasks."""
         return parent_class == 'task'
-    
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return list of link names for step section header."""
+        return ['Steps']
+
     @classmethod
     def getChildrenOf(cls, parent_id: int, view_type: str = 'table') -> List[Dict[str, Any]]:
         """

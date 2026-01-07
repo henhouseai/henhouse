@@ -61,8 +61,8 @@ class ViewToggle {
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       
-      // Check if clicked element is a toggle link or inside one
-      const toggleLink = target.closest('a[class*="updatePageView_"]') as HTMLElement;
+      // Check if clicked element is a toggle link (supports updatePageView_ and update*View_ patterns)
+      const toggleLink = target.closest('a[class*="update"][class*="View_"]') as HTMLElement;
       if (!toggleLink) {
         return;
       }
@@ -78,23 +78,27 @@ class ViewToggle {
    */
   private async handleToggleClick(linkElement: HTMLElement): Promise<void> {
     try {
-      // Extract page_id from class name (e.g., "updatePageView_635" -> "635")
+      // Extract page_id and class name from class name (e.g., "updatePageView_635" -> ("635", "Page") or "updateInvoiceView_635" -> ("635", "Invoice"))
       const classList = Array.from(linkElement.classList);
-      const updateClass = classList.find(cls => cls.startsWith('updatePageView_'));
+      const updateClass = classList.find(cls => cls.includes('update') && cls.includes('View_'));
       if (!updateClass) {
-        console.warn('Could not find updatePageView class in toggle link');
+        console.warn('Could not find update*View_ class in toggle link');
         return;
       }
 
-      const pageId = updateClass.replace('updatePageView_', '');
-      if (!pageId) {
-        console.warn('Could not extract page ID from toggle link');
+      // Extract class name and page ID (e.g., "updateInvoiceView_635" -> class="Invoice", pageId="635")
+      const match = updateClass.match(/^update([A-Za-z]+)View_(\d+)$/);
+      if (!match || !match[1] || !match[2]) {
+        console.warn('Could not parse update*View_ class name');
         return;
       }
 
-      // Extract section from data attributes
-      const section = linkElement.getAttribute('data-section');
-      const className = linkElement.getAttribute('data-class-name'); // For children sections
+      const viewClass = match[1]; // e.g., "Invoice" or "Page"
+      const pageId = match[2];
+
+      // Extract section from data attributes (for generic updatePageView_) or infer from class name
+      let section = linkElement.getAttribute('data-section');
+      let className = linkElement.getAttribute('data-class-name'); // For children sections
 
       if (!section) {
         console.warn('Toggle link missing data-section attribute');
@@ -107,26 +111,69 @@ class ViewToggle {
         return;
       }
 
-      // Auto-detect current view type by checking next sibling
+      // Check if this is the first link in the header
       const headerElement = linkElement.closest('.contentHeader') as HTMLElement;
       if (!headerElement) {
         console.warn('Could not find header element');
         return;
       }
-      
-      const nextSibling = headerElement.nextElementSibling as HTMLElement;
-      if (!nextSibling) {
-        console.warn('Could not find next sibling element to detect current view');
-        return;
+
+      const allLinks = headerElement.querySelectorAll('a');
+      const firstLink = allLinks[0] as HTMLElement;
+      const isFirstLink = firstLink === linkElement;
+      const hasMultipleLinks = allLinks.length > 1;
+
+      // Extract view type from link text content (fallback to text if no attribute)
+      let viewType: string;
+
+      if (isFirstLink && hasMultipleLinks) {
+        // First link in multi-link headers: toggle behavior (detect current view and swap)
+        const nextSibling = headerElement.nextElementSibling as HTMLElement;
+        if (!nextSibling) {
+          console.warn('Could not find next sibling element to detect current view');
+          return;
+        }
+
+        // Detect current view: if next sibling contains tiles, current view is 'tile', otherwise 'table'
+        const hasTiles = nextSibling.querySelector('.pageTile') !== null;
+        const hasTables = nextSibling.querySelector('table') !== null;
+        
+        if (hasTiles) {
+          // Currently showing tiles, swap to ungrouped table (view_type 'd')
+          viewType = 'd';
+        } else if (hasTables) {
+          // Currently showing tables (grouped or ungrouped), swap to tiles
+          viewType = 'tile';
+        } else {
+          // Default to 'd' if can't detect
+          viewType = 'd';
+        }
+      } else {
+        // Other links: extract view type from link text content
+        viewType = (linkElement.textContent || linkElement.innerText || '').trim();
+        if (!viewType) {
+          console.warn('Could not extract view type from link text');
+          return;
+        }
+        
+        // For non-first links when there are multiple links, use the link text as view_type
+        // For single-link sections, toggle between table and tile based on current view
+        if (!hasMultipleLinks) {
+          // Generic page view: toggle between table and tile
+          const nextSibling = headerElement.nextElementSibling as HTMLElement;
+          if (!nextSibling) {
+            console.warn('Could not find next sibling element to detect current view');
+            return;
+          }
+          const hasTable = nextSibling.querySelector('table') !== null;
+          viewType = hasTable ? 'tile' : 'table';
+        }
       }
 
-      // Detect current view: if next sibling contains a table, current view is 'table', otherwise 'tile'
-      const hasTable = nextSibling.querySelector('table') !== null;
-      const viewType = hasTable ? 'tile' : 'table'; // Request opposite of current view
-
       // Auto-detect if we're in an overlay by checking for overlay_ ID prefix
+      const nextSibling = headerElement.nextElementSibling as HTMLElement;
       const isInOverlay = headerElement.id.startsWith('overlay_') || 
-                         nextSibling.id?.startsWith('overlay_') ||
+                         nextSibling?.id?.startsWith('overlay_') ||
                          linkElement.closest('#overlayWindow') !== null;
 
       // Build MCP call parameters
@@ -161,7 +208,7 @@ class ViewToggle {
         pageId,
         section,
         className,
-        viewType,
+        viewType: viewType as 'table' | 'tile', // Type assertion for compatibility
         isInOverlay,
         linkElement
       };
@@ -211,7 +258,7 @@ class ViewToggle {
     const prefix = isInOverlay ? 'overlay_' : '';
     
     let contentId: string;
-    
+
     if (section === 'images') {
       contentId = `${prefix}pageImageGroup_${pageId}`;
     } else if (section === 'audio') {
@@ -231,7 +278,7 @@ class ViewToggle {
       return;
     }
 
-    // Find content element in the parsed HTML (header is not in returned HTML)
+    // Find content element in the parsed HTML
     const contentElement = tempDiv.querySelector(`#${contentId}`);
 
     if (!contentElement) {

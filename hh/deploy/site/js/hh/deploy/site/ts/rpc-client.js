@@ -2,6 +2,7 @@
  * RPC Client - custom MCP wrapper for JSON-RPC calls to the backend.
  */
 import { PageDataFactory } from './page-data-factory.js';
+import { OverlayDebugTable } from './overlay/overlay-debug-table.js';
 import { OverlayManager } from './overlay/overlay-manager.js';
 /**
  * Custom error class that can hold multiple error messages
@@ -16,20 +17,82 @@ export class RPCError extends Error {
     }
 }
 /**
- * Show a simple overlay with stacked error messages.
+ * Show a debug overlay with debug information and request details.
  */
-export function showErrorOverlay(messages, title = 'Error') {
+export function showDebugOverlay(debugData, requestInfo) {
+    // Create debug table
+    const debugTable = new OverlayDebugTable();
+    const debugElement = debugTable.render(debugData);
+    // Build request info display
+    let requestInfoHtml = '';
+    if (requestInfo) {
+        requestInfoHtml = `
+      <div class="overlay-form-section">
+        <h3 class="overlay-section-title">Request:</h3>
+        <div class="overlay-form-group">
+          <label><strong>Tool:</strong></label>
+          <div>${escapeHtml(requestInfo.method)}</div>
+        </div>
+        <div class="overlay-form-group">
+          <label><strong>Arguments:</strong></label>
+          <pre class="overlay-debug-request-params">${escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
+        </div>
+      </div>
+    `;
+    }
+    // Combine request info and debug table
+    const contentHtml = requestInfoHtml + debugElement.outerHTML;
+    // Create new overlay window for debug info
     const overlayManager = OverlayManager.getInstance();
-    const content = messages.map((msg) => `<div class="overlayError">${escapeHtml(msg)}</div>`);
     overlayManager.show({
-        header: title,
-        content,
-        contentHeaders: content.map(() => ''), // no headers per message
+        header: 'Debug Information',
+        content: [contentHtml],
+        contentHeaders: [''],
         mode: 'fixed',
         closable: true,
         cancelLabel: 'Close',
         showSubmit: false,
+        className: 'overlay-debug-window'
     });
+}
+/**
+ * Show a simple overlay with stacked error messages.
+ */
+export function showErrorOverlay(messages, title = 'Error') {
+    const overlayManager = OverlayManager.getInstance();
+    // Calculate actual error count (excluding any summary message)
+    const actualErrorCount = messages.length > 1 ? messages.length - 1 : (messages.length === 1 ? 1 : 0);
+    // Put summary message in content area
+    let summaryMessage;
+    let stateMessages;
+    if (messages.length > 1) {
+        // Multiple messages: first is summary, rest are details
+        summaryMessage = `RPC error: ${actualErrorCount} errors detected`;
+        stateMessages = messages.slice(1); // Skip the summary message
+    }
+    else {
+        // Single message: use it as content, no state messages
+        summaryMessage = messages[0];
+        stateMessages = [];
+    }
+    const overlay = overlayManager.show({
+        header: title,
+        content: [summaryMessage],
+        contentHeaders: [''],
+        mode: 'fixed',
+        closable: true,
+        cancelLabel: 'Close',
+        showSubmit: false
+    });
+    // Set individual errors as state messages
+    if (stateMessages.length > 0) {
+        const errorMessages = stateMessages.map((text) => ({ type: 'error', text }));
+        overlay.setState({
+            messages: errorMessages,
+            error: null,
+            success: null
+        });
+    }
 }
 // Local helper (duplicate of private escapeHtml to avoid calling an instance method)
 function escapeHtml(text) {
@@ -192,6 +255,10 @@ export class RPCClient {
             // Add request info to result
             if (result.debug) {
                 result.requestInfo = { method, params: originalParams };
+                // Automatically show debug overlay for successful responses with debug data
+                import('./rpc-client.js').then(({ showDebugOverlay }) => {
+                    showDebugOverlay(result.debug, result.requestInfo);
+                });
             }
             return result;
         }
@@ -237,6 +304,12 @@ export class RPCClient {
             messages.push(errorMessage);
         }
         showErrorOverlay(messages, `Error: ${label}`);
+        // Show debug overlay if debug data exists (same as overlay forms)
+        const debugData = error.debug;
+        const requestInfo = error.requestInfo;
+        if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0) {
+            showDebugOverlay(debugData, requestInfo);
+        }
     }
     /**
      * Escape HTML to prevent XSS.

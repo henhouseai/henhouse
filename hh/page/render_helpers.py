@@ -29,6 +29,47 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
+def _generate_section_header_html(
+    page_id: Optional[int],
+    class_name: str,
+    wrapper_id_prefix: str,
+    additional_classes: Optional[List[str]]
+) -> str:
+    """
+    Generate header HTML for a section using the class hook.
+    """
+    if page_id is None:
+        raise ValueError("page_id cannot be None for header generation")
+
+    from hh.page.page_class_registry import get_page_class
+
+    page_id_str = str(page_id)
+    class_name_safe = class_name.replace('_', '-')
+    header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
+
+    # Get link names from class hook
+    PageClass = get_page_class(class_name)
+    link_names = ['Pages']  # Default fallback
+    if PageClass:
+        link_names = PageClass.get_section_header_links(page_id, 'children')
+
+    # Generate header HTML
+    header_classes = 'contentHeader'
+    if additional_classes:
+        header_classes += ' ' + ' '.join(additional_classes)
+
+    header_html = f'<div id="{header_id}" class="{header_classes}">'
+    for i, link_name in enumerate(link_names):
+        link_class = f"updatePageView_{page_id_str}"
+        data_attrs = f'data-section="children" data-class-name="{class_name}"'
+        header_html += f'<a class="{link_class}" {data_attrs}>{link_name}</a>'
+        if i < len(link_names) - 1:  # Space between links
+            header_html += ' '
+    header_html += '</div>'
+
+    return header_html
+
+
 def render_path_section(
     page_data: Dict[str, Any],
     page_id: Optional[int] = None,
@@ -619,16 +660,7 @@ def render_children_by_class_section(
                 # Only output HTML headers for HTTP backend or overlay mode, not parser backend
                 header_html = ''
                 if gateway.backend == "http" or overlay_mode:
-                    page_id_str = str(page_id)
-                    class_name_safe = class_name.replace('_', '-')
-                    header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
-                    from hh.render.html.page_group import snake_case_to_title_case
-                    human_readable_name = snake_case_to_title_case(class_name)
-                    # Add overlay class if in overlay mode
-                    header_classes = 'contentHeader'
-                    if additional_classes:
-                        header_classes += ' ' + ' '.join(additional_classes)
-                    header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
+                    header_html = _generate_section_header_html(page_id, class_name, wrapper_id_prefix, additional_classes)
                 
                 from hh.render.html.page_group import PageGroup
                 wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
@@ -699,14 +731,7 @@ def render_children_by_class_section(
             # Only output HTML headers for HTTP backend or overlay mode, not parser backend
             header_html = ''
             if gateway.backend == "http" or overlay_mode:
-                header_id = f"{wrapper_id_prefix}child_pages_{class_name_safe}_header_{page_id_str}"
-                from hh.render.html.page_group import snake_case_to_title_case
-                human_readable_name = snake_case_to_title_case(class_name)
-                # Add overlay class if in overlay mode
-                header_classes = 'contentHeader'
-                if additional_classes:
-                    header_classes += ' ' + ' '.join(additional_classes)
-                header_html = f'<div id="{header_id}" class="{header_classes}">\n  <a class="updatePageView_{page_id_str}" data-section="children" data-class-name="{class_name}">{human_readable_name}</a>\n</div>'
+                header_html = _generate_section_header_html(page_id, class_name, wrapper_id_prefix, additional_classes)
             # Render block with wrapper configuration
             wrapper_extra_classes = ' '.join(additional_classes) if additional_classes else None
             

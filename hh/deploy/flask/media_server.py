@@ -12,7 +12,7 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file  # type: ignore
 
 # Determine project name from /srv path or environment
 if os.path.exists('/srv'):

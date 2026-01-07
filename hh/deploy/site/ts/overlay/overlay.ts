@@ -660,53 +660,12 @@ export class Overlay {
    * Show debug table in a separate overlay window (stacked on top).
    */
   showDebugTable(debugData: DebugData, requestInfo?: { method: string; params: any }): void {
-    // Create debug table
-    const debugTable = new OverlayDebugTable();
-    const debugElement = debugTable.render(debugData);
-
-    // Build request info display
-    let requestInfoHtml = '';
-    if (requestInfo) {
-      requestInfoHtml = `
-        <div class="overlay-form-section">
-          <h3 class="overlay-section-title">Request:</h3>
-          <div class="overlay-form-group">
-            <label><strong>Tool:</strong></label>
-            <div>${this.escapeHtml(requestInfo.method)}</div>
-          </div>
-          <div class="overlay-form-group">
-            <label><strong>Arguments:</strong></label>
-            <pre class="overlay-debug-request-params">${this.escapeHtml(JSON.stringify(requestInfo.params, null, 2))}</pre>
-          </div>
-        </div>
-      `;
-    }
-
-    // Combine request info and debug table
-    const contentHtml = requestInfoHtml + debugElement.outerHTML;
-
-    // Create new overlay window for debug info
-    const overlayManager = OverlayManager.getInstance();
-    overlayManager.show({
-      header: 'Debug Information',
-      content: [contentHtml],
-      contentHeaders: [''],
-      mode: 'fixed',
-      closable: true,
-      cancelLabel: 'Close',
-      showSubmit: false,
-      className: 'overlay-debug-window'
+    // Import and delegate to shared function
+    import('../rpc-client.js').then(({ showDebugOverlay }) => {
+      showDebugOverlay(debugData, requestInfo);
     });
   }
 
-  /**
-   * Escape HTML to prevent XSS.
-   */
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 
   /**
    * Handle redirect after fade using standardized redirect patterns.

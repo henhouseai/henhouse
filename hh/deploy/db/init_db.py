@@ -253,7 +253,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             )
             if result.returncode != 0:
                 warn(f"Failed to create main database: {result.stderr}")
-                report_error("backend", f"Main database creation failed: {result.stderr}")
+                report_error("action", f"Main database creation failed: {result.stderr}")
         finally:
             try:
                 if os.path.exists(opt_file_path_main):
@@ -292,7 +292,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 )
                 if result.returncode != 0:
                     warn(f"Failed to create cache database: {result.stderr}")
-                    report_error("backend", f"Cache database creation failed: {result.stderr}")
+                    report_error("action", f"Cache database creation failed: {result.stderr}")
             finally:
                 try:
                     if os.path.exists(opt_file_path_cache):
@@ -337,13 +337,13 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             if result.returncode != 0:
                 warn(f"{label} execution failed with return code {result.returncode}")
                 warn(f"{label} stderr: {result.stderr}")
-                report_error("backend", f"{label} failed: {result.stderr}")
+                report_error("action", f"{label} failed: {result.stderr}")
                 return False
             log(f"{label} completed successfully")
             return True
         except Exception as e:
             warn(f"{label} execution failed: {str(e)}")
-            report_error("backend", f"{label} execution failed: {str(e)}")
+            report_error("action", f"{label} execution failed: {str(e)}")
             return False
         finally:
             # Clean up temporary option file
@@ -368,7 +368,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             log("Re-initialized database connection after database creation")
         except Exception as e:
             warn(f"Failed to re-initialize connection: {str(e)}")
-            report_error("backend", f"Failed to re-initialize connection: {str(e)}")
+            report_error("action", f"Failed to re-initialize connection: {str(e)}")
     
     # Step 5: Verify tables were created
     created_tables = []
@@ -379,7 +379,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             log(f"Main DB tables after initialization: {len(created_tables)}")
         except Exception as e:
             warn(f"Failed to verify main tables: {str(e)}")
-            report_error("backend", f"Failed to verify main tables: {str(e)}")
+            report_error("action", f"Failed to verify main tables: {str(e)}")
     
     if not is_error():
         try:
@@ -394,7 +394,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 log(f"Cache DB tables after initialization: {len(cache_tables)}")
         except Exception as e:
             warn(f"Failed to verify cache tables: {str(e)}")
-            report_error("backend", f"Failed to verify cache tables: {str(e)}")
+            report_error("action", f"Failed to verify cache tables: {str(e)}")
     
     # Step 6: Create homepage if pages table is empty
     homepage_created = False

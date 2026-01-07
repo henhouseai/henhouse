@@ -210,7 +210,7 @@ class Gateway:
         try:
             # Process debug limit
             debug_limit = self.request.get_arg('debug-limit')
-            if debug_limit:
+            if self.request.is_set('debug-limit'):
                 try:
                     limit = int(debug_limit)
                     set_shared_debug_summary_limit(limit)

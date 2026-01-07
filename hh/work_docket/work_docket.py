@@ -73,7 +73,12 @@ class WorkDocket(WorkPage):
     def allow_inside_of(cls, parent_class: str) -> bool:
         """Work dockets can be inside any page."""
         return True
-    
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return list of link names for work docket section header."""
+        return ['Work Dockets']
+
     @staticmethod
     def _get_children_query(parent_id: int) -> tuple[str, list]:
         """Return query for getting work docket children (asks), ordered by sort_order."""

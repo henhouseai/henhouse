@@ -220,7 +220,7 @@ class Page:
     def __init__(self, id: int):
         trace_in()
         self.gateway = get_gateway()
-        debug(f"Initializing Page with id={id}")
+        log(f"Initializing Page with id={id}")
         
         if not self.gateway or not self.gateway.conn:
             warn("Gateway or connection not available")
@@ -274,9 +274,9 @@ class Page:
                     cache_built_at_dt = normalize_datetime(cache_built_at)
                     
                     if cache_built_at_dt is None:
-                        debug(f"Cache for page {id} does not exist (cache_built_at is NULL)")
+                        log(f"Cache for page {id} does not exist (cache_built_at is NULL)")
                     elif cache_last_modified_dt and cache_built_at_dt and cache_built_at_dt < cache_last_modified_dt:
-                        debug(f"Cache for page {id} is stale (cache_built_at={cache_built_at_dt}, cache.last_modified={cache_last_modified_dt})")
+                        log(f"Cache for page {id} is stale (cache_built_at={cache_built_at_dt}, cache.last_modified={cache_last_modified_dt})")
                     else:
                         # Cache is fresh - hydrate entirely from cache DB (no main DB access)
                         self.name = cache_row.get('name')
@@ -311,9 +311,9 @@ class Page:
                             for key, value in self.metadata.items():
                                 if not hasattr(self, key):
                                     setattr(self, key, value)
-                                    debug(f"Extracted metadata field: {key} = {value}")
+                                    log(f"Extracted metadata field: {key} = {value}")
                                 else:
-                                    debug(f"Skipped metadata field '{key}' - attribute already exists")
+                                    log(f"Skipped metadata field '{key}' - attribute already exists")
                         
                         # Call hook for subclasses to handle post-metadata-extraction setup
                         if not is_error():
@@ -330,9 +330,9 @@ class Page:
                         cache_hydrated = True
                         text_length = len(self.text) if self.text else 0
                         log(f"Loaded page {id} entirely from cache: {self.name}")
-                        debug(f"Hydrated page {id} entirely from cache (built_at={cache_built_at_dt})")
+                        log(f"Hydrated page {id} entirely from cache (built_at={cache_built_at_dt})")
                 else:
-                    debug(f"Cache for page {id} does not exist (no cache row found)")
+                    log(f"Cache for page {id} does not exist (no cache row found)")
             except Exception as e:
                 warn(f"Failed to hydrate page {id} from cache: {e}")
                 # Don't report error - cache hydration failure is not critical, will fall back to main DB
@@ -383,9 +383,9 @@ class Page:
                     for key, value in self.metadata.items():
                         if not hasattr(self, key):
                             setattr(self, key, value)
-                            debug(f"Extracted metadata field: {key} = {value}")
+                            log(f"Extracted metadata field: {key} = {value}")
                         else:
-                            debug(f"Skipped metadata field '{key}' - attribute already exists")
+                            log(f"Skipped metadata field '{key}' - attribute already exists")
                 
                 # Call hook for subclasses to handle post-metadata-extraction setup
                 if not is_error():
@@ -553,7 +553,7 @@ class Page:
     def _get_children_by_class(self) -> Dict[str, Dict[str, Any]]:
         # Check if field is already populated
         if hasattr(self, 'children_by_class') and self.children_by_class:
-            debug(f"Page {self.id}: returning cached children_by_class")
+            log(f"Page {self.id}: returning cached children_by_class")
             return self.children_by_class
         # Field is empty, need to hydrate from database
         trace_in()
@@ -604,6 +604,17 @@ class Page:
         """
         # Default implementation does nothing - subclasses can override
         pass
+
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """
+        Return list of link names for section header (capitalized, plural).
+
+        Override in derived classes to customize header links for that section type.
+        First link gets special treatment in TypeScript (table/tile toggle).
+        Subsequent links use their text content as view_type.
+        """
+        return ['Pages']
 
     def _get_display_name(self) -> str:
         """
@@ -1083,11 +1094,11 @@ class Page:
     def _refresh_cached_page(self) -> bool:
         """Refresh the cache database with all 5 derived fields. Called by refresh_stale_page_caches() during gateway commit."""
         trace_in()
-        debug(f"_refresh_cached_page: Starting for page {self.id}")
+        log(f"_refresh_cached_page: Starting for page {self.id}")
 
         tier_level = getattr(self.gateway.response, "user_tier_level", 0) if self.gateway and self.gateway.response else 0
         if tier_level < 3:
-            debug(
+            log(
                 f"_refresh_cached_page: Skipping cache write for page {self.id} (tier_level={tier_level})"
             )
             self._cache_needs_refresh = False
@@ -1196,7 +1207,7 @@ class Page:
             # Note: Cache writes are buffered, so verification would fail until write_cache() is called
             # Verification removed since buffered writes aren't immediately visible in cache DB
             
-            debug(f"Refreshed cache for page {self.id}")
+            log(f"Refreshed cache for page {self.id}")
         except Exception as exc:
             warn(f"Failed to update cache for page {self.id}: {exc}")
             report_error("connection", f"Failed to update cache for page {self.id}")
@@ -1229,7 +1240,7 @@ class Page:
             """,
             (job_type, payload_json, priority),
         )
-        debug(f"Enqueued maintenance job {job_id}: type={job_type}, priority={priority}")
+        log(f"Enqueued maintenance job {job_id}: type={job_type}, priority={priority}")
         trace_out()
         return job_id
 
@@ -1806,13 +1817,29 @@ class Page:
     def flag_page_modification(self, comments: str) -> bool:
         """Standardized method to update page modification audit trail"""
         trace_in()
-        now = dt.datetime.now()
+        # Get NOW() from database for consistency
+        if not is_error():
+            now_results = self.gateway.conn.read("SELECT NOW() as db_now")
+            now = now_results[0]['db_now'] if now_results else dt.datetime.now()
         if not is_error():
             user_results = self.gateway.conn.read("SELECT USER() as db_user")
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
+        
+        # Validate timestamp: last_modified must be strictly greater than cache_built_at
+        if not is_error():
+            if self.cache_built_at is not None:
+                if now < self.cache_built_at:
+                    report_error("action", f"flag_page_modification: last_modified ({now}) cannot be less than cache_built_at ({self.cache_built_at})")
+                elif now == self.cache_built_at:
+                    # Increment by 1 second to ensure strict inequality
+                    now = now + dt.timedelta(seconds=1)
+                    # Verify it's now greater
+                    if now <= self.cache_built_at:
+                        report_error("action", f"flag_page_modification: After incrementing, last_modified ({now}) is still not greater than cache_built_at ({self.cache_built_at})")
+        
         if not is_error():
             affected = self.gateway.conn.update("""
-                UPDATE pages SET last_modified = %s, username = %s, comments = %s, cache_built_at = NULL WHERE id = %s
+                UPDATE pages SET last_modified = %s, username = %s, comments = %s WHERE id = %s
             """, (now, db_user, comments, self.id))
             # Note: affected == 0 is not an error - it just means the values were already the same
             # (e.g., same timestamp due to datetime precision, same username/comments)
@@ -1821,6 +1848,8 @@ class Page:
             self.last_modified = now
             self.username = db_user
             self.comments = comments
+            # Buffer lightweight cache flag update (last_modified only)
+            self.gateway.conn.buffer_cache_flag_modification("pages", self.id, now)
             log(f"Updated page {self.id} modification flags: {comments}")
         if not is_error():
             # If this is not a "child page modified" comment, also flag the parent
@@ -1941,6 +1970,26 @@ class Page:
         
         trace_out()
         return children_data
+
+    @classmethod
+    def get_section_html(cls, parent_id: int, section: str, view_type: str, class_name: Optional[str] = None) -> Optional[str]:
+        """
+        Optional hook method for page classes to provide custom HTML rendering for sections.
+        
+        If a page class overrides this method, it can return HTML directly (including header + content)
+        instead of using the generic rendering pipeline. This allows for custom grouping, sorting, etc.
+        
+        Args:
+            parent_id: ID of the parent page
+            section: Section name ('children', 'images', etc.)
+            view_type: View type string (can be any string, not just 'table'/'tile')
+            class_name: For 'children' section, the class name being requested
+            
+        Returns:
+            HTML string if custom rendering is provided, None to use default rendering
+        """
+        # Base class returns None - use default rendering
+        return None
 
     def get_child_count(self) -> int:
         trace_in()
@@ -2153,7 +2202,7 @@ class Page:
             self.images = []
         # Check if field is already populated
         if hasattr(self, 'images') and self.images:
-            debug(f"Page {self.id}: returning cached images")
+            log(f"Page {self.id}: returning cached images")
             trace_out()
             return self.images
         # Field is empty, need to hydrate from database
@@ -2198,7 +2247,7 @@ class Page:
             self.audio = []
         # Check if field is already populated
         if hasattr(self, 'audio') and self.audio:
-            debug(f"Page {self.id}: returning cached audio")
+            log(f"Page {self.id}: returning cached audio")
             trace_out()
             return self.audio
         # Field is empty, need to hydrate from database
@@ -2244,7 +2293,7 @@ class Page:
             self.video = []
         # Check if field is already populated
         if hasattr(self, 'video') and self.video:
-            debug(f"Page {self.id}: returning cached video")
+            log(f"Page {self.id}: returning cached video")
             trace_out()
             return self.video
         # Field is empty, need to hydrate from database
@@ -2973,9 +3022,9 @@ class Page:
         trace_in()
         cache_ready = getattr(self, 'cache_hydrated', False) and self.children_by_class is not None
         if cache_ready:
-            debug(f"Page {self.id}: cache available, methods will check cache independently")
+            log(f"Page {self.id}: cache available, methods will check cache independently")
         else:
-            debug(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
+            log(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
         page_data = self.get_page_data()
         images_data = self.get_images_data()
         files_data = self.get_files_data()
@@ -3035,7 +3084,7 @@ class Page:
             if error_on_invalid:
                 warn(warn_msg)
             else:
-                debug(f"[validate_name suppressed] {warn_msg}")
+                log(f"[validate_name suppressed] {warn_msg}")
             if log_msg:
                 log(log_msg)
             trace_out()

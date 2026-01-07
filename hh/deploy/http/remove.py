@@ -239,7 +239,66 @@ def remove() -> bool:
         except Exception as e:
             warn(f"Failed to test/reload Nginx: {e}")
             report_error("action", f"Failed to test/reload Nginx: {e}")
-    
+
+    # Clean up decoy server if no local deployments remain
+    if nginx_removed and not is_error():
+        try:
+            # Get nginx paths from config
+            nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
+            nginx_sites_available = Path(nginx_sites_available_str)
+            nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
+            nginx_sites_enabled = Path(nginx_sites_enabled_str)
+
+            # Check if any local deployments remain (files ending in .local)
+            remaining_local_deployments = []
+            if nginx_sites_available.exists():
+                for site_file in nginx_sites_available.iterdir():
+                    if site_file.is_file() and site_file.name.endswith('.local'):
+                        remaining_local_deployments.append(site_file.name)
+
+            # If no local deployments remain, remove the decoy
+            if not remaining_local_deployments:
+                decoy_available = nginx_sites_available / "decoy"
+                decoy_enabled = nginx_sites_enabled / "decoy"
+                decoy_removed = False
+
+                # Remove decoy symlink
+                if decoy_enabled.exists():
+                    decoy_enabled.unlink()
+                    log("Removed decoy symlink from sites-enabled")
+                    decoy_removed = True
+
+                # Remove decoy config
+                if decoy_available.exists():
+                    decoy_available.unlink()
+                    log("Removed decoy config from sites-available")
+                    decoy_removed = True
+
+                if decoy_removed:
+                    log("Cleaned up decoy server - no local deployments remain")
+                    # Test and reload NGINX after removing decoy
+                    try:
+                        test_result = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
+                        if test_result.returncode != 0:
+                            warn(f"Nginx configuration test failed after decoy removal: {test_result.stderr}")
+                        else:
+                            reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
+                            if reload_result.returncode == 0:
+                                log("Nginx reloaded successfully after decoy removal")
+                            else:
+                                restart_result = subprocess.run(['systemctl', 'restart', 'nginx'], capture_output=True, text=True)
+                                if restart_result.returncode == 0:
+                                    log("Nginx restarted successfully after decoy removal")
+                                else:
+                                    warn(f"Failed to reload/restart Nginx after decoy removal: {restart_result.stderr}")
+                    except Exception as e:
+                        warn(f"Failed to test/reload Nginx after decoy removal: {e}")
+            else:
+                log(f"Decoy preserved - {len(remaining_local_deployments)} local deployments still remain: {', '.join(remaining_local_deployments)}")
+
+        except Exception as e:
+            warn(f"Failed to clean up decoy server: {e}")
+
     # Step 2: Stop Flask daemons
     flask_stopped = False
     if not is_error():

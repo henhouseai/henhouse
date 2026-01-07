@@ -506,9 +506,9 @@ def main() -> int:
                     except (OSError, AttributeError):
                         pass
             
-            # Sleep based on work status: 0.5 second if work was done, full delay if idle
+            # Sleep based on work status: 0.1 second if work was done, full delay if idle
             if work_done:
-                time.sleep(0.5)  # Quick turnaround for continuous work processing
+                time.sleep(0.1)  # Quick turnaround for continuous work processing
             else:
                 time.sleep(args.delay)  # Normal delay when idle
     
