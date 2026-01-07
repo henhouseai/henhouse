@@ -21,25 +21,26 @@ SESSION_NAME="maintenance_${SITE}"
 # Kill any pre-existing maintenance session for this site
 tmux kill-session -t "$SESSION_NAME" 2>/dev/null
 
-# Create new tmux session with unique name
-tmux new-session -d -s "$SESSION_NAME" -x "$(tput cols)" -y "$(tput lines)"
+# Create new tmux session with unique name (no size constraints)
+tmux new-session -d -s "$SESSION_NAME"
 
 # Split first pane: top 50%, bottom 50%
-tmux split-window -t "${SESSION_NAME}:0.0" -v -p 50
+tmux split-window -t "${SESSION_NAME}:0" -v -p 50
 
 # Split the bottom pane 33/67 (maintenance log gets 1/3, flask aggregator gets 2/3)
 tmux split-window -t "${SESSION_NAME}:0.1" -v -p 67
 
-# Select the top pane and launch htop
+# Send commands to panes with proper pane references
+# Top pane (0.0): htop
 tmux send-keys -t "${SESSION_NAME}:0.0" "htop" Enter
 
-# Select the middle pane and tail the maintenance log
+# Middle pane (0.1): maintenance log
 tmux send-keys -t "${SESSION_NAME}:0.1" "tail -F /srv/${SITE}/logs/maintenance_${SITE}.log" Enter
 
-# Select the bottom pane and launch the flask aggregator (in same directory)
+# Bottom pane (0.2): flask aggregator
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 tmux send-keys -t "${SESSION_NAME}:0.2" "python3 \"${SCRIPT_DIR}/flask_aggregator.py\" ${SITE}" Enter
 
-# Focus on the bottom pane (flask aggregator) and attach session
+# Focus on the bottom pane and attach
 tmux select-pane -t "${SESSION_NAME}:0.2"
 tmux -2 attach-session -t "$SESSION_NAME"
