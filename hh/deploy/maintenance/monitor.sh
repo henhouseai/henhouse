@@ -37,7 +37,8 @@ tmux send-keys -t "${SESSION_NAME}:0.0" "htop" Enter
 tmux send-keys -t "${SESSION_NAME}:0.1" "tail -F /srv/${SITE}/logs/maintenance_${SITE}.log" Enter
 
 # Select the bottom pane and launch the flask aggregator (in same directory)
-tmux send-keys -t "${SESSION_NAME}:0.2" "python3 flask_aggregator.py ${SITE}" Enter
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+tmux send-keys -t "${SESSION_NAME}:0.2" "python3 \"${SCRIPT_DIR}/flask_aggregator.py\" ${SITE}" Enter
 
 # Focus on the bottom pane (flask aggregator) and attach session
 tmux select-pane -t "${SESSION_NAME}:0.2"
