@@ -8,16 +8,49 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Site colors - can be extended for different sites
-SITE_COLOR_MAP = {
-    'henhouse': 'bright_blue',
-    'foxhouse': 'bright_cyan',
-    'global': 'cyan'
-}
+# Add project root to Python path so we can import hh modules
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from hh.deploy.deploy_utils import detect_project_context
+from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+
+# Tier colors - dynamically built based on project and tiers
+TIER_COLOR_MAP = {}
+
+def initialize_tier_colors():
+    """Initialize tier color mapping based on current project and configured tiers."""
+    global TIER_COLOR_MAP
+
+    # Get project name
+    project_name, _ = detect_project_context()
+
+    # Define tier colors (includes media tier and default)
+    tier_colors = {
+        'guest': 'white',      # White for guest tier
+        'verified': 'magenta', # Magenta for verified users
+        'admin': 'yellow',     # Yellow for admins
+        'root': 'green',       # Green for highest tier
+        'media': 'cyan',       # Cyan for media server tier
+        'errors': 'red',       # Red for error logs
+        'other': 'blue',       # Blue for other unmatched logs
+    }
+
+    # Build the mapping: {project}_{tier} -> color
+    TIER_COLOR_MAP = {}
+    for tier in HENHOUSE_TIERS:
+        tier_key = f"{project_name}_{tier}"
+        TIER_COLOR_MAP[tier_key] = tier_colors.get(tier, tier_colors['other'])
+
+    # Add media, errors, and other tiers
+    TIER_COLOR_MAP[f"{project_name}_media"] = tier_colors['media']
+    TIER_COLOR_MAP['errors'] = tier_colors['errors']
+    TIER_COLOR_MAP['other'] = tier_colors['other']
 
 def build_log_config(site_name):
     """Build log configuration dynamically by scanning the log directory"""
-    site_color = SITE_COLOR_MAP.get(site_name, 'bright_blue')
     flask_logs = []
     
     log_dir = Path(f"/srv/{site_name}/logs")
@@ -38,11 +71,15 @@ def build_log_config(site_name):
         log_name = log_file.stem
         if log_name.startswith("flask_"):
             log_name = log_name.replace("flask_", "", 1)
-        
+
+        # Determine tier-based color for this log
+        tier = get_tier_from_log_name(log_name)
+        log_color = TIER_COLOR_MAP.get(tier, 'bright_blue')
+
         flask_logs.append({
             "name": log_name,
             "path": str(log_file),
-            "color": site_color
+            "color": log_color
         })
     
     # Sort by name for consistent ordering
@@ -100,21 +137,36 @@ def get_log_type(log_name):
     else:
         return 'access'  # default
 
-def get_site_from_log_name(log_name):
-    """Extract site identifier from log name"""
-    # Extract site name (everything before the first underscore)
-    parts = log_name.split('_', 1)
-    if len(parts) > 0:
-        return parts[0]
-    return 'global'  # default
+def get_tier_from_log_name(log_name):
+    """Extract tier identifier from log name (e.g., foxhouse_guest -> foxhouse_guest)"""
+    # Special case: errors logs are always red
+    if log_name.startswith('errors_'):
+        return 'errors'
+
+    # Look for tier suffixes in the log name
+    project_name, _ = detect_project_context()
+
+    # Check all known tiers (including media which is not in HENHOUSE_TIERS config)
+    all_tiers = HENHOUSE_TIERS + ['media']
+
+    for tier in all_tiers:
+        tier_suffix = f"_{tier}"
+        if tier_suffix in log_name:
+            return f"{project_name}_{tier}"
+
+    # If no tier found, check if it's a migration or other special log
+    if 'migration' in log_name:
+        return f"{project_name}_admin"  # Migration logs typically admin level
+
+    return 'other'  # fallback for unmatched logs
 
 def colorize_left_half(line, log_name):
     """Color the left half (metadata) of the log line"""
     import re
-    
+
     # Get colors
-    site = get_site_from_log_name(log_name)
-    site_color = get_color_code(SITE_COLOR_MAP.get(site, 'white'))
+    tier = get_tier_from_log_name(log_name)
+    tier_color = get_color_code(TIER_COLOR_MAP.get(tier, 'bright_blue'))
     timestamp_color = get_color_code('red')
     reset_color = get_color_code('reset')
     
@@ -182,14 +234,14 @@ def tail_log_file(log_config, output_queue):
                         split_line = colored_left + colored_right
                     else:
                         split_line = line_stripped
-                    # Add our timestamp prefix with log source (colored by site)
-                    site = get_site_from_log_name(log_name)
-                    site_color = get_color_code(SITE_COLOR_MAP.get(site, 'white'))
+                    # Add our timestamp prefix with log source (colored by tier)
+                    tier = get_tier_from_log_name(log_name)
+                    tier_color = get_color_code(TIER_COLOR_MAP.get(tier, 'bright_blue'))
                     reset_color = get_color_code('reset')
                     timestamp_color = get_color_code('red')
-                    
+
                     colored_timestamp = f"{timestamp_color}[{timestamp}]{reset_color}"
-                    colored_log_name = f"{site_color}[{log_name}]{reset_color}"
+                    colored_log_name = f"{tier_color}[{log_name}]{reset_color}"
                     output = f"{colored_timestamp} {colored_log_name} {split_line}"
                     output_queue.put(output)
                 elif process.poll() is not None:
@@ -205,6 +257,9 @@ def tail_log_file(log_config, output_queue):
 
 def main():
     """Main function to start Flask log monitoring"""
+    # Initialize tier colors based on current project
+    initialize_tier_colors()
+
     # Get site name from command line argument, default to henhouse
     site_name = sys.argv[1] if len(sys.argv) > 1 else 'henhouse'
     
