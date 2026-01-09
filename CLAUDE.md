@@ -30,6 +30,37 @@ If the operator asks ANY question or requests ANY information - regardless of wh
 
 ---
 
+## RULE #2 - No Git Commands
+
+**The human handles all git operations.**
+
+Do not run any git commands (`git add`, `git commit`, `git status`, `git diff`, etc.). The operator reviews all changes and stages them manually through Cursor. This is intentional - with multiple agents potentially working on the project, the human needs to be the single point of control for version control.
+
+Just make your edits. The human will review, stage, and commit.
+
+---
+
+## RULE #3 - MCP Only, No Command Line
+
+**MCP is your only interface into Henhouse. Do not run commands on the developer box.**
+
+**Prohibited:**
+- `python hen.py` or `python3 hen.py` (any command)
+- Ad-hoc Python scripts (`python -c "..."`)
+- Any attempt to test or run Henhouse code directly
+
+**Why:** This is a developer box, not a deployment box. The command line is for the human operator. Your interface is MCP, which connects to the deployed server.
+
+**Corollary - Deployment Wait:**
+If you're working on code that you expect to access through MCP (new tools, modified handlers, etc.), you must wait for the human to:
+1. Review and stage your changes
+2. Deploy to the server (`sudo hen deploy`)
+3. Possibly refresh the MCP tool list
+
+Yes, `python hen.py` is right there and would let you use it immediately, but that's against the rules. Be patient. Let the human test it first. Let them deploy it and refresh your toolbox json.
+
+---
+
 ## Onboarding Workflow (Do This First)
 
 When you start a new session, follow these steps before asking the user what they want to do:
@@ -122,10 +153,31 @@ Once you know what you'll be working on, read additional context docs as needed:
 
 ### README Folder (Human Users - Installation)
 
-Numbered chapters 01-17 covering deployment. Key chapters for agents:
-- `README/11-mcp-cursor-setup.md` - MCP configuration
-- `README/14-work-page-planning.md` - Work docket hierarchy
-- `README/15-ext-folder-customizations.md` - Extension system
+Start with `README.md` in the project root for a human-facing introduction to the project.
+
+The `README/` folder contains 17 numbered chapters covering deployment:
+
+| Chapter | File | Topic |
+|---------|------|-------|
+| 01 | `01-dns-nginx-domain.md` | DNS, NGINX, and Domain Setup |
+| 02 | `02-mysql-server.md` | MySQL Server Setup |
+| 03 | `03-ssl-certificates.md` | SSL Certificates |
+| 04 | `04-smoke-check.md` | Smoke Check |
+| 05 | `05-installation.md` | Installation |
+| 06 | `06-git-staging.md` | Git and Staging Workflows |
+| 07 | `07-database-setup.md` | Database Setup |
+| 08 | `08-deployment.md` | Deployment |
+| 09 | `09-TBD.md` | TBD |
+| 10 | `10-daemons.md` | Flask and Maintenance Daemons |
+| 11 | `11-mcp-cursor-setup.md` | MCP Wrapper Setup in Cursor and Claude Code |
+| 12 | `12-security-considerations.md` | Security Considerations |
+| 13 | `13-web-interface.md` | Web Interface and Subdomains |
+| 14 | `14-work-page-planning.md` | Work Page Modules for Project Planning |
+| 15 | `15-ext-folder-customizations.md` | EXT Folder and Customizations |
+| 16 | `16-upgrading-framework.md` | Upgrading the Framework |
+| 17 | `17-uninstall.md` | Uninstalling Henhouse |
+
+**Key chapters for agents**: 11 (MCP setup), 14 (work pages), 15 (extensions)
 
 ---
 
@@ -175,15 +227,51 @@ modify_work_meta page_id={task_id} action="add" field="deviations" data='{"devia
 
 ---
 
-## Development Commands (No Database Required)
+## Debug System
 
+**Important**: The debug system is **on-demand**, not file logging. Debug output appears in your terminal/response when you activate it with flags. Only errors are logged to files.
+
+### Debug Levels
+
+| Level | Function | Flag | Purpose |
+|-------|----------|------|---------|
+| 1-2 | `trace_in()`, `trace_out()` | `-trace` | Function entry/exit tracing |
+| 3 | `log()` | `-log` | General operational messages |
+| 4 | `debug()` | `-debug` | Detailed debugging info |
+| 5 | `warn()` | (always on) | Warnings - always captured |
+| - | errors | (always on) | Errors - logged to files |
+
+### Activation
+
+Flags are cumulative - each adds more detail:
 ```bash
-python3 hen.py command-list      # List commands
-python3 hen.py mcp-list          # List MCP tools
-python3 hen.py class-list        # List page classes
+python3 hen.py command-name -log              # Level 3 messages
+python3 hen.py command-name -log -debug       # Levels 3-4
+python3 hen.py command-name -log -debug -trace  # Levels 1-4 (comprehensive)
 ```
 
-Add `-log` to any command for debug trace output.
+### Filter System
+
+Control output volume with filters:
+```bash
+-white "*gateway*"     # Whitelist: only show these folders/modules
+-gray "cache.py"       # Graylist: only show these files
+-black "dispatch"      # Blacklist: hide these functions
+-debug-limit 5         # Limit messages per function combination
+```
+
+**Best practice**: Start with `-log -debug-limit 1` to avoid information overload, then widen filters as needed.
+
+### MCP Debug
+
+All debug flags work in MCP requests - add them as arguments:
+```json
+{"id": 1, "log": 1, "debug": 1, "debug-limit": 3, "gray": "gateway.py"}
+```
+
+Debug output returns as a separate content item in the JSON-RPC response.
+
+See `context/debug.md` for full debug system documentation.
 
 ---
 
