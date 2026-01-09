@@ -4,6 +4,8 @@
 
 Henhouse includes a built-in work page system for project planning and management. Work pages provide a hierarchical structure for organizing work: work dockets contain asks, asks contain tasks, and tasks contain steps. This system is designed to work seamlessly with AI agents through MCP commands.
 
+**For Agents**: The detailed agent operating protocol is in `context/work-page-protocol.md`. That document covers agent modes, STOP-GATES, micrologging requirements, metadata structure, and workflow details.
+
 ## Work Page Hierarchy
 
 ### Work Docket

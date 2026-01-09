@@ -1,8 +1,8 @@
-# Chapter 11: MCP Wrapper Setup in Cursor
+# Chapter 11: MCP Wrapper Setup in Cursor and Claude Code
 
 ## Overview
 
-Configure the MCP (Model Context Protocol) wrapper script in Cursor IDE to enable agents to run MCP commands directly in chat windows. This allows agents to interact with your Henhouse database and make changes through the Cursor interface.
+Configure the MCP (Model Context Protocol) wrapper script in Cursor IDE or Claude Code to enable agents to run MCP commands directly in chat windows. This allows agents to interact with your Henhouse database and make changes through the IDE interface.
 
 ## Prerequisites
 
@@ -192,6 +192,60 @@ Add the MCP server configuration to `mcp.json`:
 
 After restarting, Cursor will connect to your MCP server and agents will be able to use MCP tools in chat windows.
 
+## Claude Code Configuration
+
+### Alternative: Using Claude Code Command Line
+
+If you're using Claude Code (the command-line version of Claude), you can set up MCP using the built-in command:
+
+```bash
+claude mcp add --transport stdio {project_name} python {absolute_path_to_mcp_wrapper}
+```
+
+**Example**:
+```bash
+claude mcp add --transport stdio henhouse python C:/Users/lee/Desktop/henhouse/mcp_wrapper.py
+```
+
+This command:
+- Adds an MCP server named `{project_name}` (e.g., "henhouse")
+- Uses stdio transport (standard input/output)
+- Runs the Python script at the specified absolute path
+
+**Verification**: After adding the server, you can list configured MCP servers:
+```bash
+claude mcp list
+```
+
+The MCP server will be automatically available in Claude Code chat sessions.
+
+### Claude Code Project Configuration
+
+For project-specific MCP configuration, Claude Code also supports a `.claude/mcp.json` file in your project directory:
+
+```json
+{
+  "mcpServers": {
+    "{project_name}-root": {
+      "command": "python",
+      "args": ["{absolute_path_to_mcp_wrapper}"]
+    }
+  }
+}
+```
+
+**Example**:
+```json
+{
+  "mcpServers": {
+    "henhouse-root": {
+      "command": "python",
+      "args": ["C:/Users/lee/Desktop/henhouse/mcp_wrapper.py"]
+    }
+  }
+}
+```
+
 ## What This Enables
 
 - **MCP commands in Cursor chat**: Agents can run MCP tools to update database content and make changes
@@ -201,15 +255,25 @@ After restarting, Cursor will connect to your MCP server and agents will be able
 
 ## Testing MCP Setup
 
-After configuring and restarting Cursor, test MCP commands:
+After configuring MCP in Cursor or Claude Code, test MCP commands:
 
-1. **Open a Cursor chat window**
-2. **Ask your agent to use MCP tools**:
+### Cursor IDE Testing
+1. **Restart Cursor** to load the MCP server configuration
+2. **Open a Cursor chat window**
+3. **Ask your agent to use MCP tools**:
    - "Use the MCP tool `show_page` to show page ID 1"
    - "Create a new page using the `add_page` MCP tool"
    - "List available MCP tools"
 
-3. **Verify commands work**: The agent should be able to interact with your Henhouse database directly
+### Claude Code Testing
+1. **Start Claude Code** with MCP enabled (automatic if configured)
+2. **Ask your agent to use MCP tools** in the chat session
+3. **Test commands**:
+   - "Use the MCP tool `show_page` to show page ID 1"
+   - "Create a new page using the `add_page` MCP tool"
+   - "List available MCP tools"
+
+**Verify commands work**: The agent should be able to interact with your Henhouse database directly in both Cursor and Claude Code.
 
 ## File Upload Support
 
@@ -234,15 +298,22 @@ The wrapper validates file paths to prevent path traversal attacks.
 
 ### MCP Server Not Found
 
-**Problem**: Cursor can't find the MCP server
+**Problem**: Cursor or Claude Code can't find the MCP server
 
-**Solutions**:
+**Solutions for Cursor**:
 1. Verify `mcp.json` file is in the correct location:
    - Windows: `C:\Users\{username}\.cursor\mcp.json`
    - Mac/Linux: `~/.cursor/mcp.json`
 2. Check JSON syntax is valid (no trailing commas, proper quotes)
 3. Verify the path to `mcp_wrapper.py` is correct and absolute
 4. Ensure Python is in your PATH
+5. Restart Cursor completely
+
+**Solutions for Claude Code**:
+1. Use the command-line setup: `claude mcp add --transport stdio {name} python {path}`
+2. Verify the server was added: `claude mcp list`
+3. Check that the MCP wrapper script path is absolute and correct
+4. Ensure Python is available in your system PATH
 
 ### Configuration File Not Found
 
@@ -276,6 +347,14 @@ The wrapper validates file paths to prevent path traversal attacks.
 3. Test panel subdomain: Open `https://panel.yourdomain.tld` in browser
 4. Verify firewall allows HTTPS connections (port 443)
 
+### MySQL Connection Refused
+
+**Problem**: Database connection fails with "connection refused" or "actively refused" errors
+
+**Cause**: MySQL is configured to only accept local connections (`bind-address = 127.0.0.1`), blocking remote access even when user permissions are granted.
+
+**Solution**: Configure MySQL to accept remote connections (see Chapter 2, "Advanced: Remote Access Configuration" > "MySQL Server Configuration"). The database server must have `bind-address = 0.0.0.0` in `/etc/mysql/mysql.conf.d/mysqld.cnf` and MySQL must be restarted for changes to take effect.
+
 ### File Upload Failures
 
 **Problem**: File uploads fail in MCP tool calls
@@ -303,9 +382,9 @@ The wrapper:
 
 ## Next Steps
 
-After MCP setup is complete:
+After MCP setup is complete in Cursor or Claude Code:
 
-1. **Test MCP commands**: Try using MCP tools in Cursor chat windows
+1. **Test MCP commands**: Try using MCP tools in chat windows
 2. **Customize MCP server**: Add your own MCP commands in the `ext/` folder
 3. **Use in development**: Agents can now help with database operations through chat
 

@@ -25,6 +25,7 @@ MANIFEST
 .vscode/
 .idea/
 .cursor/
+.claude/
 *.swp
 *.swo
 

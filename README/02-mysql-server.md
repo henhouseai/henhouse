@@ -165,9 +165,30 @@ The SSL setup process is detailed in **Chapter 3: SSL Certificates**.
 
 **Note**: This section is only relevant for multi-box deployments where the database server is separate from the deployment box. For localhost deployments, skip this section.
 
+### MySQL Server Configuration
+
+Before granting user permissions, MySQL must be configured to accept remote connections. MySQL defaults to `bind-address = 127.0.0.1` (localhost only), which blocks remote connections even if user permissions are granted.
+
+**Configure MySQL for remote access**:
+
+```bash
+# Edit MySQL configuration
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+
+# Change bind-address from:
+# bind-address = 127.0.0.1
+# To:
+bind-address = 0.0.0.0
+
+# Restart MySQL to apply changes
+sudo systemctl restart mysql
+```
+
+**Security Note**: This allows MySQL to accept connections from any IP address. For production deployments, consider restricting to specific IPs by setting `bind-address` to your deployment box IP instead of `0.0.0.0`.
+
 ### Root User Permissions
 
-The installer needs to connect to MySQL from your deployment box using the `root` user. MySQL's `root` user must be granted access from your deployment box's IP address.
+After configuring MySQL to accept remote connections, the installer needs to connect to MySQL from your deployment box using the `root` user. MySQL's `root` user must be granted access from your deployment box's IP address.
 
 **Why Remote Root Access?**
 

@@ -31,7 +31,7 @@ For detailed step-by-step installation instructions, see the numbered chapters i
 - **Chapter 8**: Deployment
 - **Chapter 9**: TBD
 - **Chapter 10**: Flask and Maintenance Daemons
-- **Chapter 11**: MCP Wrapper Setup in Cursor
+- **Chapter 11**: MCP Wrapper Setup in Cursor and Claude Code
 - **Chapter 12**: Security Considerations
 - **Chapter 13**: Web Interface and Subdomains
 - **Chapter 14**: Work Page Modules for Project Planning
@@ -103,9 +103,9 @@ For detailed step-by-step installation instructions, see the numbered chapters i
 
 ### Development Tools
 
-Henhouse integrates with Cursor IDE through MCP (Model Context Protocol), allowing agents to run commands directly in chat windows. The MCP wrapper script bridges stdio MCP protocol to HTTP requests sent to your deployment server.
+Henhouse integrates with Cursor IDE and Claude Code through MCP (Model Context Protocol), allowing agents to run commands directly in chat windows. The MCP wrapper script bridges stdio MCP protocol to HTTP requests sent to your deployment server.
 
-For detailed MCP setup instructions, see **Chapter 11: MCP Wrapper Setup in Cursor** in the `README/` folder.
+For detailed MCP setup instructions, see **Chapter 11: MCP Wrapper Setup in Cursor and Claude Code** in the `README/` folder.
 
 **File Upload Support:**
 

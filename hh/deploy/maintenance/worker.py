@@ -299,12 +299,12 @@ def handle_job_response(command: str, exit_code: int, response: Optional[Dict[st
         logging.warning("No response to process")
         return
     
-    # For maintenance backend, response is already flat (no "data" wrapper)
-    data = response if isinstance(response, dict) else {}
+    # For maintenance backend, response has {"status": "ok", "data": {...}} format
+    data = response.get("data", {}) if isinstance(response, dict) else {}
     job_id = data.get("job_id")
     
     if not job_id:
-        logging.debug("No job_id in response (no job claimed)")
+        logging.debug(f"No job_id in response (no job claimed). Response: {response}")
         return
     
     has_error = exit_code != 0 or response.get("status") != "ok"

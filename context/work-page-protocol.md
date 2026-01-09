@@ -2,6 +2,47 @@
 
 This document defines the standard operating procedure for agents working with Henhouse WorkPage modules (dockets, asks, tasks, steps). All work must be assigned through WorkPage modules and follow this protocol.
 
+## Quick Start for New Agents
+
+Before diving into the full protocol, here's what you need to know to get started:
+
+### Hierarchy
+```
+docket (project/theme)
+  -> ask (specific request/goal)
+    -> task (major work unit)
+      -> step (detailed action item)
+```
+
+### Status Flow
+```
+todo -> doing -> review -> done
+```
+- **todo**: Not started
+- **doing**: Actively being worked on
+- **review**: Complete, awaiting verification
+- **done**: Verified complete by operator
+
+### Essential MCP Commands
+```
+show_page name="work dockets"     # Find all dockets
+show_page id={docket_id}          # View docket with asks
+modify_work_status                # Change status
+modify_work_meta                  # Add logs, track files
+move_page                         # Reorganize work items
+add_page                          # Create new work items
+```
+
+### First Steps
+1. Read assigned work page and all ancestors (task -> ask -> docket)
+2. Post understanding debrief to operator
+3. Set status to "doing" when starting
+4. Log your work as you go
+5. Set status to "review" when complete
+6. Wait for operator to verify
+
+---
+
 ## Modes
 
 Agents operate in one of four modes, each with specific rules and allowed actions:
@@ -36,7 +77,7 @@ Agents operate in one of four modes, each with specific rules and allowed action
 - Make code changes (one at a time, with approval)
 - Microlog results (after each operation, with approval)
 
-**Workflow**: 
+**Workflow**:
 1. Agent performs one operation (e.g., set status to "doing")
 2. Agent stops and waits for operator approval
 3. Operator reviews and approves
@@ -52,7 +93,7 @@ Agents operate in one of four modes, each with specific rules and allowed action
 
 **Allowed Actions**:
 - All Team-Mode actions
-- Complete workflow cycles autonomously (set status → work → microlog → set status → next step)
+- Complete workflow cycles autonomously (set status -> work -> microlog -> set status -> next step)
 - Work through multiple steps/tasks without stopping
 
 **Scope Limitation**: Agent must stop when:
@@ -85,6 +126,8 @@ Agents operate in one of four modes, each with specific rules and allowed action
 **Exit**: Agent cannot exit Discipline-Mode on their own. Operator must explicitly unlatch agent from Discipline-Mode.
 
 **Self-Identification**: If agent thinks they may have violated rules, they should stop and ask operator for clarification. Simply asking is correct behavior, not a violation. The violation is arrogantly proceeding without asking.
+
+---
 
 ## STOP-GATES
 
@@ -119,6 +162,71 @@ STOP-GATES are conditions that immediately halt all agent work until resolved:
 
 **Purpose**: Ensures agent understands each step before moving forward.
 
+---
+
+## Work Page Hierarchy and Planning
+
+### The Four Tiers
+
+**Docket**: Top-level container representing a project, theme, or major initiative. Contains multiple asks. Examples: "Security Implementation", "Testing", "New Features", "Audits".
+
+**Ask**: A specific request or goal within a docket. Contains multiple tasks. Examples: "Implement TLS for MySQL connections", "Security testing", "Installer configuration enhancements".
+
+**Task**: A major work unit within an ask. May contain steps for complex work, or be self-contained for simple work. Examples: "Code review", "Implementation", "Testing", "Documentation".
+
+**Step**: Detailed action items within a task. The most granular level. Examples: "Verify config parsing", "Add TLS parameters to connection", "Update error handling".
+
+### Page Text Detail Levels
+
+The amount of detail in page text depends on whether the work item has children:
+
+**If it has children**: The page text should be a broad-level synthesis/summary of all its children. It should not repeat fine-grained details that are already in the children's page texts. Instead, it should synthesize and summarize what all the children accomplish together.
+
+**If it has no children (lowest tier)**: The page text should be fully descriptive with all implementation details needed to complete that work item.
+
+### Work-Ready State
+
+Work is considered "ready to start" when:
+- The ask has been broken down into appropriate tasks
+- Each task has been broken down into appropriate steps (unless the task is simple enough to not need steps)
+- Each tier has page text appropriate for its scope
+- Parent tiers synthesize their children rather than repeating detailed information
+
+### When to Skip Tiers
+
+- **Single-step task**: If a task would only have one step, put all the detail in the task's page text instead of creating a trivial single step.
+- **Simple ask**: If an ask is so simple that breaking it into tasks seems unnecessary, the ask itself can be the lowest tier with fully detailed page text.
+
+These decisions are made on a case-by-case basis based on the actual scope of the work.
+
+### Creating Work Items
+
+When creating new work pages:
+
+1. **Dockets**: Create under the "work dockets" parent (page 627 by default, or use `show_page name="work dockets"` to find it). Use `add_page` with `class="work_docket"`.
+
+2. **Asks**: Create under a docket. Use `add_page` with `class="ask"` and the docket as `target_page`.
+
+3. **Tasks**: Create under an ask. Use `add_page` with `class="task"` and the ask as `target_page`.
+
+4. **Steps**: Create under a task. Use `add_page` with `class="step"` and the task as `target_page`.
+
+Always set the `name` parameter to describe the work item.
+
+### Reorganizing Work
+
+Work items can be moved between parents using `move_page`:
+- Move tasks between asks
+- Move asks between dockets
+- Move steps between tasks
+
+This is useful for:
+- Separating implementation work from testing
+- Grouping related items together
+- Closing out dockets by moving incomplete items elsewhere
+
+---
+
 ## Workflow
 
 This workflow applies when agent is in Agent-Mode (or Team-Mode, but with approval after each step).
@@ -135,11 +243,11 @@ Agent is assigned to a specific WorkPage tier:
 
 Before beginning work, agent must investigate the assigned work:
 
-1. **Read Assigned WorkPage**: Use `show-page` with the assigned ID
+1. **Read Assigned WorkPage**: Use `show_page` with the assigned ID
 2. **Read Upstream Context** (required):
-   - If assigned to task → read parent ask → read parent docket
-   - If assigned to ask → read parent docket
-   - If assigned to step → read parent task → read parent ask → read parent docket
+   - If assigned to task -> read parent ask -> read parent docket
+   - If assigned to ask -> read parent docket
+   - If assigned to step -> read parent task -> read parent ask -> read parent docket
 3. **Read Siblings** (optional but recommended):
    - Read sibling tasks/asks/steps to understand how assigned work fits into larger context
 4. **Drill Down** (optional):
@@ -195,7 +303,23 @@ Once approved to proceed (and in Agent-Mode), agent follows this cycle:
    - Microlog summary to the docket itself
    - Set docket status to "review"
 
-### Micrologging Requirements
+### Closing Out Work
+
+When completing a body of work:
+
+1. **Verify all children are complete**: Check that all child items are in "done" status
+2. **Add closing log entry**: Document what was accomplished, any deviations, final state
+3. **Set status to "review"**: Wait for operator verification
+4. **Operator marks "done"**: Only operator should transition from "review" to "done"
+
+If incomplete items remain:
+- Move them to appropriate dockets (testing -> Testing docket, features -> New Features docket, etc.)
+- Document the move in log entries on both source and destination
+- This keeps dockets clean and work organized
+
+---
+
+## Micrologging Requirements
 
 Every work operation must be micrologged. Micrologs serve as:
 - Audit trail of all work done
@@ -203,19 +327,26 @@ Every work operation must be micrologged. Micrologs serve as:
 - Progress tracking
 - Error recovery information
 
+**Critical Rule**: Every time you touch any tier of any work page where you do anything meaningful (even if that means verifying that it was done or looks correct), you should add a log entry to that level.
+
 **When to Microlog**:
 - After completing work on a step (microlog to step)
 - After completing all steps in a task (microlog summary to task)
 - After completing all tasks in an ask (microlog summary to ask)
 - After completing all asks in a docket (microlog summary to docket)
+- When verifying work is complete
+- When moving items between parents
+- When closing out dockets
 
 **What to Include in Microlog**:
 - What work was done
-- Which files were touched (use `files_touched` dictionary via `modify_work_meta`)
-- Any changes made to metadata (old values → new values)
-- Any deviations from specification (use `deviations` dictionary via `modify_work_meta`)
+- Which files were touched (use `files_touched` field)
+- Any changes made to metadata (old values -> new values)
+- Any deviations from specification (use `deviations` field)
 - Results/outcomes
 - Any issues encountered
+
+---
 
 ## Metadata Structure
 
@@ -231,8 +362,8 @@ WorkPage metadata has two levels:
    - `started_ts`: Timestamp when work started
    - `ended_ts`: Timestamp when work ended
    - `log`: Protected namespace - append-only list of microlog entries
-   - `files_touched`: Protected namespace - list of file paths that were modified
-   - `deviations`: Protected namespace - list of deviations from specification
+   - `files_touched`: Protected namespace - dictionary of file paths with descriptions
+   - `deviations`: Protected namespace - dictionary of deviations from specification
    - `meta`: User-defined metadata bucket (dictionary)
 
 2. **User-defined metadata bucket (`meta` field)**: Simple key-value pairs:
@@ -245,8 +376,8 @@ WorkPage metadata has two levels:
 Three namespaces at the top level are protected and cannot be cleared by standard metadata operations:
 
 - **`log`**: Append-only list of microlog entry dictionaries
-- **`files_touched`**: Dictionary of file paths (keys) with string values (typically file paths as both key and value, or descriptive values)
-- **`deviations`**: Dictionary of deviation descriptions (keys) with string values (typically deviation descriptions as both key and value, or explanatory values)
+- **`files_touched`**: Dictionary of file paths (keys) with descriptions (values)
+- **`deviations`**: Dictionary of deviation identifiers (keys) with explanations (values)
 
 These are stored at the top level of metadata (alongside `status`, `sort_order`, etc.), not inside the `meta` bucket.
 
@@ -269,34 +400,6 @@ All metadata operations use the unified `modify_work_meta` MCP tool with a `fiel
 - `set`: Set/update key-value pairs (preserves other keys, allows overwriting)
 - `set_all`: Replace entire field (wipes out all existing entries)
 
-**Example Metadata Structure**:
-```json
-{
-  "status": "doing",
-  "sort_order": 1,
-  "started_ts": "2025-01-15T10:00:00",
-  "ended_ts": null,
-  "log": [
-    {
-      "message": "Implemented parser module",
-      "files": "src/parser.py, src/lexer.py",
-      "timestamp": "2025-01-15T14:30:00"
-    }
-  ],
-  "files_touched": {
-    "src/parser.py": "Added parse() method with error handling",
-    "src/lexer.py": "Implemented tokenize() function with support for multi-line strings"
-  },
-  "deviations": {
-    "schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"
-  },
-  "meta": {
-    "custom_field_1": "value1",
-    "custom_field_2": "value2"
-  }
-}
-```
-
 ### Log Entries
 
 The `log` namespace contains a list of dictionaries. Each log entry is a dictionary with:
@@ -305,86 +408,57 @@ The `log` namespace contains a list of dictionaries. Each log entry is a diction
 - **Automatic Timestamp**: Each entry automatically gets a timestamp when created
 - **Display Format**: When shown via `show-page`, timestamps appear as relative time ("2 hours ago", "3 days ago")
 
-**Validation Rule**: Values must be JSON-serializable strings. Any value that contains nested structures (braces `{}` or brackets `[]` outside of string content) is invalid. Agents must ensure all values are simple strings.
-
-**Example Log Entry**:
+**Example Usage**:
 ```json
+// MCP tool call: modify_work_meta
 {
-  "message": "Implemented parser module",
-  "files": "src/parser.py, src/lexer.py",
-  "changes": "Added parse() method, added tokenize() method",
-  "result": "All tests pass",
-  "timestamp": "2025-01-15T14:30:00"
+  "page_id": 1234,
+  "action": "add",
+  "field": "log",
+  "data": "{\"message\": \"Implemented parser module\", \"files\": \"src/parser.py, src/lexer.py\"}"
 }
 ```
 
-**MCP Tool**: Use `modify_work_meta` with:
-- `action`: `"add"` (use add action with field="log" to append log entries)
-- `field`: `"log"` (required for log entries)
-- `data`: JSON object string containing log entry key-value pairs (e.g., `'{"message": "Implemented parser", "files": "src/parser.py"}'`)
-
-**Note**: Log entries are append-only. There is no remove or set operation for log entries. Each entry automatically receives a timestamp when created.
+**Note**: Log entries are append-only. There is no remove or set operation for log entries.
 
 ### Files Touched
 
 The `files_touched` namespace contains a dictionary where:
 - **Keys**: Full file paths (strings) - the complete path to the file that was modified
-- **Values**: Descriptions (strings) - what was done to that file (e.g., "Updated _load_work_metadata() method to initialize protected namespaces", "Added validation logic for log entries")
+- **Values**: Descriptions (strings) - what was done to that file
 
-**Standard Structure**: The key should always be the full file path, and the value should describe what changes were made to that file. This provides a clear audit trail of which files were touched and what work was performed on each.
-
-**MCP Tool**: Use `modify_work_meta` with:
-- `field`: `"files_touched"`
-- `action`: One of:
-  - `"add"`: Add key-value pairs (errors if any key already exists)
-  - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
-  - `"set"`: Set/update key-value pairs (preserves other keys, allows overwriting)
-  - `"set_all"`: Replace entire dictionary (wipes out all existing entries)
-- `data`: JSON object string containing file path key-value pairs where keys are full file paths and values are descriptions of what was done (e.g., `'{"src/parser.py": "Added parse() method with error handling"}'`)
-- `keys`: JSON array string containing keys to remove (e.g., `'["src/parser.py"]'`) - only required for `remove` action
-
-**Note**: `set_all` replaces all entries. To preserve existing entries while adding new ones, use `add`. To update specific entries while preserving others, use `set`.
-
-### Deviations
-
-The `deviations` namespace contains a dictionary where keys are deviation identifiers (strings) and values are deviation descriptions (strings).
-
-**Purpose**: Document when implementation differs from specification, explaining why.
-
-**MCP Tool**: Use `modify_work_meta` with:
-- `field`: `"deviations"`
-- `action`: One of:
-  - `"add"`: Add key-value pairs (errors if any key already exists)
-  - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
-  - `"set"`: Set/update key-value pairs (preserves other keys, allows overwriting)
-  - `"set_all"`: Replace entire dictionary (wipes out all existing entries)
-- `data`: JSON object string containing deviation key-value pairs (e.g., `'{"schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"}'`)
-- `keys`: JSON array string containing keys to remove (e.g., `'["schema_change"]'`) - only required for `remove` action
-
-**Example Deviation**:
+**Example Usage**:
 ```json
+// MCP tool call: modify_work_meta
 {
-  "schema_change": "Schema specified VARCHAR(255) but implemented TEXT due to MySQL version compatibility"
+  "page_id": 1234,
+  "action": "add",
+  "field": "files_touched",
+  "data": "{\"src/parser.py\": \"Added parse() method with error handling\"}"
 }
 ```
 
-### User-Defined Metadata Functions
+### Deviations
 
-**MCP Tool**: Use `modify_work_meta` with:
-- `field`: `"meta"` (default if not specified)
-- `action`: One of:
-  - `"add"`: Add key-value pairs (errors if any key already exists)
-  - `"remove"`: Remove keys (requires `keys` parameter as JSON array string)
-  - `"set"`: Set/update key-value pairs (preserves existing pairs not mentioned, allows overriding specified pairs)
-  - `"set_all"`: Replace all key-value pairs (wipes out all existing pairs in `meta`, preserves protected namespaces)
-- `data`: JSON object string containing key-value pairs (e.g., `'{"priority": "high", "owner": "agent1"}'`)
-- `keys`: JSON array string containing keys to remove (e.g., `'["priority"]'`) - only required for `remove` action
-
-**Protected Namespace Behavior**: All actions preserve the three protected namespaces (log, files_touched, deviations) which are stored at the top level. They only affect the `meta` bucket (user-defined key-value pairs).
+The `deviations` namespace documents when implementation differs from specification:
+- **Keys**: Deviation identifiers (strings)
+- **Values**: Explanations (strings)
 
 **Example Usage**:
+```json
+// MCP tool call: modify_work_meta
+{
+  "page_id": 1234,
+  "action": "add",
+  "field": "deviations",
+  "data": "{\"TLS made configurable\": \"Original spec required mandatory TLS, but implementation allows mysql_tls_enabled=0 for localhost deployments\"}"
+}
+```
 
-To add/update meta fields (preserves existing):
+### User-Defined Metadata
+
+For custom fields specific to the work item:
+
 ```json
 // MCP tool call: modify_work_meta
 {
@@ -393,35 +467,58 @@ To add/update meta fields (preserves existing):
   "field": "meta",
   "data": "{\"priority\": \"high\", \"owner\": \"agent1\"}"
 }
-// Result: Adds/updates priority and owner, preserves custom_field
 ```
 
-To replace all meta fields:
-```json
-// MCP tool call: modify_work_meta
-{
-  "page_id": 1234,
-  "action": "set_all",
-  "field": "meta",
-  "data": "{\"status\": \"in_progress\"}"
-}
-// Result: Only "status" remains in meta bucket, all other meta pairs wiped
-// Note: Top-level "status" field is preserved (not in meta bucket)
-```
+---
 
-**Metadata Structure After Operations**:
-```json
-{
-  "status": "doing",  // preserved (top-level field, not in meta bucket)
-  "log": [...],  // preserved (protected namespace)
-  "files_touched": {...},  // preserved (protected namespace)
-  "deviations": {...},  // preserved (protected namespace)
-  "meta": {
-    "priority": "high",  // user-defined metadata
-    "owner": "agent1"    // user-defined metadata
-  }
-}
-```
+## Practical Tips from Experience
+
+### Reading Work Pages
+
+- Use `show_page name="work dockets"` to find the work dockets parent - no need to memorize the ID
+- The `badge_headers` section in `show_page` output shows recent log entries at a glance
+- Check `field_type` values like `task_todo`, `task_doing`, `ask_done` for quick status overview
+
+### Organizing Work
+
+- Create "shell" asks when you need to move tasks - an ask that serves as a container for related tasks
+- When closing a docket, move incomplete items to appropriate destination dockets rather than leaving them orphaned
+- Use descriptive names that make sense at each level of the hierarchy
+
+### Logging Best Practices
+
+- Log immediately after completing work, while details are fresh
+- Include enough detail that another agent could understand what was done
+- Reference specific files, functions, or line numbers when relevant
+- When closing out work, add a summary log entry at each level you touch
+
+### Status Management
+
+- Only set your own work to "review" - let the operator verify and set "done"
+- Check sibling statuses before marking a parent complete
+- Use "doing" status to signal active work and prevent conflicts
+
+### Common Patterns
+
+**Verification Pass**: When reviewing completed work:
+1. Read each work item
+2. Verify the work was done correctly
+3. Add verification log entry
+4. Update status if needed
+
+**Reorganization**: When cleaning up dockets:
+1. Identify items that need to move
+2. Find or create destination asks/dockets
+3. Use `move_page` to relocate items
+4. Add log entries documenting the move at both source and destination
+
+**Closing Out**: When completing a docket:
+1. Verify all children are done or moved
+2. Add closing summary log
+3. Set docket to "review"
+4. Wait for operator verification
+
+---
 
 ## Work Assignment Requirements
 
@@ -438,6 +535,8 @@ To replace all meta fields:
 - How it was done (micrologs)
 - What files were touched
 - Any deviations from specification
+
+---
 
 ## Violations
 
@@ -461,6 +560,8 @@ To replace all meta fields:
 - Arrogantly proceeding when uncertain
 - Violating any protocol rules
 
+---
+
 ## Working Culture
 
 **Core Principles**:
@@ -473,4 +574,3 @@ To replace all meta fields:
 - Maintain audit trail at all times
 
 **Purpose**: This protocol ensures all work is traceable, reviewable, and can be picked up by other agents if needed. The metadata structure provides a complete history of what was done, why it was done, and how it differs from specification.
-

@@ -83,7 +83,7 @@ def claim_next_maintenance_job(job_type: str) -> Optional[Dict[str, Any]]:
             SELECT {_JOB_COLUMNS}
             FROM maintenance_jobs
             WHERE job_type = %s AND status = 'pending'
-            ORDER BY priority DESC, created_at ASC
+            ORDER BY priority DESC, id ASC
             LIMIT 1
             """,
             (job_type,),
@@ -95,7 +95,6 @@ def claim_next_maintenance_job(job_type: str) -> Optional[Dict[str, Any]]:
             """
             UPDATE maintenance_jobs
             SET status = 'running',
-                attempts = attempts + 1,
                 started_at = COALESCE(started_at, NOW(6)),
                 updated_at = NOW(6)
             WHERE id = %s AND status = 'pending' AND job_type = %s
@@ -118,7 +117,7 @@ def claim_next_maintenance_job(job_type: str) -> Optional[Dict[str, Any]]:
         SELECT {_JOB_COLUMNS}
         FROM maintenance_jobs
         WHERE job_type = %s AND status = 'running'
-        ORDER BY priority DESC, created_at ASC
+        ORDER BY priority DESC, id ASC
         LIMIT 1
         """,
         (job_type,),
