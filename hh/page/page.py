@@ -1,84 +1,3 @@
-"""
-TABLE OF CONTENTS (Alphabetical Order)
-======================================
-
-__init__()                    Line 226
-_add_badge_headers()          Line 534
-_add_file_to_group()          Line 559
-_add_image_to_group()         Line 512
-_add_lower_content()           Line 553
-_add_page_class_information()  Line 504
-_add_upper_content()           Line 556
-_check_children_recursive()    Line 269
-_copy_children_recursive()     Line 290
-_copy_page_class_information() Line 308
-_create_file_record()          Line 583
-_create_image_record()         Line 626
-_delete_all_image_groups()     Line 642
-_delete_page_class_information() Line 678
-_dump_json()                  Line 681
-_enqueue_maintenance_job()     Line 883
-_flag_cache_refresh()         Line 703
-_flag_related_file()          Line 411
-_flag_related_image()          Line 402
-_get_child_page_data()         Line 331
-_get_child_page_ids()          Line 311
-_get_child_row_field_type()    Line 343
-_get_children_by_class()       Line 349
-_get_children_query()          Line 324
-_get_display_name()            Line 386
-_get_file_usage_count()        Line 420
-_get_metadata_dict()           Line 479
-_json_default()               Line 689
-_parse_metadata_value()        Line 463
-_refresh_cached_page()         Line 746
-_remove_file_from_group()      Line 429
-_remove_image_from_group()     Line 444
-_serialize_metadata()          Line 936
-_validate_metadata_ascii()     Line 712
-_write_metadata_dict()         Line 780
-add_file()                    Line 1145
-add_image()                   Line 1480
-add_page()                    Line 1187
-allow_class_inside()          Line 902
-allow_duplicate_names()       Line 907
-allow_inside_of()             Line 912
-allow_null_names()            Line 1038
-auto_link_name()              Line 1043
-can_move_to_page()            Line 1047
-copy_media_items()            Line 1410
-copy_page()                   Line 1327
-delete_all_file_groups()      Line 1593
-delete_from_database()        Line 1618
-delete_page()                 Line 1635
-flag_page_modification()      Line 1682
-get_allowed_child_classes()   Line 1712
-get_child_count()             Line 1821
-get_children_data()           Line 1834
-getChildrenOf()               Line 1752
-get_files_data()              Line 1975
-get_images_data()             Line 2033
-get_page()                    Line 1911
-get_page_data()               Line 1890
-get_path()                    Line 1856
-get_prepared_text()           Line 1954
-modify_display_style()        Line 2491
-modify_name()                 Line 2507
-modify_text()                 Line 2577
-modify_visibility()           Line 2620
-move_media_items()            Line 2266
-move_page()                   Line 2233
-regex_text()                  Line 2636
-remove_media_item()           Line 2393
-reorder_files()               Line 2202
-reorder_images()              Line 2170
-set_media_rank()              Line 2683
-set_metadata_value()          Line 2674
-show_page()                   Line 2840
-validate_name()               Line 2913
-
-"""
-
 from typing import Dict, Any, List, Optional
 import json
 import datetime as dt
@@ -460,7 +379,6 @@ class Page:
         )
 
     def _get_child_page_data(self) -> Dict[str, Any]:
-        """Return simplified data for child pages in tables: id, name, parent, class."""
         trace_in()
         data = {
             "id": self.id,
@@ -696,7 +614,6 @@ class Page:
         return False, f"{path} has unsupported type: {type(data).__name__}"
 
     def _get_metadata_dict(self) -> Dict[str, Any]:
-        """Return the in-memory metadata dict, normalizing raw storage as needed."""
         metadata = getattr(self, 'metadata', None)
         if isinstance(metadata, dict):
             return metadata
@@ -705,7 +622,6 @@ class Page:
         return self.metadata
 
     def _write_metadata_dict(self, metadata: Dict[str, Any]) -> bool:
-        """Persist the provided metadata dict to the database."""
         trace_in()
         metadata = metadata or {}
 
@@ -1083,11 +999,9 @@ class Page:
         return value
 
     def _flag_cache_refresh(self) -> None:
-        """Flag that the cache needs to be refreshed. Called by getters when they hydrate data."""
         self._cache_needs_refresh = True
 
     def _refresh_cached_page(self) -> bool:
-        """Refresh the cache database with all 5 derived fields. Called by refresh_stale_page_caches() during gateway commit."""
         from .cache_operations import refresh_cached_page
         return refresh_cached_page(self)
 
@@ -1117,17 +1031,14 @@ class Page:
         return job_id
 
     def allow_class_inside(self, target_class: str) -> bool:
-        """Instance method: checks if this page instance can contain pages of target_class"""
         return True
 
     @classmethod
     def allow_duplicate_names(cls) -> bool:
-        """Static method: checks if this page class allows duplicate names"""
         return True
 
     @classmethod
     def allow_inside_of(cls, parent_class: str) -> bool:
-        """Static method: checks if this page class can be inside pages of parent_class"""
         return True
 
     def add_file(
@@ -1258,12 +1169,10 @@ class Page:
 
     @classmethod
     def allow_null_names(cls) -> bool:
-        """Static method: checks if this page class allows null names"""
         return False
 
     @classmethod
     def auto_link_name(cls) -> bool:
-        """Static method: checks if this page class auto-generates links from names"""
         return True
 
     def can_move_to_page(self, target_page_id: int) -> bool:
@@ -1412,17 +1321,6 @@ class Page:
         return new_page_id
 
     def copy_media_items(self, media_type: str, item_ids: List[int], target_rank: Optional[int] = None) -> bool:
-        """
-        Generalized method to copy media items (images, audio, video, files) to this page.
-
-        Args:
-            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
-            item_ids: List of item IDs to copy
-            target_rank: Optional target rank to insert at (1-based)
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
         from .media_operations import copy_media_items as copy_media_items_impl
         return copy_media_items_impl(self, media_type, item_ids, target_rank)
 
@@ -1632,7 +1530,6 @@ class Page:
         return not is_error()
 
     def flag_page_modification(self, comments: str) -> bool:
-        """Standardized method to update page modification audit trail"""
         trace_in()
         # Get NOW() from database for consistency
         if not is_error():
@@ -1688,7 +1585,6 @@ class Page:
         return not is_error()
 
     def get_allowed_child_classes(self) -> List[Dict[str, Any]]:
-        """Get list of page classes that are allowed as children of this page."""
         trace_in()
         allowed_classes = []
         
@@ -1728,20 +1624,6 @@ class Page:
 
     @classmethod
     def getChildrenOf(cls, parent_id: int, view_type: str = 'tile') -> List[Dict[str, Any]]:
-        """
-        Class method to get children of a specific class type for a parent page.
-        Matches legacy getChildrenOf() pattern - called as class method on child class.
-        Each child class can override this to customize default view_type and class-specific behavior.
-        
-        Uses the class's own _get_children_query() method to get children of that specific class.
-        
-        Args:
-            parent_id: ID of the parent page
-            view_type: 'table' or 'tile' (default 'tile' for base class)
-        
-        Returns:
-            List of child page data dictionaries
-        """
         trace_in()
         gateway = get_gateway()
         if not gateway or not gateway.conn:
@@ -1798,21 +1680,6 @@ class Page:
 
     @classmethod
     def get_section_html(cls, parent_id: int, section: str, view_type: str, class_name: Optional[str] = None) -> Optional[str]:
-        """
-        Optional hook method for page classes to provide custom HTML rendering for sections.
-        
-        If a page class overrides this method, it can return HTML directly (including header + content)
-        instead of using the generic rendering pipeline. This allows for custom grouping, sorting, etc.
-        
-        Args:
-            parent_id: ID of the parent page
-            section: Section name ('children', 'images', etc.)
-            view_type: View type string (can be any string, not just 'table'/'tile')
-            class_name: For 'children' section, the class name being requested
-            
-        Returns:
-            HTML string if custom rendering is provided, None to use default rendering
-        """
         # Base class returns None - use default rendering
         return None
 
@@ -1842,12 +1709,10 @@ class Page:
         return get_page_data(self)
 
     def get_page(self) -> Dict[str, Any]:
-        """Assemble a minimal JSON-friendly payload for AJAX consumption."""
         from .data_operations import assemble_page_data
         return assemble_page_data(self)
 
     def get_prepared_text(self) -> Optional[List[Dict[str, Any]]]:
-        """Get the prepared text for this page. Checks cached prepared_text first, then processes if needed."""
         from .data_operations import get_prepared_text
         return get_prepared_text(self)
 
@@ -1970,37 +1835,14 @@ class Page:
         return not is_error()
 
     def move_media_items(self, media_type: str, item_instances: List[Dict[str, int]], target_rank: Optional[int] = None) -> bool:
-        """
-        Generalized method to move media items (images, audio, video, files) from source pages to this page.
-
-        Args:
-            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
-            item_instances: List of dicts with keys: {media_type}_id, source_page_id, source_rank
-            target_rank: Optional target rank to insert at (1-based)
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
         from .media_operations import move_media_items as move_media_items_impl
         return move_media_items_impl(self, media_type, item_instances, target_rank)
 
     def remove_media_item(self, media_type: str, item_id: int, item_rank: int) -> bool:
-        """
-        Generalized method to remove a media item (image, audio, video, file) from this page.
-
-        Args:
-            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
-            item_id: ID of the item to remove
-            item_rank: Rank of the item to remove (1-based)
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
         from .media_operations import remove_media_item as remove_media_item_impl
         return remove_media_item_impl(self, media_type, item_id, item_rank)
 
     def modify_display_style(self, display_style: int) -> bool:
-        """Modify the display style of a page"""
         trace_in()
         log(f"Modifying display style for page {self.id}: {getattr(self, 'displayStyle', None)} -> {display_style}")
         if not is_error():
@@ -2139,7 +1981,6 @@ class Page:
         return not is_error()
 
     def modify_visibility(self, visibility: int) -> bool:
-        """Modify the visibility of a page"""
         trace_in()
         log(f"Modifying visibility for page {self.id}: {self.visibility} -> {visibility}")
         if not is_error():
@@ -2193,7 +2034,6 @@ class Page:
         return result
 
     def set_metadata_value(self, key: str, value: Any) -> bool:
-        """Set a metadata value inside the specified namespace (or root) and persist it."""
         trace_in()
         metadata = self._get_metadata_dict()
         metadata[key] = value
@@ -2202,19 +2042,6 @@ class Page:
         return result
 
     def set_media_rank(self, media_type: str, item_id: int, current_rank: int, new_rank: int) -> bool:
-        """
-        Generalized method to set the rank of a media item (image, audio, video, file) within this page.
-        Uses hybrid approach: efficient delete-and-reflow for single moves, then verifies sequential ranks.
-
-        Args:
-            media_type: Type of media ('image', 'audio', 'video', 'file') - defaults to 'file'
-            item_id: ID of the item to reorder
-            current_rank: Current rank of the item (1-based)
-            new_rank: Desired new rank of the item (1-based)
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
         from .media_operations import set_media_rank as set_media_rank_impl
         return set_media_rank_impl(self, media_type, item_id, current_rank, new_rank)
 
@@ -2229,7 +2056,6 @@ class Page:
         exclude_id: Optional[int] = None,
         error_on_invalid: bool = True,
     ) -> bool:
-        """Validate a page name. Uses parent's connection and parent_id, but checks new page's class settings."""
         trace_in()
         NewPageClass = get_page_class(page_class)
         if not NewPageClass:
