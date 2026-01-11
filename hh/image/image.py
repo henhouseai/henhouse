@@ -719,16 +719,24 @@ class Image:
             db_user = user_results[0]['db_user'] if user_results else 'unknown'
         
         # Validate timestamp: last_modified must be strictly greater than cache_built_at
+        # Use tolerance window to handle race conditions with maintenance daemon
         if not is_error():
             if self.cache_built_at is not None:
-                if now < self.cache_built_at:
-                    report_error("action", f"flag_image_modification: last_modified ({now}) cannot be less than cache_built_at ({self.cache_built_at})")
-                elif now == self.cache_built_at:
-                    # Increment by 1 second to ensure strict inequality
-                    now = now + dt.timedelta(seconds=1)
-                    # Verify it's now greater
-                    if now <= self.cache_built_at:
-                        report_error("action", f"flag_image_modification: After incrementing, last_modified ({now}) is still not greater than cache_built_at ({self.cache_built_at})")
+                TOLERANCE_SECONDS = 10  # Grace period for daemon race conditions
+
+                if now <= self.cache_built_at:
+                    # Calculate how far behind (or equal) we are
+                    diff = (self.cache_built_at - now).total_seconds()
+
+                    if diff <= TOLERANCE_SECONDS:
+                        # Within tolerance - likely a race condition with maintenance daemon
+                        # Set now to cache_built_at + 1 second to ensure modification wins
+                        original_now = now
+                        now = self.cache_built_at + dt.timedelta(seconds=1)
+                        log(f"Adjusted last_modified: {original_now} -> {now} (was {diff:.2f}s behind cache_built_at)")
+                    else:
+                        # Outside tolerance - something is genuinely wrong (clock skew, stale data)
+                        report_error("action", f"flag_image_modification: last_modified ({now}) is {diff:.2f}s behind cache_built_at ({self.cache_built_at}) - exceeds {TOLERANCE_SECONDS}s tolerance")
         
         if not is_error():
             affected = self.gateway.conn.update(
