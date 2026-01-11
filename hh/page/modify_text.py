@@ -25,6 +25,19 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
+
+def is_valid_utf8(text: str) -> bool:
+    """
+    Validate that a string contains only valid UTF-8 encoded characters.
+    Rejects strings with corrupted Unicode sequences or invalid encoding.
+    """
+    try:
+        # Attempt to encode as UTF-8 - this will fail for invalid sequences
+        text.encode('utf-8')
+        return True
+    except UnicodeEncodeError:
+        return False
+
 @register_action('modify_text')
 @register_command('modify_text')
 def modify_text() -> bool:
@@ -47,6 +60,10 @@ def modify_text() -> bool:
         # Handle the case where -text is passed as a flag (returns True)
         if new_text is True:
             new_text = ""
+        # Validate UTF-8 encoding to prevent corrupted character sequences
+        if not is_valid_utf8(new_text):
+            warn("Text contains invalid UTF-8 encoding or corrupted character sequences")
+            report_error("action", "Text contains invalid UTF-8 encoding or corrupted character sequences")
         # Get optional mode parameter (defaults to replace_all)
         mode_arg = gateway.get_arg('mode')
         if mode_arg:
@@ -55,6 +72,10 @@ def modify_text() -> bool:
         old_string_arg = gateway.get_arg('old_string')
         if old_string_arg:
             old_string = str(old_string_arg)
+            # Validate UTF-8 encoding for old_string too
+            if not is_valid_utf8(old_string):
+                warn("old_string contains invalid UTF-8 encoding or corrupted character sequences")
+                report_error("action", "old_string contains invalid UTF-8 encoding or corrupted character sequences")
         try:
             page_id = int(page_id_arg)
         except ValueError:
