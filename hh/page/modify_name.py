@@ -88,5 +88,4 @@ def modify_name() -> bool:
         # Calculate total children from children_by_class
         total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
         log(f"Successfully modified page {page_id} name to '{new_name}' with {total_children} children")
-    trace_out()
-    return not is_error()
+    return trace_out(not is_error())

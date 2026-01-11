@@ -36,8 +36,7 @@ def iso_now() -> str:
     """Get current timestamp in ISO format with microseconds."""
     trace_in()
     result = datetime.now().isoformat(sep=' ', timespec='microseconds')
-    trace_out()
-    return result
+    return trace_out(result)
 
 def json_out(obj: Union[Dict, List]) -> None:
     """Print JSON object to stdout."""
@@ -52,8 +51,7 @@ def json_success(data: Union[Dict, List]) -> JsonResponse:
     trace_in()
     result: JsonResponse = {"status": "ok", "timestamp": iso_now(), "data": data}
     log(f"Success response created: data keys={list(data.keys()) if isinstance(data, dict) else 'not dict'}")
-    trace_out()
-    return result
+    return trace_out(result)
 
 def json_error(error: str, hint: Optional[str] = None) -> JsonResponse:
     """Create an error JSON response."""
@@ -64,8 +62,7 @@ def json_error(error: str, hint: Optional[str] = None) -> JsonResponse:
         log(f"Error response created: error={error}, hint={hint}")
     else:
         log(f"Error response created: error={error}")
-    trace_out()
-    return payload
+    return trace_out(payload)
 
 def ensure_iso_timestamps(row: Dict[str, Any], fields: Sequence[str]) -> None:
     """Convert datetime fields in a row to ISO format strings."""
@@ -84,8 +81,7 @@ def normalize_meta(value: Union[str, int, float, bool, None]) -> Union[str, int,
     """Normalize meta value. Currently just returns value as-is."""
     trace_in()
     log(f"Meta normalization: value type={type(value)}")
-    trace_out()
-    return value
+    return trace_out(value)
 
 def count_json_chars(obj: Union[Dict, List]) -> int:
     """Count the number of characters in JSON representation of an object."""
@@ -93,12 +89,10 @@ def count_json_chars(obj: Union[Dict, List]) -> int:
     try:
         char_count = len(json.dumps(obj, ensure_ascii=False))
         log(f"JSON character count: {char_count}")
-        trace_out()
-        return char_count
+        return trace_out(char_count)
     except Exception as e:
         warn(f"Failed to count JSON characters: {e}")
-        trace_out()
-        return 0
+        return trace_out(0)
 
 def errno_to_code(errno: Optional[int], error_str: str) -> str:
     """Map MySQL errno to error code, or classify by string if errno is None."""

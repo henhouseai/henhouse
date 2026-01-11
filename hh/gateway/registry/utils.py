@@ -42,8 +42,7 @@ def command_list() -> bool:
         if not base_cache_file.exists():
             warn("Base cache file not found")
             report_error("action", "Base cache file not found")
-            trace_out()
-            return False
+            return trace_out(False)
         with open(base_cache_file, 'r') as f:
             base_cache = json.load(f)
         available_commands_data = base_cache.get("commands", {})
@@ -101,13 +100,11 @@ def command_list() -> bool:
         commands_count = len(commands_list)
         log(f"Successfully created command list with {commands_count} commands ({loaded_count} loaded, {len(available_commands) - loaded_count} available)")
         gateway.response.set_action_response(success_payload(data))
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn("Command list failed.")
         report_error("action", f"Failed to list commands: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 
 @register_action("backend_list")
 @register_command("backend_list")
@@ -116,8 +113,7 @@ def backend_list() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         current_backend = gateway.backend
         backend_list = list(BACKEND_TYPES)
@@ -140,13 +136,11 @@ def backend_list() -> bool:
         backends_count = len(backends_list) if isinstance(backends_list, list) else 0
         log(f"Successfully created backend list with {backends_count} backends (current: {current_backend})")
         gateway.response.set_action_response(success_payload(data))
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn("Backend list failed.")
         report_error("action", f"Failed to list backends: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 
 for backend_type in BACKEND_TYPES:
     dict_name = f"{backend_type}s"
@@ -159,8 +153,7 @@ def {list_name}() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         from hh.gateway.registry.cache import CACHE_DIR
         import json
@@ -168,8 +161,7 @@ def {list_name}() -> bool:
         if not backend_cache_file.exists():
             warn(f"{backend_type.title()} cache file not found")
             report_error("action", f"{backend_type.title()} cache file not found")
-            trace_out()
-            return False
+            return trace_out(False)
         with open(backend_cache_file, 'r') as f:
             backend_cache = json.load(f)
         debug(f"{backend_type.title()} cache keys: {{list(backend_cache.keys())}}")
@@ -216,13 +208,11 @@ def {list_name}() -> bool:
             data["{backend_type}s"].append(handler_info)
         log(f"Successfully created {backend_type} list with {{len(data['{backend_type}s'])}} entries ({{len(loaded_{backend_type}s)}} loaded, {{len(available_{backend_type}s) - len(loaded_{backend_type}s)}} available)")
         gateway.response.set_action_response(success_payload(data))
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn(f"{backend_type.title()} list failed.")
         report_error("action", f"Failed to list {backend_type}s: {{str(e)}}")
-        trace_out()
-        return False
+        return trace_out(False)
 """)
 
 for backend_type in BACKEND_TYPES:
@@ -235,13 +225,11 @@ def {parser_name}() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
-        trace_out()
-        return False
+        return trace_out(False)
     json_data = gateway.response.get_action_response()
     try:
         lines = []
@@ -261,19 +249,16 @@ def {parser_name}() -> bool:
         if not render_section(source_data, lines):
             warn("Failed to render {backend_type}s section")
             report_error("backend", "Failed to render {backend_type}s section")
-            trace_out()
-            return False
+            return trace_out(False)
         break_section(lines)
         result = finalize_output(lines)
         if len(result) == 0:
             warn("{backend_type.title()} response is empty")
         gateway.response.add_output(result)
         log(f"Parser execution completed successfully with {{len(result)}} lines.")
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn("Parser execution raised an exception.")
         report_error("backend", f"Parser execution raised an exception: {{e}}")
-        trace_out()
-        return False
+        return trace_out(False)
 """)

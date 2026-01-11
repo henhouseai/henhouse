@@ -33,14 +33,12 @@ def get_app_actions() -> bool:
     if not gateway.is_set('id'):
         warn("No page id provided")
         report_error("action", "Page ID is required")
-        trace_out()
-        return False
+        return trace_out(False)
     
     if not gateway.response:
         warn("No response object available")
         report_error("action", "Response object not available")
-        trace_out()
-        return False
+        return trace_out(False)
     
     page_id: int = 0
     if not is_error():
@@ -80,6 +78,5 @@ def get_app_actions() -> bool:
     except Exception as e:
         warn(f"Error getting app actions: {e}")
         report_error("action", f"Error getting app actions: {e}")
-    
-    trace_out()
-    return not is_error()
+
+    return trace_out(not is_error())

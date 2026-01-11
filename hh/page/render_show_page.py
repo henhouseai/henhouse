@@ -468,8 +468,7 @@ def show_page() -> bool:
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
-        trace_out()
-        return False
+        return trace_out(False)
     json_data = gateway.response.get_action_response()
     # Inject header block into contentWrapperHeader
     header_content = render_header_block('l_show_page_header', 'page_header')
@@ -547,6 +546,5 @@ def show_page() -> bool:
         render_extra_data_section(extra_data, page_id=page_id)
     
     log(f"Show page handler executed successfully")
-    
-    trace_out()
-    return True
+
+    return trace_out(True)

@@ -114,23 +114,19 @@ class ProcessManager:
         deployed_path = Path(f"/srv/{project_name}")
         result = deployed_path.exists() and deployed_path.is_dir()
         log(f"Deployment check for {project_name}: {result}")
-        trace_out()
-        return result
+        return trace_out(result)
 
     def is_privileged(self) -> bool:
         """Check if running with elevated privileges (root on Unix, always False on Windows)."""
         trace_in()
         if self.is_windows:
             # On Windows, we don't use privilege escalation for maintenance
-            trace_out()
-            return False
+            return trace_out(False)
         if hasattr(os, "geteuid"):
             result = os.geteuid() == 0
             log(f"Privilege check: {result}")
-            trace_out()
-            return result
-        trace_out()
-        return False
+            return trace_out(result)
+        return trace_out(False)
 
     def require_privileged(self) -> bool:
         """Require elevated privileges. Reports appropriate error if not met.
@@ -144,16 +140,13 @@ class ProcessManager:
         
         if self.is_windows:
             report_error("deployment", "This command requires a deployed Unix environment (cannot run on Windows)")
-            trace_out()
-            return False
-        
+            return trace_out(False)
+
         if not self.is_privileged():
             report_error("action", "This command requires sudo privileges to switch Unix users")
-            trace_out()
-            return False
-        
-        trace_out()
-        return True
+            return trace_out(False)
+
+        return trace_out(True)
 
     def list_processes(self, name_filter: str) -> List[Dict[str, Any]]:
         """List processes matching a name filter.
@@ -164,8 +157,7 @@ class ProcessManager:
         processes: List[Dict[str, Any]] = []
 
         if not require("psutil"):
-            trace_out()
-            return processes
+            return trace_out(processes)
 
         try:
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -187,15 +179,13 @@ class ProcessManager:
         except Exception as e:
             warn(f"Error listing processes: {e}")
 
-        trace_out()
-        return processes
+        return trace_out(processes)
 
     def kill_process(self, pid: int, force: bool = False) -> bool:
         """Kill a process by PID. Returns True if successful."""
         trace_in()
         if not require("psutil"):
-            trace_out()
-            return False
+            return trace_out(False)
         try:
             proc = psutil.Process(pid)
             if force:
@@ -203,12 +193,10 @@ class ProcessManager:
             else:
                 proc.terminate()
             log(f"Killed process {pid} (force={force})")
-            trace_out()
-            return True
+            return trace_out(True)
         except Exception as e:
             warn(f"Failed to kill process {pid}: {e}")
-            trace_out()
-            return False
+            return trace_out(False)
 
     def start_background_process(
         self,
@@ -248,8 +236,7 @@ class ProcessManager:
                     cwd=cwd,
                 )
                 log(f"Started background process as user {user}")
-                trace_out()
-                return process.pid
+                return trace_out(process.pid)
             else:
                 debug(f"Not switching users - running as current user")
             
@@ -281,13 +268,11 @@ class ProcessManager:
                 )
             
             log(f"Started background process with PID {process.pid}")
-            trace_out()
-            return process.pid
+            return trace_out(process.pid)
             
         except Exception as e:
             warn(f"Failed to start background process: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     def get_cwd(self) -> str:
         """Get current working directory (cross-platform)."""
@@ -311,13 +296,12 @@ class ProcessManager:
 
     def get_user_by_name(self, username: str) -> Optional[Dict[str, Any]]:
         """Get user info by username. Returns dict with uid, gid, home, shell, or None.
-        
+
         Only works on Unix systems where pwd module is available.
         """
         trace_in()
         if not require("pwd"):
-            trace_out()
-            return None
+            return trace_out(None)
         try:
             info = pwd.getpwnam(username)
             result = {
@@ -328,26 +312,22 @@ class ProcessManager:
                 "shell": info.pw_shell,
             }
             log(f"Got user info for {username}: uid={info.pw_uid}")
-            trace_out()
-            return result
+            return trace_out(result)
         except KeyError:
             warn(f"User not found: {username}")
-            trace_out()
-            return None
+            return trace_out(None)
         except Exception as e:
             warn(f"Error getting user info for {username}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     def get_user_by_uid(self, uid: int) -> Optional[Dict[str, Any]]:
         """Get user info by UID. Returns dict with uid, gid, name, home, shell, or None.
-        
+
         Only works on Unix systems where pwd module is available.
         """
         trace_in()
         if not require("pwd"):
-            trace_out()
-            return None
+            return trace_out(None)
         try:
             info = pwd.getpwuid(uid)
             result = {
@@ -358,16 +338,13 @@ class ProcessManager:
                 "shell": info.pw_shell,
             }
             log(f"Got user info for uid {uid}: name={info.pw_name}")
-            trace_out()
-            return result
+            return trace_out(result)
         except KeyError:
             warn(f"UID not found: {uid}")
-            trace_out()
-            return None
+            return trace_out(None)
         except Exception as e:
             warn(f"Error getting user info for uid {uid}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     # --- Unix group info methods (grp wrappers) ---
 

@@ -23,8 +23,7 @@ def basic_example() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     data = {
         "hen": "house",
         "fox": "house",
@@ -34,12 +33,10 @@ def basic_example() -> bool:
     if check_for_new_problems(result):
         warn("Something went wrong.")
         report_error("action", f"We have a new problem: {reason}")
-        trace_out()
-        return False
+        return trace_out(False)
     gateway.response.set_action_response(success_payload(result))
     log("All done.")
-    trace_out()
-    return True
+    return trace_out(True)
 ```
 
 **render_basic_example.py**
@@ -52,25 +49,21 @@ def basic_example() -> bool:
     if not gateway:
         warn("No gateway available")
         report_error("backend", "No gateway available")
-        trace_out()
-        return False    
+        return trace_out(False)
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
-        trace_out()
-        return False    
+        return trace_out(False)
     json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data)    
+    source_data = get_data(json_data)
     result = process(data)
     if check_for_new_problems(result):
         warn("Something went wrong.")
         report_error("backend", f"We have a new problem: {reason}")
-        trace_out()
-        return False
+        return trace_out(False)
     gateway.response.add_output(result)
     log(f"Parser execution completed successfully")
-    trace_out()
-    return True
+    return trace_out(True)
 ```
 
 ### Example 2: 
@@ -87,8 +80,7 @@ def list_example() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         items = get_available_items()
         log(f"Listing {len(items)} available items")
@@ -105,13 +97,11 @@ def list_example() -> bool:
             })
         log(f"Successfully created item list with {len(data['items'])} items")
         gateway.set_action_response(success_payload(data))
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn("List action failed.")
         report_error("backend", f"Failed to list items: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 ```
 
 **render_list_example.py**
@@ -124,13 +114,11 @@ def list_example() -> bool:
     if not gateway:
         warn("No gateway available")
         report_error("backend", "No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
-        trace_out()
-        return False
+        return trace_out(False)
     json_data = gateway.response.get_action_response()
     try:
         lines = []
@@ -139,17 +127,14 @@ def list_example() -> bool:
         if not render_items_section(source_data, lines):
             warn("Failed to render items section")
             report_error("backend", "Failed to render items section")
-            trace_out()
-            return False
+            return trace_out(False)
         gateway.response.add_output(lines)
         log(f"Parser execution completed successfully")
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn("Parser execution raised an exception.")
         report_error("backend", f"Parser execution raised an exception: {e}")
-        trace_out()
-        return False
+        return trace_out(False)
 ```
 
 ## Key Pattern Elements
@@ -161,6 +146,51 @@ def list_example() -> bool:
 4. **Error Handling**: Consistent try/catch with proper error responses
 5. **Return Values**: Always return `bool` (True for success, False for failure)
 6. **Response Handling**: Actions use `gateway.response.set_action_response()`; parsers use `gateway.response.add_output()`
+
+## Debug and Logging Policy
+
+### Trace Requirements
+**Every method MUST use `trace_in()` and `trace_out()` properly:**
+- Call `trace_in()` at the very beginning of every method
+- **ALL returns MUST go through a `trace_out()` call** - use `return trace_out(result)` pattern
+- This ensures proper debug tracing and call stack analysis
+
+### Logging Requirements
+**Every method should usually have at least one `log()` message:**
+- Log whenever anything substantial happens
+- Log when decisions are made or execution branches
+- Log when operations complete successfully
+- Log when entering major code sections or loops
+- **Do not remove existing log messages** - this policy is for guidance, not justification for cleanup
+
+### Policy Guidelines
+- **Be informative, not spammy**: Log meaningful events, not every line of code
+- **Use appropriate log levels**: `log()` for normal operational messages, `debug()` for detailed debugging, `warn()` for warnings
+- **Include context**: Log messages should be descriptive enough to understand what happened without being verbose
+- **Consistency matters**: Follow the established patterns in existing codebase
+- **Debug first, optimize later**: Prioritize debuggability over minor performance concerns
+
+### Example of Proper Tracing and Logging
+
+```python
+def some_method() -> bool:
+    trace_in()  # Always first
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        return trace_out(False)  # All returns through trace_out
+
+    log("Starting operation")  # Log substantial operations
+    result = perform_operation()
+    if result:
+        log("Operation completed successfully")  # Log successful completion
+        return trace_out(True)  # All returns through trace_out
+    else:
+        warn("Operation failed")
+        return trace_out(False)  # All returns through trace_out
+```
+
+This policy ensures the codebase remains debuggable and maintainable while providing clear guidance for agents working on the system.
 
 ## Error Handling System
 
@@ -181,15 +211,12 @@ def some_action():
     if not gateway:
         warn("No gateway available")
         report_error("action", "No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     if error_condition:
         warn("Error description")
         report_error("action", "Error description")
-        trace_out()
-        return False
-    trace_out()
-    return True
+        return trace_out(False)
+    return trace_out(True)
 ```
 
 **See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_action`
@@ -202,21 +229,17 @@ def some_parser():
     if not gateway:
         warn("No gateway available")
         report_error("backend", "No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     if not gateway.response.has_action_response():
         warn("No action response available for parsing")
         report_error("backend", "No action response available")
-        trace_out()
-        return False
+        return trace_out(False)
     if business_logic_fails:
         warn("Business logic validation failed")
         report_error("backend", "Business logic validation failed")
-        trace_out()
-        return False
+        return trace_out(False)
     log("All steps done.")
-    trace_out()
-    return True
+    return trace_out(True)
 ```
 
 **See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_parser`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_parser`
@@ -232,8 +255,7 @@ def some_function():
     if not gateway:
         warn("No gateway available.")
         report_error("action", "No gateway available.")
-        trace_out()
-        return False
+        return trace_out(False)
     if not step1_done():
         warn("step 1 not done.")
         report_error("action", "step 1 not done.")
@@ -258,8 +280,7 @@ def some_function():
     else:
         log("problems encountered.")
     do_some_cleanup()
-    trace_out()
-    return result
+    return trace_out(result)
 ```
 
 **Note**: This ladder logic pattern is useful when multiple steps depend on each other. Each step only executes if no errors have occurred so far. The final result is the inverse of `is_error()` (True if no errors, False if errors occurred).
@@ -275,29 +296,24 @@ def some_function():
     if not gateway:
         warn("No gateway available")
         report_error("action", "No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     if not step1_done():
         warn("step 1 not done")
         report_error("action", f"step 1 failed because {reason}")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         result = do_step2()
         if not result:
             warn("step 2 failed")
             report_error("action", f"step 2 failed because {reason}")
-            trace_out()
-            return False
+            return trace_out(False)
         else:
             log("All steps done.")
-            trace_out()
-            return result
+            return trace_out(result)
     except Exception as e:
         warn("step 2 raised exception")
         report_error("action", f"step 2 raised exception: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 ```
 
 **See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_action`
@@ -311,7 +327,7 @@ def some_function():
 - Use report_error("action", message) for business logic errors inside methods decorated with @register_action or @register_command
 - Use report_error("backend", message) for business logic errors inside methods decorated with @register_parser
 - Use `if not is_error():` to protect any blocks of code from running if any previous error state has been logged
-- Use trace_out() before returning False for proper cleanup
+- Use return trace_out(False) for proper cleanup and return value passthrough
 - The report_error() system is what triggers the code protection feature and should only be used when legitimate errors occur
 - The global warn() system is what puts user friendly messages into the top of output stream.
 - The boolean bubble-up system is what generates a list of errors at every level back up to the gateway, not just a single error message.
@@ -358,8 +374,7 @@ def some_db_read_action() -> bool:
     if not gateway or not gateway.conn:
         warn("No gateway or connection available")
         report_error("action", "No gateway or connection available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         query = "SELECT id, name, status FROM table_1 WHERE active = 1"
         results = gateway.conn.read(query, [])
@@ -369,13 +384,11 @@ def some_db_read_action() -> bool:
         }
         gateway.response.set_action_response(success_payload(data))
         log(f"database returned {len(results)} items.")
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn(f"Database read failed: {str(e)}")
         report_error("action", f"Database read failed: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 ```
 
 **See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `count_stale_pages`, `hh/deploy/maint/page_cache_refresh.py` function `fetch_stale_page_id`
@@ -395,8 +408,7 @@ def some_db_write_action() -> bool:
     if not gateway or not gateway.conn:
         warn("No gateway or connection available")
         report_error("action", "No gateway or connection available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         name = gateway.get_arg('name')
         status = gateway.get_arg('status')
@@ -411,13 +423,11 @@ def some_db_write_action() -> bool:
         }
         gateway.response.set_action_response(success_payload(data))
         log("Record created successfully")
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn(f"Database write failed: {str(e)}")
         report_error("action", f"Database write failed: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 ```
 
 ### Example 9: **Complex Read + Write Operations**
@@ -435,8 +445,7 @@ def some_complex_action() -> bool:
     if not gateway or not gateway.conn:
         warn("No gateway or connection available")
         report_error("action", "No gateway or connection available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         query = """
             SELECT t1.id, t1.name, t1.key, t2.value, t2.category
@@ -460,13 +469,11 @@ def some_complex_action() -> bool:
         }
         gateway.response.set_action_response(success_payload(data))
         log("complex data mutation successful.")
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:
         warn(f"Complex operation failed: {str(e)}")
         report_error("action", f"Complex operation failed: {str(e)}")
-        trace_out()
-        return False
+        return trace_out(False)
 ```
 
 ## Table Rendering in Backend 
@@ -495,8 +502,7 @@ def render_items_section(source_data, lines):
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available in render_items_section")
-        trace_out()
-        return False
+        return trace_out(False)
     block = 'rows'
     if not gateway.is_no(block):                                    # render a table using the field configs
         items = source_data.get('items', [])
@@ -504,8 +510,7 @@ def render_items_section(source_data, lines):
         log(f"Rendering {count} items")
         if not items:
             log("No items to render")
-            trace_out()
-            return True
+            return trace_out(True)
         table_data = TableData()
         table_data.add_row(
             'items_header',
@@ -532,8 +537,7 @@ def render_items_section(source_data, lines):
         log("Rendering meta data")
         lines.append(render_block(data, block_type='meta'))
     log("All done.")
-    trace_out()
-    return True
+    return trace_out(True)
 ```
 
 ### Field Config Labels and Icons
@@ -621,8 +625,7 @@ def render_items_section(source_data, lines):
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available in render_items_section")
-        trace_out()
-        return False
+        return trace_out(False)
     block = 'rows'
     if not gateway.is_no(block):
         items = source_data.get('items', [])
@@ -630,8 +633,7 @@ def render_items_section(source_data, lines):
         log(f"Rendering {count} items")
         if not items:
             log("No items to render")
-            trace_out()
-            return True
+            return trace_out(True)
         table_data = TableData()
         table_data.add_row(
             'items_header',
@@ -667,8 +669,7 @@ def render_items_section(source_data, lines):
         log("Rendering meta data")
         lines.append(render_block(data, block_type='meta'))
     log("All done.")
-    trace_out()
-    return True
+    return trace_out(True)
 ```
 
 **Key Points:**

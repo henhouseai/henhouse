@@ -74,15 +74,12 @@ class GlobalErrorStore:
                     error_type_enum = ErrorType(error_type)
                     filtered = [e for e in self._errors if e.error_type == error_type_enum]
                     log(f"Filtered errors for type {error_type}: {len(filtered)}")
-                    trace_out()
-                    return filtered
+                    return trace_out(filtered)
                 except ValueError:
                     warn(f"Unknown error type '{error_type}' in get_errors")
-                    trace_out()
-                    return []
+                    return trace_out([])
             log(f"Returning all {len(self._errors)} errors")
-            trace_out()
-            return self._errors.copy()
+            return trace_out(self._errors.copy())
     
     def has_errors(self, error_type: Optional[str] = None) -> bool:
         with self._lock:
@@ -94,17 +91,14 @@ class GlobalErrorStore:
                     has_errors = any(e.error_type == error_type_enum for e in self._errors)
                     if has_errors:
                         log(f"Has errors of type {error_type}: {has_errors}")
-                    trace_out()
-                    return has_errors
+                    return trace_out(has_errors)
                 except ValueError:
                     warn(f"Unknown error type '{error_type}' in has_errors")
-                    trace_out()
-                    return False
+                    return trace_out(False)
             has_any_errors = len(self._errors) > 0
             if has_any_errors:
                 log(f"Has any errors: {has_any_errors}")
-            trace_out()
-            return has_any_errors
+            return trace_out(has_any_errors)
     
 _global_error_store = GlobalErrorStore()
 
@@ -122,14 +116,12 @@ def is_error(error_type: Optional[str] = None) -> bool:
 def get_errors(error_type: Optional[str] = None) -> List[ErrorEntry]:
     trace_in()
     result = _global_error_store.get_errors(error_type)
-    trace_out()
-    return result
+    return trace_out(result)
 
 def get_error_count(error_type: Optional[str] = None) -> int:
     trace_in()
     errors = _global_error_store.get_errors(error_type)
-    trace_out()
-    return len(errors)
+    return trace_out(len(errors))
 
 def get_global_error_store() -> GlobalErrorStore:
     return _global_error_store

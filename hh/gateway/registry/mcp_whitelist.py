@@ -146,8 +146,7 @@ def _scan_for_mcp_tools() -> List[str]:
     trace_in()
     from hh.deploy.deploy_utils import scan_for_decorator
     found_files = scan_for_decorator("register_mcp_tool", exclude_cache=True)
-    trace_out()
-    return found_files
+    return trace_out(found_files)
 
 def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Optional[str]]]:
     """Import modules and return import results."""
@@ -168,8 +167,7 @@ def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Optional[str
                 "status": "failed",
                 "error": error_msg
             }
-    trace_out()
-    return import_results
+    return trace_out(import_results)
 
 def _rebuild_all_tier_whitelists() -> Dict[str, Dict[str, Dict[str, Any]]]:
     """Rebuild whitelists for all tiers by scanning decorators. Returns dict mapping tier -> whitelist."""
@@ -210,9 +208,8 @@ def _rebuild_all_tier_whitelists() -> Dict[str, Dict[str, Dict[str, Any]]]:
                 if tier_name in all_tier_whitelists:
                     all_tier_whitelists[tier_name][tool_name] = mcp_entry
                     log(f"Added tool '{tool_name}' to {tier_name} whitelist")
-    
-    trace_out()
-    return all_tier_whitelists
+
+    return trace_out(all_tier_whitelists)
 
 class MCPWhitelist:
     """MCP Whitelist manager with lazy loading per tier."""
@@ -235,8 +232,7 @@ class MCPWhitelist:
         # Check if already loaded in memory
         if tier in cls._tier_cache and not force_rebuild:
             log(f"Using cached whitelist for tier: {tier}")
-            trace_out()
-            return cls._tier_cache[tier]
+            return trace_out(cls._tier_cache[tier])
         
         cache_file = cls._get_cache_file(tier)
         current_time = time.time()
@@ -261,16 +257,14 @@ class MCPWhitelist:
                 if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
                     log(f"Throttling: using cached {tier} whitelist (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_rebuild={force_rebuild} ignored)")
                     cls._tier_cache[tier] = cache_data.get('whitelist', cache_data)  # Support both formats
-                    trace_out()
-                    return cls._tier_cache[tier]
+                    return trace_out(cls._tier_cache[tier])
                 
                 # Cache exists and is old enough - check if we should use it or regenerate
                 if not force_rebuild:
                     whitelist = cache_data.get('whitelist', cache_data)  # Support both formats
                     cls._tier_cache[tier] = whitelist
                     log(f"Loaded {tier} whitelist from cache: {len(whitelist)} tools (last scan: {time_since_scan:.1f}s ago)")
-                    trace_out()
-                    return whitelist
+                    return trace_out(whitelist)
                 else:
                     log(f"Force rebuild requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with rebuild")
         
@@ -299,10 +293,9 @@ class MCPWhitelist:
         
         # Update in-memory cache for all tiers
         cls._tier_cache.update(all_tier_whitelists)
-        
+
         whitelist = all_tier_whitelists.get(tier, {})
-        trace_out()
-        return whitelist
+        return trace_out(whitelist)
     
     @classmethod
     def get_tool(cls, tier: str, tool_name: str) -> Optional[Dict[str, Any]]:
@@ -321,8 +314,7 @@ class MCPWhitelist:
                 log(f"Found tool '{tool_name}' after rebuild")
             else:
                 warn(f"Tool '{tool_name}' not found in {tier} whitelist after rebuild")
-        trace_out()
-        return tool
+        return trace_out(tool)
     
     @classmethod
     def list_tools(cls, tier: str) -> List[Dict[str, Any]]:
@@ -337,8 +329,7 @@ class MCPWhitelist:
                 'inputSchema': tool_config['inputSchema']
             })
         log(f"Listed {len(tools)} tools for tier: {tier}")
-        trace_out()
-        return tools
+        return trace_out(tools)
     
     @classmethod
     def validate_tool(cls, tier: str, tool_name: str, args: Dict[str, Any]) -> tuple[bool, str]:
@@ -346,16 +337,14 @@ class MCPWhitelist:
         trace_in()
         tool = cls.get_tool(tier, tool_name)
         if not tool:
-            trace_out()
-            return False, f"Tool '{tool_name}' not available for tier '{tier}'"
+            return trace_out((False, f"Tool '{tool_name}' not available for tier '{tier}'"))
         
         # Validate arguments against schema
         schema = tool['inputSchema']
         required = schema.get('required', [])
         for field in required:
             if field not in args:
-                trace_out()
-                return False, f"Missing required field: {field}"
+                return trace_out((False, f"Missing required field: {field}"))
         
         # Type checking with automatic coercion
         properties = schema.get('properties', {})
@@ -375,23 +364,17 @@ class MCPWhitelist:
                     args[key] = int(value)
                     value = args[key]
                 elif not isinstance(value, int):
-                    trace_out()
-                    return False, f"Field '{key}' must be an integer"
+                    return trace_out((False, f"Field '{key}' must be an integer"))
             elif expected_type == 'string' and not isinstance(value, str):
-                trace_out()
-                return False, f"Field '{key}' must be a string"
+                return trace_out((False, f"Field '{key}' must be a string"))
             elif expected_type == 'boolean' and not isinstance(value, bool):
-                trace_out()
-                return False, f"Field '{key}' must be a boolean"
+                return trace_out((False, f"Field '{key}' must be a boolean"))
             elif expected_type == 'array' and not isinstance(value, list):
-                trace_out()
-                return False, f"Field '{key}' must be an array"
+                return trace_out((False, f"Field '{key}' must be an array"))
             elif expected_type == 'object' and not isinstance(value, dict):
-                trace_out()
-                return False, f"Field '{key}' must be an object"
-        
-        trace_out()
-        return True, ""
+                return trace_out((False, f"Field '{key}' must be an object"))
+
+        return trace_out((True, ""))
     
     @classmethod
     def tool_exists(cls, tier: str, tool_name: str) -> bool:
@@ -404,8 +387,7 @@ class MCPWhitelist:
         """Get app actions available for a user tier level (1-4). Returns actions with tier levels 5-8."""
         trace_in()
         if user_tier_level < 1 or user_tier_level > 4:
-            trace_out()
-            return []
+            return trace_out([])
         
         # App action tier level = user tier level + 4 (1→5, 2→6, 3→7, 4→8)
         app_action_tier_level = user_tier_level + 4
@@ -428,8 +410,7 @@ class MCPWhitelist:
                     })
         
         log(f"Found {len(app_actions)} app actions for tier level {user_tier_level} (app action tier {app_action_tier_level})")
-        trace_out()
-        return app_actions
+        return trace_out(app_actions)
 
 @register_cache_cleanup('mcp_whitelist', cache_dir='hh/gateway/registry/cache')
 def cleanup_mcp_whitelist_cache():
@@ -457,11 +438,10 @@ def cleanup_mcp_whitelist_cache():
             log(f"Removed cache file: {cache_file}")
         else:
             debug(f"Cache file does not exist: {cache_file}")
-    
-    trace_out()
-    return {
+
+    return trace_out({
         'success': True,
         'cache_files': len(removed_files),
         'cache_files_list': removed_files
-    }
+    })
 

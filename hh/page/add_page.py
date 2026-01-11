@@ -94,5 +94,4 @@ def add_page() -> bool:
         total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
         page_name = new_page.name if new_page.name is not None else "Unknown"
         log(f"Successfully created and loaded page {new_page_id}: {page_name} with {total_children} children")
-    trace_out()
-    return not is_error()
+    return trace_out(not is_error())

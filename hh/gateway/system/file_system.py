@@ -490,19 +490,16 @@ class FileSystem:
             if self._remote_file_handler:
                 result = self._remote_file_handler.check_file_exists(path)
                 if result is not None:
-                    trace_out()
-                    return result
+                    return trace_out(result)
             
             # Local file check
             exists = Path(path).exists() and Path(path).is_file()
             if not exists:
                 debug(f"File does not exist (local): {path}")
-            trace_out()
-            return exists
+            return trace_out(exists)
         except Exception as e:
             warn(f"Error checking file existence: {path}: {e}")
-            trace_out()
-            return False  # Graceful failure
+            return trace_out(False)  # Graceful failure
 
     def is_executable(self, path: str) -> bool:
         """Check if a file is executable. Returns False if not executable or file not found."""

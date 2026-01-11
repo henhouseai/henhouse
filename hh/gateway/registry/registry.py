@@ -253,44 +253,37 @@ class CommandRegistry:
         trace_in()
         if not self.backend:
             log("No backend specified for error handler")
-            trace_out()
-            return False
+            return trace_out(False)
         
         # Skip action backend - actions are front-end, not backends
         if self.backend == "action":
             log("Skipping error handler check for action backend")
-            trace_out()
-            return False
+            return trace_out(False)
         
         # Check if we have error handler cache data
         result = hasattr(self, 'error_cache_data') and self.error_cache_data is not None and self.error_cache_data.get('load_status') == 'success'
-        trace_out()
-        return result
+        return trace_out(result)
 
     def get_error_handler(self) -> Optional[Callable]:
         trace_in()
         if not self.backend:
             log("No backend specified for error handler")
-            trace_out()
-            return None
+            return trace_out(None)
         
         # Check if we have error handler cache data
         if not hasattr(self, 'error_cache_data') or not self.error_cache_data:
             log("No error handler cache data available")
-            trace_out()
-            return None
+            return trace_out(None)
         
         # Load the actual function from cache data
         try:
             module = import_module(self.error_cache_data["module"])
             error_handler = getattr(module, self.error_cache_data["function"])
             log(f"Retrieved error handler: {self.error_cache_data['module']}.{self.error_cache_data['function']}")
-            trace_out()
-            return error_handler
+            return trace_out(error_handler)
         except Exception as e:
             warn(f"Error loading error handler: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     def get_action_args(self) -> List[str]:
         if hasattr(self, 'action_cache_data') and self.action_cache_data and 'action_args' in self.action_cache_data:
@@ -301,66 +294,54 @@ class CommandRegistry:
         trace_in()
         if not self.has_command():
             warn("No command found")
-            trace_out()
-            return False
+            return trace_out(False)
         if not self.has_action_handler():
             warn("No action handler found")
-            trace_out()
-            return False
+            return trace_out(False)
         
         # Load action module from cache data
         if not self.action_cache_data:
             warn("No action cache data found")
-            trace_out()
-            return False
+            return trace_out(False)
         module_to_load = self.action_cache_data.get("module")
         function_name = self.action_cache_data.get("function")
         if not module_to_load or not function_name:
             warn("Incomplete action cache data")
-            trace_out()
-            return False
+            return trace_out(False)
             
         try:
             module = import_module(module_to_load)
             function = getattr(module, function_name)
             log(f"Action module loaded: '{module_to_load}' with function: '{function_name}'")
-            trace_out()
-            return True
+            return trace_out(True)
         except Exception as e:
             warn(f"Error loading action module: {str(e)}")
-            trace_out()
-            return False
+            return trace_out(False)
 
     def load_backend_module(self) -> bool:
         trace_in()
         if not self.has_backend():
             warn("No backend found")
-            trace_out()
-            return False
+            return trace_out(False)
         if not self.has_backend_handler():
             warn("No backend handler found")
-            trace_out()
-            return False
+            return trace_out(False)
         
         # Load backend module from cache data
         if not self.backend_cache_data:
             warn("No backend cache data found")
-            trace_out()
-            return False
+            return trace_out(False)
         module_to_load = self.backend_cache_data.get("module")
         function_name = self.backend_cache_data.get("function")
         if not module_to_load or not function_name:
             warn("Incomplete backend cache data")
-            trace_out()
-            return False
+            return trace_out(False)
             
         try:
             module = import_module(module_to_load)
             function = getattr(module, function_name)
             log(f"Backend module loaded: '{module_to_load}' with function: '{function_name}'")
-            trace_out()
-            return True
+            return trace_out(True)
         except Exception as e:
             warn(f"Error loading backend module: {str(e)}")
-            trace_out()
-            return False
+            return trace_out(False)

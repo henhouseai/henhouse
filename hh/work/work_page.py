@@ -2,28 +2,29 @@
 TABLE OF CONTENTS (Alphabetical Order)
 ======================================
 
-__init__()                          Line 129
-_add_badge_headers()                Line 275
-_add_page_class_information()       Line 156
-_after_metadata_extraction()        Line 135
-_get_child_page_data()              Line 261
-_get_display_name()                 Line 240
-_load_work_metadata()               Line 384
-_modify_work_sort_order_internal()  Line 466
-_normalize_field_name()             Line 460
-_sort_meta_dict()                   Line 149
-_validate_ascii_string()            Line 439
-_validate_is_string()               Line 434
-allow_inside_of()                   Line 144
-finalize_response_http()            Line 366
-get_page_data()                     Line 370
-modify_work_sort_order()            Line 507
-modify_work_status()                Line 1000
-work_add()                          Line 647
-work_add_log()                      Line 732
-work_remove()                       Line 780
-work_set()                          Line 861
-work_set_all()                      Line 939
+__init__()                          Line 131
+_add_badge_headers()                Line 279
+_add_page_class_information()       Line 160
+_after_metadata_extraction()        Line 139
+_get_child_page_data()              Line 265
+_get_display_name()                 Line 244
+_load_work_metadata()               Line 388
+_modify_work_sort_order_internal()  Line 470
+_normalize_field_name()             Line 464
+_process_badge_text_value()         Line 278
+_sort_meta_dict()                   Line 153
+_validate_ascii_string()            Line 443
+_validate_is_string()               Line 438
+allow_inside_of()                   Line 148
+finalize_response_http()            Line 370
+get_page_data()                     Line 374
+modify_work_sort_order()            Line 511
+modify_work_status()                Line 1004
+work_add()                          Line 651
+work_add_log()                      Line 736
+work_remove()                       Line 784
+work_set()                          Line 867
+work_set_all()                       Line 945
 
 """
 
@@ -36,6 +37,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page import Page
 from hh.page.page_registry import get_page
+from hh.tp.tp import TextProcessor
 
 
 def _format_relative_time(timestamp_str: str) -> str:
@@ -273,6 +275,40 @@ class WorkPage(Page):
         }
         trace_out()
         return data
+
+    def _process_badge_text_value(self, text: str) -> str:
+        """Process text values in badge headers through the final decorator for proper formatting."""
+        trace_in()
+        if not text or not isinstance(text, str):
+            trace_out()
+            return text or ''
+
+        # Get the current backend to determine which decorator to use
+        gateway = get_gateway()
+        if not gateway:
+            trace_out()
+            return text
+
+        # Determine final decorator based on backend (similar to render_text_section logic)
+        if gateway.request and gateway.request.get_arg('json'):
+            final_decorator = 'mcp'
+        else:
+            final_decorator = gateway.backend
+
+        # Only process through decorators if it will change the output (HTTP backend converts newlines)
+        if final_decorator == 'http':
+            # For HTTP backend, convert newlines to <br> tags (like the http_decorator does)
+            processed_text = text.replace('\n', '<br>')
+            log(f"Processed text for HTTP backend: newlines converted to <br>")
+        elif final_decorator == 'mcp':
+            # For MCP backend, could add JSON escaping if needed, but for now just return as-is
+            processed_text = text
+        else:
+            # For parser backend and others, return as-is (CLI handles newlines fine)
+            processed_text = text
+
+        trace_out()
+        return processed_text
     
     def _add_badge_headers(self) -> Dict[str, Any]:
         """Override to add work-specific fields to page_summary and add separate work badges."""
@@ -330,36 +366,55 @@ class WorkPage(Page):
                     
                     # Create badge dict with header row first (work_log field config + relative_time)
                     badge_data = {'work_log': relative_time}
-                    # Add rest of sorted log data
-                    badge_data.update(sorted_entry)
+                    # Add rest of sorted log data, processing text values through final decorator
+                    for key, value in sorted_entry.items():
+                        if isinstance(value, str):
+                            badge_data[key] = self._process_badge_text_value(value)
+                        else:
+                            badge_data[key] = value
                     badge_headers[f'work_log_{i}'] = badge_data
         
         # Create separate badges for meta, files_touched, and deviations (only if non-empty)
         if meta_dict and isinstance(meta_dict, dict) and len(meta_dict) > 0:
             # Sort keys alphabetically
             sorted_keys = sorted(meta_dict.keys(), key=lambda x: x.lower())
-            sorted_meta = {k: meta_dict[k] for k in sorted_keys}
             # Create badge dict with header row first (work_meta field config + blank value)
             badge_data = {'work_meta': ''}
-            badge_data.update(sorted_meta)
+            # Add meta data, processing text values through final decorator
+            for key in sorted_keys:
+                value = meta_dict[key]
+                if isinstance(value, str):
+                    badge_data[key] = self._process_badge_text_value(value)
+                else:
+                    badge_data[key] = value
             badge_headers['work_meta'] = badge_data
         
         if files_touched_dict and isinstance(files_touched_dict, dict) and len(files_touched_dict) > 0:
             # Sort keys alphabetically
             sorted_keys = sorted(files_touched_dict.keys(), key=lambda x: x.lower())
-            sorted_files = {k: files_touched_dict[k] for k in sorted_keys}
             # Create badge dict with header row first (work_files_touched field config + count)
             badge_data = {'work_files_touched': str(len(files_touched_dict))}
-            badge_data.update(sorted_files)
+            # Add file data, processing description values through final decorator
+            for key in sorted_keys:
+                value = files_touched_dict[key]
+                if isinstance(value, str):
+                    badge_data[key] = self._process_badge_text_value(value)
+                else:
+                    badge_data[key] = value
             badge_headers['work_files_touched'] = badge_data
         
         if deviations_dict and isinstance(deviations_dict, dict) and len(deviations_dict) > 0:
             # Sort keys alphabetically
             sorted_keys = sorted(deviations_dict.keys(), key=lambda x: x.lower())
-            sorted_deviations = {k: deviations_dict[k] for k in sorted_keys}
             # Create badge dict with header row first (work_deviations field config + count)
             badge_data = {'work_deviations': str(len(deviations_dict))}
-            badge_data.update(sorted_deviations)
+            # Add deviation data, processing explanation values through final decorator
+            for key in sorted_keys:
+                value = deviations_dict[key]
+                if isinstance(value, str):
+                    badge_data[key] = self._process_badge_text_value(value)
+                else:
+                    badge_data[key] = value
             badge_headers['work_deviations'] = badge_data
         
         trace_out()

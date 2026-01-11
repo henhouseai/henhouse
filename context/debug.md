@@ -895,4 +895,51 @@ When making MCP requests, agents can include debug flags directly in the request
 4. Parse the debug content item separately from main response data
 5. Use normalized timestamps (T field) to understand execution timing
 
+---
+
+## Debug and Logging Policy
+
+### Trace Requirements
+**Every method MUST use `trace_in()` and `trace_out()` properly:**
+- Call `trace_in()` at the very beginning of every method
+- **ALL returns MUST go through a `trace_out()` call** - use `return trace_out(result)` pattern
+- This ensures proper debug tracing and call stack analysis
+
+### Logging Requirements
+**Every method should usually have at least one `log()` message:**
+- Log whenever anything substantial happens
+- Log when decisions are made or execution branches
+- Log when operations complete successfully
+- Log when entering major code sections or loops
+- **Do not remove existing log messages** - this policy is for guidance, not justification for cleanup
+
+### Policy Guidelines
+- **Be informative, not spammy**: Log meaningful events, not every line of code
+- **Use appropriate log levels**: `log()` for normal operational messages, `debug()` for detailed debugging, `warn()` for warnings
+- **Include context**: Log messages should be descriptive enough to understand what happened without being verbose
+- **Consistency matters**: Follow the established patterns in existing codebase
+- **Debug first, optimize later**: Prioritize debuggability over minor performance concerns
+
+### Example of Proper Tracing and Logging
+
+```python
+def some_method() -> bool:
+    trace_in()  # Always first
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        return trace_out(False)  # All returns through trace_out
+
+    log("Starting operation")  # Log substantial operations
+    result = perform_operation()
+    if result:
+        log("Operation completed successfully")  # Log successful completion
+        return trace_out(True)  # All returns through trace_out
+    else:
+        warn("Operation failed")
+        return trace_out(False)  # All returns through trace_out
+```
+
+This policy ensures the codebase remains debuggable and maintainable while providing clear guidance for agents working on the system.
+
 This debug system provides powerful capabilities for understanding and troubleshooting the Henhouse system while maintaining control over output volume and focus.

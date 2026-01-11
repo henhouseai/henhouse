@@ -242,8 +242,6 @@ class Page:
             except Exception as e:
                 warn(f"Failed to load page {id}: {e}")
                 report_error("connection", f"Failed to load page {id}: {e}")
-        
-        trace_out()
 
     def _check_children_recursive(self) -> List[int]:
         trace_in()
@@ -263,8 +261,7 @@ class Page:
                         warn(f"Failed to load child page {child_id} for recursive check")
                         report_error("action", f"Failed to load child page {child_id}")
         log(f"Found {len(child_array)} total child pages (including nested) for page {self.id}")
-        trace_out()
-        return child_array
+        return trace_out(child_array)
 
     def _copy_children_recursive(self, parent_id: int, max_depth: Optional[int] = None, current_depth: int = 0, copy_images: bool = False, copy_files: bool = False) -> None:
         trace_in()
@@ -2120,6 +2117,5 @@ class Page:
                 )
             log("Duplicate link check passed")
         log(f"Name validation successful for '{name}'")
-        trace_out()
-        return True
+        return trace_out(True)
 
