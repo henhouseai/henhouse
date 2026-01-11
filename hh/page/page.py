@@ -1935,7 +1935,7 @@ class Page:
         trace_out()
         return not is_error()
 
-    def modify_text(self, text: str, mode: str = "replace_all", old_string: str = None) -> bool:
+    def modify_text(self, text: str, mode: str = "replace_all", old_string: Optional[str] = None) -> bool:
         """
         Modify page text with flexible editing modes.
 

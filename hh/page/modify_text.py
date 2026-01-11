@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import success_payload
@@ -40,7 +40,7 @@ def modify_text() -> bool:
     page_id: int = 0
     new_text: str = ""
     mode: str = "replace_all"
-    old_string: str = None
+    old_string: Optional[str] = None
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         new_text = gateway.get_arg('text')
