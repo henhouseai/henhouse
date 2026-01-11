@@ -78,6 +78,7 @@ class Gateway:
         self._initialize(raw_argv, backend)
 
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
+        trace_in()
         initialize_debug_modules()
         
         # Initialize request
@@ -137,15 +138,19 @@ class Gateway:
                 report_error("registry", f"Error loading backend module: {module_name}")
         
         log("Gateway initialization completed")
+        trace_out()
 
     def _initialize_debug_module(self):
+        trace_in()
         use_trace = bool(self.request.get_arg('trace'))
         use_log = bool(self.request.get_arg('log'))
         use_debug = bool(self.request.get_arg('debug') or self.request.get_arg('log'))
         set_trace_flags(use_trace, use_log, use_debug)
         initialize_debug_modules()
+        trace_out()
 
     def _initialize_command(self):
+        trace_in()
         if self.request.has_command():
             # Command was specified - use it as-is
             self.command = self.request.get_command()
@@ -165,8 +170,10 @@ class Gateway:
             else:
                 # Other backends: report error (unchanged behavior)
                 report_error("request", "No command found")
+        trace_out()
 
     def _initialize_action(self):
+        trace_in()
         if not is_error() and self.registry.has_action_handler():
             self.action_handler = self.registry.get_action_handler()
         else:
@@ -175,14 +182,18 @@ class Gateway:
             action_args = self.registry.get_action_args()
             for arg in action_args:
                 self.request.add_synthetic_arg(arg, arg)
+        trace_out()
 
     def _initialize_backend(self):
+        trace_in()
         if not is_error() and self.registry.has_backend_handler():
             self.backend_handler = self.registry.get_backend_handler()
         else:
             report_error("registry", "No backend handler found.")
+        trace_out()
         
     def _configure_debug_module(self):
+        trace_in()
         # Check trace flag first (enables trace flags regardless of backend)
         if self.request.get_arg("trace"):
             self.debug_system = "trace"
@@ -190,11 +201,11 @@ class Gateway:
             self.debug_system = "none"
         else:
             self.debug_system = "table"
-        
+
         # MCP backend/flag check LAST - always uses debug_mcp
         if self.request.get_arg("mcp") or self.backend == "mcp" or self.backend == "maintenance":
             self.debug_system = "mcp"
-        
+
         # Set debug backend and resolve function
         set_debug_backend(self.debug_system)
         self.get_debug_func = resolve_get_debug_for(self.debug_system)
@@ -204,9 +215,11 @@ class Gateway:
             self.get_debug_func = resolve_get_debug_for("debug_safe")
         self._apply_debug_filter_overrides()
         log("Debug module configuration completed")
+        trace_out()
     
     def _apply_debug_filter_overrides(self):
         """Apply debug filter overrides from request arguments to shared debug store"""
+        trace_in()
         try:
             # Process debug limit
             debug_limit = self.request.get_arg('debug-limit')
@@ -216,21 +229,21 @@ class Gateway:
                     set_shared_debug_summary_limit(limit)
                 except (ValueError, TypeError):
                     pass
-            
+
             # Process whitelist
             white_list = self.request.get_arg('white')
             if white_list:
                 parsed_list = parse_list_arg(white_list)
                 if parsed_list:
                     set_shared_debug_whitelist(parsed_list)
-            
+
             # Process graylist
             gray_list = self.request.get_arg('gray')
             if gray_list:
                 parsed_list = parse_list_arg(gray_list)
                 if parsed_list:
                     set_shared_debug_graylist(parsed_list)
-            
+
             # Process blacklist
             black_list = self.request.get_arg('black')
             if black_list:
@@ -239,8 +252,10 @@ class Gateway:
                     set_shared_debug_blacklist(parsed_list)
         except Exception:
             pass
+        trace_out()
 
     def dispatch(self) -> Optional[str]:
+        trace_in()
         log("Dispatching...")
         if not is_error() and self.action_handler is not None:
             log(f"Starting action execution: {self.action_handler.__module__}.{self.action_handler.__name__}")
@@ -287,7 +302,7 @@ class Gateway:
         
         self.flush_debug()
         self._process_errors()
-        return self.response.get_output()
+        return trace_out(self.response.get_output())
 
     def get_arg(self, name: str) -> Any:
         trace_in()
@@ -309,20 +324,23 @@ class Gateway:
     
 
     def capture(self, message: str, level: int) -> None:
+        trace_in()
         if is_safe_mode():
-            return
+            return trace_out(None)
         if self.debug_system == "none" or not self.get_debug_func:
-            return
+            return trace_out(None)
         try:
             debug_obj = self.get_debug_func()
             if debug_obj:
                 debug_obj.capture(message, level)
         except Exception:
             pass
+        trace_out()
     
     def flush_debug(self) -> None:
+        trace_in()
         if self.debug_system == "none" or not self.get_debug_func:
-            return
+            return trace_out(None)
         try:
             debug_obj = self.get_debug_func()
             if hasattr(debug_obj, 'render'):
@@ -338,11 +356,15 @@ class Gateway:
                     self.response.debug_output = {"text": debug_output}
         except Exception as e:
             warn(f"Error flushing debug output: {e}")
+        trace_out()
     
     def get_debug_safe_mode(self) -> bool:
-        return self.debug_system == "debug_safe" or self.debug_system == "none"
+        trace_in()
+        result = self.debug_system == "debug_safe" or self.debug_system == "none"
+        return trace_out(result)
     
     def switch_to_safe_debug(self) -> None:
+        trace_in()
         if self.debug_system == "table":
             try:
                 import importlib
@@ -350,20 +372,23 @@ class Gateway:
                 self.debug_system = "debug_safe"
             except Exception as e:
                 warn(f"Failed to switch to safe debug mode: {e}")
+        trace_out()
     
     def restore_debug_system(self) -> None:
+        trace_in()
         if self.debug_system == "debug_safe":
             try:
                 if self.request.get_arg("trace"):
                     target_system = "trace"
                 else:
-                    target_system = "table"              
+                    target_system = "table"
                 from hh.gateway.registry.debug import set_debug_backend, resolve_get_debug_for
                 set_debug_backend(target_system)
                 self.get_debug_func = resolve_get_debug_for(target_system)
                 self.debug_system = target_system
             except Exception as e:
                 warn(f"Failed to restore debug system: {e}")
+        trace_out()
     
     def _initialize_connection(self, dry_run: bool = False) -> int:
         """Determine and create connection type based on command-line arguments (lazy import if needed). Returns user tier level."""
