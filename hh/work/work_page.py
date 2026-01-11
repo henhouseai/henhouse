@@ -2,26 +2,28 @@
 TABLE OF CONTENTS (Alphabetical Order)
 ======================================
 
-__init__()                          Line 79
-_add_badge_headers()                Line 230
-_add_page_class_information()       Line 105
-_delete_page_class_information()    Line 187
-_get_child_page_data()               Line 216
-_get_display_name()                 Line 195
-_load_work_metadata()               Line 320
-_modify_work_sort_order_internal()   Line 464
-_sort_meta_dict()                   Line 98
-_validate_is_string()               Line 371
-allow_inside_of()                   Line 93
-finalize_response_http()             Line 302
-get_page_data()                     Line 306
-modify_work_sort_order()            Line 453
-modify_work_status()                Line 985
-work_add()                          Line 660
-work_add_log()                      Line 741
-work_remove()                       Line 784
+__init__()                          Line 129
+_add_badge_headers()                Line 275
+_add_page_class_information()       Line 156
+_after_metadata_extraction()        Line 135
+_get_child_page_data()              Line 261
+_get_display_name()                 Line 240
+_load_work_metadata()               Line 384
+_modify_work_sort_order_internal()  Line 466
+_normalize_field_name()             Line 460
+_sort_meta_dict()                   Line 149
+_validate_ascii_string()            Line 439
+_validate_is_string()               Line 434
+allow_inside_of()                   Line 144
+finalize_response_http()            Line 366
+get_page_data()                     Line 370
+modify_work_sort_order()            Line 507
+modify_work_status()                Line 1000
+work_add()                          Line 647
+work_add_log()                      Line 732
+work_remove()                       Line 780
 work_set()                          Line 861
-work_set_all()                      Line 935
+work_set_all()                      Line 939
 
 """
 
@@ -435,7 +437,28 @@ class WorkPage(Page):
     def _validate_is_string(value: Any) -> bool:
         """Validate that a value is a simple string."""
         return isinstance(value, str)
-    
+
+    @staticmethod
+    def _validate_ascii_string(value: Any, field_name: str = "value") -> tuple[bool, str]:
+        """
+        Validate that a value is an ASCII-only string.
+        Allows printable ASCII (32-126) plus tab, newline, carriage return.
+        Returns (is_valid, error_message).
+
+        Work page metadata is stored in MySQL JSON fields and must be ASCII-only
+        to avoid encoding issues. Use page text (modify_text) for Unicode content.
+        """
+        if not isinstance(value, str):
+            return False, f"{field_name} must be a string, got {type(value).__name__}"
+
+        for i, char in enumerate(value):
+            code = ord(char)
+            # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
+            if code not in (9, 10, 13) and not (32 <= code <= 126):
+                return False, f"{field_name} contains non-ASCII character at position {i} (code {code}). Work page metadata must be ASCII-only. Use page text for Unicode content."
+
+        return True, ""
+
     @staticmethod
     def _normalize_field_name(field: str) -> str:
         """Normalize field name to canonical form. Maps 'files', 'files_touched', 'files-touched' to 'files_touched'."""
@@ -629,35 +652,37 @@ class WorkPage(Page):
         # Normalize field name (e.g., 'files' -> 'files_touched')
         field = self._normalize_field_name(field)
         log(f"Adding to {field} for page {self.id}")
-        
+
         if field not in ("files_touched", "deviations", "meta"):
             warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
             report_error("action", f"Invalid field: {field}")
             trace_out()
             return False
-        
+
         if not isinstance(data, dict):
             warn(f"Data must be a dictionary, got {type(data)}")
             report_error("action", "Data must be a dictionary")
             trace_out()
             return False
-        
+
         for key, value in data.items():
-            if not self._validate_is_string(key):
-                warn(f"{field} key must be a string, got {type(key)}")
-                report_error("action", f"{field} key must be a string, got {type(key)}")
+            is_valid, error_msg = self._validate_ascii_string(key, f"{field} key")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-            if not self._validate_is_string(value):
-                warn(f"{field} value must be a string, got {type(value)}")
-                report_error("action", f"{field} value must be a string, got {type(value)}")
+            is_valid, error_msg = self._validate_ascii_string(value, f"{field} value for key '{key}'")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-        
+
         if is_error():
             trace_out()
             return False
-        
+
         metadata = self._get_metadata_dict()
         
         if field == "meta":
@@ -710,29 +735,31 @@ class WorkPage(Page):
         """Append a log entry to the log list with automatic timestamp."""
         trace_in()
         log(f"Adding log entry for page {self.id}")
-        
+
         if not isinstance(data, dict):
             warn(f"Log entry must be a dictionary, got {type(data)}")
             report_error("action", "Log entry must be a dictionary")
             trace_out()
             return False
-        
+
         for key, value in data.items():
-            if not self._validate_is_string(key):
-                warn(f"Log entry key must be a string, got {type(key)}")
-                report_error("action", f"Log entry key must be a string, got {type(key)}")
+            is_valid, error_msg = self._validate_ascii_string(key, "log entry key")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-            if not self._validate_is_string(value):
-                warn(f"Log entry value for key '{key}' must be a string, got {type(value)}")
-                report_error("action", f"Log entry value for key '{key}' must be a string")
+            is_valid, error_msg = self._validate_ascii_string(value, f"log entry value for key '{key}'")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-        
+
         if is_error():
             trace_out()
             return False
-        
+
         metadata = self._get_metadata_dict()
         log_list = metadata.get('log', [])
         if not isinstance(log_list, list):
@@ -839,37 +866,39 @@ class WorkPage(Page):
         # Normalize field name (e.g., 'files' -> 'files_touched')
         field = self._normalize_field_name(field)
         log(f"Setting {field} for page {self.id}")
-        
+
         if field not in ("files_touched", "deviations", "meta"):
             warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
             report_error("action", f"Invalid field: {field}")
             trace_out()
             return False
-        
+
         if not isinstance(data, dict):
             warn(f"Data must be a dictionary, got {type(data)}")
             report_error("action", "Data must be a dictionary")
             trace_out()
             return False
-        
+
         for key, value in data.items():
-            if not self._validate_is_string(key):
-                warn(f"{field} key must be a string, got {type(key)}")
-                report_error("action", f"{field} key must be a string, got {type(key)}")
+            is_valid, error_msg = self._validate_ascii_string(key, f"{field} key")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-            if not self._validate_is_string(value):
-                warn(f"{field} value must be a string, got {type(value)}")
-                report_error("action", f"{field} value must be a string, got {type(value)}")
+            is_valid, error_msg = self._validate_ascii_string(value, f"{field} value for key '{key}'")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-        
+
         if is_error():
             trace_out()
             return False
-        
+
         metadata = self._get_metadata_dict()
-        
+
         if field == "meta":
             current_field = metadata.get('meta', {})
             if isinstance(current_field, str):
@@ -883,7 +912,7 @@ class WorkPage(Page):
             current_field = metadata.get(field, {})
             if not isinstance(current_field, dict):
                 current_field = {}
-        
+
         current_field.update(data)
         
         if field == "meta":
@@ -915,37 +944,39 @@ class WorkPage(Page):
         # Normalize field name (e.g., 'files' -> 'files_touched')
         field = self._normalize_field_name(field)
         log(f"Setting all {field} for page {self.id}")
-        
+
         if field not in ("files_touched", "deviations", "meta"):
             warn(f"Invalid field: {field}. Must be 'files_touched', 'deviations', or 'meta'")
             report_error("action", f"Invalid field: {field}")
             trace_out()
             return False
-        
+
         if not isinstance(data, dict):
             warn(f"Data must be a dictionary, got {type(data)}")
             report_error("action", "Data must be a dictionary")
             trace_out()
             return False
-        
+
         for key, value in data.items():
-            if not self._validate_is_string(key):
-                warn(f"{field} key must be a string, got {type(key)}")
-                report_error("action", f"{field} key must be a string, got {type(key)}")
+            is_valid, error_msg = self._validate_ascii_string(key, f"{field} key")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-            if not self._validate_is_string(value):
-                warn(f"{field} value must be a string, got {type(value)}")
-                report_error("action", f"{field} value must be a string, got {type(value)}")
+            is_valid, error_msg = self._validate_ascii_string(value, f"{field} value for key '{key}'")
+            if not is_valid:
+                warn(error_msg)
+                report_error("action", error_msg)
                 trace_out()
                 return False
-        
+
         if is_error():
             trace_out()
             return False
-        
+
         metadata = self._get_metadata_dict()
-        
+
         if field == "meta":
             sorted_field = self._sort_meta_dict(data)
             metadata['meta'] = sorted_field
