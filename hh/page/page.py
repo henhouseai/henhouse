@@ -242,6 +242,7 @@ class Page:
             except Exception as e:
                 warn(f"Failed to load page {id}: {e}")
                 report_error("connection", f"Failed to load page {id}: {e}")
+        trace_out()
 
     def _check_children_recursive(self) -> List[int]:
         trace_in()
