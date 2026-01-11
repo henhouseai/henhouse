@@ -737,10 +737,19 @@ class Connection:
         trace_out()
     
     def write_cache(self) -> None:
-        """Execute all buffered cache writes in a single independent transaction. 
+        """Execute all buffered cache writes in a single independent transaction.
         Processes full cache refreshes first, then lightweight flag modifications.
         Clears both buffers after execution."""
         trace_in()
+
+        if self._dry_run:
+            log("Dry run mode - skipping cache write operations")
+            # Clear buffers to prevent accumulation during dry run
+            self._cache_buffer.clear()
+            self._cache_flag_buffer.clear()
+            trace_out()
+            return
+
         if not self._initialized or not self.cache:
             log("Cache connection not initialized, cannot write buffer")
             trace_out()

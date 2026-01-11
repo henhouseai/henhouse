@@ -156,7 +156,7 @@ def http_decorator(json_data: Dict[str, Any], **kwargs: Any) -> str:
     
     if element_type == 'text':
         result = json_data.get('content', '')
-        result = result.replace('\n\n', '<br><br>')
+        result = result.replace('\n', '<br>')
         trace_out()
         return result
     
