@@ -14,7 +14,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.users.install import _install_config_path
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

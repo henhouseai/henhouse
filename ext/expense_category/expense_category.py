@@ -13,7 +13,7 @@ from hh.page.page_registry import get_page
 from hh.page.page_class_registry import register_page_class
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

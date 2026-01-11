@@ -13,7 +13,7 @@ from hh.render.render import FieldConfig, TableData, render_block
 from hh.render.config.config import safe_str
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

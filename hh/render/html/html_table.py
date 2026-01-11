@@ -8,7 +8,7 @@ from hh.render.html.color_converter import get_uniform_row_color, get_uniform_ce
 from hh.render.text.color import strip_ansi, has_color_codes
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

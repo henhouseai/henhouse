@@ -7,7 +7,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.render.text.color import strip_ansi, extract_last_color_code, is_reset_code, RESET_COLOR
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

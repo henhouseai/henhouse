@@ -23,7 +23,7 @@ from hh.gateway.registry.registry import register_action, register_command
 from hh.gateway.response.json_standard import success_payload
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

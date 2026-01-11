@@ -12,7 +12,7 @@ from hh.gateway.response.json_standard import success_payload
 from hh.deploy.deploy_utils import detect_project_context
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

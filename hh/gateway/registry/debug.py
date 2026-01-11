@@ -283,8 +283,9 @@ def safe_mode() -> Iterator[None]:
 def trace_in() -> None:
 	_shared_debug_store.capture("ENTER", 1)
 
-def trace_out() -> None:
+def trace_out(arg=None):
     _shared_debug_store.capture("EXIT", 2)
+    return arg
 
 def log(message: str) -> None:
     _shared_debug_store.capture(message, 3)
@@ -381,7 +382,7 @@ def get_trace_in(debug_enabled: bool = True) -> Callable[..., None]:
 
 def get_trace_out(debug_enabled: bool = True) -> Callable[..., None]:
     if not debug_enabled or not _use_trace:
-        def noop_trace_out(message=None): pass
+        def noop_trace_out(arg=None): return arg
         return noop_trace_out
     return trace_out
 

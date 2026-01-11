@@ -8,7 +8,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -195,8 +195,7 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
             order=order
         )
         log(f"Returning partial parse: primary_command={primary_command is not None}, {len(flags)} flags")
-        trace_out()
-        return result
+        return trace_out(result)
     
     # Parsing completed successfully - build final result
     if primary_command is None:
@@ -212,8 +211,7 @@ def parse(tokens: List[Token]) -> ParsedCommandStream:
         order=order
     )
     log(f"Parse complete: {len(additional_commands)} additional commands, {len(flags)} flags")
-    trace_out()
-    return result
+    return trace_out(result)
 
 def _parse_command(tokens: List[Token], start_i: int) -> tuple[ParsedCommand, int]:
     trace_in()
@@ -226,8 +224,7 @@ def _parse_command(tokens: List[Token], start_i: int) -> tuple[ParsedCommand, in
         origin_index=command_token.origin_index
     )
     log(f"Parsed command: '{result.name}'")
-    trace_out()
-    return result, i
+    return trace_out((result, i))
 
 def _parse_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
     trace_in()
@@ -242,8 +239,7 @@ def _parse_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
         is_no=False
     )
     log(f"Parsed flag: '{result.name}' (is_no={result.is_no})")
-    trace_out()
-    return result, start_i + 1
+    return trace_out((result, start_i + 1))
 
 def _parse_no_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
     trace_in()
@@ -264,8 +260,7 @@ def _parse_no_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
         is_no=True
     )
     log(f"Parsed no-flag: '{result.name}' (is_no={result.is_no})")
-    trace_out()
-    return result, start_i + 1
+    return trace_out((result, start_i + 1))
 
 def _parse_value(token: Token) -> ParsedValue:
     """Parse a VALUE token (quoted string) as ParsedValue."""
@@ -278,8 +273,7 @@ def _parse_value(token: Token) -> ParsedValue:
         origin_index=token.origin_index
     )
     log(f"Parsed value: raw='{result.raw}', as_value={result.as_value}")
-    trace_out()
-    return result
+    return trace_out(result)
 
 def _parse_number_value(token: Token) -> ParsedValue:
     """Parse a NUMBER token as ParsedValue with numeric conversion."""
@@ -309,8 +303,7 @@ def _parse_number_value(token: Token) -> ParsedValue:
         origin_index=token.origin_index
     )
     log(f"Parsed number value: raw='{result.raw}', as_value={result.as_value}")
-    trace_out()
-    return result
+    return trace_out(result)
 
 def _parse_command_as_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFlag, int]:
     """Convert a COMMAND token to a ParsedFlag (context-aware conversion)."""
@@ -324,8 +317,7 @@ def _parse_command_as_flag(tokens: List[Token], start_i: int) -> tuple[ParsedFla
         is_no=False
     )
     log(f"Converted COMMAND to flag: '{result.name}'")
-    trace_out()
-    return result, start_i + 1
+    return trace_out((result, start_i + 1))
 
 def _parse_command_as_value(token: Token) -> ParsedValue:
     """Convert a COMMAND token to a ParsedValue (unquoted string value)."""
@@ -338,5 +330,4 @@ def _parse_command_as_value(token: Token) -> ParsedValue:
         origin_index=token.origin_index
     )
     log(f"Converted COMMAND to value: raw='{result.raw}'")
-    trace_out()
-    return result
+    return trace_out(result)

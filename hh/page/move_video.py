@@ -9,7 +9,7 @@ from hh.page.page_registry import get_page
 from hh.video.video_registry import get_video
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

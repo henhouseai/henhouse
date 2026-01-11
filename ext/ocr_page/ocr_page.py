@@ -59,7 +59,7 @@ def _format_relative_time(timestamp_str: str) -> str:
         return timestamp_str
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

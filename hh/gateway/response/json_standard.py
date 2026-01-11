@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Union
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -83,8 +83,7 @@ def success_payload(
         ]
     }
     log(f"Created success payload with {len(data)} data keys")
-    trace_out()
-    return envelope
+    return trace_out(envelope)
 
 def is_success(envelope: Mapping[str, Any]) -> bool:
     return envelope.get("sta") == STATUS_OK
@@ -115,12 +114,10 @@ def with_count(iterable: Any) -> Dict[str, Any]:
     try:
         count = len(iterable)
         log(f"Counted {count} items in iterable")
-        trace_out()
-        return {"cnt": count}
+        return trace_out({"cnt": count})
     except (TypeError, AttributeError):
         log("Could not count items in iterable (not iterable)")
-        trace_out()
-        return {}
+        return trace_out({})
 
 def ensure_success(envelope: Mapping[str, Any]) -> None:
     trace_in()
@@ -160,8 +157,7 @@ def resolve_error(code: str) -> tuple[str, bool, str]:
     retryable: bool = error_info.get("retryable", False)
     source: str = error_info.get("source", "system")
     log(f"Resolved error code: {code} -> {message[:50]}...")
-    trace_out()
-    return message, retryable, source
+    return trace_out((message, retryable, source))
 
 def has_error_and_data(envelope: Mapping[str, Any]) -> bool:
     if not is_error(envelope):
@@ -182,15 +178,13 @@ def split_error_envelope(envelope: Mapping[str, Any]) -> tuple[Optional[Envelope
     trace_in()
     if not isinstance(envelope, dict) or not is_error(envelope):
         log("Envelope is not an error envelope, returning as-is")
-        trace_out()
         # Type cast for mypy - envelope should match Envelope structure
-        return None, envelope  # type: ignore[return-value]
+        return trace_out((None, envelope))  # type: ignore[return-value]
     error_payload: Dict[str, Any] = envelope.get("err", {})
     if not error_payload or not isinstance(error_payload, dict):
         log("No error payload found, returning as-is")
-        trace_out()
         # Type cast for mypy - envelope should match Envelope structure
-        return None, envelope  # type: ignore[return-value]
+        return trace_out((None, envelope))  # type: ignore[return-value]
     remaining_data: Dict[str, Any] = {}
     for key, value in envelope.items():
         if key not in {"tim", "ver", "sta", "met", "err"}:
@@ -204,8 +198,7 @@ def split_error_envelope(envelope: Mapping[str, Any]) -> tuple[Optional[Envelope
         log(f"Split envelope: error + success with {len(remaining_data)} data keys")
     else:
         log("Split envelope: error only")
-    trace_out()
-    return error_envelope, success_envelope
+    return trace_out((error_envelope, success_envelope))
 
 def _create_error_envelope(original: Mapping[str, Any], error_payload: Mapping[str, Any]) -> Envelope:
     envelope = _create_base_envelope(

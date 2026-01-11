@@ -15,7 +15,7 @@ from hh.deploy.cache.cache_cleanup_registry import register_cache_cleanup, get_d
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

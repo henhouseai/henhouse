@@ -9,7 +9,7 @@ from hh.page.page_registry import get_page
 from ext.currency_math import DecimalMath
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

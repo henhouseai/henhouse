@@ -17,7 +17,7 @@ from hh.deploy.maint.job_queue import update_maintenance_job
 from hh.gateway.error.error_store import is_error
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

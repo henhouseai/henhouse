@@ -13,7 +13,7 @@ from hh.render.config.config import safe_str
 from hh.gateway.registry.render_command_list import CommandInfo, CommandListData, render_commands_section, render_section
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -34,8 +34,7 @@ def command_list() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
     try:
         from hh.gateway.registry.cache import CACHE_DIR
         import json

@@ -9,7 +9,7 @@ from hh.video.video_registry import get_video
 from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

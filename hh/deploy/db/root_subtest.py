@@ -27,7 +27,7 @@ from hh.render.render import render_header_block, render_block, finalize_output,
 from hh.render.config.config import safe_str
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

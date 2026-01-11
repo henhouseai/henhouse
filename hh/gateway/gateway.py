@@ -9,7 +9,7 @@ from hh.gateway.debug.debug_filters import parse_list_arg
 from hh.gateway.error.error_store import report_error, is_error
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -293,22 +293,19 @@ class Gateway:
         trace_in()
         result = self.request.get_arg(name)
         log(f"Retrieved arg '{name}': {result}")
-        trace_out()
-        return result
+        return trace_out(result)
 
     def is_no(self, flag_name: str) -> bool:
         trace_in()
         result = self.request.is_no(flag_name)
         if result:
             log(f"Flag '{flag_name}' is disabled")
-        trace_out()
-        return result
+        return trace_out(result)
     
     def is_set(self, name: str) -> bool:
         trace_in()
         result = self.request.is_set(name)
-        trace_out()
-        return result
+        return trace_out(result)
     
 
     def capture(self, message: str, level: int) -> None:
@@ -382,9 +379,8 @@ class Gateway:
             self.conn = Connection(dry_run=dry_run)
         
         tier_level = self.conn.initialize()
-        
-        trace_out()
-        return tier_level
+
+        return trace_out(tier_level)
     
     def _initialize_response(self) -> None:
         """Initialize response handler with user tier level."""
@@ -446,8 +442,7 @@ class Gateway:
         
         if is_error():
             log("Skipping commit due to errors")
-            trace_out()
-            return
+            return trace_out(None)
         
         # Always commit file operations first (will no-op if no operations)
         log("Committing file operations...")
@@ -456,8 +451,7 @@ class Gateway:
             self.files.rollback()
             self.conn.rollback()
             report_error("file_operation", "File operations failed")
-            trace_out()
-            return
+            return trace_out(None)
         
         # Refresh image caches for any images in hot cache that need updating
         if not is_error():

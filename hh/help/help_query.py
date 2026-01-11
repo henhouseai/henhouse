@@ -9,7 +9,7 @@ from hh.deploy.cache.cache_cleanup_registry import get_deployment_paths, registe
 from hh.deploy.cache.cache_cleanup_registry import register_cache_cleanup
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

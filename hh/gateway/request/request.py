@@ -3,7 +3,7 @@ from typing import List, Optional, Any, Union
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -107,17 +107,14 @@ class Request:
         for no_flag in self.no_flags:
             if flag_kebab == no_flag.replace('_', '-'):
                 log(f"Flag '{flag_name}' is directly disabled")
-                trace_out()
-                return True
+                return trace_out(True)
         for group_name, members in NO_GROUPS.items():
             if flag_kebab in [m.replace('_', '-') for m in members]:
                 for no_flag in self.no_flags:
                     if f"no_{group_name}".replace('_', '-') == no_flag.replace('_', '-'):
                         log(f"Flag '{flag_name}' is disabled via no-groups (group: {group_name})")
-                        trace_out()
-                        return True
-        trace_out()
-        return False
+                        return trace_out(True)
+        return trace_out(False)
     
     def is_set(self, name: str) -> bool:
         trace_in()
@@ -126,23 +123,19 @@ class Request:
         for key in self.string_args.keys():
             if name_kebab == key.replace('_', '-'):
                 log(f"Arg '{name}' is set in string_args")
-                trace_out()
-                return True
+                return trace_out(True)
         # Check if it exists in num_args
         for key in self.num_args.keys():
             if name_kebab == key.replace('_', '-'):
                 log(f"Arg '{name}' is set in num_args")
-                trace_out()
-                return True
+                return trace_out(True)
         # Check if it exists in flag_args
         for key in self.flag_args:
             if name_kebab == key.replace('_', '-'):
                 log(f"Arg '{name}' is set in flag_args")
-                trace_out()
-                return True
+                return trace_out(True)
         log(f"Arg '{name}' is not set")
-        trace_out()
-        return False
+        return trace_out(False)
 
     def get_arg(self, name: str) -> Any:
         trace_in()
@@ -153,35 +146,29 @@ class Request:
             if name_kebab == key.replace('_', '-'):
                 result = self.num_args[key]
                 log(f"Found num arg: {name}={result}")
-                trace_out()
-                return result
+                return trace_out(result)
         # Fall back to string_args
         for key in self.string_args.keys():
             if name_kebab == key.replace('_', '-'):
                 result = self.string_args[key]
                 log(f"Found string arg: {name}={result}")
-                trace_out()
-                return result
+                return trace_out(result)
         for key in self.flag_args:
             if name_kebab == key.replace('_', '-'):
                 result = True
                 log(f"Found flag arg: {name}={result}")
-                trace_out()
-                return result
+                return trace_out(result)
         result = ""
-        trace_out()
-        return result
+        return trace_out(result)
     
     def has_command(self) -> bool:
         trace_in()
         has_cmd = self.command is not None
         log(f"has_command result: {has_cmd}")
-        trace_out()
-        return has_cmd
+        return trace_out(has_cmd)
     
     def get_command(self) -> Optional[str]:
         trace_in()
         result = self.command
         log(f"get_command result: {result}")
-        trace_out()
-        return result
+        return trace_out(result)

@@ -19,7 +19,7 @@ from hh.render.config.config import safe_str
 from hh.file.file_registry import get_file
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message=None: None

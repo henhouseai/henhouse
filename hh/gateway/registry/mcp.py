@@ -15,7 +15,7 @@ from hh.gateway.registry.mcp_whitelist import MCPWhitelist
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -36,17 +36,14 @@ def _mcp_wrapper_template(tool_name: str) -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway or response available")
-        trace_out()
-        return False
+        return trace_out(False)
     if not gateway.response.has_action_response():
         warn("No action response available")
         report_error("backend", "No action response available")
-        trace_out()
-        return False
+        return trace_out(False)
     # action_response is already set, ResponseMCP.get_output() will handle serialization
     log(f"MCP backend {tool_name} confirmed action_response available")
-    trace_out()
-    return True
+    return trace_out(True)
 
 # Dynamically generate wrapper functions with @register_mcp decorators using exec
 # This exec block will be discovered by the registry system when this module is imported

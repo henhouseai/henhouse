@@ -12,7 +12,7 @@ from hh.render.render import FieldConfig, TableData, finalize_output, render_blo
 from ext.deploy.maint.migration_tasks import get_migration_double_check, get_migration_images_double_check, get_migration_text_double_check, repair_migration_issues
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

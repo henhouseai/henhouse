@@ -17,7 +17,7 @@ from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
 from hh.deploy.users.install import _load_install_config
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None

@@ -10,7 +10,7 @@ from hh.gateway.response.response import Response
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
@@ -93,8 +93,7 @@ class ResponseMCP(Response):
             
             result = json.dumps(error_response, indent=2, default=str)
             log("MCP error response generated")
-            trace_out()
-            return result
+            return trace_out(result)
         
         # Build success response from action response
         # action_response always has content structure from success_payload()
@@ -152,6 +151,5 @@ class ResponseMCP(Response):
                 # Re-serialize
                 result = json.dumps(parsed, indent=2, default=str)
         log(f"MCP success response generated: {len(result)} characters")
-        trace_out()
-        return result
+        return trace_out(result)
 

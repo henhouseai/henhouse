@@ -12,7 +12,7 @@ from ext.deploy.maint.migration_tasks import get_migration_status
 from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
 
 trace_in = lambda message=None: None
-trace_out = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 debug = lambda message: None
 warn = lambda message: None
