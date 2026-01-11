@@ -39,12 +39,22 @@ def modify_text() -> bool:
             report_error("action", "New text is required")
     page_id: int = 0
     new_text: str = ""
+    mode: str = "replace_all"
+    old_string: str = None
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         new_text = gateway.get_arg('text')
         # Handle the case where -text is passed as a flag (returns True)
         if new_text is True:
             new_text = ""
+        # Get optional mode parameter (defaults to replace_all)
+        mode_arg = gateway.get_arg('mode')
+        if mode_arg:
+            mode = str(mode_arg)
+        # Get optional old_string parameter (required for replace mode)
+        old_string_arg = gateway.get_arg('old_string')
+        if old_string_arg:
+            old_string = str(old_string_arg)
         try:
             page_id = int(page_id_arg)
         except ValueError:
@@ -58,8 +68,8 @@ def modify_text() -> bool:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
     if not is_error() and page is not None:
-        log(f"Modifying page {page_id} text content")
-        success = page.modify_text(new_text)
+        log(f"Modifying page {page_id} text content (mode: {mode})")
+        success = page.modify_text(new_text, mode=mode, old_string=old_string)
         if not success:
             warn("Page text modification failed")
             report_error("action", "Page text modification failed")

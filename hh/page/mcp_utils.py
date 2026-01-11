@@ -133,13 +133,25 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
 )
 @register_mcp_tool(
     tool_name='modify_text',
-    description='Modify the text content of a page. Requires admin/panel tier access with database write permissions.',
+    description='''Modify the text content of a page with flexible editing modes. Requires admin/panel tier access with database write permissions.
+
+Editing Modes:
+- "replace_all" (default): Complete replacement of page text with the provided text
+- "prepend": Insert text at the beginning of existing content
+- "append": Insert text at the end of existing content
+- "replace": Replace a specific string with the provided text (exactly 1 match required)
+
+For "replace" mode, you must provide old_string - the exact string to find and replace. This mode requires the old_string to appear exactly once in the content; it will fail if the string is not found or appears multiple times.
+
+All modes validate the final combined content through TextProcessor before saving.''',
     inputSchema={
         'type': 'object',
         'properties': {
             'page_id': {'type': 'integer', 'description': 'The ID of the page to modify'},
             'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
-            'text': {'type': 'string', 'description': 'The new text content for the page'}
+            'text': {'type': 'string', 'description': 'The text content. For replace_all: the complete new content. For prepend/append: the text to insert. For replace: the replacement string.'},
+            'mode': {'type': 'string', 'description': 'Editing mode: "replace_all" (default), "prepend", "append", or "replace"', 'enum': ['replace_all', 'prepend', 'append', 'replace']},
+            'old_string': {'type': 'string', 'description': 'The exact string to find and replace (required when mode="replace"). Must appear exactly once in the content.'}
         },
         'required': ['page_id', 'text']
     },

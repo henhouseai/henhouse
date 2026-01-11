@@ -327,6 +327,20 @@ Every work operation must be micrologged. Micrologs serve as:
 - Progress tracking
 - Error recovery information
 
+### Critical: Never Modify Page Text
+
+**NEVER modify the page text of tasks/steps you are executing.** The page text contains the specification/assignment - it defines scope, deliverables, and acceptance criteria. Overwriting it destroys the original task description that future agents (or you) need to reference.
+
+**Your deliverables go in metadata, not page text:**
+- **`log`** (primary) - Your main deliverable target. Add reports, findings, summaries, and work results as log entries.
+- **`files_touched`** - Track which files you modified/examined and what you did to each.
+- **`deviations`** - Document when implementation differs from specification.
+- **`meta`** - General-purpose key-value storage for custom fields.
+
+**Any combination of log + these other metadata buckets is acceptable.** Structure your deliverables however makes sense. The only hard rule is: **do not modify the page text itself.**
+
+### Logging Frequency
+
 **Critical Rule**: Every time you touch any tier of any work page where you do anything meaningful (even if that means verifying that it was done or looks correct), you should add a log entry to that level.
 
 **When to Microlog**:
@@ -545,6 +559,7 @@ For custom fields specific to the work item:
 - Skip investigation phase
 - Skip understanding debrief
 - Skip micrologging
+- **Modify page text of tasks/steps you are executing** (page text = spec, deliverables go in log/metadata)
 - Work in Discipline-Mode (unless explicitly told to read one specific file/page)
 - Ignore STOP-GATES
 - Proceed when questions exist (OQ-GATE)

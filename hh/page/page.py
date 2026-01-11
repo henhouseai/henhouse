@@ -1935,23 +1935,78 @@ class Page:
         trace_out()
         return not is_error()
 
-    def modify_text(self, text: str) -> bool:
+    def modify_text(self, text: str, mode: str = "replace_all", old_string: str = None) -> bool:
+        """
+        Modify page text with flexible editing modes.
+
+        Args:
+            text: New text content (interpretation depends on mode)
+            mode: Editing mode
+                - "replace_all": Complete replacement (default, current behavior)
+                - "prepend": Insert text at beginning of existing content
+                - "append": Insert text at end of existing content
+                - "replace": Replace old_string with text (exactly 1 match required)
+            old_string: Target string for replace mode (required when mode="replace")
+
+        Returns:
+            True on success, False on failure
+        """
         trace_in()
-        # Check if text is actually changing
-        if text == self.text:
-            log(f"Text modification skipped for page {self.id}: content unchanged (length: {len(text)})")
+
+        # Compute the new content based on mode
+        current_content = self.text or ""
+
+        if mode == "replace_all":
+            new_content = text
+        elif mode == "prepend":
+            new_content = text + current_content
+            log(f"Prepending {len(text)} characters to page {self.id}")
+        elif mode == "append":
+            new_content = current_content + text
+            log(f"Appending {len(text)} characters to page {self.id}")
+        elif mode == "replace":
+            if old_string is None:
+                warn(f"old_string is required for replace mode")
+                report_error("action", "old_string parameter is required when mode='replace'")
+                trace_out()
+                return False
+
+            match_count = current_content.count(old_string)
+            if match_count == 0:
+                warn(f"old_string not found in page {self.id} content")
+                report_error("action", f"old_string not found in content")
+                trace_out()
+                return False
+            elif match_count > 1:
+                warn(f"old_string appears {match_count} times in page {self.id} - must be unique")
+                report_error("action", f"old_string appears {match_count} times - must be unique (exactly 1 match required)")
+                trace_out()
+                return False
+
+            new_content = current_content.replace(old_string, text, 1)
+            log(f"Replacing '{old_string[:50]}...' with '{text[:50]}...' in page {self.id}")
+        else:
+            warn(f"Invalid mode '{mode}' - must be one of: replace_all, prepend, append, replace")
+            report_error("action", f"Invalid mode '{mode}' - must be one of: replace_all, prepend, append, replace")
+            trace_out()
+            return False
+
+        # Check if text is actually changing (after computing new content)
+        if new_content == self.text:
+            log(f"Text modification skipped for page {self.id}: content unchanged (length: {len(new_content)})")
             trace_out()
             return True
-        # Validate text with TextProcessor
+
+        # Validate combined/new content with TextProcessor
         processor = TextProcessor()
-        preprocessed = processor.preprocess(text)
+        preprocessed = processor.preprocess(new_content)
         if preprocessed is None:
-            log(f"Text modification failed for page {self.id}: TextProcessor validation failed - parse errors detected in text (length: {len(text)})")
+            log(f"Text modification failed for page {self.id}: TextProcessor validation failed - parse errors detected in text (length: {len(new_content)})")
             trace_out()
             return False
         if not is_error():
             # Text validation passed, proceed with update
-            text_value = None if text == "" else text
+            text_value = None if new_content == "" else new_content
             affected = self.gateway.conn.update("UPDATE pages SET text = %s WHERE id = %s", (text_value, self.id))
             if affected == 0:
                 warn(f"Failed to update page {self.id} text - no rows affected")
@@ -1973,8 +2028,8 @@ class Page:
             self._flag_cache_refresh()
         if not is_error():
             # Update object property to match what was stored in database
-            self.text = None if text == "" else text
-            log(f"Text modification completed for page {self.id}: updated text (length: {len(text)}), validated with TextProcessor, updated links table")
+            self.text = None if new_content == "" else new_content
+            log(f"Text modification completed for page {self.id}: updated text (length: {len(new_content)}, mode: {mode}), validated with TextProcessor, updated links table")
         trace_out()
         return not is_error()
 
