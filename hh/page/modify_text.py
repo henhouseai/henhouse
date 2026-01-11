@@ -29,13 +29,43 @@ def _initialize_debug():
 def is_valid_utf8(text: str) -> bool:
     """
     Validate that a string contains only valid UTF-8 encoded characters.
-    Rejects strings with corrupted Unicode sequences or invalid encoding.
+    Rejects strings with corrupted Unicode sequences, invalid encoding, or suspicious character patterns.
     """
     try:
-        # Attempt to encode as UTF-8 - this will fail for invalid sequences
+        # First check: can it be encoded as UTF-8?
         text.encode('utf-8')
+
+        # Second check: look for corrupted Unicode patterns
+        # Common corruption patterns from emoji/Unicode transmission issues
+        import re
+
+        # Check for C1 control codes (often result of corruption)
+        if re.search(r'[\x80-\x9f]', text):
+            return False
+
+        # Check for isolated combining characters (often corruption artifacts)
+        # This catches cases where diacritics appear without base characters
+        for i, char in enumerate(text):
+            if '\u0300' <= char <= '\u036f':  # Combining Diacritical Marks block
+                # Check if previous character exists and is a valid base
+                if i == 0 or not text[i-1].isalnum():
+                    return False
+
+        # Check for sequences that look like corrupted multi-byte UTF-8
+        # Pattern: Latin-1 supplement chars that shouldn't appear in normal text
+        suspicious_byte_patterns = [
+            b'[\xc2-\xc3][\x80-\xbf]{0,2}',  # Over-encoded UTF-8
+            b'\xef\xbf\xbd',  # UTF-8 replacement character (�)
+        ]
+
+        encoded_text = text.encode('utf-8')
+        for pattern in suspicious_byte_patterns:
+            if re.search(pattern, encoded_text):
+                return False
+
         return True
-    except UnicodeEncodeError:
+
+    except (UnicodeEncodeError, UnicodeDecodeError):
         return False
 
 @register_action('modify_text')
