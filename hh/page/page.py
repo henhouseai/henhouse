@@ -1088,131 +1088,8 @@ class Page:
 
     def _refresh_cached_page(self) -> bool:
         """Refresh the cache database with all 5 derived fields. Called by refresh_stale_page_caches() during gateway commit."""
-        trace_in()
-        log(f"_refresh_cached_page: Starting for page {self.id}")
-
-        tier_level = getattr(self.gateway.response, "user_tier_level", 0) if self.gateway and self.gateway.response else 0
-        if tier_level < 3:
-            log(
-                f"_refresh_cached_page: Skipping cache write for page {self.id} (tier_level={tier_level})"
-            )
-            self._cache_needs_refresh = False
-            trace_out()
-            return True
-
-        # Ensure all 5 fields are populated by calling their internal mixin methods
-        # The getters check if field is populated first, and only hydrate if empty
-        # The getters set the attributes themselves, so we just call them
-        # This ensures we always have fully hydrated data to cache
-        
-        if not self.display_name:
-            self._get_display_name()
-        
-        if self.prepared_text is None:
-            self.get_prepared_text()
-        
-        if not self.children_by_class:
-            self._get_children_by_class()
-        
-        if not self.images:
-            self.get_images_data()
-        
-        if not self.files:
-            self.get_files_data()
-        
-        # Serialize all data
-        display_name_str = self.display_name
-        prepared_json = self._dump_json(self.prepared_text) if self.prepared_text is not None else None
-        children_json = self._dump_json(self.children_by_class) if self.children_by_class else None
-        images_json = self._dump_json(self.images) if self.images else None
-        files_json = self._dump_json(self.files) if self.files else None
-        
-        # Get existing metadata (only the metadata JSON field, not main DB fields)
-        # Main DB fields are now stored as first-class columns, not in metadata
-        existing_metadata = getattr(self, 'metadata', {}) or {}
-        if not isinstance(existing_metadata, dict):
-            existing_metadata = {}
-        metadata_json = self._dump_json(existing_metadata)
-        
-        now = dt.datetime.now()
-        
-        try:
-            # Buffer cache database write with all main DB fields as first-class columns
-            # plus derived fields and metadata (which now only contains custom metadata, not main DB fields)
-            # Uses INSERT ... ON DUPLICATE KEY UPDATE to handle both insert and update cases
-            self.gateway.conn.buffer_cache(
-                "pages",
-                """
-                    INSERT INTO pages (id, name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount, display_name, prepared_text, children_summary, image_summary, file_summary, links_out, metadata, cache_built_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        name = VALUES(name),
-                        link = VALUES(link),
-                        text = VALUES(text),
-                        parent = VALUES(parent),
-                        class = VALUES(class),
-                        last_modified = VALUES(last_modified),
-                        username = VALUES(username),
-                        comments = VALUES(comments),
-                        visibility = VALUES(visibility),
-                        displayStyle = VALUES(displayStyle),
-                        viewCount = VALUES(viewCount),
-                        display_name = VALUES(display_name),
-                        prepared_text = VALUES(prepared_text),
-                        children_summary = VALUES(children_summary),
-                        image_summary = VALUES(image_summary),
-                        file_summary = VALUES(file_summary),
-                        links_out = VALUES(links_out),
-                        metadata = VALUES(metadata),
-                        cache_built_at = VALUES(cache_built_at)
-                """,
-                (
-                    self.id,
-                    self.name,
-                    self.link,
-                    self.text,
-                    self.parent,
-                    self.class_name,
-                    self.last_modified,
-                    self.username,
-                    self.comments,
-                    self.visibility,
-                    getattr(self, 'displayStyle', 1),
-                    getattr(self, 'viewCount', 0),
-                    display_name_str,
-                    prepared_json,
-                    children_json,
-                    images_json,
-                    files_json,
-                    self._dump_json({}),  # links_out - currently not used, store empty dict
-                    metadata_json,
-                    now,
-                ),
-            )
-            # Always bump main database cache_built_at
-            self.gateway.conn.update(
-                """
-                    UPDATE pages
-                    SET cache_built_at = %s
-                    WHERE id = %s
-                """,
-                (now, self.id),
-            )
-            
-            # Note: Cache writes are buffered, so verification would fail until write_cache() is called
-            # Verification removed since buffered writes aren't immediately visible in cache DB
-            
-            log(f"Refreshed cache for page {self.id}")
-        except Exception as exc:
-            warn(f"Failed to update cache for page {self.id}: {exc}")
-            report_error("connection", f"Failed to update cache for page {self.id}")
-            trace_out()
-            return False
-
-        self._cache_needs_refresh = False  # Reset flag after refresh
-        
-        trace_out()
-        return not is_error()
+        from .cache_operations import refresh_cached_page
+        return refresh_cached_page(self)
 
     def _serialize_metadata(self) -> str:
         metadata = getattr(self, 'metadata', {}) or {}
@@ -1953,332 +1830,42 @@ class Page:
         return count
 
     def get_children_data(self) -> List[Dict[str, Any]]:
-        trace_in()
-        children_data = []
-        if not is_error():
-            child_ids = self._get_child_page_ids()
-        if not is_error():
-            for i, child_id in enumerate(child_ids):
-                if not is_error():
-                    child_page = get_page(page_id=child_id)
-                    if child_page:
-                        child_data = child_page.get_page_data()
-                        # Add child count for this child page
-                        child_count = child_page.get_child_count()
-                        child_data['num_children'] = child_count
-                        children_data.append(child_data)
-                    else:
-                        warn(f"Failed to load child page {child_id}")
-                        report_error("action", f"Failed to load child page {child_id}")
-        log(f"Loaded {len(children_data)}/{len(child_ids)} child pages for page {self.id}: {[c['name'] for c in children_data]}")
-        trace_out()
-        return children_data
+        from .data_operations import get_children_data
+        return get_children_data(self)
 
     def get_path(self) -> List[Dict[str, Any]]:
-        trace_in()
-        path = []
-        current_page = self
-        level = 0
-        while current_page and current_page.parent != 0:
-            level += 1
-            path.append({
-                "id": current_page.id,
-                "name": current_page._get_display_name(),
-                "class": current_page.class_name
-            })
-            # Get parent page
-            if current_page.parent is None:
-                break
-            parent_page = get_page(page_id=current_page.parent)
-            if not parent_page:
-                warn(f"Parent page {current_page.parent} not found for page {current_page.id}")
-                break
-            current_page = parent_page
-        # Add root page (parent = 0)
-        if current_page:
-            level += 1
-            path.append({
-                "id": current_page.id,
-                "name": current_page._get_display_name(),
-                "class": current_page.class_name
-            })
-        # Reverse to get root -> current order
-        path.reverse()
-        log(f"Built path for page {self.id}: {len(path)} levels -> {[p['name'] for p in path]}")
-        trace_out()
-        return path
+        from .data_operations import get_path
+        return get_path(self)
 
     def get_page_data(self) -> Dict[str, Any]:
-        trace_in()
-        data: Dict[str, Any] = {
-            "id": self.id,
-            "name": self.name,
-            "link": self.link,
-            "parent": self.parent,
-            "class": self.class_name,
-            "visibility": self.visibility,
-            "text": self.text,
-            "last_modified": self.last_modified.isoformat() if self.last_modified else None,
-            "username": self.username,
-            "comments": self.comments
-        }
-        # Add breadcrumb path if available
-        path_data = self.get_path()
-        if path_data:
-            data['path'] = path_data
-        trace_out()
-        return data
+        from .data_operations import get_page_data
+        return get_page_data(self)
 
     def get_page(self) -> Dict[str, Any]:
         """Assemble a minimal JSON-friendly payload for AJAX consumption."""
-        trace_in()
-        page_data = self.get_page_data()
-        images_data = self.get_images_data()
-        files_data = self.get_files_data()
-        audio_data = self.get_audio_data()
-        video_data = self.get_video_data()
-        children_by_class = self._get_children_by_class()
-        upper_content = self._add_upper_content()
-        lower_content = self._add_lower_content()
-        metadata = self._get_metadata_dict()
-        
-        # Add path data if available
-        if 'path' not in page_data:
-            path_data = self.get_path()
-            if path_data:
-                page_data['path'] = path_data
-
-        result: Dict[str, Any] = {
-            'page': page_data,
-            'images': images_data,
-            'files': files_data,
-            'audio': audio_data,
-            'video': video_data,
-            'children_by_class': children_by_class,
-            'upper_content': upper_content,
-            'lower_content': lower_content,
-            'metadata': metadata,
-        }
-        
-        
-        trace_out()
-        return result
+        from .data_operations import assemble_page_data
+        return assemble_page_data(self)
 
     def get_prepared_text(self) -> Optional[List[Dict[str, Any]]]:
-        """
-        Get the prepared text for this page. Checks cached prepared_text first, then processes if needed.
-        """
-        trace_in()
-        # Check if field is already populated
-        if hasattr(self, 'prepared_text') and self.prepared_text is not None:
-            trace_out()
-            return self.prepared_text
-        # Field is empty, need to process text
-        processor = TextProcessor()
-        prepared = processor.preprocess(self.text or "")
-        if prepared is not None:
-            self.prepared_text = prepared
-            # Only flag cache refresh if we actually processed text content
-            # If we just confirmed there's no text (empty list), no need to refresh
-            if prepared:
-                self._flag_cache_refresh()
-        trace_out()
-        return prepared
+        """Get the prepared text for this page. Checks cached prepared_text first, then processes if needed."""
+        from .data_operations import get_prepared_text
+        return get_prepared_text(self)
 
     def get_files_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
-        trace_in()
-        # If rebuild flag is set, clear the cache to force a rebuild
-        if rebuild:
-            self.files = []
-        # Check if field is already populated
-        if hasattr(self, 'files') and self.files:
-            trace_out()
-            return self.files
-        # Field is empty, need to hydrate from database
-        files: List[Dict[str, Any]] = []
-        if not is_error():
-            rows = self.gateway.conn.read(
-                """
-                SELECT fg.file_rank,
-                       f.id,
-                       f.file_name,
-                       f.file_path,
-                       f.description,
-                       f.mime_type,
-                       f.size_bytes,
-                       f.username,
-                       f.uploaded,
-                       f.last_modified,
-                       f.comments,
-                       f.visibility
-                FROM file_groups fg
-                JOIN files f ON f.id = fg.file_id
-                WHERE fg.page_id = %s
-                ORDER BY fg.file_rank
-                """,
-                [self.id],
-            )
-            for row in rows:
-                files.append(
-                    {
-                        "id": row["id"],
-                        "file_rank": row["file_rank"],
-                        "file_name": row["file_name"],
-                        "file_path": row["file_path"],
-                        "description": row["description"],
-                        "mime_type": row["mime_type"],
-                        "size_bytes": row["size_bytes"],
-                        "username": row["username"],
-                        "uploaded": row["uploaded"],
-                        "last_modified": row["last_modified"],
-                        "comments": row["comments"],
-                        "visibility": row["visibility"],
-                    }
-                )
-        self.files = files
-        # Only flag cache refresh if we actually found files (data changed)
-        # If we just confirmed there are no files (empty array), no need to refresh
-        if files:
-            self._flag_cache_refresh()
-        trace_out()
-        return files
+        from .data_operations import get_files_data
+        return get_files_data(self, rebuild)
 
     def get_images_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
-        trace_in()
-        # If rebuild flag is set, clear the cache to force a rebuild
-        if rebuild:
-            self.images = []
-        # Check if field is already populated
-        if hasattr(self, 'images') and self.images:
-            log(f"Page {self.id}: returning cached images")
-            trace_out()
-            return self.images
-        # Field is empty, need to hydrate from database
-        images_data = []
-        if not is_error():
-            try:
-                results = self.gateway.conn.read("""
-                    SELECT i.id, ig.image_rank 
-                    FROM image_groups ig 
-                    JOIN images i ON ig.image_id = i.id 
-                    WHERE ig.page_id = %s 
-                    ORDER BY ig.image_rank
-                """, [self.id])
-                for row in results:
-                    image_id = row['id']
-                    image_rank = row['image_rank']
-                    image = get_image(image_id)
-                    if image:
-                        # Ensure instances are fully loaded before getting image_data
-                        image.get_instances()
-                        image_data = image.get_image_data()
-                        image_data['image_rank'] = image_rank  # Add rank from image_groups
-                        images_data.append(image_data)
-                        log(f"Loaded image {image_id} (rank {image_rank}): {image_data.get('caption', 'untitled')}")
-                    else:
-                        warn(f"Failed to load image {image_id}")
-                log(f"Loaded {len(images_data)} images for page {self.id}")
-            except Exception as e:
-                warn(f"Failed to load images for page {self.id}: {str(e)}")
-                report_error("backend", f"Failed to load images: {str(e)}")
-        self.images = images_data
-        # Only flag cache refresh if we actually found images (data changed)
-        if images_data:  # Only flag if actual images were loaded
-            self._flag_cache_refresh()
-        trace_out()
-        return images_data
+        from .data_operations import get_images_data
+        return get_images_data(self, rebuild)
 
     def get_audio_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
-        trace_in()
-        # If rebuild flag is set, clear the cache to force a rebuild
-        if rebuild:
-            self.audio = []
-        # Check if field is already populated
-        if hasattr(self, 'audio') and self.audio:
-            log(f"Page {self.id}: returning cached audio")
-            trace_out()
-            return self.audio
-        # Field is empty, need to hydrate from database
-        audio_data = []
-        if not is_error():
-            try:
-                from hh.audio.audio_registry import get_audio
-                results = self.gateway.conn.read("""
-                    SELECT a.id, ag.audio_rank 
-                    FROM audio_groups ag 
-                    JOIN audio a ON ag.audio_id = a.id 
-                    WHERE ag.page_id = %s 
-                    ORDER BY ag.audio_rank
-                """, [self.id])
-                for row in results:
-                    audio_id = row['id']
-                    audio_rank = row['audio_rank']
-                    audio = get_audio(audio_id)
-                    if audio:
-                        # Ensure instances are fully loaded before getting audio_data
-                        audio.get_instances()
-                        audio_data_item = audio.get_audio_data()
-                        audio_data_item['audio_rank'] = audio_rank  # Add rank from audio_groups
-                        audio_data.append(audio_data_item)
-                        log(f"Loaded audio {audio_id} (rank {audio_rank}): {audio_data_item.get('caption', 'untitled')}")
-                    else:
-                        warn(f"Failed to load audio {audio_id}")
-                log(f"Loaded {len(audio_data)} audio for page {self.id}")
-            except Exception as e:
-                warn(f"Failed to load audio for page {self.id}: {str(e)}")
-                report_error("backend", f"Failed to load audio: {str(e)}")
-        self.audio = audio_data
-        # Only flag cache refresh if we actually found audio (data changed)
-        if audio_data:  # Only flag if actual audio were loaded
-            self._flag_cache_refresh()
-        trace_out()
-        return audio_data
+        from .data_operations import get_audio_data
+        return get_audio_data(self, rebuild)
 
     def get_video_data(self, rebuild: bool = False) -> List[Dict[str, Any]]:
-        trace_in()
-        # If rebuild flag is set, clear the cache to force a rebuild
-        if rebuild:
-            self.video = []
-        # Check if field is already populated
-        if hasattr(self, 'video') and self.video:
-            log(f"Page {self.id}: returning cached video")
-            trace_out()
-            return self.video
-        # Field is empty, need to hydrate from database
-        video_data = []
-        if not is_error():
-            try:
-                from hh.video.video_registry import get_video
-                results = self.gateway.conn.read("""
-                    SELECT v.id, vg.video_rank 
-                    FROM video_groups vg 
-                    JOIN video v ON vg.video_id = v.id 
-                    WHERE vg.page_id = %s 
-                    ORDER BY vg.video_rank
-                """, [self.id])
-                for row in results:
-                    video_id = row['id']
-                    video_rank = row['video_rank']
-                    video = get_video(video_id)
-                    if video:
-                        # Ensure instances are fully loaded before getting video_data
-                        video.get_instances()
-                        video_data_item = video.get_video_data()
-                        video_data_item['video_rank'] = video_rank  # Add rank from video_groups
-                        video_data.append(video_data_item)
-                        log(f"Loaded video {video_id} (rank {video_rank}): {video_data_item.get('caption', 'untitled')}")
-                    else:
-                        warn(f"Failed to load video {video_id}")
-                log(f"Loaded {len(video_data)} video for page {self.id}")
-            except Exception as e:
-                warn(f"Failed to load video for page {self.id}: {str(e)}")
-                report_error("backend", f"Failed to load video: {str(e)}")
-        self.video = video_data
-        # Only flag cache refresh if we actually found video (data changed)
-        if video_data:  # Only flag if actual video were loaded
-            self._flag_cache_refresh()
-        trace_out()
-        return video_data
+        from .data_operations import get_video_data
+        return get_video_data(self, rebuild)
 
     def reorder_images(self) -> bool:
         trace_in()
@@ -2632,50 +2219,8 @@ class Page:
         return set_media_rank_impl(self, media_type, item_id, current_rank, new_rank)
 
     def show_page(self) -> Dict[str, Any]:
-        trace_in()
-        cache_ready = getattr(self, 'cache_hydrated', False) and self.children_by_class is not None
-        if cache_ready:
-            log(f"Page {self.id}: cache available, methods will check cache independently")
-        else:
-            log(f"Page {self.id}: cache miss or stale entry; rebuilding show_page payload")
-        page_data = self.get_page_data()
-        images_data = self.get_images_data()
-        files_data = self.get_files_data()
-        audio_data = self.get_audio_data()
-        video_data = self.get_video_data()
-        children_by_class = self._get_children_by_class()
-        badge_headers = self._add_badge_headers()
-        upper_content = self._add_upper_content()
-        lower_content = self._add_lower_content()
-
-        prepared_payload = self.get_prepared_text()
-        if prepared_payload is not None:
-            page_data = dict(page_data)
-            page_data['prepared_text'] = prepared_payload
-
-        response_data = {
-            "page": page_data,
-            "children_by_class": children_by_class,
-            "images": images_data,
-            "files": files_data,
-            "audio": audio_data,
-            "video": video_data,
-            "badge_headers": badge_headers,
-            "upper_content": upper_content,
-            "lower_content": lower_content,
-        }
-
-        # Cache refresh will be handled by wrapper method system if flag is set
-
-        total_children = sum(len(group['children']) for group in children_by_class.values())
-        file_count = len(files_data)
-        log(
-            f"Assembled display data for page {self.id}: "
-            f"{total_children} children in {len(children_by_class)} classes, "
-            f"{len(images_data)} images, {file_count} files"
-        )
-        trace_out()
-        return response_data
+        from .data_operations import show_page
+        return show_page(self)
 
     def validate_name(
         self,
