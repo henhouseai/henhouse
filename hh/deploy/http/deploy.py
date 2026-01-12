@@ -1095,6 +1095,85 @@ def deploy() -> bool:
             warn(f"Failed to clean ext/deploy directory while preserving whitelisted items: {e}")
             report_error("backend", f"Failed to clean ext/deploy directory while preserving whitelisted items: {e}")
 
+    # Deploy discovered peer modules
+    if not is_error():
+        try:
+            from hh.deploy.deploy_utils import get_active_modules
+            modules = get_active_modules()
+            deployed_modules = []
+            for module in modules:
+                module_source = source / module.path
+                module_dest = dest / module.path
+                try:
+                    if module_source.exists() and module_source.is_dir():
+                        shutil.copytree(module_source, module_dest)
+                        deployed_modules.append(module)
+                        log(f"Deployed module {module.name}: {module_source} -> {module_dest}")
+                    else:
+                        warn(f"Module source not found: {module_source}")
+                except Exception as e:
+                    warn(f"Failed to deploy module {module.name}: {e}")
+                    report_error("backend", f"Failed to deploy module {module.name}: {e}")
+
+            # Clean each deployed module's deploy directory but preserve whitelisted items
+            for module in deployed_modules:
+                module_deploy_dir = dest / module.path / 'deploy'
+                if module_deploy_dir.exists():
+                    # Load module's deploy whitelist
+                    module_whitelist = []
+                    try:
+                        module_whitelist_path = module_deploy_dir / 'conf' / 'deploy_whitelist.py'
+                        if module_whitelist_path.exists():
+                            # Execute the module's whitelist file in a controlled namespace
+                            namespace: dict = {}
+                            exec(module_whitelist_path.read_text(), namespace)
+                            module_whitelist = namespace.get('MODULE_DEPLOY_WHITELIST', [])
+                            log(f"Loaded whitelist for module {module.name}: {module_whitelist}")
+                        else:
+                            log(f"No whitelist file found for module {module.name}: {module_whitelist_path}")
+                    except Exception as e:
+                        warn(f"Failed to load whitelist for module {module.name}: {e}")
+
+                    # Preserve whitelisted items
+                    preserved_items = {}
+                    try:
+                        for item_name in module_whitelist:
+                            item_path = module_deploy_dir / item_name
+                            if item_path.exists():
+                                temp_path = dest / f".{project_name}_{module.name}_{item_name.replace('/', '_').replace('.', '_')}_tmp"
+
+                                # Clean up existing temp if it exists
+                                if temp_path.exists():
+                                    if temp_path.is_dir():
+                                        shutil.rmtree(temp_path)
+                                    else:
+                                        temp_path.unlink()
+
+                                # Move item to temp location
+                                shutil.move(str(item_path), str(temp_path))
+                                preserved_items[item_name] = (item_path, temp_path)
+                                log(f"Temporarily moved {module.name}/{item_name}: {item_path} -> {temp_path}")
+
+                        # Remove entire module/deploy directory contents
+                        shutil.rmtree(module_deploy_dir)
+                        log(f"Removed {module.name}/deploy directory: {module_deploy_dir}")
+
+                        # Recreate module/deploy directory and restore preserved items
+                        module_deploy_dir.mkdir(parents=True, exist_ok=True)
+                        for item_name, (original_path, temp_path) in preserved_items.items():
+                            if temp_path.exists():
+                                restored_path = module_deploy_dir / item_name
+                                shutil.move(str(temp_path), str(restored_path))
+                                log(f"Restored {module.name}/{item_name}: {restored_path}")
+
+                        log(f"Cleaned {module.name}/deploy directory while preserving whitelisted items")
+                    except Exception as e:
+                        warn(f"Failed to clean {module.name}/deploy directory: {e}")
+                        report_error("backend", f"Failed to clean {module.name}/deploy directory: {e}")
+        except Exception as e:
+            warn(f"Error deploying modules: {e}")
+            report_error("backend", f"Error deploying modules: {e}")
+
     # Clean deployment directory but preserve whitelisted items
     if not is_error():
         deploy_dir = dest / 'hh' / 'deploy'

@@ -25,4 +25,13 @@ EXT_EXTRA_DEPLOY_FILES: List[str] = [
     # Example: 'ext/deploy/custom/client.py',
 ]
 
+# Files and folders to preserve in accounting/deploy during deployment cleanup
+# These items are temporarily moved out, the deploy directory is cleaned, then restored
+# This field is NOT aggregated across modules - each module controls its own cleanup
+MODULE_DEPLOY_WHITELIST: List[str] = [
+    'conf',       # Whitelist configurations
+    'maint',      # Maintenance tools (migration_daemon, migration_status, etc.)
+    'db',         # Database schema and data
+]
+
 

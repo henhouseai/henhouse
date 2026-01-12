@@ -24,3 +24,11 @@ HH_EXTRA_DEPLOY_FILES: List[str] = [
 EXT_EXTRA_DEPLOY_FILES: List[str] = [
     # Example: 'self_doc/deploy/custom/client.py',
 ]
+
+# Files and folders to preserve in self_doc/deploy during deployment cleanup
+# These items are temporarily moved out, the deploy directory is cleaned, then restored
+# This field is NOT aggregated across modules - each module controls its own cleanup
+MODULE_DEPLOY_WHITELIST: List[str] = [
+    'conf',       # Whitelist configurations (CSS/JS includes, etc.)
+    'db',         # Database schema and example data
+]
