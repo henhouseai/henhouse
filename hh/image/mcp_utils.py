@@ -21,7 +21,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['id']
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -39,7 +39,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -56,7 +56,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['image_id', 'caption']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -72,7 +72,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['image_id', 'visibility']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 7, 8],
     requires_approval=False,
     crud_type='update',
     app_action_group='images',

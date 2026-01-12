@@ -221,11 +221,11 @@ def parser_modify_text() -> bool:
             table = TableData()
             table.add_row(
                 "page_id",
-                page_id=str(source_data.get("page_id", "")),
+                value=str(source_data.get("page_id", "")),
             )
             table.add_row(
                 "page_text",
-                page_text=source_data.get("text", ""),
+                value=source_data.get("text", ""),
             )
 
             lines.append(
@@ -238,62 +238,50 @@ def parser_modify_text() -> bool:
                 )
             )
         else:
-            # Summary mode: show statistics
+            # Summary mode: show statistics in 2-column format
             table = TableData()
             table.add_row(
-                "header",
-                page_id="Page ID",
-                summary="Summary",
-                mode="Mode",
+                "page_id",
+                value=str(source_data.get("page_id", "")),
             )
             table.add_row(
-                "data",
-                page_id=str(source_data.get("page_id", "")),
-                summary=source_data.get("summary", ""),
-                mode=source_data.get("mode", ""),
+                "summary",
+                value=source_data.get("summary", ""),
+            )
+            table.add_row(
+                "mode",
+                value=source_data.get("mode", ""),
+            )
+            table.add_row(
+                "lines_before",
+                value=str(source_data.get("lines_before", 0)),
+            )
+            table.add_row(
+                "lines_after",
+                value=str(source_data.get("lines_after", 0)),
+            )
+            table.add_row(
+                "delta_lines",
+                value=str(source_data.get("delta_lines", 0)),
+            )
+            table.add_row(
+                "chars_before",
+                value=str(source_data.get("chars_before", 0)),
+            )
+            table.add_row(
+                "chars_after",
+                value=str(source_data.get("chars_after", 0)),
+            )
+            table.add_row(
+                "delta_chars",
+                value=str(source_data.get("delta_chars", 0)),
             )
 
             lines.append(
                 render_block(
                     table,
                     FieldConfig()
-                    .add_header("header")
-                    .add_simple(["data"]),
-                    block_type="page",
-                    table_overrides={"margin_l": 4},
-                )
-            )
-
-            # Add statistics table
-            stats_table = TableData()
-            stats_table.add_row(
-                "header",
-                metric="Metric",
-                before="Before",
-                after="After",
-                delta="Delta",
-            )
-            stats_table.add_row(
-                "lines",
-                metric="Lines",
-                before=str(source_data.get("lines_before", 0)),
-                after=str(source_data.get("lines_after", 0)),
-                delta=str(source_data.get("delta_lines", 0)),
-            )
-            stats_table.add_row(
-                "chars",
-                metric="Characters",
-                before=str(source_data.get("chars_before", 0)),
-                after=str(source_data.get("chars_after", 0)),
-                delta=str(source_data.get("delta_chars", 0)),
-            )
-
-            lines.append(
-                render_block(
-                    stats_table,
-                    FieldConfig()
-                    .add_header("header")
-                    .add_simple(["lines", "chars"]),
+                    .add_simple(["page_id", "summary", "mode", "lines_before", "lines_after", "delta_lines", "chars_before", "chars_after", "delta_chars"]),
                     block_type="page",
                     table_overrides={"margin_l": 4},
                 )

@@ -21,7 +21,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': []
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3, 4],
     requires_approval=False,
     crud_type='read'
 )
@@ -51,7 +51,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['id']
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3, 4],
     requires_approval=False,
     crud_type='read'
 )
@@ -63,7 +63,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         'properties': {},
         'required': []
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -78,7 +78,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3, 4],
     requires_approval=False,
     crud_type='read'
 )
@@ -93,7 +93,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3, 4],
     requires_approval=False,
     crud_type='read'
 )
@@ -108,7 +108,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': []
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -270,7 +270,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'image_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -287,7 +287,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'image_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -309,7 +309,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'image_id', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -330,7 +330,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -346,7 +346,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'image_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='delete'
 )
@@ -365,7 +365,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'image_id', 'target_rank']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -454,7 +454,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'file']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -473,7 +473,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'folder']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -489,7 +489,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -506,7 +506,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'file_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -527,7 +527,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -549,7 +549,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'file_id', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -570,7 +570,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -587,7 +587,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'file_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='delete'
 )
@@ -607,7 +607,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'file_id', 'target_rank']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -664,7 +664,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'audio_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -681,7 +681,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'audio_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -703,7 +703,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'audio_id', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -724,7 +724,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -741,7 +741,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'audio_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='delete'
 )
@@ -761,7 +761,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'audio_id', 'target_rank']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -778,7 +778,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'video_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -795,7 +795,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['target_page', 'video_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
@@ -817,7 +817,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'video_id', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -838,7 +838,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['source_page', 'target_page']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -855,7 +855,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'video_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='delete'
 )
@@ -875,7 +875,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'video_id', 'target_rank']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -1001,7 +1001,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': []
     },
-    tiers=[1, 2, 3, 4],
+    tiers=[3, 4],
     requires_approval=False,
     crud_type='read'
 )
@@ -1034,7 +1034,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'visibility']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 7, 8],
     requires_approval=False,
     crud_type='update',
     app_action_group='pages',
@@ -1053,7 +1053,7 @@ All modes validate the final combined content through TextProcessor before savin
         },
         'required': ['page_id', 'display_style']
     },
-    tiers=[3, 4, 7, 8],
+    tiers=[3, 7, 8],
     requires_approval=False,
     crud_type='update',
     app_action_group='pages',

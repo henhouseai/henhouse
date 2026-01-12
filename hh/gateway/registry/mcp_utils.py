@@ -21,7 +21,7 @@ _LISTER_SCHEMA = {
     tool_name='command_list',
     description='List available commands',
     inputSchema=_LISTER_SCHEMA,
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -29,7 +29,7 @@ _LISTER_SCHEMA = {
     tool_name='action_list',
     description='List available action handlers',
     inputSchema=_LISTER_SCHEMA,
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -37,7 +37,7 @@ _LISTER_SCHEMA = {
     tool_name='backend_list',
     description='List available backend handlers',
     inputSchema=_LISTER_SCHEMA,
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -45,7 +45,7 @@ _LISTER_SCHEMA = {
     tool_name='http_list',
     description='List available HTTP backends',
     inputSchema=_LISTER_SCHEMA,
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -53,7 +53,7 @@ _LISTER_SCHEMA = {
     tool_name='parser_list',
     description='List available parser backends',
     inputSchema=_LISTER_SCHEMA,
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
@@ -61,7 +61,7 @@ _LISTER_SCHEMA = {
     tool_name='mcp_list',
     description='List available MCP backends',
     inputSchema=_LISTER_SCHEMA,
-    tiers=[1, 2, 3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
