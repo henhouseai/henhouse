@@ -156,7 +156,7 @@ All modes validate the final combined content through TextProcessor before savin
             'return_full_page': {'type': 'boolean', 'description': 'If true, returns full page object via show_page(). Use for HTTP/TypeScript clients that need complete page data for UI updates. Default: false.'},
             'return_full_text': {'type': 'boolean', 'description': 'If true, returns just the updated page text content. Use when you need the actual text but not the full page object. Default: false.'}
         },
-        'required': ['page_id', 'text']
+        'required': ['page_id']
     },
     tiers=[3, 4, 7, 8],
     requires_approval=False,
