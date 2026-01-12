@@ -27,7 +27,7 @@ def get_legacy_database_name() -> Optional[str]:
     
     # Otherwise, try to get from Python config file
     try:
-        from ext.deploy.conf.migration_config import LEGACY_DB_NAME
+        from accounting.deploy.conf.migration_config import LEGACY_DB_NAME
         return LEGACY_DB_NAME
     except (ImportError, AttributeError):
         return None

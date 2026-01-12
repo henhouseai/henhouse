@@ -7,7 +7,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.page.page_registry import get_page
-from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
+from accounting.deploy.maint.legacy_db_connection import get_legacy_db_connection
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

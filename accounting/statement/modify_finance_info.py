@@ -6,7 +6,7 @@ from hh.gateway.response.json_standard import success_payload
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page
-from ext.currency_math import DecimalMath
+from accounting.currency_math import DecimalMath
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

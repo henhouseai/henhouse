@@ -9,7 +9,7 @@ from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
-from ext.deploy.maint.migration_tasks import get_migration_account_double_check
+from accounting.deploy.maint.migration_tasks import get_migration_account_double_check
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

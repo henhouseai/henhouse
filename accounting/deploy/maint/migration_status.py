@@ -8,8 +8,8 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
-from ext.deploy.maint.migration_tasks import get_migration_status
-from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
+from accounting.deploy.maint.migration_tasks import get_migration_status
+from accounting.deploy.maint.legacy_db_connection import get_legacy_db_connection
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

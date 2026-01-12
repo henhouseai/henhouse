@@ -9,7 +9,7 @@ from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
-from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
+from accounting.deploy.maint.legacy_db_connection import get_legacy_db_connection
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

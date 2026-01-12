@@ -30,7 +30,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[3, 4],
+    tiers=[3],
     requires_approval=False,
     crud_type='update'
 )

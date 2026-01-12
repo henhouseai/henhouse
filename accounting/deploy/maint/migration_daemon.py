@@ -9,8 +9,8 @@ from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
-from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
-from ext.deploy.maint.migration_tasks import migrate_pages, migrate_accounts, migrate_statements, migrate_expense_categories, migrate_invoices, migrate_sales, migrate_fiscal_periods, migrate_fees, migrate_transfers, migrate_text, migrate_images, migrate_no_images, migrate_no_text, migrate_no_calc, migrate_calc
+from accounting.deploy.maint.legacy_db_connection import get_legacy_db_connection
+from accounting.deploy.maint.migration_tasks import migrate_pages, migrate_accounts, migrate_statements, migrate_expense_categories, migrate_invoices, migrate_sales, migrate_fiscal_periods, migrate_fees, migrate_transfers, migrate_text, migrate_images, migrate_no_images, migrate_no_text, migrate_no_calc, migrate_calc
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

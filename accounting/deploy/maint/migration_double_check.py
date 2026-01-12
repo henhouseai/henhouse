@@ -9,7 +9,7 @@ from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import get_data, success_payload
 from hh.render.render import FieldConfig, TableData, finalize_output, render_block, render_header_block
-from ext.deploy.maint.migration_tasks import get_migration_double_check, get_migration_images_double_check, get_migration_text_double_check, repair_migration_issues
+from accounting.deploy.maint.migration_tasks import get_migration_double_check, get_migration_images_double_check, get_migration_text_double_check, repair_migration_issues
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -71,7 +71,7 @@ def migration_double_check_action() -> bool:
             return False
         
         # Get class_name from migration table
-        from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
+        from accounting.deploy.maint.legacy_db_connection import get_legacy_db_connection
         with get_legacy_db_connection() as legacy_conn:
             cursor = legacy_conn.cursor()
             cursor.execute("""
@@ -167,7 +167,7 @@ def migration_double_check_action() -> bool:
                     result = get_migration_double_check(type_filter=type_filter)
         
         # Update migration table with counts
-        from ext.deploy.maint.legacy_db_connection import get_legacy_db_connection
+        from accounting.deploy.maint.legacy_db_connection import get_legacy_db_connection
         with get_legacy_db_connection() as legacy_conn:
             update_cursor = legacy_conn.cursor()
             

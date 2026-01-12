@@ -8,10 +8,10 @@ from typing import Dict, Any, Optional, List
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
-from ext.ocr_page.ocr_page import OcrPage
+from accounting.ocr_page.ocr_page import OcrPage
 from hh.page.page_registry import get_page
 from hh.page.page_class_registry import register_page_class
-from ext.currency_math import DecimalMath
+from accounting.currency_math import DecimalMath
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
