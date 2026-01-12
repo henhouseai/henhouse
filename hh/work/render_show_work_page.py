@@ -20,7 +20,6 @@ def _initialize_debug():
 
 @register_parser('modify_work_status')
 @register_parser('modify_work_sort_order')
-@register_parser('modify_work_meta')
 def show_work_page() -> bool:
     return show_page()
 
