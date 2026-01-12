@@ -88,21 +88,22 @@ def load_whitelist_with_extensions(
     var_name: str
 ) -> List[str]:
     """
-    Load a whitelist from hh/deploy/conf/ with support for ext/deploy/conf/ blacklists and extensions.
-    
+    Load a whitelist from hh/deploy/conf/ with support for ext/deploy/conf/ and module blacklists/extensions.
+
     Processing order:
     1. Load base whitelist from hh/deploy/conf/{base_name}.py
     2. Load blacklist from ext/deploy/conf/{base_name}_blacklist.py (if exists)
     3. Subtract blacklist items from base
     4. Load extension whitelist from ext/deploy/conf/{base_name}.py (if exists)
-    5. For each item in extension:
+    5. Load extension whitelists from all module/deploy/conf/{base_name}.py files
+    6. For each item in extensions (ext or module):
        - If item already exists in result AND was not blacklisted: WARN
        - Add item to result
-    
+
     Args:
         base_name: Base filename without .py extension (e.g., 'css_whitelist')
         var_name: Variable name to load (e.g., 'CSS_WHITELIST')
-        
+
     Returns:
         Final combined list of strings
     """
@@ -146,7 +147,7 @@ def load_whitelist_with_extensions(
     # Step 3: Load and apply extension
     ext_file = ext_conf / f"{base_name}.py"
     ext_list = _load_list_from_file(ext_file, var_name)
-    
+
     if ext_list is not None:
         for item in ext_list:
             if item in result and item not in blacklisted_items:
@@ -154,7 +155,28 @@ def load_whitelist_with_extensions(
             if item not in result:
                 result.append(item)
         log(f"Applied extension: added {len(ext_list)} items, final count: {len(result)}")
-    
+
+    # Step 4: Load and apply module extensions
+    try:
+        modules = get_active_modules()
+        module_count = 0
+        for module in modules:
+            module_conf = project_root / module.path / "deploy" / "conf"
+            module_file = module_conf / f"{base_name}.py"
+            module_list = _load_list_from_file(module_file, var_name)
+
+            if module_list is not None:
+                for item in module_list:
+                    if item in result and item not in blacklisted_items:
+                        warn(f"Duplicate item in module {module.name} extension (not blacklisted): {item} in {module_file}")
+                    if item not in result:
+                        result.append(item)
+                        module_count += 1
+        if module_count > 0:
+            log(f"Applied module extensions: added {module_count} items, final count: {len(result)}")
+    except Exception as e:
+        warn(f"Error loading module extensions for {base_name}: {e}")
+
     trace_out()
     return result
 
@@ -164,15 +186,20 @@ def load_dict_whitelist_with_extensions(
     var_name: str
 ) -> List[Dict[str, Any]]:
     """
-    Load a whitelist of dictionaries from hh/deploy/conf/ with support for ext/deploy/conf/ blacklists and extensions.
-    
+    Load a whitelist of dictionaries from hh/deploy/conf/ with support for ext/deploy/conf/ and module blacklists/extensions.
+
     Same processing order as load_whitelist_with_extensions, but for lists of dictionaries.
+    Processing includes:
+    1. Load base whitelist from hh/deploy/conf/{base_name}.py
+    2. Apply blacklist from ext/deploy/conf/{base_name}_blacklist.py
+    3. Apply extension from ext/deploy/conf/{base_name}.py
+    4. Apply extensions from all module/deploy/conf/{base_name}.py files
     Blacklist matching is done by comparing the entire dictionary structure.
-    
+
     Args:
         base_name: Base filename without .py extension (e.g., 'application_actions')
         var_name: Variable name to load (e.g., 'APPLICATION_ACTIONS')
-        
+
     Returns:
         Final combined list of dictionaries
     """
@@ -303,10 +330,41 @@ def load_dict_whitelist_with_extensions(
                 debug(f"Added extension item: {item}")
         log(f"Applied extension: added {added_count} items, final count: {len(result)}")
         debug(f"After extension: {len(result)} items, added {added_count}")
-        for idx, item in enumerate(result):
-            debug(f"Final item {idx}: {item}")
-    
+
+    # Step 4: Load and apply module extensions
+    try:
+        modules = get_active_modules()
+        module_count = 0
+        for module in modules:
+            module_conf = project_root / module.path / "deploy" / "conf"
+            module_file = module_conf / f"{base_name}.py"
+            module_list = _load_list_from_file(module_file, var_name)
+
+            if module_list is not None:
+                debug(f"Module {module.name} extension loaded: {len(module_list)} items")
+                # Convert result items to comparable form for duplicate checking
+                result_keys = {_hashable(r) for r in result}
+
+                for item in module_list:
+                    item_key = _hashable(item)
+                    if item_key in result_keys and item_key not in blacklisted_items:
+                        warn(f"Duplicate item in module {module.name} extension (not blacklisted): {item} in {module_file}")
+                        debug(f"Duplicate detected (not blacklisted): {item}")
+                    if item_key not in result_keys:
+                        result.append(item)
+                        result_keys.add(item_key)
+                        module_count += 1
+                        debug(f"Added module {module.name} extension item: {item}")
+        if module_count > 0:
+            log(f"Applied module extensions: added {module_count} items, final count: {len(result)}")
+            debug(f"After module extensions: {len(result)} items, added {module_count}")
+    except Exception as e:
+        warn(f"Error loading module extensions for {base_name}: {e}")
+
     debug(f"Final result: {len(result)} items")
+    for idx, item in enumerate(result):
+        debug(f"Final item {idx}: {item}")
+
     trace_out()
     return result
 
