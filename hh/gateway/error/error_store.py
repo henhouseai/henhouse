@@ -110,8 +110,7 @@ def report_error(error_type: str, content: Union[str, Dict[str, Any]]) -> None:
 def is_error(error_type: Optional[str] = None) -> bool:
     trace_in()
     result = _global_error_store.has_errors(error_type)
-    trace_out()
-    return result
+    return trace_out(result)
 
 def get_errors(error_type: Optional[str] = None) -> List[ErrorEntry]:
     trace_in()
@@ -124,4 +123,5 @@ def get_error_count(error_type: Optional[str] = None) -> int:
     return trace_out(len(errors))
 
 def get_global_error_store() -> GlobalErrorStore:
-    return _global_error_store
+    trace_in()
+    return trace_out(_global_error_store)

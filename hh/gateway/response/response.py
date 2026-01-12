@@ -66,7 +66,7 @@ class Response:
         else:
             self.user_tier_level = 0
         log("Response initialized with empty buffer")
-        trace_out()
+        return trace_out(None)
     
     # Header metadata helpers removed; use seed_data instead
     
@@ -83,7 +83,7 @@ class Response:
                     log(f"Added output: {text}")
             else:
                 log(f"Added output: {text}")
-        trace_out()
+        return trace_out(None)
 
     # ---- Seed data helpers ----
 
@@ -92,25 +92,23 @@ class Response:
         trace_in()
         if not isinstance(seed, dict):
             warn("set_seed_data called with non-dict argument")
-            trace_out()
-            return
+            return trace_out(None)
         self.seed_data = dict(seed)
         log(f"Set seed data: keys={list(self.seed_data.keys())}")
-        trace_out()
+        return trace_out(None)
 
     def add_seed_data(self, seed: dict) -> None:
         """Merge provided dict into existing seed_data (create if missing)."""
         trace_in()
         if not isinstance(seed, dict):
             warn("add_seed_data called with non-dict argument")
-            trace_out()
-            return
+            return trace_out(None)
         if self.seed_data:
             self.seed_data.update(seed)
             log(f"Merged seed data: keys={list(seed.keys())}")
         else:
             self.set_seed_data(seed)
-        trace_out()
+        return trace_out(None)
 
     def get_seed_data(self) -> Optional[dict]:
         """Return current seed data (or None)."""
@@ -123,24 +121,22 @@ class Response:
         trace_in()
         if not isinstance(css_path, str) or not css_path:
             warn("add_css_link called with invalid argument")
-            trace_out()
-            return
+            return trace_out(None)
         if css_path not in self.header_css_links:
             self.header_css_links.append(css_path)
             log(f"Added CSS link: {css_path}")
-        trace_out()
+        return trace_out(None)
     
     def add_js_link(self, js_path: str) -> None:
         """Add a JS script link to the header."""
         trace_in()
         if not isinstance(js_path, str) or not js_path:
             warn("add_js_link called with invalid argument")
-            trace_out()
-            return
+            return trace_out(None)
         if js_path not in self.header_js_links:
             self.header_js_links.append(js_path)
             log(f"Added JS link: {js_path}")
-        trace_out()
+        return trace_out(None)
     
     def get_css_links(self) -> List[str]:
         """Return list of custom CSS links."""
@@ -157,21 +153,21 @@ class Response:
         trace_in()
         self.content_wrapper_header = header
         log(f"Set content wrapper header: {len(header)} characters")
-        trace_out()
+        return trace_out(None)
     
     def set_path(self, path: str) -> None:
         """Set the path HTML content."""
         trace_in()
         self.path = path
         log(f"Set path: {len(path)} characters")
-        trace_out()
+        return trace_out(None)
     
     def set_page_text(self, page_text: str) -> None:
         """Set the page text HTML content."""
         trace_in()
         self.page_text = page_text
         log(f"Set page text: {len(page_text)} characters")
-        trace_out()
+        return trace_out(None)
     
     def set_upper_content(self, content: str) -> None:
         """Add content to the upper content section."""
@@ -184,7 +180,7 @@ class Response:
             log(f"Added upper content: {len(processed_content)} characters")
         else:
             log("Skipped empty upper content")
-        trace_out()
+        return trace_out(None)
     
     def set_lower_content(self, content: str) -> None:
         """Add content to the lower content section."""
@@ -197,7 +193,7 @@ class Response:
             log(f"Added lower content: {len(processed_content)} characters")
         else:
             log("Skipped empty lower content")
-        trace_out()
+        return trace_out(None)
     
     def add_child_pages(self, content: str) -> None:
         """Add content to the child pages section."""
@@ -210,7 +206,7 @@ class Response:
             log(f"Added child pages: {len(processed_content)} characters")
         else:
             log("Skipped empty child pages content")
-        trace_out()
+        return trace_out(None)
     
     def set_image_group(self, content: str) -> None:
         """Set the image group section content."""
@@ -220,7 +216,7 @@ class Response:
             log(f"Set image group: {len(content)} characters")
         else:
             log("Skipped empty image group content")
-        trace_out()
+        return trace_out(None)
     
     def set_file_group(self, content: str) -> None:
         """Set the file group section content."""
@@ -230,7 +226,7 @@ class Response:
             log(f"Set file group: {len(content)} characters")
         else:
             log("Skipped empty file group content")
-        trace_out()
+        return trace_out(None)
     
     def set_audio_group(self, content: str) -> None:
         """Set the audio group section content."""
@@ -240,7 +236,7 @@ class Response:
             log(f"Set audio group: {len(content)} characters")
         else:
             log("Skipped empty audio group content")
-        trace_out()
+        return trace_out(None)
     
     def set_video_group(self, content: str) -> None:
         """Set the video group section content."""
@@ -250,27 +246,25 @@ class Response:
             log(f"Set video group: {len(content)} characters")
         else:
             log("Skipped empty video group content")
-        trace_out()
+        return trace_out(None)
     
     def has_action_response(self) -> bool:
         trace_in()
         result = self.action_response is not None
         log(f"Has action response: {result}")
-        trace_out()
-        return result
+        return trace_out(result)
 
     def set_action_response(self, data: dict) -> None:
         trace_in()
         self.action_response = data
         log(f"Set action response: {len(str(data))} characters")
-        trace_out()
+        return trace_out(None)
     
     def get_action_response(self) -> Optional[dict]:
         trace_in()
         result = self.action_response
         log(f"Retrieved action response: {type(result)}")
-        trace_out()
-        return result
+        return trace_out(result)
     
     # ---- User tier level helpers ----
     
@@ -279,18 +273,16 @@ class Response:
         trace_in()
         if not isinstance(level, int) or level < 0:
             warn(f"set_user_tier_level called with invalid argument: {level}")
-            trace_out()
-            return
+            return trace_out(None)
         # Only set if tier level is currently 0 (unknown) - allow setting only once
         if self.user_tier_level != 0:
-            trace_out()
-            return
+            return trace_out(None)
         self.user_tier_level = level
         tier_names = {0: 'unknown', 1: 'guest', 2: 'verified', 3: 'admin', 4: 'root'}
         tier_name = tier_names.get(level, 'unknown')
         debug(f"User tier level detected: {level} ({tier_name})")
         log(f"Set user tier level: {level}")
-        trace_out()
+        return trace_out(None)
     
     def get_user_tier_level(self) -> int:
         """Return current user tier level (0 = unknown, 1 = guest, 2 = verified, 3 = admin, 4 = root)."""

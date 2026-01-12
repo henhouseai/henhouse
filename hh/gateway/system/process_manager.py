@@ -83,7 +83,7 @@ class ProcessManager:
         trace_in()
         self._os_type = self._detect_os()
         log(f"ProcessManager initialized (OS: {self._os_type})")
-        trace_out()
+        return trace_out(None)
 
     def _detect_os(self) -> str:
         """Detect the operating system. Returns 'windows', 'macos', 'linux', or 'unknown'."""
@@ -355,7 +355,7 @@ class ProcessManager:
         """
         trace_in()
         if not require("grp"):
-            trace_out()
+            return trace_out(None)
             return None
         try:
             info = grp.getgrnam(groupname)
@@ -365,16 +365,13 @@ class ProcessManager:
                 "members": list(info.gr_mem),
             }
             log(f"Got group info for {groupname}: gid={info.gr_gid}")
-            trace_out()
-            return result
+            return trace_out(result)
         except KeyError:
             warn(f"Group not found: {groupname}")
-            trace_out()
-            return None
+            return trace_out(None)
         except Exception as e:
             warn(f"Error getting group info for {groupname}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     def group_exists(self, groupname: str) -> bool:
         """Check if a group exists. Returns False on Windows or if group doesn't exist."""
@@ -382,17 +379,14 @@ class ProcessManager:
         available, _ = check_dependency("grp")
         if not available:
             # On Windows, just return False - no grp module (no error)
-            trace_out()
-            return False
+            return trace_out(False)
         try:
             grp.getgrnam(groupname)
             log(f"Group exists: {groupname}")
-            trace_out()
-            return True
+            return trace_out(True)
         except KeyError:
             log(f"Group does not exist: {groupname}")
-            trace_out()
-            return False
+            return trace_out(False)
 
     def get_group_by_gid(self, gid: int) -> Optional[Dict[str, Any]]:
         """Get group info by GID. Returns dict with gid, name, members, or None.
@@ -401,8 +395,7 @@ class ProcessManager:
         """
         trace_in()
         if not require("grp"):
-            trace_out()
-            return None
+            return trace_out(None)
         try:
             info = grp.getgrgid(gid)
             result = {
@@ -411,16 +404,13 @@ class ProcessManager:
                 "members": list(info.gr_mem),
             }
             log(f"Got group info for gid {gid}: name={info.gr_name}")
-            trace_out()
-            return result
+            return trace_out(result)
         except KeyError:
             warn(f"GID not found: {gid}")
-            trace_out()
-            return None
+            return trace_out(None)
         except Exception as e:
             warn(f"Error getting group info for gid {gid}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     def get_process_username(self, pid: int) -> Optional[str]:
         """Get the full username of a process by PID using stat command.
@@ -436,8 +426,7 @@ class ProcessManager:
         """
         trace_in()
         if not self.is_unix:
-            trace_out()
-            return None
+            return trace_out(None)
         
         try:
             stat_result = subprocess.run(
@@ -450,14 +439,11 @@ class ProcessManager:
                 username = stat_result.stdout.strip()
                 if username:
                     log(f"Got username for PID {pid}: {username}")
-                    trace_out()
-                    return username
-            trace_out()
-            return None
+                    return trace_out(username)
+            return trace_out(None)
         except Exception as e:
             warn(f"Error getting username for PID {pid}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
 
     def user_exists(self, username: str) -> bool:
         """Check if a user exists. Returns False on Windows or if user doesn't exist."""
@@ -465,20 +451,16 @@ class ProcessManager:
         available, _ = check_dependency("pwd")
         if not available:
             # On Windows, just return False - no pwd module (no error)
-            trace_out()
-            return False
+            return trace_out(False)
         try:
             pwd.getpwnam(username)
             log(f"User exists: {username}")
-            trace_out()
-            return True
+            return trace_out(True)
         except KeyError:
             log(f"User does not exist: {username}")
-            trace_out()
-            return False
+            return trace_out(False)
         except Exception as e:
             warn(f"Error checking user existence for {username}: {e}")
-            trace_out()
-            return False
+            return trace_out(False)
 
 

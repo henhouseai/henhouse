@@ -75,7 +75,7 @@ class Request:
                     self.command = None
                     log("No argv provided after error, command set to None")
         log(f"Request setup complete: command='{self.command}', flags={len(self.flag_args)}, no_flags={len(self.no_flags)}, string_args={len(self.string_args)}")
-        trace_out()
+        return trace_out(None)
     
     def add_synthetic_arg(self, name: str, value: Any = None, arg_type: str = "string") -> None:
         trace_in()
@@ -99,7 +99,7 @@ class Request:
             except (ValueError, TypeError):
                 log(f"Could not convert to number, keeping as string: {name}={value}")
             log(f"Request added synthetic string: {name}={value}")
-        trace_out()
+        return trace_out(None)
 
     def is_no(self, flag_name: str) -> bool:
         trace_in()

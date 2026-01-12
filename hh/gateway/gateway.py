@@ -227,8 +227,9 @@ class Gateway:
                 try:
                     limit = int(debug_limit)
                     set_shared_debug_summary_limit(limit)
+                    log(f"Applied debug limit: {limit}")
                 except (ValueError, TypeError):
-                    pass
+                    log(f"Invalid debug limit value: {debug_limit}")
 
             # Process whitelist
             white_list = self.request.get_arg('white')
@@ -236,6 +237,7 @@ class Gateway:
                 parsed_list = parse_list_arg(white_list)
                 if parsed_list:
                     set_shared_debug_whitelist(parsed_list)
+                    log(f"Applied debug whitelist: {parsed_list}")
 
             # Process graylist
             gray_list = self.request.get_arg('gray')
@@ -243,6 +245,7 @@ class Gateway:
                 parsed_list = parse_list_arg(gray_list)
                 if parsed_list:
                     set_shared_debug_graylist(parsed_list)
+                    log(f"Applied debug graylist: {parsed_list}")
 
             # Process blacklist
             black_list = self.request.get_arg('black')
@@ -250,8 +253,9 @@ class Gateway:
                 parsed_list = parse_list_arg(black_list)
                 if parsed_list:
                     set_shared_debug_blacklist(parsed_list)
-        except Exception:
-            pass
+                    log(f"Applied debug blacklist: {parsed_list}")
+        except Exception as e:
+            warn(f"Error applying debug filter overrides: {e}")
         trace_out()
 
     def dispatch(self) -> Optional[str]:

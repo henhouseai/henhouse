@@ -49,7 +49,7 @@ class DatabaseRow(TypedDict, total=False):
 
 def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Optional[Dict[str, Union[str, bool, int]]]:
     """Build SSL dictionary from config file for PyMySQL.
-    
+
     Returns None if no SSL/TLS configuration is present (plain text connection).
     If SSL config is present, returns SSL dict with verify_mode controlling strictness:
     - 3: verify cert + hostname (VERIFY_IDENTITY - strictest)
@@ -57,6 +57,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Opti
     - 1: optional verify; hostname check disabled (CERT_OPTIONAL)
     - 0: no verify; hostname check disabled (least strict)
     """
+    trace_in()
     ssl_ca = config.get('client', f'{prefix}ssl_ca', fallback=None)
     ssl_cert = config.get('client', f'{prefix}ssl_cert', fallback=None)
     ssl_key = config.get('client', f'{prefix}ssl_key', fallback=None)
@@ -69,7 +70,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Opti
     # If no SSL configuration is present at all, return None (plain text connection)
     if not ssl_ca and not ssl_cert and not ssl_key and not ssl_verify_mode:
         log(f"No SSL/TLS configuration found for {prefix}, using plain text connection")
-        return None
+        return trace_out(None)
     
     ssl_check_hostname = config.get('client', f'{prefix}ssl_check_hostname', fallback='true')
 
@@ -112,7 +113,7 @@ def _build_ssl_dict(config: configparser.ConfigParser, prefix: str = '') -> Opti
         ssl_dict['key'] = ssl_key
 
     log(f"SSL dict built: {ssl_dict}")
-    return ssl_dict
+    return trace_out(ssl_dict)
 
 def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:
     """Load DSN triple (main, cache, history) from config file with SSL support.
@@ -176,13 +177,11 @@ def _load_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dic
                 history_ssl_dict = _build_ssl_dict(config, '')
             if history_ssl_dict is not None:
                 history_dsn['ssl'] = history_ssl_dict
-        
-        trace_out()
-        return dsn, cache_dsn, history_dsn
+
+        return trace_out((dsn, cache_dsn, history_dsn))
     else:
         log(f"Configuration file not found: {path}")
-        trace_out()
-        return None, None, None
+        return trace_out((None, None, None))
 
 def _load_root_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]], Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]]:
     """Load root DSN triple (main, cache, history) from root config file.
@@ -204,8 +203,7 @@ def _load_root_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int
     # - SSL certificate paths
     # - All four user tier credentials (for installer use)
     log("Root DSN loading not yet implemented (stub - see ask 1211)")
-    trace_out()
-    return None, None, None
+    return trace_out((None, None, None))
 
 class Connection:
     """Gateway-owned connection manager for main, cache, and history databases."""
@@ -225,22 +223,19 @@ class Connection:
         """Get main database DSN. Override in subclasses for root/MySQL connections."""
         trace_in()
         main_dsn, _, _ = _load_dsn(project_name)
-        trace_out()
-        return main_dsn
+        return trace_out(main_dsn)
     
     def _get_cache_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get cache database DSN. Override in subclasses for root connections.
         Returns None to use default from _load_dsn()."""
         trace_in()
-        trace_out()
-        return None
-    
+        return trace_out(None)
+
     def _get_history_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
         """Get history database DSN. Override in subclasses for root connections.
         Returns None to use default from _load_dsn()."""
         trace_in()
-        trace_out()
-        return None
+        return trace_out(None)
     
     def _detect_user_tier_level(self, project_name: str, username: str) -> int:
         """Detect user tier level from DSN username. Returns tier level (0 if unknown)."""
@@ -271,8 +266,7 @@ class Connection:
         except Exception as e:
             warn(f"Failed to detect user tier level: {e}")
         log(f"User tier level: {tier_level}")
-        trace_out()
-        return tier_level
+        return trace_out(tier_level)
     
     def initialize(self) -> int:
         """Open connections to all databases. Returns user tier level (0 if unknown)."""
@@ -399,7 +393,8 @@ class Connection:
     
     def is_initialized(self) -> bool:
         """Check if connections have been initialized."""
-        return self._initialized
+        trace_in()
+        return trace_out(self._initialized)
     
     def commit(self) -> None:
         """Commit the main database transaction. If dry_run is enabled, rolls back instead.
@@ -709,8 +704,7 @@ class Connection:
         trace_in()
         if not self._initialized or not self.cache:
             warn("Cache connection not initialized, buffering skipped")
-            trace_out()
-            return
+            return trace_out(None)
         
         self._cache_buffer.append((table_name, sql, params))
         sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
@@ -726,8 +720,7 @@ class Connection:
         trace_in()
         if not self._initialized or not self.cache:
             warn("Cache connection not initialized, flag buffering skipped")
-            trace_out()
-            return
+            return trace_out(None)
         
         key = (table_name, id)
         # Keep only the most recent timestamp for each (table, id)
@@ -747,18 +740,15 @@ class Connection:
             # Clear buffers to prevent accumulation during dry run
             self._cache_buffer.clear()
             self._cache_flag_buffer.clear()
-            trace_out()
-            return
+            return trace_out(None)
 
         if not self._initialized or not self.cache:
             log("Cache connection not initialized, cannot write buffer")
-            trace_out()
-            return
-        
+            return trace_out(None)
+
         if not self._cache_buffer and not self._cache_flag_buffer:
             log("Cache buffers are empty, nothing to write")
-            trace_out()
-            return
+            return trace_out(None)
         
         total_ops = len(self._cache_buffer) + len(self._cache_flag_buffer)
         log(f"Writing {len(self._cache_buffer)} full cache refresh(es) and {len(self._cache_flag_buffer)} flag modification(s)...")
@@ -774,8 +764,7 @@ class Connection:
             warn(f"Failed to start cache transaction: {e}")
             self._cache_buffer.clear()
             self._cache_flag_buffer.clear()
-            trace_out()
-            return
+            return trace_out(None)
         
         # Execute all buffered writes
         failed_count = 0

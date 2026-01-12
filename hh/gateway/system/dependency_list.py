@@ -85,8 +85,7 @@ def dependency_list() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
-        trace_out()
-        return False
+        return trace_out(False)
 
     try:
         # Scan and import all modules with @register_dependency
@@ -123,13 +122,11 @@ def dependency_list() -> bool:
         
         log(f"Checked {len(dependencies)} dependencies, all_available={all_available}")
         gateway.response.set_action_response(success_payload(data))
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:  # noqa: BLE001
         warn(f"Error checking dependencies: {e}")
         report_error("action", f"Error checking dependencies: {e}")
-        trace_out()
-        return False
+        return trace_out(False)
 
 
 @register_parser("dependency_list")
@@ -138,8 +135,7 @@ def dependency_list_parser() -> bool:
     gateway = get_gateway()
     if not gateway:
         warn("No gateway or response available")
-        trace_out()
-        return False
+        return trace_out(False)
 
     try:
         action_resp = gateway.response.get_action_response()
@@ -204,11 +200,9 @@ def dependency_list_parser() -> bool:
             )
         
         gateway.response.add_output(finalize_output(lines))
-        trace_out()
-        return True
+        return trace_out(True)
     except Exception as e:  # noqa: BLE001
         warn(f"Parser error: {e}")
         report_error("backend", f"Parser error: {e}")
-        trace_out()
-        return False
+        return trace_out(False)
 

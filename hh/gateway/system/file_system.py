@@ -52,7 +52,7 @@ class FileSystem:
         self._remote_file_handler = None  # Placeholder for future remote file handling
         self._dry_run: bool = dry_run
         log(f"FileSystem initialized (OS: {self._os_type}, dry_run={dry_run})")
-        trace_out()
+        return trace_out(None)
     
     def _detect_os(self) -> str:
         """Detect the operating system. Returns 'windows', 'macos', 'linux', or 'unknown'."""
@@ -85,7 +85,7 @@ class FileSystem:
         }
         self._operations.append(operation)
         log(f"Scheduled file move: {from_path} -> {to_path}")
-        trace_out()
+        return trace_out(None)
     
     def schedule_delete(self, file_path: str) -> None:
         """Schedule a file delete operation to be executed on commit.
@@ -102,7 +102,7 @@ class FileSystem:
                 existing_op['from_path'] == file_path and 
                 existing_op['status'] == 'scheduled'):
                 log(f"File already scheduled for deletion, skipping: {file_path}")
-                trace_out()
+                return trace_out(None)
                 return
         
         if self._os_type == 'windows':
@@ -135,7 +135,7 @@ class FileSystem:
             log(f"Scheduled file delete (soft): {file_path} -> {temp_path}")
         
         self._operations.append(operation)
-        trace_out()
+        return trace_out(None)
     
     def schedule_copy(self, from_path: str, to_path: str) -> None:
         """Schedule a file copy operation to be executed on commit.
@@ -149,7 +149,7 @@ class FileSystem:
         }
         self._operations.append(operation)
         log(f"Scheduled file copy: {from_path} -> {to_path}")
-        trace_out()
+        return trace_out(None)
     
     def schedule_copy_tree(self, from_path: str, to_path: str) -> None:
         """Schedule a recursive directory copy operation to be executed on commit.
@@ -163,7 +163,7 @@ class FileSystem:
         }
         self._operations.append(operation)
         log(f"Scheduled directory tree copy: {from_path} -> {to_path}")
-        trace_out()
+        return trace_out(None)
     
     def schedule_create_directory(self, path: str, parents: bool = True, mode: Optional[int] = None) -> None:
         """Schedule a directory creation operation to be executed on commit.
@@ -174,7 +174,7 @@ class FileSystem:
         # Check if directory already exists
         if path_obj.exists() and path_obj.is_dir():
             log(f"Directory already exists, skipping creation: {path}")
-            trace_out()
+            return trace_out(None)
             return
         
         # Directory doesn't exist, schedule creation
@@ -188,7 +188,7 @@ class FileSystem:
         }
         self._operations.append(operation)
         log(f"Scheduled directory creation: {path}")
-        trace_out()
+        return trace_out(None)
     
     def commit(self) -> bool:
         """Execute all scheduled file operations. Returns True if all succeed, False otherwise. If dry_run is enabled, skips execution."""
@@ -198,13 +198,11 @@ class FileSystem:
         if self._dry_run:
             scheduled_count = sum(1 for op in self._operations if op.get('status') == 'scheduled')
             log(f"Dry run mode enabled - skipping {scheduled_count} scheduled file operations")
-            trace_out()
-            return True
+            return trace_out(True)
         
         if not self._operations:
             log("No file operations to execute")
-            trace_out()
-            return True
+            return trace_out(True)
         
         scheduled_count = sum(1 for op in self._operations if op.get('status') == 'scheduled')
         log(f"Executing {scheduled_count} scheduled file operations (out of {len(self._operations)} total)")
@@ -226,16 +224,14 @@ class FileSystem:
                     warn(f"Source file does not exist: {from_path}")
                     report_error("file_operation", f"Source file does not exist: {from_path}")
                     operation['status'] = 'failed'
-                    trace_out()
-                    return False
+                    return trace_out(False)
                 
                 if operation['type'] == 'move':
                     if not from_path:
                         warn(f"Move operation missing source path")
                         report_error("file_operation", f"Move operation missing source path")
                         operation['status'] = 'failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     to_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(from_path), str(to_path))
                     log(f"Moved file: {from_path} -> {to_path}")
@@ -247,8 +243,7 @@ class FileSystem:
                         warn(f"Delete operation missing source path")
                         report_error("file_operation", f"Delete operation missing source path")
                         operation['status'] = 'failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     if operation.get('hard_delete', False):
                         # Hard delete (Windows) - actually remove the file
                         if from_path.is_dir():
@@ -272,8 +267,7 @@ class FileSystem:
                         warn(f"Copy operation missing source path")
                         report_error("file_operation", f"Copy operation missing source path")
                         operation['status'] = 'failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     to_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(str(from_path), str(to_path))
                     log(f"Copied file: {from_path} -> {to_path}")
@@ -287,14 +281,12 @@ class FileSystem:
                         warn(f"Copy_tree operation missing source path")
                         report_error("file_operation", f"Copy_tree operation missing source path")
                         operation['status'] = 'failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     if to_path.exists():
                         warn(f"Destination directory already exists: {to_path}")
                         report_error("file_operation", f"Destination directory already exists: {to_path}")
                         operation['status'] = 'failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     to_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copytree(str(from_path), str(to_path))
                     log(f"Copied directory tree: {from_path} -> {to_path}")
@@ -338,20 +330,17 @@ class FileSystem:
                 warn(f"Failed to execute file operation {operation['type']}: {from_path_str} -> {to_path_str}: {str(e)}")
                 report_error("file_operation", f"Failed to {operation['type']} file: {str(e)}")
                 operation['status'] = 'failed'
-                trace_out()
-                return False
+                return trace_out(False)
         
         log(f"All {completed_count} file operations executed successfully")
-        trace_out()
-        return True
+        return trace_out(True)
     
     def rollback(self) -> bool:
         """Rollback all completed file operations. Returns True if all rollbacks succeed."""
         trace_in()
         if not self._operations:
             log("No file operations to rollback")
-            trace_out()
-            return True
+            return trace_out(True)
         
         log(f"Rolling back {len(self._operations)} file operations")
         
@@ -360,8 +349,7 @@ class FileSystem:
         
         if completed_count == 0:
             log("No completed operations to rollback")
-            trace_out()
-            return True
+            return trace_out(True)
         
         rolled_back_count = 0
         for operation in reversed(self._operations):
@@ -385,8 +373,7 @@ class FileSystem:
                         warn(f"Destination file does not exist for rollback: {to_path}")
                         report_error("file_operation", f"Destination file does not exist for rollback: {to_path}")
                         operation['status'] = 'rollback_failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     
                 elif operation['type'] == 'delete':
                     if operation.get('hard_delete', False):
@@ -406,8 +393,7 @@ class FileSystem:
                         warn(f"Temp file does not exist for rollback: {to_path}")
                         report_error("file_operation", f"Temp file does not exist for rollback: {to_path}")
                         operation['status'] = 'rollback_failed'
-                        trace_out()
-                        return False
+                        return trace_out(False)
                 
                 elif operation['type'] == 'copy':
                     # Rollback copy: delete the destination file
@@ -455,8 +441,7 @@ class FileSystem:
                         else:
                             warn(f"Path exists but is not a directory for rollback: {to_path}")
                             operation['status'] = 'rollback_failed'
-                            trace_out()
-                            return False
+                            return trace_out(False)
                     else:
                         # Directory doesn't exist (may have been deleted already)
                         log(f"Directory does not exist for rollback (may have been deleted): {to_path}")
@@ -468,12 +453,10 @@ class FileSystem:
                 warn(f"Failed to rollback file operation {operation['type']}: {from_path_str} -> {to_path}: {str(e)}")
                 report_error("file_operation", f"Failed to rollback {operation['type']}: {str(e)}")
                 operation['status'] = 'rollback_failed'
-                trace_out()
-                return False
+                return trace_out(False)
         
         log(f"All {rolled_back_count} file operations rolled back successfully")
-        trace_out()
-        return True
+        return trace_out(True)
     
     def has_operations(self) -> bool:
         """Check if there are any scheduled file operations."""
@@ -506,12 +489,10 @@ class FileSystem:
         trace_in()
         try:
             result = os.path.isfile(path) and os.access(path, os.X_OK)
-            trace_out()
-            return result
+            return trace_out(result)
         except Exception as e:
             warn(f"Error checking if file is executable: {path}: {e}")
-            trace_out()
-            return False
+            return trace_out(False)
     
     def directory_exists(self, path: str) -> bool:
         """Check if a directory exists. Returns False if directory not found (graceful)."""
@@ -520,27 +501,22 @@ class FileSystem:
             exists = Path(path).exists() and Path(path).is_dir()
             if not exists:
                 debug(f"Directory does not exist: {path}")
-            trace_out()
-            return exists
+            return trace_out(exists)
         except Exception as e:
             warn(f"Error checking directory existence: {path}: {e}")
-            trace_out()
-            return False  # Graceful failure
+            return trace_out(False)  # Graceful failure
     
     def get_file_size(self, path: str) -> Optional[int]:
         """Get file size in bytes. Returns None if file not found or error (graceful)."""
         trace_in()
         try:
             if not self.file_exists(path):
-                trace_out()
-                return None
+                return trace_out(None)
             size = Path(path).stat().st_size
-            trace_out()
-            return size
+            return trace_out(size)
         except Exception as e:
             warn(f"Error getting file size: {path}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
     
     # ===== Directory Operations =====
     
@@ -552,8 +528,7 @@ class FileSystem:
             path_obj = Path(path)
             if path_obj.exists() and path_obj.is_dir():
                 debug(f"Directory already exists: {path}")
-                trace_out()
-                return True
+                return trace_out(True)
             
             path_obj.mkdir(parents=parents, exist_ok=True)
             
@@ -566,13 +541,11 @@ class FileSystem:
                     warn(f"Failed to set directory permissions: {path}: {e}")
             
             log(f"Created directory: {path}")
-            trace_out()
-            return True
+            return trace_out(True)
         except Exception as e:
             warn(f"Failed to create directory: {path}: {e}")
             report_error("file_operation", f"Failed to create directory: {path}")
-            trace_out()
-            return False
+            return trace_out(False)
     
     # ===== File Reading =====
     
@@ -585,25 +558,21 @@ class FileSystem:
             if self._remote_file_handler:
                 result = self._remote_file_handler.read_file(path)
                 if result is not None:
-                    trace_out()
-                    return result
+                    return trace_out(result)
             
             # Local file read
             if not self.file_exists(path):
                 warn(f"File not found for reading: {path}")
-                trace_out()
-                return None
+                return trace_out(None)
             
             with open(path, 'rb') as f:
                 content = f.read()
             log(f"Read file: {path} ({len(content)} bytes)")
-            trace_out()
-            return content
+            return trace_out(content)
         except Exception as e:
             warn(f"Error reading file: {path}: {e}")
             report_error("file_operation", f"Failed to read file: {path}")
-            trace_out()
-            return None
+            return trace_out(None)
     
     def read_file_text(self, path: str, encoding: str = 'utf-8') -> Optional[str]:
         """Read a file as text. Returns None if file not found or error (graceful)."""
@@ -611,22 +580,18 @@ class FileSystem:
         try:
             content = self.read_file(path)
             if content is None:
-                trace_out()
-                return None
+                return trace_out(None)
             
             text = content.decode(encoding)
             log(f"Read file as text: {path} ({len(text)} characters)")
-            trace_out()
-            return text
+            return trace_out(text)
         except UnicodeDecodeError as e:
             warn(f"Error decoding file: {path}: {e}")
             report_error("file_operation", f"Failed to decode file: {path}")
-            trace_out()
-            return None
+            return trace_out(None)
         except Exception as e:
             warn(f"Error reading file as text: {path}: {e}")
-            trace_out()
-            return None
+            return trace_out(None)
     
     # ===== File Writing (Immediate, not scheduled) =====
     
@@ -639,19 +604,16 @@ class FileSystem:
             # Create parent directory if it doesn't exist
             if path_obj.parent and not path_obj.parent.exists():
                 if not self.create_directory(str(path_obj.parent)):
-                    trace_out()
-                    return False
+                    return trace_out(False)
             
             with open(path, 'wb') as f:
                 f.write(content)
             log(f"Wrote file: {path} ({len(content)} bytes)")
-            trace_out()
-            return True
+            return trace_out(True)
         except Exception as e:
             warn(f"Error writing file: {path}: {e}")
             report_error("file_operation", f"Failed to write file: {path}")
-            trace_out()
-            return False
+            return trace_out(False)
     
     def write_file_text(self, path: str, content: str, encoding: str = 'utf-8') -> bool:
         """Write text to a file immediately. Returns True if successful, False otherwise.
@@ -660,13 +622,11 @@ class FileSystem:
         try:
             content_bytes = content.encode(encoding)
             result = self.write_file(path, content_bytes)
-            trace_out()
-            return result
+            return trace_out(result)
         except Exception as e:
             warn(f"Error encoding text for file: {path}: {e}")
             report_error("file_operation", f"Failed to encode text for file: {path}")
-            trace_out()
-            return False
+            return trace_out(False)
     
     # ===== Path Utilities =====
     
@@ -719,12 +679,10 @@ class FileSystem:
         """
         trace_in()
         if not require("pwd"):
-            trace_out()
-            return False
+            return trace_out(False)
         try:
             if not hasattr(os, "chown"):
-                trace_out()
-                return False
+                return trace_out(False)
             user_info = pwd.getpwnam(username)
             uid = user_info.pw_uid
             
@@ -733,14 +691,12 @@ class FileSystem:
                 import grp
                 try:
                     if not hasattr(grp, "getgrnam"):
-                        trace_out()
-                        return False
+                        return trace_out(False)
                     group_info = grp.getgrnam(group)
                     gid = group_info.gr_gid
                 except KeyError:
                     warn(f"Group not found: {group}")
-                    trace_out()
-                    return False
+                    return trace_out(False)
             else:
                 gid = user_info.pw_gid
             
@@ -757,18 +713,15 @@ class FileSystem:
             else:
                 os.chown(path, uid, gid)
                 log(f"Changed ownership of {path} to {ownership_str}")
-            
-            trace_out()
-            return True
+
+            return trace_out(True)
         except KeyError:
             warn(f"User not found: {username}")
-            trace_out()
-            return False
+            return trace_out(False)
         except Exception as e:
             ownership_display = f"{username}:{group}" if group else username
             warn(f"Failed to chown {path} to {ownership_display}: {e}")
-            trace_out()
-            return False
+            return trace_out(False)
 
     def chmod(self, path: str, mode: int, recursive: bool = False) -> bool:
         """Change file permissions (cross-platform, but mode is Unix-style).
@@ -794,13 +747,11 @@ class FileSystem:
             else:
                 os.chmod(path, mode)
                 log(f"Changed permissions of {path} to {oct(mode)}")
-            
-            trace_out()
-            return True
+
+            return trace_out(True)
         except Exception as e:
             warn(f"Failed to chmod {path} to {oct(mode)}: {e}")
-            trace_out()
-            return False
+            return trace_out(False)
 
     def chmod_tree(self, path: str, dir_mode: Optional[int] = None, file_mode: Optional[int] = None) -> bool:
         """Change permissions recursively with different modes for directories and files.
@@ -816,8 +767,7 @@ class FileSystem:
         trace_in()
         if not os.path.isdir(path):
             warn(f"chmod_tree requires a directory: {path}")
-            trace_out()
-            return False
+            return trace_out(False)
         
         try:
             for root, dirs, files in os.walk(path):
@@ -835,11 +785,9 @@ class FileSystem:
             if file_mode is not None:
                 mode_desc.append(f"files={oct(file_mode)}")
             log(f"Changed permissions of {path} tree: {', '.join(mode_desc)}")
-            
-            trace_out()
-            return True
+
+            return trace_out(True)
         except Exception as e:
             warn(f"Failed to chmod_tree {path}: {e}")
-            trace_out()
-            return False
+            return trace_out(False)
 

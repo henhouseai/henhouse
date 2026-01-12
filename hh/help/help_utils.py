@@ -22,8 +22,7 @@ def normalize_key(value: str) -> str:
     log(f"Normalizing key: '{value}'")
     result = re.sub(r'[\s_-]+', '-', value.strip().lower())
     log(f"Normalized result: '{result}'")
-    trace_out()
-    return result
+    return trace_out(result)
 
 def map_header_to_bucket(header_text: str) -> str | None:
     trace_in()
@@ -36,11 +35,9 @@ def map_header_to_bucket(header_text: str) -> str | None:
         else:
             result = normalized
             log(f"Mapped '{header_text}' -> '{result}'")
-        trace_out()
-        return result
+        return trace_out(result)
     log(f"No mapping found for header: '{header_text}'")
-    trace_out()
-    return None
+    return trace_out(None)
 
 def get_default_paths() -> tuple[Path, Path]:
     trace_in()

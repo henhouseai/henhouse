@@ -57,8 +57,7 @@ def create_backend_decorator(backend_type: str):
                 warn(f"Duplicate registration: '{actual_name}' - overwriting previous")
             globals()[dict_name][actual_name] = info_instance
             log(f"Registered {backend_type}: {actual_name} -> {func.__module__}.{func.__name__}")
-            trace_out()
-            return wrapper
+            return trace_out(wrapper)
         return inner_decorator
     return decorator
 
@@ -111,8 +110,7 @@ def register_command(name: Optional[str] = None, action_args: Optional[List[str]
         command_info = CommandInfo(function=wrapper, action_args=action_args or [])
         commands[actual_name] = command_info
         register_command.commands = dict(commands)  # type: ignore[attr-defined]
-        trace_out()
-        return wrapper
+        return trace_out(wrapper)
     return decorator
 register_command.commands = {}  # type: ignore[attr-defined]
 
@@ -154,7 +152,7 @@ class CommandRegistry:
         self.select_backend()
         self.select_command()
         self.select_error_handler()
-        trace_out()
+        return trace_out(None)
 
     def select_backend(self) -> None:
         trace_in()
@@ -163,18 +161,16 @@ class CommandRegistry:
             if backend:
                 self.matched_backend = backend
                 log(f"Found backend '{self.backend}' with function: '{self.matched_backend.function.__module__}.{self.matched_backend.function.__name__}'")
-                trace_out()
-                return
+                return trace_out(None)
             warn(f"Requested backend '{self.backend}' not registered")
-        trace_out()
+        return trace_out(None)
 
     def select_command(self) -> None:
         trace_in()
         if not self.command:
             warn(f"No command specified")
-            trace_out()
-            return
-        
+            return trace_out(None)
+
         # Use action cache data to find the action handler (not the delivery backend cache)
         action_registration = check_command_in_backend(self.command, "action")
         if action_registration and "handlers" in action_registration:
@@ -184,11 +180,10 @@ class CommandRegistry:
                 # Just store the cache data - no need for mock objects!
                 self.action_cache_data = handler_info
                 log(f"Found command '{command_name}' from action cache with function '{handler_info['module']}.{handler_info['function']}'")
-                trace_out()
-                return
-        
+                return trace_out(None)
+
         warn(f"No command registration found for '{self.command}'")
-        trace_out()
+        return trace_out(None)
 
     def select_error_handler(self) -> None:
         trace_in()
@@ -201,53 +196,65 @@ class CommandRegistry:
                     error_handler_info = registrations.get("error_handler")
                     if error_handler_info:
                         self.error_cache_data = error_handler_info
+                        log(f"Discovered error handler for backend '{self.backend}'")
                 except Exception as e:
                     warn(f"Error during error handler discovery: {e}")
-        trace_out()
+        return trace_out(None)
 
     def has_command(self) -> bool:
-        return hasattr(self, 'action_cache_data') and self.action_cache_data is not None
+        trace_in()
+        return trace_out(hasattr(self, 'action_cache_data') and self.action_cache_data is not None)
 
     def has_backend(self) -> bool:
-        return self.matched_backend is not None
+        trace_in()
+        return trace_out(self.matched_backend is not None)
 
     def has_action_handler(self) -> bool:
-        return hasattr(self, 'action_cache_data') and self.action_cache_data is not None
+        trace_in()
+        return trace_out(hasattr(self, 'action_cache_data') and self.action_cache_data is not None)
 
     def has_backend_handler(self) -> bool:
-        return hasattr(self, 'backend_cache_data') and self.backend_cache_data is not None
+        trace_in()
+        return trace_out(hasattr(self, 'backend_cache_data') and self.backend_cache_data is not None)
 
     def has_action_args(self) -> bool:
-        return hasattr(self, 'action_cache_data') and self.action_cache_data is not None and 'action_args' in self.action_cache_data
+        trace_in()
+        return trace_out(hasattr(self, 'action_cache_data') and self.action_cache_data is not None and 'action_args' in self.action_cache_data)
 
     def get_action_handler(self) -> Optional[Callable]:
+        trace_in()
         if hasattr(self, 'action_cache_data') and self.action_cache_data:
             # Load the actual function from cache data
             try:
                 module = import_module(self.action_cache_data["module"])
-                return getattr(module, self.action_cache_data["function"])
+                handler = getattr(module, self.action_cache_data["function"])
+                log(f"Loaded action handler: {self.action_cache_data['module']}.{self.action_cache_data['function']}")
+                return trace_out(handler)
             except Exception as e:
                 warn(f"Error loading action handler: {e}")
-                return None
-        return None
+                return trace_out(None)
+        return trace_out(None)
 
     def get_backend_handler(self) -> Optional[Callable]:
+        trace_in()
         if not self.matched_backend or not self.backend_registration:
-            return None
-        
+            return trace_out(None)
+
         # Get the handler info from cache
         command_name = self.command
         handler_info = self.backend_registration["handlers"].get(command_name, {})
         if not handler_info:
-            return None
-        
+            return trace_out(None)
+
         # Load the actual function from cache data
         try:
             module = import_module(handler_info["module"])
-            return getattr(module, handler_info["function"])
+            handler = getattr(module, handler_info["function"])
+            log(f"Loaded backend handler: {handler_info['module']}.{handler_info['function']}")
+            return trace_out(handler)
         except Exception as e:
             warn(f"Error loading backend handler: {e}")
-            return None
+            return trace_out(None)
 
     def has_error_handler(self) -> bool:
         trace_in()
@@ -286,9 +293,10 @@ class CommandRegistry:
             return trace_out(None)
 
     def get_action_args(self) -> List[str]:
+        trace_in()
         if hasattr(self, 'action_cache_data') and self.action_cache_data and 'action_args' in self.action_cache_data:
-            return self.action_cache_data['action_args']
-        return []
+            return trace_out(self.action_cache_data['action_args'])
+        return trace_out([])
 
     def load_action_module(self) -> bool:
         trace_in()

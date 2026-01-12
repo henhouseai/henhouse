@@ -2,8 +2,10 @@ import os
 import shutil
 import subprocess
 import importlib.util
+import json
+import time
 from pathlib import Path
-from typing import Tuple, List, Dict, Any, TypeVar, Optional
+from typing import Tuple, List, Dict, Any, TypeVar, Optional, NamedTuple
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error
 
@@ -309,6 +311,316 @@ def load_dict_whitelist_with_extensions(
     return result
 
 
+# ============ Module discovery system ============
+
+# Module cache setup
+_MODULE_CACHE_DIR: Optional[Path] = None  # Will be initialized on first use
+_module_last_scan_time: float = 0.0
+MODULE_SCAN_THROTTLE_SECONDS = 3600.0
+
+class ModuleInfo(NamedTuple):
+    """Information about a discovered module."""
+    name: str
+    path: str
+    description: Optional[str]
+    version: Optional[str]
+
+def _get_module_cache_dir() -> Path:
+    """Get the module cache directory, creating it if needed."""
+    global _MODULE_CACHE_DIR
+    if _MODULE_CACHE_DIR is None:
+        # Cache in hh/gateway/registry/cache/
+        try:
+            import hh
+            hh_path = Path(hh.__file__).parent
+            _MODULE_CACHE_DIR = hh_path / "gateway" / "registry" / "cache"
+            _MODULE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            warn(f"Error creating module cache directory: {e}")
+            # Fall back to current directory
+            _MODULE_CACHE_DIR = Path.cwd() / ".cache"
+            _MODULE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return _MODULE_CACHE_DIR
+
+def _read_module_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
+    """Read module cache file with retry logic if file is empty (another process is writing)."""
+    try:
+        if not cache_file.exists():
+            return None
+
+        # Check if file is empty or very small (indicates write in progress)
+        file_size = cache_file.stat().st_size
+        if file_size == 0:
+            log(f"Module cache file {cache_file} is empty, waiting 1 second for other process to finish...")
+            time.sleep(1.0)
+
+            # Retry after wait
+            if not cache_file.exists():
+                return None
+            file_size = cache_file.stat().st_size
+            if file_size == 0:
+                warn(f"Module cache file {cache_file} still empty after retry, treating as invalid")
+                return None
+
+        with open(cache_file, 'r') as f:
+            cache_data = json.load(f)
+            return cache_data
+    except json.JSONDecodeError as e:
+        # If JSON decode fails, might be incomplete write - retry once
+        log(f"JSON decode error reading {cache_file}: {e}, waiting 1 second and retrying...")
+        time.sleep(1.0)
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+                return cache_data
+        except Exception as e2:
+            warn(f"Error reading module cache file {cache_file} after retry: {e2}")
+            return None
+    except Exception as e:
+        warn(f"Error reading module cache file {cache_file}: {e}")
+        return None
+
+def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
+    """
+    Discover active modules in the project root.
+
+    Scans the project root for folders containing a __module__.py manifest file.
+    Uses cold cache with 1-hour throttle to avoid repeated filesystem scans.
+
+    Args:
+        force_regenerate: If True, ignore cache and force a new scan (still respects throttle)
+
+    Returns:
+        List of ModuleInfo objects for discovered modules
+    """
+    trace_in()
+    global _module_last_scan_time
+
+    cache_dir = _get_module_cache_dir()
+    cache_file = cache_dir / "modules.json"
+    current_time = time.time()
+
+    # Always check throttle first
+    if cache_file.exists():
+        cache_data = _read_module_cache_file_with_retry(cache_file)
+        if cache_data is not None:
+            # Check if we've scanned recently
+            last_scan_str = cache_data.get('last_scan', '0')
+            try:
+                last_scan_timestamp = float(last_scan_str)
+            except (ValueError, TypeError):
+                last_scan_timestamp = 0
+
+            time_since_scan = current_time - last_scan_timestamp
+            time_since_memory_scan = current_time - _module_last_scan_time
+
+            # If we've scanned recently, honor throttle and use cache
+            if time_since_scan < MODULE_SCAN_THROTTLE_SECONDS or time_since_memory_scan < MODULE_SCAN_THROTTLE_SECONDS:
+                log(f"Throttling: using cached modules (scanned {time_since_scan:.1f}s ago, throttle: {MODULE_SCAN_THROTTLE_SECONDS}s)")
+                modules_data = cache_data.get('modules', [])
+                result = [ModuleInfo(**m) for m in modules_data]
+                trace_out()
+                return result
+
+            # Cache exists and is old enough - check if we should use it or regenerate
+            if not force_regenerate:
+                log(f"Found module cache with {len(cache_data.get('modules', []))} modules (last scan: {time_since_scan:.1f}s ago)")
+                modules_data = cache_data.get('modules', [])
+                result = [ModuleInfo(**m) for m in modules_data]
+                trace_out()
+                return result
+            else:
+                log(f"Force regenerate requested, proceeding with scan")
+
+    log("Discovering active modules...")
+
+    # Get project root
+    try:
+        project_name, project_root = detect_project_context()
+    except Exception as e:
+        warn(f"Error detecting project context: {e}")
+        report_error("deploy_utils", f"Error detecting project context: {e}")
+        trace_out()
+        return []
+
+    # Load blacklist
+    blacklist_file = project_root / "ext" / "deploy" / "conf" / "module_blacklist.py"
+    blacklist = _load_list_from_file(blacklist_file, "MODULE_BLACKLIST")
+    blacklisted_modules: set[str] = set(blacklist) if blacklist else set()
+    if blacklisted_modules:
+        log(f"Loaded module blacklist: {blacklisted_modules}")
+
+    # Exclusion rules (always excluded, in addition to blacklist)
+    always_excluded = {'hh', 'ext', '.git', '__pycache__', 'venv', '.venv', 'node_modules'}
+
+    modules: List[ModuleInfo] = []
+
+    # Scan project root for folders
+    try:
+        for item in project_root.iterdir():
+            # Skip if not a directory
+            if not item.is_dir():
+                continue
+
+            folder_name = item.name
+
+            # Skip if starts with . or _
+            if folder_name.startswith('.') or folder_name.startswith('_'):
+                continue
+
+            # Skip if in always excluded list
+            if folder_name in always_excluded:
+                continue
+
+            # Skip if blacklisted
+            if folder_name in blacklisted_modules:
+                log(f"Skipping blacklisted module: {folder_name}")
+                continue
+
+            # Check for __module__.py manifest
+            manifest_file = item / "__module__.py"
+            if not manifest_file.exists():
+                continue
+
+            # Load manifest
+            try:
+                manifest_data = _load_list_from_file(manifest_file, "MODULE_INFO")
+                if manifest_data is None:
+                    # Try loading as a dict directly
+                    spec = importlib.util.spec_from_file_location("module_manifest", manifest_file)
+                    if spec is None or spec.loader is None:
+                        warn(f"Failed to load manifest from {manifest_file}")
+                        continue
+
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+
+                    if hasattr(module, 'MODULE_INFO'):
+                        manifest_data = getattr(module, 'MODULE_INFO')
+                    else:
+                        warn(f"MODULE_INFO not found in {manifest_file}")
+                        continue
+
+                # Extract module info
+                if isinstance(manifest_data, dict):
+                    module_info = ModuleInfo(
+                        name=manifest_data.get('name', folder_name),
+                        path=folder_name,
+                        description=manifest_data.get('description'),
+                        version=manifest_data.get('version')
+                    )
+                    modules.append(module_info)
+                    log(f"Discovered module: {folder_name} (name: {module_info.name})")
+                else:
+                    warn(f"MODULE_INFO in {manifest_file} is not a dict: {type(manifest_data)}")
+
+            except Exception as e:
+                warn(f"Error loading manifest from {manifest_file}: {e}")
+                report_error("deploy_utils", f"Error loading manifest from {manifest_file}: {e}")
+                continue
+
+    except Exception as e:
+        warn(f"Error scanning for modules: {e}")
+        report_error("deploy_utils", f"Error scanning for modules: {e}")
+
+    # Write cache
+    modules_data = [
+        {
+            'name': m.name,
+            'path': m.path,
+            'description': m.description,
+            'version': m.version
+        }
+        for m in modules
+    ]
+
+    cache_data = {
+        "modules": modules_data,
+        "last_scan": str(current_time)
+    }
+
+    # Update in-memory scan time
+    _module_last_scan_time = current_time
+
+    try:
+        # Atomic write using temp file
+        temp_file = cache_file.with_suffix('.tmp')
+        with open(temp_file, 'w') as f:
+            json.dump(cache_data, f, indent=2)
+        temp_file.replace(cache_file)
+        log(f"Cached modules: {len(modules)} modules")
+    except Exception as e:
+        warn(f"Error caching modules: {e}")
+
+    trace_out()
+    return modules
+
+def get_module_paths() -> List[str]:
+    """
+    Get list of module paths for scan_for_decorator().
+
+    Returns:
+        List of module path prefixes: ['hh', 'ext'] + discovered modules
+        Note: 'ext' is always included for backward compatibility with legacy extension system
+    """
+    trace_in()
+    # Always include 'hh' first, then 'ext' for backward compatibility
+    paths = ['hh', 'ext']
+
+    # Add discovered peer modules
+    try:
+        modules = get_active_modules()
+        for module in modules:
+            paths.append(module.path)
+        log(f"Module paths: {paths}")
+    except Exception as e:
+        warn(f"Error getting module paths: {e}")
+        log(f"Using fallback paths (hh + ext only): {paths}")
+
+    trace_out()
+    return paths
+
+# Import cache cleanup registry
+from hh.deploy.cache.cache_cleanup_registry import register_cache_cleanup
+
+@register_cache_cleanup('modules', cache_dir='hh/gateway/registry/cache')
+def cleanup_module_cache():
+    """Clean up module discovery cache (hot and cold)."""
+    trace_in()
+    global _module_last_scan_time
+
+    # Clear in-memory scan time
+    _module_last_scan_time = 0.0
+    log("Cleared module discovery scan timestamp")
+
+    # Remove cold cache files
+    removed_files = []
+    cache_dir = _get_module_cache_dir()
+    candidate_files = [cache_dir / "modules.json"]
+
+    # Also check deployment paths
+    try:
+        from hh.deploy.cache.cache_cleanup_registry import get_deployment_paths
+        for root in get_deployment_paths():
+            candidate_files.append(root / 'hh' / 'gateway' / 'registry' / 'cache' / 'modules.json')
+    except Exception as e:
+        debug(f"Could not get deployment paths: {e}")
+
+    for cache_file in candidate_files:
+        if cache_file.exists():
+            cache_file.unlink()
+            removed_files.append(str(cache_file))
+            log(f"Removed module cache file: {cache_file}")
+        else:
+            debug(f"Module cache file does not exist: {cache_file}")
+
+    trace_out()
+    return {
+        'success': True,
+        'cache_files': len(removed_files),
+        'cache_files_list': removed_files
+    }
+
 # ============ Registry scanning functions ============
 
 def scan_for_decorator(
@@ -316,39 +628,46 @@ def scan_for_decorator(
     exclude_cache: bool = True
 ) -> List[str]:
     """
-    Scan hh/ and ext/ folders for Python files containing a decorator pattern.
-    
-    This function scans both the framework (hh/) and user extension (ext/) folders
+    Scan framework and module folders for Python files containing a decorator pattern.
+
+    This function scans the framework (hh/) and all discovered modules
     for files containing the specified decorator pattern (e.g., "@register_action").
-    
+    Uses get_module_paths() to discover active modules automatically.
+
     Args:
         decorator_name: Name of the decorator to search for (e.g., "register_action")
                        The function will search for the pattern "@{decorator_name}"
         exclude_cache: If True, skip files starting with "cache_" (default: True)
-    
+
     Returns:
         List of module paths found:
         - For hh/ files: "hh.subfolder.module"
-        - For ext/ files: "ext.subfolder.module"
+        - For module files: "{module_name}.subfolder.module"
     """
     trace_in()
     found_files: List[str] = []
     pattern = f"@{decorator_name}"
-    
+
     try:
         import hh
         hh_path = Path(hh.__file__).parent
         project_root = hh_path.parent
-        
-        # Build list of paths to scan
-        scan_paths: List[Tuple[Path, str]] = [(hh_path, "hh")]
-        
-        # Check if ext/ exists and add it to scan paths
-        ext_path = project_root / "ext"
-        if ext_path.exists() and ext_path.is_dir():
-            scan_paths.append((ext_path, "ext"))
-            log(f"Found ext/ folder, will scan for {decorator_name}")
-        
+
+        # Build list of paths to scan using get_module_paths()
+        scan_paths: List[Tuple[Path, str]] = []
+        module_prefixes = get_module_paths()
+
+        for module_prefix in module_prefixes:
+            if module_prefix == 'hh':
+                module_path = hh_path
+            else:
+                module_path = project_root / module_prefix
+
+            # Only add if the path exists
+            if module_path.exists() and module_path.is_dir():
+                scan_paths.append((module_path, module_prefix))
+                log(f"Will scan {module_prefix}/ for {decorator_name}")
+
         # Scan each path
         for scan_path, module_prefix in scan_paths:
             for py_file in scan_path.rglob("*.py"):
@@ -362,9 +681,9 @@ def scan_for_decorator(
                         if pattern in content:
                             rel_path = py_file.relative_to(scan_path)
                             module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                            module_path = f"{module_prefix}." + ".".join(module_parts)
-                            found_files.append(module_path)
-                            log(f"Found {decorator_name} in {module_path}")
+                            full_module_path = f"{module_prefix}." + ".".join(module_parts)
+                            found_files.append(full_module_path)
+                            log(f"Found {decorator_name} in {full_module_path}")
                 except Exception as e:
                     warn(f"Error reading {py_file}: {e}")
                 
