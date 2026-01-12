@@ -18,7 +18,7 @@ from typing import List
 
 # Module-level blacklist: Exclude entire modules by name
 # Example: ['accounting', 'self_doc'] would exclude all files from these modules
-MODULE_BLACKLIST: List[str] = []
+MODULE_BLACKLIST: List[str] = ['accounting']
 
 # File-level blacklist: Exclude specific files by path (relative to project root)
 # Example: ['hh/gateway/experimental.py', 'accounting/legacy_reports.py']
