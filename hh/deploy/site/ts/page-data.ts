@@ -317,7 +317,8 @@ export class PageData {
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
-          text: values['text']
+          text: values['text'],
+          return_full_page: true
         })
       },
       {

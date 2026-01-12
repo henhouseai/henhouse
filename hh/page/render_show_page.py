@@ -440,7 +440,6 @@ def render_extra_data_section(extra_data: Dict[str, Any], page_id: Optional[int]
 @register_parser('add_image')
 @register_parser('add_images')
 @register_parser('modify_name')
-@register_parser('modify_text')
 @register_parser('move_page')
 @register_parser('copy_page')
 @register_parser('remove_image')

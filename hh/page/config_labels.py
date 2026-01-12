@@ -97,5 +97,13 @@ from hh.render.config.config_registry import register_label
 @register_label('extra_data_new_caption',             'New Caption:',                 '📝')
 @register_label('extra_data_old_visibility',          'Old Visibility:',             '👀')
 @register_label('extra_data_new_visibility',          'New Visibility:',             '👀')
+@register_label('summary',                            'Summary:',                    '📋')
+@register_label('mode',                               'Mode:',                       '⚙️')
+@register_label('lines_before',                       'Lines Before:',               '📊')
+@register_label('lines_after',                        'Lines After:',                '📊')
+@register_label('chars_before',                       'Characters Before:',          '🔢')
+@register_label('chars_after',                        'Characters After:',           '🔢')
+@register_label('delta_lines',                        'Line Delta:',                 '📈')
+@register_label('delta_chars',                        'Character Delta:',            '📈')
 def _register_config():
     pass

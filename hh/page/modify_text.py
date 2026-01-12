@@ -1,14 +1,22 @@
 from __future__ import annotations
 from typing import Dict, Any, Optional
-from hh.gateway.registry.registry import register_action, register_command
+import json
+from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
-from hh.gateway.response.json_standard import success_payload
+from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page, find_page
 from hh.image.image_registry import get_image
 from hh.page.page import Page
 from hh.image.image import Image
+from hh.render.render import (
+    FieldConfig,
+    TableData,
+    finalize_output,
+    render_block,
+    render_header_block,
+)
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -87,6 +95,9 @@ def modify_text() -> bool:
     if not is_error():
         page_id_arg = gateway.get_arg('page_id') or gateway.get_arg('id')
         new_text = gateway.get_arg('text')
+        # Handle parameter aliasing: new_string as alias for text
+        if not new_text:
+            new_text = gateway.get_arg('new_string')
         # Handle the case where -text is passed as a flag (returns True)
         if new_text is True:
             new_text = ""
@@ -112,12 +123,16 @@ def modify_text() -> bool:
             warn(f"Invalid page ID: {page_id_arg}")
             report_error("action", "Page ID must be a number")
     page = None
+    old_text = ""
     if not is_error():
         log(f"Loading page {page_id}")
         page = get_page(page_id=page_id)
         if not page:
             warn(f"Page {page_id} not found")
             report_error("action", f"Page {page_id} not found")
+        else:
+            # Capture old text for delta calculations
+            old_text = page.text or ""
     if not is_error() and page is not None:
         log(f"Modifying page {page_id} text content (mode: {mode})")
         success = page.modify_text(new_text, mode=mode, old_string=old_string)
@@ -125,10 +140,170 @@ def modify_text() -> bool:
             warn("Page text modification failed")
             report_error("action", "Page text modification failed")
     if not is_error() and page is not None:
-        response_data = page.show_page()
-        gateway.response.set_action_response(success_payload(response_data))
-        # Calculate total children from children_by_class
-        total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
-        log(f"Successfully modified page {page_id} text content with {total_children} children")
+        # Check which response format to return
+        full_page = gateway.is_set('full_page') or gateway.is_set('return_full_page')
+        full_text = gateway.is_set('full_text') or gateway.is_set('return_full_text')
+
+        if full_page:
+            # Return full page object (for HTTP TypeScript UI)
+            response_data = page.show_page()
+            gateway.response.set_action_response(success_payload(response_data))
+            log(f"Successfully modified page {page_id} text (full_page mode)")
+        elif full_text:
+            # Return just the updated text (for agents who need the content)
+            response_data = {
+                "page_id": page_id,
+                "text": page.text or ""
+            }
+            gateway.response.set_action_response(success_payload(response_data))
+            log(f"Successfully modified page {page_id} text (full_text mode)")
+        else:
+            # Default: return summary stats (minimal data transfer for agents)
+            lines_before = old_text.count('\n') + 1 if old_text else 0
+            lines_after = (page.text.count('\n') + 1) if page.text else 0
+            chars_before = len(old_text)
+            chars_after = len(page.text) if page.text else 0
+
+            response_data = {
+                "page_id": page_id,
+                "summary": f"Modified page {page_id} text",
+                "mode": mode,
+                "lines_before": lines_before,
+                "lines_after": lines_after,
+                "chars_before": chars_before,
+                "chars_after": chars_after,
+                "delta_lines": lines_after - lines_before,
+                "delta_chars": chars_after - chars_before
+            }
+            gateway.response.set_action_response(success_payload(response_data))
+            log(f"Successfully modified page {page_id} text (summary mode)")
     trace_out()
     return not is_error()
+
+
+@register_parser('modify_text')
+def parser_modify_text() -> bool:
+    """
+    Dedicated parser for modify_text action.
+    Delegates to show_page parser when full_page mode is requested,
+    otherwise formats output using TableData for agent consumption.
+    """
+    trace_in()
+    gateway = get_gateway()
+
+    if not gateway:
+        warn("No gateway available")
+        report_error("backend", "No gateway available")
+        return trace_out(False)
+
+    if not gateway.response.has_action_response():
+        warn("No action response available")
+        report_error("backend", "No action response available")
+        return trace_out(False)
+
+    # Check for full_page flag
+    if gateway.is_set('full_page') or gateway.is_set('return_full_page'):
+        # Lazy import and delegate to show_page parser
+        from hh.page.render_show_page import show_page as parser_show_page
+        return parser_show_page()
+
+    try:
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data) if json_data and isinstance(json_data, dict) else {}
+
+        lines = [render_header_block("l_modify_text_header")]
+
+        # Check if this is full_text mode (has 'text' field but no 'mode' field)
+        is_full_text = 'text' in source_data and 'mode' not in source_data
+
+        if is_full_text:
+            # Full text mode: show page_id and text
+            table = TableData()
+            table.add_row(
+                "page_id",
+                page_id=str(source_data.get("page_id", "")),
+            )
+            table.add_row(
+                "page_text",
+                page_text=source_data.get("text", ""),
+            )
+
+            lines.append(
+                render_block(
+                    table,
+                    FieldConfig()
+                    .add_simple(["page_id", "page_text"]),
+                    block_type="page",
+                    table_overrides={"margin_l": 4},
+                )
+            )
+        else:
+            # Summary mode: show statistics
+            table = TableData()
+            table.add_row(
+                "header",
+                page_id="Page ID",
+                summary="Summary",
+                mode="Mode",
+            )
+            table.add_row(
+                "data",
+                page_id=str(source_data.get("page_id", "")),
+                summary=source_data.get("summary", ""),
+                mode=source_data.get("mode", ""),
+            )
+
+            lines.append(
+                render_block(
+                    table,
+                    FieldConfig()
+                    .add_header("header")
+                    .add_simple(["data"]),
+                    block_type="page",
+                    table_overrides={"margin_l": 4},
+                )
+            )
+
+            # Add statistics table
+            stats_table = TableData()
+            stats_table.add_row(
+                "header",
+                metric="Metric",
+                before="Before",
+                after="After",
+                delta="Delta",
+            )
+            stats_table.add_row(
+                "lines",
+                metric="Lines",
+                before=str(source_data.get("lines_before", 0)),
+                after=str(source_data.get("lines_after", 0)),
+                delta=str(source_data.get("delta_lines", 0)),
+            )
+            stats_table.add_row(
+                "chars",
+                metric="Characters",
+                before=str(source_data.get("chars_before", 0)),
+                after=str(source_data.get("chars_after", 0)),
+                delta=str(source_data.get("delta_chars", 0)),
+            )
+
+            lines.append(
+                render_block(
+                    stats_table,
+                    FieldConfig()
+                    .add_header("header")
+                    .add_simple(["lines", "chars"]),
+                    block_type="page",
+                    table_overrides={"margin_l": 4},
+                )
+            )
+
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully with {len(lines)} lines")
+        return trace_out(True)
+
+    except Exception as exc:  # noqa: BLE001
+        warn(f"Parser execution raised an exception: {exc}")
+        report_error("backend", f"Parser execution raised an exception: {exc}")
+        return trace_out(False)

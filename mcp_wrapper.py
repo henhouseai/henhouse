@@ -65,7 +65,7 @@ from typing import List, Tuple, Optional
 def debug_print(message: str) -> None:
     """Debug print function - no-op by default. Uncomment the print line to enable debug output."""
     # Uncomment the line below to enable debug output:
-    # print(f"[DEBUG] {message}", file=sys.stderr)
+    print(f"[DEBUG] {message}", file=sys.stderr)
     pass
 
 def detect_project_name() -> str:
@@ -428,6 +428,13 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
                 if "error" in response_json and isinstance(response_json["error"], dict):
                     error_obj = response_json["error"]
                     error_data = error_obj.get("data", {})
+                    debug_print(f"Error data type: {type(error_data)}, value: {str(error_data)[:100]}")
+
+                    # Only try to extract errors if error_data is a dict
+                    if not isinstance(error_data, dict):
+                        debug_print(f"Skipping error enhancement - data is not a dict")
+                        error_data = {}
+
                     errors_list = error_data.get("errors", [])
                     
                     if errors_list:
@@ -523,6 +530,12 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
 
 def main() -> int:
     """Main entry point - runs in a loop to handle multiple requests."""
+    # Configure stdin/stdout/stderr to use UTF-8 encoding (critical for Windows)
+    # This prevents Unicode/emoji corruption when reading JSON-RPC from stdin
+    sys.stdin.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
+    sys.stdout.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
+
     # Detect project name for error messages
     project_name = detect_project_name()
     

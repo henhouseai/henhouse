@@ -15,6 +15,13 @@ Henhouse is a content management framework written in Python for building applic
 
 For detailed architecture documentation, see the [Documentation](#documentation) section below.
 
+## Requirements
+
+- **Python**: 3.7+ (developed and tested with Python 3.12 on Ubuntu Server 24.x)
+- **Operating System**: Ubuntu Server 24.x recommended (should work on most Linux distributions)
+- **Database**: MySQL 8.0 or higher
+- **Web Server**: NGINX (for production deployment)
+
 ## Quick Start
 
 Henhouse is deployed in phases, with each phase enabling new features. By the end, you'll have a customizable MCP server running that you can use in Cursor - your agents can run MCP commands in chat windows to update database content and make changes to the system. The web browser becomes a live dashboard for interacting with the system, and you can also use the command line for testing and smoke checking.

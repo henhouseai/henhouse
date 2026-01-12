@@ -150,8 +150,11 @@ All modes validate the final combined content through TextProcessor before savin
             'page_id': {'type': 'integer', 'description': 'The ID of the page to modify'},
             'id': {'type': 'integer', 'description': 'Alternative parameter name for page_id (use either page_id or id)'},
             'text': {'type': 'string', 'description': 'The text content. For replace_all: the complete new content. For prepend/append: the text to insert. For replace: the replacement string.'},
+            'new_string': {'type': 'string', 'description': 'Alias for text parameter. Allows agents to use new_string when they see old_string in the documentation.'},
             'mode': {'type': 'string', 'description': 'Editing mode: "replace_all" (default), "prepend", "append", or "replace"', 'enum': ['replace_all', 'prepend', 'append', 'replace']},
-            'old_string': {'type': 'string', 'description': 'The exact string to find and replace (required when mode="replace"). Must appear exactly once in the content.'}
+            'old_string': {'type': 'string', 'description': 'The exact string to find and replace (required when mode="replace"). Must appear exactly once in the content.'},
+            'return_full_page': {'type': 'boolean', 'description': 'If true, returns full page object via show_page(). Use for HTTP/TypeScript clients that need complete page data for UI updates. Default: false.'},
+            'return_full_text': {'type': 'boolean', 'description': 'If true, returns just the updated page text content. Use when you need the actual text but not the full page object. Default: false.'}
         },
         'required': ['page_id', 'text']
     },
