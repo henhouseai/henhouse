@@ -484,7 +484,7 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
 
             # Load manifest
             try:
-                manifest_data = _load_list_from_file(manifest_file, "MODULE_INFO")
+                manifest_data = _load_list_from_file(manifest_file, "MODULE")
                 if manifest_data is None:
                     # Try loading as a dict directly
                     spec = importlib.util.spec_from_file_location("module_manifest", manifest_file)
@@ -495,10 +495,10 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
 
-                    if hasattr(module, 'MODULE_INFO'):
-                        manifest_data = getattr(module, 'MODULE_INFO')
+                    if hasattr(module, 'MODULE'):
+                        manifest_data = getattr(module, 'MODULE')
                     else:
-                        warn(f"MODULE_INFO not found in {manifest_file}")
+                        warn(f"MODULE not found in {manifest_file}")
                         continue
 
                 # Extract module info
@@ -512,7 +512,7 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
                     modules.append(module_info)
                     log(f"Discovered module: {folder_name} (name: {module_info.name})")
                 else:
-                    warn(f"MODULE_INFO in {manifest_file} is not a dict: {type(manifest_data)}")
+                    warn(f"MODULE in {manifest_file} is not a dict: {type(manifest_data)}")
 
             except Exception as e:
                 warn(f"Error loading manifest from {manifest_file}: {e}")
