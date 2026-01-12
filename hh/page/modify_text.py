@@ -85,9 +85,9 @@ def modify_text() -> bool:
         warn("No page ID provided")
         report_error("action", "Page ID is required")
     if not is_error():
-        if not gateway.is_set('text'):
-            warn("No new text provided")
-            report_error("action", "New text is required")
+        if not gateway.is_set('text') and not gateway.is_set('new_string'):
+            warn("No text or new_string parameter provided")
+            report_error("action", "text or new_string parameter is required")
     page_id: int = 0
     new_text: str = ""
     mode: str = "replace_all"
