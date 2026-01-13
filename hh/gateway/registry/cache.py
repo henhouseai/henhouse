@@ -294,14 +294,17 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
     assert handlers_dict is not None, "handlers should be initialized as dict"
     for handler_name, handler_info in handlers.items():
         if handler_info.function:
-            # Use original_module if available (set by MCP/API decorators), otherwise use function.__module__
-            module_name = getattr(handler_info, 'original_module', None) or handler_info.function.__module__
+            # Always use function.__module__ for loading (where handler actually lives)
+            module_name = handler_info.function.__module__
             function_name = handler_info.function.__name__
             action_args = getattr(handler_info, 'action_args', [])
+            # Store original_module separately for display purposes only
+            original_module = getattr(handler_info, 'original_module', None)
             handlers_dict[handler_name] = {
                 "module": module_name,
                 "function": function_name,
                 "action_args": action_args,
+                "original_module": original_module,  # For display only, not for loading
                 "load_status": "success",
                 "load_error": None
             }

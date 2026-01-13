@@ -52,8 +52,12 @@ def mcp_list() -> bool:
         backend_dict = backend_handlers["mcp"]
         loaded_mcps = {}
         for handler_name, handler_info in backend_dict.items():
+            # Prefer original_module for display if available
+            original_module = getattr(handler_info, 'original_module', None) if handler_info else None
+            module = handler_info.function.__module__ if handler_info and handler_info.function else None
             loaded_mcps[handler_name] = {
-                "module": handler_info.function.__module__ if handler_info and handler_info.function else None
+                "module": module,
+                "original_module": original_module
             }
         log(f"Found {len(loaded_mcps)} loaded mcps in registry")
         data: Dict[str, Any] = {
@@ -67,10 +71,12 @@ def mcp_list() -> bool:
             is_loaded = handler_name in loaded_mcps
             if is_loaded:
                 loaded_info = loaded_mcps.get(handler_name, {})
-                module_path = loaded_info.get("module")
+                # Prefer original_module for display if available
+                module_path = loaded_info.get("original_module") or loaded_info.get("module")
             else:
                 handler_data = available_mcps_data.get(handler_name, {})
-                module_path = handler_data.get("module", "Unknown")
+                # Prefer original_module for display if available
+                module_path = handler_data.get("original_module") or handler_data.get("module", "Unknown")
             handler_info = {
                 "name": handler_name,
                 "module_path": module_path,
