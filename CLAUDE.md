@@ -93,39 +93,32 @@ Connect to the Henhouse MCP server and thoroughly investigate active work:
    - Read the docket's page text for context
    - Note all asks listed under it
 
-4. Read EVERY ask in each active docket individually
-   - Run show_page id={ask_id} for EACH ask, regardless of its status
-   - This includes todo, doing, review, and done asks
-   - Understanding the full picture requires seeing all asks
-   - You may need 10-20 show_page calls - this is expected and correct
-
-5. Do NOT drill into tasks/steps yet
-   - Only read docket and ask levels on initial check-in
-   - Wait for user direction before investigating specific tasks
+4. Do NOT drill into asks/tasks/steps yet
+   - Only read docket levels on initial check-in
+   - Wait for user direction before investigating specific stuff
 ```
-
-**Why read every ask?** You need to understand the big picture of each active docket - what's been done, what's in progress, what's coming up. This gives you context for a thorough debrief and helps you understand how the work is unfolding.  You will also automatically be shown the log entries from previous agents who may have already been working on these topics.
 
 ### Step 3: Debrief to User
 
 Before doing any work, report what you found:
-- Summarize each active docket and its purpose
-- List ALL asks within each docket, noting their statuses
+- Summarize each active docket and its purpose (from docket page text)
+- List all asks within each docket with their statuses (from docket's children_by_class)
 - Highlight any asks currently in "doing" or "review" status
 - Provide your understanding of the overall progress and direction
 - Ask user for direction: which work to continue, or new work to start
 
 **Example debrief**:
-> "I reviewed the active dockets. The 'Testing' docket (status: doing) has 3 asks:
-> - 'Security testing' (todo) - 2 tasks for TLS and installer testing
-> - 'Integration tests' (done) - completed last week
-> - 'Performance benchmarks' (todo) - not yet started
+> "I reviewed the active dockets. The 'Module Architecture' docket has 6 asks:
+> - 5 core asks (Define manifest, Implement discovery, Migrate code, Update registries, Clean up ext/) - all marked 'done'
+> - 1 investigation ask - marked 'todo'
+> - Last log entry (12 hours ago) indicates implementation complete and smoke tested
 >
-> The 'New Features' docket (status: doing) has 2 asks:
-> - 'Installer config enhancements' (todo) - 2 tasks including htpasswd configurability
-> - 'API improvements' (review) - awaiting your verification
+> The 'Code Quality' docket has 6 asks:
+> - 'Refactor trace_out pattern' - status 'doing' (Worker agent active)
+> - 'Refine modify_text response' - status 'review' (implementation complete)
+> - 4 documentation/review asks - all 'todo'
 >
-> It looks like security testing and installer enhancements are the main pending items. Would you like me to work on one of these, or do you have something else in mind?"
+> Module Architecture appears complete and ready for your review. Code Quality has active work in progress. Would you like me to continue on Code Quality, or focus on something else?"
 
 ### Step 4: Read Additional Context Based on Work
 

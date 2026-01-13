@@ -24,7 +24,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'status']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
@@ -32,7 +34,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
 )
 @register_mcp_tool(
     tool_name='modify_work_meta',
-    description='Generalized tool for managing work page metadata. Supports multiple actions: add (add key-value pairs or append log entry), remove (remove keys), set (set/update key-value pairs), set_all (replace entire field). Works with protected namespaces (log, files_touched, deviations) and user-defined meta bucket. For remove action, provide keys (JSON array string). For other actions, provide data (JSON object string). Field defaults to "meta" but can be "log", "files_touched", "deviations", or "meta". When field is "log", the add action appends a log entry with automatic timestamp. Note: For files_touched field, keys should be full file paths and values should be descriptions of what was done to each file. IMPORTANT: All keys and values must be ASCII-only (printable characters codes 32-126, plus tab/newline/carriage return). Unicode characters like arrows, box-drawing, emojis, or non-English letters will be rejected. Use modify_text for content requiring Unicode.',
+    description='Generalized tool for managing work page metadata. Supports multiple actions: add (add key-value pairs or append log entry), remove (remove keys), set (set/update key-value pairs), set_all (replace entire field). Works with protected namespaces (log, files_touched, deviations) and user-defined meta bucket. For remove action, provide keys (JSON array string). For other actions, provide data (JSON object string). Field defaults to "meta" but can be "log", "files_touched", "deviations", or "meta". When field is "log", the add action appends a log entry with automatic timestamp. Note: For files_touched field, keys should be full file paths and values should be descriptions of what was done to each file. IMPORTANT: All keys and values must be ASCII-only (printable characters codes 32-126, plus tab/newline/carriage return). Unicode characters like arrows, box-drawing, emojis, or non-English letters will be rejected. Use modify_text for content requiring Unicode. Response Modes: Default (no flags) returns summary with operation confirmation (~7 lines). Use -full_meta flag to return the specific metadata bucket modified (log, files_touched, deviations, or meta). Use -full_page flag to return complete page data with all children, badges, and content.',
     inputSchema={
         'type': 'object',
         'properties': {
@@ -58,7 +60,8 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'action']
     },
-    tiers=[3, 4],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
     requires_approval=False,
     crud_type='update'
 )
@@ -72,7 +75,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[7, 8],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
@@ -88,7 +91,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[7, 8],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
@@ -104,7 +107,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[7, 8],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
@@ -120,7 +123,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[7, 8],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',
@@ -140,7 +143,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'sort_order']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='work',

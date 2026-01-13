@@ -14,6 +14,8 @@ from hh.render.config.config_registry import register_label
 @register_label('work_meta_success',                'Success:',                   '✅')
 @register_label('work_meta_new_values',             'New Values:',                '📝')
 @register_label('work_meta_removed_keys',           'Removed Keys:',              '🗑️')
+@register_label('work_meta_operation_summary',      'Operation:',                 '📝')
+@register_label('work_meta_content',                'Metadata:',                  '📋')
 @register_label('l_modify_work_status_header',      'Work Status Modification'         )
 @register_label('work_status_new_status',           'New Status:',                '📊')
 @register_label('work_status_old_status',           'Old Status:',                '📊')

@@ -28,7 +28,8 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[3],
+    mcp_tiers=[3],
+    api_tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
@@ -43,7 +44,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[7, 8],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='read',
     app_action_group='mcp_action_request',

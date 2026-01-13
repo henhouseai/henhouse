@@ -2,7 +2,7 @@
 # Auto-discovery file for module system
 
 MODULE = {
-    'name': 'self-doc',
+    'name': 'self_doc',
     'description': 'Self-documentation system for Henhouse',
     'version': '1.0.0',
 }

@@ -20,7 +20,8 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'file_path']
     },
-    tiers=[3, 4],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
     requires_approval=False,
     crud_type='update'
 )
@@ -36,7 +37,8 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'language']
     },
-    tiers=[3, 4],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
     requires_approval=False,
     crud_type='update'
 )
@@ -48,7 +50,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         'properties': {},
         'required': []
     },
-    tiers=[7, 8],  # App action only - no MCP tiers
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='read',  # Mark as read since it's not a real MCP tool
     app_action_group='source_code',
