@@ -46,7 +46,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
         },
         'required': ['page_id']
     },
-    app_action_tiers=[3, 4],
+    app_action_tiers=[],
     requires_approval=False,
     crud_type='read',
     app_action_group='mcp_request',

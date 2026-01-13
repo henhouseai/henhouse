@@ -76,7 +76,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
         'required': ['image_id', 'visibility']
     },
     mcp_tiers=[3],
-    api_tiers=[3],
+    api_tiers=[3, 4],
     app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
