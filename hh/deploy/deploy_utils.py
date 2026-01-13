@@ -509,7 +509,7 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
         log(f"Loaded module blacklist: {blacklisted_modules}")
 
     # Exclusion rules (always excluded, in addition to blacklist)
-    always_excluded = {'hh', 'ext', '.git', '__pycache__', 'venv', '.venv', 'node_modules'}
+    always_excluded = {'hh', 'ext', '.git', 'git', '__pycache__', 'venv', '.venv', 'node_modules'}
 
     modules: List[ModuleInfo] = []
 
@@ -676,7 +676,7 @@ def get_all_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
         return []
 
     # Exclusion rules (only the hard-coded ones, no MODULE_BLACKLIST)
-    always_excluded = {'hh', 'ext', '.git', '__pycache__', 'venv', '.venv', 'node_modules'}
+    always_excluded = {'hh', 'ext', '.git', 'git', '__pycache__', 'venv', '.venv', 'node_modules'}
 
     modules: List[ModuleInfo] = []
 
@@ -903,7 +903,7 @@ def scan_for_decorator(
                 # Skip any file inside .git or git directories
                 skip_file = False
                 for parent in py_file.parents:
-                    if parent.name in ('.git', 'git', '__pycache__', 'node_modules', 'venv', '.venv'):
+                    if parent.name in ('.git', '__pycache__', 'node_modules', 'venv', '.venv'):
                         skip_file = True
                         break
                 if skip_file:
