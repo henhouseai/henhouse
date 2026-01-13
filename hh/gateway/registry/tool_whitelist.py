@@ -488,32 +488,27 @@ class MCPWhitelist:
     
     @classmethod
     def get_app_actions(cls, user_tier_level: int) -> List[Dict[str, Any]]:
-        """Get app actions available for a user tier level (1-4). Returns actions with tier levels 5-8."""
+        """Get app actions available for a user tier level (1-4). Returns actions with app_action_tiers."""
         trace_in()
         if user_tier_level < 1 or user_tier_level > 4:
             return trace_out([])
-        
-        # App action tier level = user tier level + 4 (1→5, 2→6, 3→7, 4→8)
-        app_action_tier_level = user_tier_level + 4
-        
+
         app_actions = []
         # Iterate in reverse order to match file definition order
         for tool_name, tool_config in reversed(list(_global_tool_registry.items())):
-            tier_levels = tool_config.get('tier_levels', [])
-            # Check if this tool has the app action tier level (5-8)
-            if app_action_tier_level in tier_levels:
-                # Check if any tier level is 5-8 (it's an app action)
-                if any(5 <= level <= 8 for level in tier_levels):
-                    app_actions.append({
-                        'id': tool_name,
-                        'tool_name': tool_name,
-                        'description': tool_config['description'],
-                        'label': tool_config.get('app_action_label', tool_name),
-                        'group': tool_config.get('app_action_group', 'default'),
-                        'requires_fields': tool_config.get('requires_fields', [])
-                    })
+            app_action_tiers = tool_config.get('app_action_tiers', [])
+            # Check if this tool has app action access at the user's tier level
+            if user_tier_level in app_action_tiers:
+                app_actions.append({
+                    'id': tool_name,
+                    'tool_name': tool_name,
+                    'description': tool_config['description'],
+                    'label': tool_config.get('app_action_label', tool_name),
+                    'group': tool_config.get('app_action_group', 'default'),
+                    'requires_fields': tool_config.get('requires_fields', [])
+                })
         
-        log(f"Found {len(app_actions)} app actions for tier level {user_tier_level} (app action tier {app_action_tier_level})")
+        log(f"Found {len(app_actions)} app actions for tier level {user_tier_level}")
         return trace_out(app_actions)
 
 class APIWhitelist:
