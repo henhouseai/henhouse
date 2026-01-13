@@ -1,5 +1,5 @@
 /**
- * RPC Client - custom MCP wrapper for JSON-RPC calls to the backend.
+ * RPC Client - JSON-RPC client for calling backend tools via the API endpoint.
  */
 
 import { PageData, GetPageResponse } from './page-data.js';
@@ -193,7 +193,7 @@ export class RPCClient {
   }
 
   /**
-   * Make an MCP JSON-RPC call to the backend.
+   * Make a JSON-RPC call to the backend API endpoint.
    * @param method - The tool name to call
    * @param params - Parameters to pass (debug options will be automatically added if set in overlay)
    * @param debugOptions - Optional debug options to use (overrides overlay lookup)
@@ -246,7 +246,7 @@ export class RPCClient {
     };
 
     try {
-      const response = await fetch('/mcp', {
+      const response = await fetch('/api', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
