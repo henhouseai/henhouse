@@ -50,7 +50,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
         'properties': {},
         'required': []
     },
-    app_action_tiers=[3, 4],
+    app_action_tiers=[],
     requires_approval=False,
     crud_type='read',  # Mark as read since it's not a real MCP tool
     app_action_group='source_code',
