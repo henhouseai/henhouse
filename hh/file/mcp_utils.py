@@ -41,7 +41,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
     },
     mcp_tiers=[3],
     api_tiers=[3, 4],
-    app_action_tiers=[3, 4],
+    app_action_tiers=[],
     requires_approval=False,
     crud_type='update',
     app_action_group='files',
