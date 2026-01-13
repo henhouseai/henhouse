@@ -45,6 +45,7 @@ Thumbs.db
 page-classes.json
 tp-decorators.json
 config-registry.json
+modules.json
 
 # Project folders
 legacy/

@@ -51,6 +51,11 @@ def _api_wrapper_template(tool_name: str) -> bool:
 _wrapper_code = ""
 all_tools: set[str] = set()
 
+# Ensure tool registry is populated before scanning (trigger lazy loading if needed)
+from hh.gateway.registry.tool_whitelist import _scan_for_mcp_tools, _import_modules
+module_paths = _scan_for_mcp_tools()
+_import_modules(module_paths)
+
 # Scan _global_tool_registry for tools with api_tiers
 for tool_name, tool_config in _global_tool_registry.items():
     api_tier_levels = tool_config.get('api_tiers', [])

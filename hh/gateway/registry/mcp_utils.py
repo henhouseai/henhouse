@@ -71,6 +71,33 @@ _LISTER_SCHEMA = {
     requires_approval=False,
     crud_type='read'
 )
+@register_tool(
+    tool_name='api_list',
+    description='List available MCP backends',
+    inputSchema=_LISTER_SCHEMA,
+    mcp_tiers=[3],
+    api_tiers=[3],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_tool(
+    tool_name='maintenance_list',
+    description='List available MCP backends',
+    inputSchema=_LISTER_SCHEMA,
+    mcp_tiers=[3],
+    api_tiers=[3],
+    requires_approval=False,
+    crud_type='read'
+)
+@register_tool(
+    tool_name='download_list',
+    description='List available MCP backends',
+    inputSchema=_LISTER_SCHEMA,
+    mcp_tiers=[3],
+    api_tiers=[3],
+    requires_approval=False,
+    crud_type='read'
+)
 def _lister_tools_registration():
     """Registration placeholder for all lister MCP tools."""
     pass
