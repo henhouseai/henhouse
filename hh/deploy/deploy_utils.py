@@ -899,7 +899,16 @@ def scan_for_decorator(
                 # Skip cache files if requested
                 if exclude_cache and py_file.name.startswith("cache_"):
                     continue
-                
+
+                # Skip any file inside .git or git directories
+                skip_file = False
+                for parent in py_file.parents:
+                    if parent.name in ('.git', 'git', '__pycache__', 'node_modules', 'venv', '.venv'):
+                        skip_file = True
+                        break
+                if skip_file:
+                    continue
+
                 try:
                     with open(py_file, 'r', encoding='utf-8') as f:
                         content = f.read()
