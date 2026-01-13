@@ -7,9 +7,9 @@ Registers file-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_file_description',
     description='Modify the description of a file. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -27,7 +27,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_file_visibility',
     description='Set the visibility of a file. Requires admin/panel tier access with database write permissions.',
     inputSchema={

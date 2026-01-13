@@ -6,10 +6,10 @@ Registers page-related MCP tools with appropriate tier access:
 - Write operations: admin and root only [3, 4]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
 # Read operations - available to all tiers
-@register_mcp_tool(
+@register_tool(
     tool_name='get_page',
     description='Get page data by ID, name, or link. Returns JSON-friendly page data including children, images, and metadata.',
     inputSchema={
@@ -26,7 +26,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='show_page',
     description='Show page with full details by ID, name, or link. Returns complete page data including hierarchy and content.',
     inputSchema={
@@ -43,7 +43,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_app_actions',
     description='Get available app actions for the current user tier level and page. Returns list of app actions that can be triggered from the web interface.',
     inputSchema={
@@ -58,7 +58,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='count_pages',
     description='Count the total number of pages and images in the database.',
     inputSchema={
@@ -71,7 +71,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_text',
     description='Get processed/parsed text for a page. Returns HTTP-rendered text processed through TextProcessor with final_decorator=\'http\'.',
     inputSchema={
@@ -87,7 +87,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_add_page_class_info',
     description='Get allowed child page classes for a parent page. Returns list of page classes that can be created as children, including whether they allow null names, duplicate names, and auto-link names.',
     inputSchema={
@@ -103,7 +103,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='help',
     description='Get help documentation for a topic and optional section. Returns help content in JSON format.',
     inputSchema={
@@ -120,7 +120,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read'
 )
 # Write operations - admin and root only
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_name',
     description='Modify the name of a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -140,7 +140,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='pages',
     app_action_label='Edit Name'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_text',
     description='''Modify the text content of a page with flexible editing modes. Requires admin/panel tier access with database write permissions.
 
@@ -175,7 +175,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Edit Text'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='add_page',
     description='Create a new page under a target parent page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -196,7 +196,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Add Page'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='delete_page',
     description='Delete a page and all its children. Requires admin/panel tier access with database write permissions. The confirm parameter must be set to true to proceed with deletion.',
     inputSchema={
@@ -216,7 +216,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Delete Page'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_page',
     description='Move a page to a different parent page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -237,7 +237,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Move Page'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_page',
     description='Copy a page (and optionally its children recursively) to a target parent page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -262,7 +262,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Copy Page'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='combo',
     description='Test form with name and text editable, plus read-only fields displayed. App action only - no MCP call.',
     inputSchema={
@@ -276,7 +276,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Combo'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_image',
     description='Copy a single image to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -294,7 +294,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_images',
     description='Copy multiple images to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -312,7 +312,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_image',
     description='Move a single image from a source page to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -335,7 +335,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_images',
     description='Move multiple images from a source page to a target page. Can move all images or specific ones by rank. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -357,7 +357,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='remove_image',
     description='Remove an image from a page. Can remove a specific instance by rank or all instances. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -374,7 +374,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_image_rank',
     description='Change the rank/position of an image within a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -394,7 +394,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_images_app',
     description='Copy images to a target page. App action only - no MCP call.',
     inputSchema={
@@ -408,7 +408,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='images',
     app_action_label='Copy'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_images_app',
     description='Move images from a source page to a target page. App action only - no MCP call.',
     inputSchema={
@@ -422,7 +422,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='images',
     app_action_label='Move'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='delete_images_app',
     description='Delete images from a page. App action only - no MCP call.',
     inputSchema={
@@ -436,7 +436,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='images',
     app_action_label='Delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='sort_images_app',
     description='Sort/reorder images on a page. App action only - no MCP call.',
     inputSchema={
@@ -450,7 +450,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='images',
     app_action_label='Sort'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='Upload',
     description='Upload images to a page. App action only - no MCP call.',
     inputSchema={
@@ -464,7 +464,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='images',
     app_action_label='Upload'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='add_file',
     description='Add a single file to a page from a file path. The file will be processed, renamed, and stored in the proper directory structure with hash value. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -484,7 +484,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='add_files',
     description='Add multiple files to a page from a folder. Files will be processed, renamed, and stored in the proper directory structure with hash values. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -504,7 +504,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='upload_files',
     description='Upload one or more files to a page from temp files. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -521,7 +521,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_file',
     description='Copy a single file to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -539,7 +539,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_files',
     description='Copy multiple files from a source page to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -561,7 +561,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_file',
     description='Move a single file from a source page to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -584,7 +584,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_files',
     description='Move multiple files from a source page to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -606,7 +606,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='remove_file',
     description='Remove a file from a page. Can remove a specific instance by rank or all instances. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -624,7 +624,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_file_rank',
     description='Change the rank/position of a file within a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -645,7 +645,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_files_app',
     description='Copy files to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -655,7 +655,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='files',
     app_action_label='Copy'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_files_app',
     description='Move files from a source page to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -665,7 +665,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='files',
     app_action_label='Move'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='delete_files_app',
     description='Delete files from a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -675,7 +675,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='files',
     app_action_label='Delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='sort_files_app',
     description='Sort/reorder files on a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -685,7 +685,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='files',
     app_action_label='Sort'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_audio',
     description='Copy a single audio file to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -703,7 +703,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_audios',
     description='Copy multiple audio files to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -721,7 +721,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_audio',
     description='Move a single audio file from a source page to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -744,7 +744,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_audios',
     description='Move multiple audio files from a source page to a target page. Can move all audio or specific ones by rank. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -766,7 +766,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='remove_audio',
     description='Remove an audio file from a page. Can remove a specific instance by rank or all instances. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -784,7 +784,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_audio_rank',
     description='Change the rank/position of an audio file within a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -805,7 +805,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_video',
     description='Copy a single video file to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -823,7 +823,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_videos',
     description='Copy multiple video files to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -841,7 +841,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_video',
     description='Move a single video file from a source page to a target page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -864,7 +864,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_videos',
     description='Move multiple video files from a source page to a target page. Can move all videos or specific ones by rank. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -886,7 +886,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='remove_video',
     description='Remove a video file from a page. Can remove a specific instance by rank or all instances. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -904,7 +904,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_video_rank',
     description='Change the rank/position of a video file within a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -925,7 +925,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='upload_files_app',
     description='Upload files to a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -935,7 +935,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='files',
     app_action_label='Upload'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='upload_audio_app',
     description='Upload audio files to a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -945,7 +945,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='audio',
     app_action_label='Upload'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='upload_video_app',
     description='Upload video files to a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -955,7 +955,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='video',
     app_action_label='Upload'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_audio_app',
     description='Copy audio files to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -965,7 +965,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='audio',
     app_action_label='Copy'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_audio_app',
     description='Move audio files from a source page to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -975,7 +975,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='audio',
     app_action_label='Move'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='delete_audio_app',
     description='Delete audio files from a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -985,7 +985,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='audio',
     app_action_label='Delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='sort_audio_app',
     description='Sort/reorder audio files on a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -995,7 +995,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='audio',
     app_action_label='Sort'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='copy_video_app',
     description='Copy video files to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -1005,7 +1005,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='video',
     app_action_label='Copy'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='move_video_app',
     description='Move video files from a source page to a target page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -1015,7 +1015,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='video',
     app_action_label='Move'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='delete_video_app',
     description='Delete video files from a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -1025,7 +1025,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='video',
     app_action_label='Delete'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='sort_video_app',
     description='Sort/reorder video files on a page. App action only - no MCP call.',
     inputSchema={'type': 'object', 'properties': {}, 'required': []},
@@ -1035,7 +1035,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='video',
     app_action_label='Sort'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_browser',
     description='Get browser HTML for page selection overlay. Returns structured HTML sections with metadata for browser overlay.',
     inputSchema={
@@ -1052,7 +1052,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_page_section',
     description='Get HTML snippet for a specific page section (images, children, files) in the requested view mode (table or tile).',
     inputSchema={
@@ -1070,7 +1070,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_page_visibility',
     description='Set the visibility of a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -1090,7 +1090,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Visibility'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_page_display_style',
     description='Set the display style of a page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -1111,7 +1111,7 @@ All modes validate the final combined content through TextProcessor before savin
     app_action_group='pages',
     app_action_label='Display Style'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_image_group',
     description='Get JSON data for all images in a page\'s image group. Returns image metadata including instances for use in image viewer.',
     inputSchema={
@@ -1127,7 +1127,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_audio_group',
     description='Get JSON data for all audio files in a page\'s audio group. Returns audio metadata including instances for use in audio viewer.',
     inputSchema={
@@ -1143,7 +1143,7 @@ All modes validate the final combined content through TextProcessor before savin
     requires_approval=False,
     crud_type='read'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='get_video_group',
     description='Get JSON data for all video files in a page\'s video group. Returns video metadata including instances for use in video viewer.',
     inputSchema={

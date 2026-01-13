@@ -5,10 +5,10 @@ Registers MCP request-related MCP tools with appropriate tier access:
 - Write operations: admin and root only [3, 4]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
 # Write operations - available to admin and root tiers only
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_mcp_request',
     description='Modify an MCP request. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -36,7 +36,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='update'
 )
 # App actions - tiers 7, 8 (admin app, root app)
-@register_mcp_tool(
+@register_tool(
     tool_name='mcp_request_dummy',
     description='MCP Request Dummy - Test app action for mcp_request group',
     inputSchema={

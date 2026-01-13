@@ -7,10 +7,10 @@ Registers video-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
 # Read operations - available to all tiers
-@register_mcp_tool(
+@register_tool(
     tool_name='show_video',
     description='Show video details by ID. Returns complete video data including usage, instances, and metadata.',
     inputSchema={
@@ -27,7 +27,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     crud_type='read'
 )
 # Write operations - available to admin and root tiers only
-@register_mcp_tool(
+@register_tool(
     tool_name='upload_video',
     description='Upload one or more video files to a page from temp files. Requires admin/panel tier access with database write permissions. Pass files using the _files parameter (e.g., _files=["path/to/file1.mp4", "path/to/file2.mov"]). The system automatically handles file upload via multipart/form-data. Processes files sequentially and stops on any error.',
     inputSchema={
@@ -45,7 +45,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_video_caption',
     description='Modify the caption of a video file. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -63,7 +63,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_video_visibility',
     description='Set the visibility of a video file. Requires admin/panel tier access with database write permissions.',
     inputSchema={

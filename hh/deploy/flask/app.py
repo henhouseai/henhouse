@@ -353,6 +353,294 @@ def mcp_handler(path: str = ""):
         }), 500, {'Content-Type': 'application/json'}
 
 
+@app.route('/api', methods=['POST', 'GET'])
+@app.route('/api/<path:path>', methods=['POST', 'GET'])
+def api_handler(path: str = ""):
+    """Handle API (TypeScript Fetch API) JSON-RPC requests."""
+    try:
+        import json
+
+        # Get JSON-RPC request from POST body
+        if request.method == 'POST':
+            # Handle both JSON and multipart/form-data requests
+            if request.is_json:
+                # Standard JSON request
+                try:
+                    api_request = request.get_json()
+                except Exception as e:
+                    return json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32700,
+                            "message": "Parse error",
+                            "data": str(e)
+                        },
+                        "id": None
+                    }), 400, {'Content-Type': 'application/json'}
+            elif request.form and 'jsonrpc' in request.form:
+                # Multipart request with JSON-RPC in form field
+                try:
+                    jsonrpc_str = request.form.get('jsonrpc')
+                    if jsonrpc_str is None:
+                        return json.dumps({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32700,
+                                "message": "Parse error: missing jsonrpc field"
+                            }
+                        }), 400, {'Content-Type': 'application/json'}
+                    api_request = json.loads(jsonrpc_str)
+                except Exception as e:
+                    return json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32700,
+                            "message": "Parse error",
+                            "data": f"Failed to parse JSON-RPC from form data: {str(e)}"
+                        },
+                        "id": None
+                    }), 400, {'Content-Type': 'application/json'}
+            else:
+                return json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32700,
+                        "message": "Parse error",
+                        "data": "Content-Type must be application/json or multipart/form-data with 'jsonrpc' field"
+                    },
+                    "id": None
+                }), 400, {'Content-Type': 'application/json'}
+        else:
+            # GET request - create minimal JSON-RPC from query params
+            # This allows testing via GET, but POST is preferred for JSON-RPC
+            method = request.args.get('method', '')
+            if not method:
+                return json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": "Invalid Request",
+                        "data": "Missing 'method' parameter"
+                    },
+                    "id": None
+                }), 400, {'Content-Type': 'application/json'}
+
+            # Build params from remaining query params
+            params = {}
+            request_id = request.args.get('id')
+            for key, value in request.args.items():
+                if key not in ['method', 'id']:
+                    params[key] = value
+
+            api_request = {
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params,
+                "id": request_id
+            }
+
+        if not api_request:
+            return json.dumps({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32600,
+                    "message": "Invalid Request",
+                    "data": "Empty request body"
+                },
+                "id": None
+            }), 400, {'Content-Type': 'application/json'}
+
+        # Validate JSON-RPC structure
+        if not isinstance(api_request, dict) or api_request.get("jsonrpc") != "2.0":
+            return json.dumps({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32600,
+                    "message": "Invalid Request",
+                    "data": "Invalid JSON-RPC 2.0 request"
+                },
+                "id": api_request.get("id") if isinstance(api_request, dict) else None
+            }), 400, {'Content-Type': 'application/json'}
+
+        # Extract path segments as positional argv (command/subcommands)
+        path_argv = []
+        if path:
+            path_parts = path.split('/')[:50]
+            path_argv = [p[:128] for p in path_parts if p]
+
+        # Extract query string params as additional argv (for GET/POST arrays)
+        query_argv = []
+        for key, value in request.args.items():
+            if key not in ['method', 'id']:  # Skip JSON-RPC specific params
+                k = str(key)[:64]
+                v = str(value)[:512]
+                query_argv.extend([f'--{k}', v])
+
+        # Extract form fields (application/x-www-form-urlencoded or multipart/form-data)
+        form_argv = []
+        if request.form:
+            for key in request.form.keys():
+                try:
+                    form_value = request.form.get(key)
+                except Exception:
+                    form_value = None
+                k = str(key)[:64]
+                if form_value is not None:
+                    v = str(form_value)[:131072]  # allow large text fields
+                    form_argv.extend([f'--{k}', v])
+
+        # Handle file uploads: save to /tmp and pass file metadata via flags
+        file_argv = []
+        if request.files:
+            idx = 0
+            for key in request.files.keys():
+                file_storage = request.files.get(key)
+                if not file_storage:
+                    continue
+                original_name = os.path.basename(file_storage.filename or '')[:128]
+                content_type = (file_storage.mimetype or '')[:128]
+                # Create unique temp file in /tmp
+                tmp_basename = f"henhouse_api_{uuid.uuid4().hex}"
+                tmp_dir = "/tmp"
+                tmp_path = os.path.join(tmp_dir, tmp_basename)
+                try:
+                    with open(tmp_path, 'wb') as f:
+                        file_storage.save(f)
+                except Exception as e:
+                    logging.error(f"Failed to save upload to tmp: {e}")
+                    continue
+                # Append flags for this file
+                file_argv.extend([
+                    f"--file{idx}_key", key[:64],
+                    f"--file{idx}_path", tmp_path,
+                    f"--file{idx}_name", original_name,
+                    f"--file{idx}_type", content_type
+                ])
+                idx += 1
+
+        # Log API request with actual parameter values (truncated for readability)
+        method = api_request.get('method', 'unknown')
+        params = api_request.get('params', {})
+
+        # Format params for logging (truncate if too long)
+        params_str = json.dumps(params, indent=None, default=str)
+        if len(params_str) > 500:
+            params_str = params_str[:500] + "... (truncated)"
+
+        logging.info(f"API request: method={method}, params={params_str}, path parts={len(path_argv)}, query params={len(query_argv)//2}, form fields={len(form_argv)//2}, files={len(file_argv)//4}")
+
+        # Call API Gateway via subprocess
+        try:
+            api_script = PROJECT_ROOT / 'api_client.py'
+            # Order: path positional args, then query flags, form flags, then file flags
+            cmd = ['python3', str(api_script)] + path_argv + query_argv + form_argv + file_argv
+
+            acquired = _gateway_semaphore.acquire(timeout=10)
+            if not acquired:
+                logging.error("Gateway concurrency limit reached for API request")
+                return json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": "Internal error",
+                        "data": "Server busy, please retry"
+                    },
+                    "id": api_request.get("id")
+                }), 503, {'Content-Type': 'application/json'}
+
+            try:
+                # Pass JSON-RPC request via stdin and tier via environment
+                json_input = json.dumps(api_request)
+                env = os.environ.copy()
+                env['USER_TIER'] = TIER_SUFFIX
+                result = subprocess.run(
+                    cmd,
+                    input=json_input,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=str(PROJECT_ROOT),
+                    env=env
+                )
+            finally:
+                _gateway_semaphore.release()
+
+            # Parse JSON response from api_client
+            if result.stdout and result.stdout.strip():
+                try:
+                    # Validate it's valid JSON
+                    response_json = json.loads(result.stdout)
+                    # Log successful response (truncated)
+                    response_preview = result.stdout[:200] + "..." if len(result.stdout) > 200 else result.stdout
+                    logging.info(f"API response: status={200 if result.returncode == 0 else 500}, preview={response_preview}")
+                    return result.stdout, 200 if result.returncode == 0 else 500, {'Content-Type': 'application/json'}
+                except json.JSONDecodeError as e:
+                    # Log the invalid JSON error
+                    logging.error(f"API response JSON decode error: {e}, stdout={result.stdout[:500]}, stderr={result.stderr[:500] if result.stderr else 'none'}")
+                    # If not JSON, wrap in error
+                    return json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32603,
+                            "message": "Internal error",
+                            "data": f"Invalid JSON from api_client: {result.stdout[:200]}"
+                        },
+                        "id": api_request.get("id")
+                    }), 500, {'Content-Type': 'application/json'}
+            else:
+                # Empty stdout - trust return code
+                if result.returncode == 0:
+                    # Success with no output (e.g., notifications)
+                    return "", 204, {'Content-Type': 'application/json'}
+
+                stderr_snippet = (result.stderr or '').strip()
+                logging.error(f"api_client returned {result.returncode}: {stderr_snippet}")
+                return json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": "Internal error",
+                        "data": stderr_snippet or "Empty response from gateway"
+                    },
+                    "id": api_request.get("id")
+                }), 500, {'Content-Type': 'application/json'}
+
+        except subprocess.TimeoutExpired:
+            logging.error("api_client timeout")
+            return json.dumps({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32603,
+                    "message": "Internal error",
+                    "data": "Request timeout"
+                },
+                "id": api_request.get("id")
+            }), 504, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logging.error(f"API subprocess error: {e}")
+            return json.dumps({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32603,
+                    "message": "Internal error",
+                    "data": str(e)
+                },
+                "id": api_request.get("id") if isinstance(api_request, dict) else None
+            }), 502, {'Content-Type': 'application/json'}
+
+    except Exception as e:
+        logging.error(f"Error in API handler: {e}")
+        return json.dumps({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32603,
+                "message": "Internal error",
+                "data": str(e)
+            },
+            "id": None
+        }), 500, {'Content-Type': 'application/json'}
+
+
 @app.route("/file/<int:file_id>", methods=["GET"])
 def show_file(file_id: int):
     """Show file page by ID. Routes through Gateway show-file action."""

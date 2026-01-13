@@ -196,7 +196,23 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
     # Step 3: Execute clean scripts
     run_clean_script(project_name, clean_sql_path, "Main DB cleanup", root_password_main, ssl_ca_path)
     run_clean_script(cache_db_name, clean_cache_sql_path, "Cache DB cleanup", root_password_cache, cache_ssl_ca_path)
-    
+
+    # Step 3.5: Drop any remaining tables (module tables not in clean.sql)
+    if not is_error():
+        try:
+            remaining = gateway.conn.read("SHOW TABLES")
+            if remaining:
+                log(f"Found {len(remaining)} remaining tables (likely from modules), dropping them")
+                for row in remaining:
+                    table_name = list(row.values())[0]  # First column is table name
+                    drop_stmt = f"DROP TABLE IF EXISTS `{table_name}`"
+                    gateway.conn.create(drop_stmt)  # type: ignore[arg-type]
+                    debug(f"Dropped table: {table_name}")
+                log(f"Dropped {len(remaining)} module tables")
+        except Exception as e:
+            warn(f"Failed to drop remaining tables: {str(e)}")
+            # Non-fatal - continue to verification
+
     # Step 4: Verify tables were dropped
     remaining_tables = []
     cache_remaining_tables = []

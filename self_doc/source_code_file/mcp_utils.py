@@ -6,9 +6,9 @@ Registers source code file-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_file_path',
     description='Modify the file path of a source code file page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -25,7 +25,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_language',
     description='Modify the programming language of a source code file page. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -42,7 +42,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='source_code_file_combo',
     description='Edit source code file: text, file path, and language. App action only - no MCP call.',
     inputSchema={

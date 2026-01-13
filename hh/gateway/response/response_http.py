@@ -402,7 +402,7 @@ class ResponseHTTP(Response):
             
             # Populate hot-cache app actions (dynamic from MCP whitelist)
             try:
-                from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+                from hh.gateway.registry.tool_whitelist import MCPWhitelist
                 app_actions = MCPWhitelist.get_app_actions(self.user_tier_level)
                 if app_actions:
                     if not hasattr(self, '_hot_cache_action_ids'):

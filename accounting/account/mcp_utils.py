@@ -6,9 +6,9 @@ Registers account-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_account_type',
     description='Modify the account type of an account page. Requires admin/panel tier access with database write permissions.',
     inputSchema={

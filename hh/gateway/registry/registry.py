@@ -31,6 +31,7 @@ for backend_type in BACKEND_TYPES:
 @dataclass(frozen=True)
 class {class_name}:
     function: Callable
+    original_module: Optional[str] = None
 """)
 
 # Dynamically generate backend dictionaries
@@ -42,7 +43,7 @@ for backend_type in BACKEND_TYPES:
 def create_backend_decorator(backend_type: str):
     info_class_name = f"{backend_type.title()}Info"
     dict_name = f"{backend_type}s"
-    
+
     def decorator(name: Optional[str] = None):
         def inner_decorator(func):
             @wraps(func)
@@ -51,7 +52,20 @@ def create_backend_decorator(backend_type: str):
             trace_in()
             actual_name = name if name is not None else func.__name__
             info_class = globals()[info_class_name]
-            info_instance = info_class(function=wrapper)
+
+            # Look up original module from tool registry (for wrapper-based backends like MCP/API)
+            original_module = None
+            try:
+                from hh.gateway.registry.tool_whitelist import _global_tool_registry
+                if actual_name in _global_tool_registry:
+                    original_module = _global_tool_registry[actual_name]['module']
+                    debug(f"Found original module for {backend_type} '{actual_name}': {original_module}")
+            except Exception as e:
+                # Silently ignore - original_module will remain None for non-tool-based backends
+                pass
+
+            info_instance = info_class(function=wrapper, original_module=original_module)
+
             # Check for duplicate registration
             if actual_name in globals()[dict_name]:
                 warn(f"Duplicate registration: '{actual_name}' - overwriting previous")
@@ -69,6 +83,7 @@ register_mcp = create_backend_decorator('mcp')
 register_http = create_backend_decorator('http')
 register_maintenance = create_backend_decorator('maintenance')
 register_download = create_backend_decorator('download')
+register_api = create_backend_decorator('api')
 
 # Create unified backend_handlers structure automatically from BACKEND_TYPES
 backend_handlers = {}

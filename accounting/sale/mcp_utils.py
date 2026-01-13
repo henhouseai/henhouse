@@ -6,9 +6,9 @@ Registers sale-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_sale_info',
     description='Modify sale date, receipt number, and sale type information. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -22,13 +22,15 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'date', 'saleType']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='sale',
     app_action_label='Edit Sale Info'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_customer_info',
     description='Modify customer information (name, address, city, state, postal code, country). Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -45,13 +47,15 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='sale',
     app_action_label='Edit Customer Info'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_sale_cost_breakdown',
     description='Modify sale cost breakdown (total, tax, shipping). Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -65,7 +69,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'total', 'tax', 'shipping']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='sale',

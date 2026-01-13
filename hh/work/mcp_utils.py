@@ -6,10 +6,10 @@ Registers work page-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
 # Write operations - available to admin and root tiers only
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_work_status',
     description='Modify the status of a work page (work docket, ask, task, or step).',
     inputSchema={
@@ -32,7 +32,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='work',
     app_action_label='Status'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_work_meta',
     description='Generalized tool for managing work page metadata. Supports multiple actions: add (add key-value pairs or append log entry), remove (remove keys), set (set/update key-value pairs), set_all (replace entire field). Works with protected namespaces (log, files_touched, deviations) and user-defined meta bucket. For remove action, provide keys (JSON array string). For other actions, provide data (JSON object string). Field defaults to "meta" but can be "log", "files_touched", "deviations", or "meta". When field is "log", the add action appends a log entry with automatic timestamp. Note: For files_touched field, keys should be full file paths and values should be descriptions of what was done to each file. IMPORTANT: All keys and values must be ASCII-only (printable characters codes 32-126, plus tab/newline/carriage return). Unicode characters like arrows, box-drawing, emojis, or non-English letters will be rejected. Use modify_text for content requiring Unicode. Response Modes: Default (no flags) returns summary with operation confirmation (~7 lines). Use -full_meta flag to return the specific metadata bucket modified (log, files_touched, deviations, or meta). Use -full_page flag to return complete page data with all children, badges, and content.',
     inputSchema={
@@ -65,7 +65,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='metadata',
     description='App action for editing general metadata (meta field) on work pages. Calls modify_work_meta internally.',
     inputSchema={
@@ -81,7 +81,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='work',
     app_action_label='Metadata'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='files_touched',
     description='App action for editing files_touched field on work pages. Calls modify_work_meta internally.',
     inputSchema={
@@ -97,7 +97,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='work',
     app_action_label='Files Touched'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='deviations',
     description='App action for editing deviations field on work pages. Calls modify_work_meta internally.',
     inputSchema={
@@ -113,7 +113,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='work',
     app_action_label='Deviations'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='log_entry',
     description='App action for adding log entries to work pages. Calls modify_work_meta internally.',
     inputSchema={
@@ -129,7 +129,7 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
     app_action_group='work',
     app_action_label='Log Entry'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_work_sort_order',
     description='Modify the sort_order of a work page (work docket, ask, task, or step).',
     inputSchema={

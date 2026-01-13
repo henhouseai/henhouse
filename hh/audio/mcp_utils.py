@@ -7,10 +7,10 @@ Registers audio-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
 # Read operations - available to all tiers
-@register_mcp_tool(
+@register_tool(
     tool_name='show_audio',
     description='Show audio details by ID. Returns complete audio data including usage, instances, and metadata.',
     inputSchema={
@@ -21,12 +21,13 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['id']
     },
-    tiers=[3],
+    mcp_tiers=[3],
+    api_tiers=[3],
     requires_approval=False,
     crud_type='read'
 )
 # Write operations - available to admin and root tiers only
-@register_mcp_tool(
+@register_tool(
     tool_name='upload_audio',
     description='Upload one or more audio files to a page from temp files. Requires admin/panel tier access with database write permissions. Pass files using the _files parameter (e.g., _files=["path/to/file1.mp3", "path/to/file2.wav"]). The system automatically handles file upload via multipart/form-data. Processes files sequentially and stops on any error.',
     inputSchema={
@@ -39,11 +40,12 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id']
     },
-    tiers=[3],
+    mcp_tiers=[3],
+    api_tiers=[3],
     requires_approval=False,
     crud_type='create'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_audio_caption',
     description='Modify the caption of an audio file. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -56,11 +58,12 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['audio_id', 'caption']
     },
-    tiers=[3],
+    mcp_tiers=[3],
+    api_tiers=[3],
     requires_approval=False,
     crud_type='update'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='set_audio_visibility',
     description='Set the visibility of an audio file. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -72,7 +75,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['audio_id', 'visibility']
     },
-    tiers=[3, 7, 8],
+    mcp_tiers=[3],
+    api_tiers=[3],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='audio',

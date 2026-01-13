@@ -78,11 +78,13 @@ def _read_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
         warn(f"Error reading cache file {cache_file}: {e}")
         return None
 
-def register_mcp_tool(
+def register_tool(
     tool_name: str,
     description: str,
     inputSchema: Dict[str, Any],
-    tiers: Optional[List[int]] = None,
+    mcp_tiers: Optional[List[int]] = None,
+    api_tiers: Optional[List[int]] = None,
+    app_action_tiers: Optional[List[int]] = None,
     requires_approval: bool = False,
     crud_type: str = 'read',
     display_color: Optional[str] = None,
@@ -90,45 +92,27 @@ def register_mcp_tool(
     app_action_label: Optional[str] = None
 ) -> Callable:
     """
-    Decorator to register an MCP tool.
-    
+    Decorator to register a tool across MCP, API, and app action backends.
+
     Args:
-        tool_name: Name of the MCP tool
+        tool_name: Name of the tool
         description: Tool description
         inputSchema: JSON Schema for tool arguments
-        tiers: List of tier levels (1=guest, 2=verified, 3=admin, 4=root). Default: all tiers [1,2,3,4]
+        mcp_tiers: List of MCP tier levels (1=guest, 2=verified, 3=admin, 4=root). Default: None (no MCP access)
+        api_tiers: List of API tier levels (1=guest, 2=verified, 3=admin, 4=root). Default: None (no API access)
+        app_action_tiers: List of app action tier levels (1=guest, 2=verified, 3=admin, 4=root). Default: None (no app action access)
         requires_approval: Whether tool requires approval queue (admin tier only)
         crud_type: Operation type ('create', 'read', 'update', 'delete', 'mixed')
         display_color: Optional color for approval interface
     """
     def decorator(func: Callable) -> Callable:
-        if tiers is None:
-            # Default to all tiers: levels 1, 2, 3, 4
-            tier_levels = [1, 2, 3, 4]
-        else:
-            tier_levels = tiers
-        
-        # Convert tier levels to tier names (level 1 = index 0, level 2 = index 1, etc.)
-        # Handle both MCP tools (1-4) and app actions (5-8)
-        tool_tiers = []
-        for level in tier_levels:
-            if 1 <= level <= len(HENHOUSE_TIERS):
-                # MCP tools: levels 1-4 map to tier names
-                tier_index = level - 1  # Convert 1-based level to 0-based index
-                tool_tiers.append(HENHOUSE_TIERS[tier_index])
-            elif 5 <= level <= 8:
-                # App actions: levels 5-8 map to same tier names as 1-4
-                # (5→guest, 6→verified, 7→admin, 8→root)
-                tier_index = (level - 5)  # Convert 5-8 to 0-3 index
-                tool_tiers.append(HENHOUSE_TIERS[tier_index])
-            else:
-                warn(f"Invalid tier level {level} for tool {tool_name}, skipping")
-        
+        # Store separate tier lists (all use 1-4 values)
         _global_tool_registry[tool_name] = {
             'description': description,
             'inputSchema': inputSchema,
-            'tiers': tool_tiers,  # Tier names for whitelist compatibility
-            'tier_levels': tier_levels,  # Original tier levels (1-4 for MCP, 5-8 for app actions)
+            'mcp_tiers': mcp_tiers or [],
+            'api_tiers': api_tiers or [],
+            'app_action_tiers': app_action_tiers or [],
             'requires_approval': requires_approval,
             'crud_type': crud_type,
             'display_color': display_color,
@@ -137,15 +121,15 @@ def register_mcp_tool(
             'module': func.__module__,
             'function': func.__name__
         }
-        log(f"Registered MCP tool: {tool_name} -> {func.__module__}.{func.__name__} (tiers: {tool_tiers})")
+        log(f"Registered tool: {tool_name} -> {func.__module__}.{func.__name__} (mcp_tiers: {mcp_tiers}, api_tiers: {api_tiers}, app_action_tiers: {app_action_tiers})")
         return func
     return decorator
 
 def _scan_for_mcp_tools() -> List[str]:
-    """Scan hh/ and ext/ folders for files containing @register_mcp_tool decorators."""
+    """Scan hh/ and ext/ folders for files containing @register_tool decorators."""
     trace_in()
     from hh.deploy.deploy_utils import scan_for_decorator
-    found_files = scan_for_decorator("register_mcp_tool", exclude_cache=True)
+    found_files = scan_for_decorator("register_tool", exclude_cache=True)
     return trace_out(found_files)
 
 def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Optional[str]]]:
@@ -170,44 +154,120 @@ def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, Optional[str
     return trace_out(import_results)
 
 def _rebuild_all_tier_whitelists() -> Dict[str, Dict[str, Dict[str, Any]]]:
-    """Rebuild whitelists for all tiers by scanning decorators. Returns dict mapping tier -> whitelist."""
+    """Rebuild MCP whitelists for all tiers by scanning decorators. Returns dict mapping tier -> whitelist."""
     trace_in()
     log("Rebuilding MCP whitelists for all tiers")
-    
+
     # Scan for decorators
     tool_files = _scan_for_mcp_tools()
     import_results = _import_modules(tool_files)
-    
+
     # Build whitelists for each tier
     all_tier_whitelists: Dict[str, Dict[str, Dict[str, Any]]] = {}
     for tier in HENHOUSE_TIERS:
         all_tier_whitelists[tier] = {}
-    
-    # Filter tools for each tier - only process MCP tools (tiers 1-4)
+
+    # Filter tools for each tier - only process MCP tools
     for tool_name, tool_config in _global_tool_registry.items():
-        tier_levels = tool_config.get('tier_levels', [])
-        
-        # Only process tools that have MCP tier levels (1-4)
-        mcp_tier_levels = [level for level in tier_levels if 1 <= level <= 4]
+        mcp_tier_levels = tool_config.get('mcp_tiers', [])
+
         if not mcp_tier_levels:
-            # This tool is app-action-only (tiers 5-8 only), skip adding to MCP whitelist
+            # This tool has no MCP access, skip
             continue
-        
+
         # Build MCP format entry (only description and inputSchema - no tier metadata)
         mcp_entry = {
             'description': tool_config['description'],
             'inputSchema': tool_config['inputSchema']
         }
-        
-        # Add to whitelists only for MCP tier levels (1-4)
+
+        # Add to whitelists for MCP tier levels (1-4)
         # Convert tier levels 1-4 to tier names
         for tier_level in mcp_tier_levels:
-            tier_index = tier_level - 1  # Convert 1-based level to 0-based index
-            if 0 <= tier_index < len(HENHOUSE_TIERS):
-                tier_name = HENHOUSE_TIERS[tier_index]
-                if tier_name in all_tier_whitelists:
-                    all_tier_whitelists[tier_name][tool_name] = mcp_entry
-                    log(f"Added tool '{tool_name}' to {tier_name} whitelist")
+            if 1 <= tier_level <= 4:
+                tier_index = tier_level - 1  # Convert 1-based level to 0-based index
+                if 0 <= tier_index < len(HENHOUSE_TIERS):
+                    tier_name = HENHOUSE_TIERS[tier_index]
+                    if tier_name in all_tier_whitelists:
+                        all_tier_whitelists[tier_name][tool_name] = mcp_entry
+                        log(f"Added tool '{tool_name}' to {tier_name} MCP whitelist")
+
+    return trace_out(all_tier_whitelists)
+
+def _rebuild_all_app_action_whitelists() -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """Rebuild app action whitelists for all tiers. Returns dict mapping tier -> whitelist."""
+    trace_in()
+    log("Rebuilding app action whitelists for all tiers")
+
+    # Build whitelists for each tier
+    all_tier_whitelists: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for tier in HENHOUSE_TIERS:
+        all_tier_whitelists[tier] = {}
+
+    # Filter tools for each tier - only process app action tools
+    for tool_name, tool_config in _global_tool_registry.items():
+        app_action_tier_levels = tool_config.get('app_action_tiers', [])
+
+        if not app_action_tier_levels:
+            # This tool has no app action access, skip
+            continue
+
+        # Build app action entry
+        app_action_entry = {
+            'description': tool_config['description'],
+            'inputSchema': tool_config['inputSchema'],
+            'requires_approval': tool_config.get('requires_approval', False),
+            'crud_type': tool_config.get('crud_type', 'read'),
+            'display_color': tool_config.get('display_color'),
+            'app_action_group': tool_config.get('app_action_group'),
+            'app_action_label': tool_config.get('app_action_label')
+        }
+
+        # Add to whitelists for app action tier levels (1-4)
+        for tier_level in app_action_tier_levels:
+            if 1 <= tier_level <= 4:
+                tier_index = tier_level - 1
+                if 0 <= tier_index < len(HENHOUSE_TIERS):
+                    tier_name = HENHOUSE_TIERS[tier_index]
+                    if tier_name in all_tier_whitelists:
+                        all_tier_whitelists[tier_name][tool_name] = app_action_entry
+                        log(f"Added tool '{tool_name}' to {tier_name} app action whitelist")
+
+    return trace_out(all_tier_whitelists)
+
+def _rebuild_all_api_whitelists() -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """Rebuild API whitelists for all tiers. Returns dict mapping tier -> whitelist."""
+    trace_in()
+    log("Rebuilding API whitelists for all tiers")
+
+    # Build whitelists for each tier
+    all_tier_whitelists: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for tier in HENHOUSE_TIERS:
+        all_tier_whitelists[tier] = {}
+
+    # Filter tools for each tier - only process API tools
+    for tool_name, tool_config in _global_tool_registry.items():
+        api_tier_levels = tool_config.get('api_tiers', [])
+
+        if not api_tier_levels:
+            # This tool has no API access, skip
+            continue
+
+        # Build API entry (simpler than MCP - just description and inputSchema)
+        api_entry = {
+            'description': tool_config['description'],
+            'inputSchema': tool_config['inputSchema']
+        }
+
+        # Add to whitelists for API tier levels (1-4)
+        for tier_level in api_tier_levels:
+            if 1 <= tier_level <= 4:
+                tier_index = tier_level - 1
+                if 0 <= tier_index < len(HENHOUSE_TIERS):
+                    tier_name = HENHOUSE_TIERS[tier_index]
+                    if tier_name in all_tier_whitelists:
+                        all_tier_whitelists[tier_name][tool_name] = api_entry
+                        log(f"Added tool '{tool_name}' to {tier_name} API whitelist")
 
     return trace_out(all_tier_whitelists)
 
@@ -218,9 +278,19 @@ class MCPWhitelist:
     
     @classmethod
     def _get_cache_file(cls, tier: str) -> Path:
-        """Get cache file path for a tier."""
+        """Get MCP whitelist cache file path for a tier."""
         return CACHE_DIR / f"mcp-whitelist-{tier}.json"
-    
+
+    @classmethod
+    def _get_app_action_cache_file(cls, tier: str) -> Path:
+        """Get app action whitelist cache file path for a tier."""
+        return CACHE_DIR / f"app-action-whitelist-{tier}.json"
+
+    @classmethod
+    def _get_api_cache_file(cls, tier: str) -> Path:
+        """Get API whitelist cache file path for a tier."""
+        return CACHE_DIR / f"api-whitelist-{tier}.json"
+
     @classmethod
     def _load_tier_whitelist(cls, tier: str, force_rebuild: bool = False) -> Dict[str, Dict[str, Any]]:
         """Load whitelist for a tier (from cache or rebuild)."""
@@ -271,11 +341,13 @@ class MCPWhitelist:
         # Rebuild all tier whitelists at once (since we're doing all the work anyway)
         log(f"Rebuilding all tier whitelists (triggered by {tier} miss)...")
         all_tier_whitelists = _rebuild_all_tier_whitelists()
-        
+        all_app_action_whitelists = _rebuild_all_app_action_whitelists()
+        all_api_whitelists = _rebuild_all_api_whitelists()
+
         # Update in-memory scan time
         _last_whitelist_scan_time = current_time
-        
-        # Save all tier whitelists to cold cache
+
+        # Save all MCP tier whitelists to cold cache
         for rebuild_tier, rebuild_whitelist in all_tier_whitelists.items():
             tier_cache_file = cls._get_cache_file(rebuild_tier)
             try:
@@ -284,13 +356,45 @@ class MCPWhitelist:
                     'whitelist': rebuild_whitelist,
                     'last_scan': str(current_time)
                 }
-                
+
                 with open(tier_cache_file, 'w') as f:
                     json.dump(cache_data, f, indent=2)
-                log(f"Cached {rebuild_tier} whitelist: {len(rebuild_whitelist)} tools")
+                log(f"Cached {rebuild_tier} MCP whitelist: {len(rebuild_whitelist)} tools")
             except Exception as e:
-                warn(f"Error caching {rebuild_tier} whitelist: {e}")
-        
+                warn(f"Error caching {rebuild_tier} MCP whitelist: {e}")
+
+        # Save all app action tier whitelists to cold cache
+        for rebuild_tier, rebuild_whitelist in all_app_action_whitelists.items():
+            tier_cache_file = cls._get_app_action_cache_file(rebuild_tier)
+            try:
+                # Include last_scan timestamp in cache
+                cache_data = {
+                    'whitelist': rebuild_whitelist,
+                    'last_scan': str(current_time)
+                }
+
+                with open(tier_cache_file, 'w') as f:
+                    json.dump(cache_data, f, indent=2)
+                log(f"Cached {rebuild_tier} app action whitelist: {len(rebuild_whitelist)} tools")
+            except Exception as e:
+                warn(f"Error caching {rebuild_tier} app action whitelist: {e}")
+
+        # Save all API tier whitelists to cold cache
+        for rebuild_tier, rebuild_whitelist in all_api_whitelists.items():
+            tier_cache_file = cls._get_api_cache_file(rebuild_tier)
+            try:
+                # Include last_scan timestamp in cache
+                cache_data = {
+                    'whitelist': rebuild_whitelist,
+                    'last_scan': str(current_time)
+                }
+
+                with open(tier_cache_file, 'w') as f:
+                    json.dump(cache_data, f, indent=2)
+                log(f"Cached {rebuild_tier} API whitelist: {len(rebuild_whitelist)} tools")
+            except Exception as e:
+                warn(f"Error caching {rebuild_tier} API whitelist: {e}")
+
         # Update in-memory cache for all tiers
         cls._tier_cache.update(all_tier_whitelists)
 
@@ -412,25 +516,166 @@ class MCPWhitelist:
         log(f"Found {len(app_actions)} app actions for tier level {user_tier_level} (app action tier {app_action_tier_level})")
         return trace_out(app_actions)
 
-@register_cache_cleanup('mcp_whitelist', cache_dir='hh/gateway/registry/cache')
-def cleanup_mcp_whitelist_cache():
-    """Clean up MCP whitelist cache files."""
+class APIWhitelist:
+    """API Whitelist manager with lazy loading per tier."""
+
+    _tier_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+    @classmethod
+    def _get_cache_file(cls, tier: str) -> Path:
+        """Get API whitelist cache file path for a tier."""
+        return CACHE_DIR / f"api-whitelist-{tier}.json"
+
+    @classmethod
+    def _load_tier_whitelist(cls, tier: str, force_rebuild: bool = False) -> Dict[str, Dict[str, Any]]:
+        """Load API whitelist for a tier (from cache or rebuild via MCPWhitelist)."""
+        trace_in()
+
+        # Check if already loaded in memory
+        if tier in cls._tier_cache and not force_rebuild:
+            log(f"Using cached API whitelist for tier: {tier}")
+            return trace_out(cls._tier_cache[tier])
+
+        cache_file = cls._get_cache_file(tier)
+
+        # Try to load from cache
+        if cache_file.exists():
+            cache_data = _read_cache_file_with_retry(cache_file)
+            if cache_data is not None:
+                whitelist = cache_data.get('whitelist', cache_data)  # Support both formats
+                cls._tier_cache[tier] = whitelist
+                log(f"Loaded {tier} API whitelist from cache: {len(whitelist)} tools")
+                return trace_out(whitelist)
+
+        # Cache miss - trigger rebuild via MCPWhitelist (which rebuilds all whitelists)
+        log(f"API whitelist cache miss for {tier}, triggering rebuild via MCPWhitelist")
+        MCPWhitelist._load_tier_whitelist(tier, force_rebuild=True)
+
+        # Now try loading again
+        if cache_file.exists():
+            cache_data = _read_cache_file_with_retry(cache_file)
+            if cache_data is not None:
+                whitelist = cache_data.get('whitelist', cache_data)
+                cls._tier_cache[tier] = whitelist
+                log(f"Loaded {tier} API whitelist after rebuild: {len(whitelist)} tools")
+                return trace_out(whitelist)
+
+        # Still nothing - return empty
+        warn(f"Could not load API whitelist for tier {tier}")
+        return trace_out({})
+
+    @classmethod
+    def get_tool(cls, tier: str, tool_name: str) -> Optional[Dict[str, Any]]:
+        """Get API tool metadata for a specific tier and tool name."""
+        trace_in()
+        whitelist = cls._load_tier_whitelist(tier)
+        tool = whitelist.get(tool_name)
+        if tool:
+            log(f"Found API tool '{tool_name}' in {tier} whitelist")
+        else:
+            # Tool not found - try rebuilding
+            log(f"API tool '{tool_name}' not found in {tier} whitelist, rebuilding...")
+            whitelist = cls._load_tier_whitelist(tier, force_rebuild=True)
+            tool = whitelist.get(tool_name)
+            if tool:
+                log(f"Found API tool '{tool_name}' after rebuild")
+            else:
+                warn(f"API tool '{tool_name}' not found in {tier} whitelist after rebuild")
+        return trace_out(tool)
+
+    @classmethod
+    def list_tools(cls, tier: str) -> List[Dict[str, Any]]:
+        """List all API tools available for a tier."""
+        trace_in()
+        whitelist = cls._load_tier_whitelist(tier)
+        tools = []
+        for tool_name, tool_config in whitelist.items():
+            tools.append({
+                'name': tool_name,
+                'description': tool_config['description'],
+                'inputSchema': tool_config['inputSchema']
+            })
+        log(f"Listed {len(tools)} API tools for tier: {tier}")
+        return trace_out(tools)
+
+    @classmethod
+    def validate_tool(cls, tier: str, tool_name: str, args: Dict[str, Any]) -> tuple[bool, str]:
+        """Validate tool exists for tier and arguments match schema."""
+        trace_in()
+        tool = cls.get_tool(tier, tool_name)
+        if not tool:
+            return trace_out((False, f"Tool '{tool_name}' not available for tier '{tier}'"))
+
+        # Validate arguments against schema
+        schema = tool['inputSchema']
+        required = schema.get('required', [])
+        for field in required:
+            if field not in args:
+                return trace_out((False, f"Missing required field: {field}"))
+
+        # Type checking with automatic coercion
+        properties = schema.get('properties', {})
+        for key, value in args.items():
+            if key not in properties:
+                continue  # Allow extra fields
+            prop_schema = properties[key]
+            expected_type = prop_schema.get('type')
+
+            # Try automatic type coercion for common cases
+            if expected_type == 'integer' and not isinstance(value, int):
+                # Try to coerce string numbers to integers
+                if isinstance(value, str) and value.isdigit():
+                    args[key] = int(value)
+                    value = args[key]  # Update value for remaining checks
+                elif isinstance(value, str) and (value.startswith('-') and value[1:].isdigit()):
+                    args[key] = int(value)
+                    value = args[key]
+                elif not isinstance(value, int):
+                    return trace_out((False, f"Field '{key}' must be an integer"))
+            elif expected_type == 'string' and not isinstance(value, str):
+                return trace_out((False, f"Field '{key}' must be a string"))
+            elif expected_type == 'boolean' and not isinstance(value, bool):
+                return trace_out((False, f"Field '{key}' must be a boolean"))
+            elif expected_type == 'array' and not isinstance(value, list):
+                return trace_out((False, f"Field '{key}' must be an array"))
+            elif expected_type == 'object' and not isinstance(value, dict):
+                return trace_out((False, f"Field '{key}' must be an object"))
+
+        return trace_out((True, ""))
+
+    @classmethod
+    def tool_exists(cls, tier: str, tool_name: str) -> bool:
+        """Check if tool exists for tier."""
+        tool = cls.get_tool(tier, tool_name)
+        return tool is not None
+
+@register_cache_cleanup('tool_whitelist', cache_dir='hh/gateway/registry/cache')
+def cleanup_tool_whitelist_cache():
+    """Clean up all tool whitelist cache files (MCP, API, and app action)."""
     trace_in()
-    
-    # Clear in-memory cache
+
+    # Clear in-memory caches
     MCPWhitelist._tier_cache.clear()
-    log("Cleared MCP whitelist in-memory cache")
-    
-    # Remove cold cache files
+    APIWhitelist._tier_cache.clear()
+    log("Cleared tool whitelist in-memory caches")
+
+    # Remove cold cache files (all 12 files: mcp + api + app-action)
     removed_files = []
     candidate_files = []
+
+    # Add all 12 whitelist files for local cache directory
     for tier in HENHOUSE_TIERS:
         candidate_files.append(CACHE_DIR / f"mcp-whitelist-{tier}.json")
-    
+        candidate_files.append(CACHE_DIR / f"api-whitelist-{tier}.json")
+        candidate_files.append(CACHE_DIR / f"app-action-whitelist-{tier}.json")
+
+    # Add all 12 whitelist files for deployment cache directories
     for root in get_deployment_paths():
         for tier in HENHOUSE_TIERS:
             candidate_files.append(root / 'hh' / 'gateway' / 'registry' / 'cache' / f"mcp-whitelist-{tier}.json")
-    
+            candidate_files.append(root / 'hh' / 'gateway' / 'registry' / 'cache' / f"api-whitelist-{tier}.json")
+            candidate_files.append(root / 'hh' / 'gateway' / 'registry' / 'cache' / f"app-action-whitelist-{tier}.json")
+
     for cache_file in candidate_files:
         if cache_file.exists():
             cache_file.unlink()

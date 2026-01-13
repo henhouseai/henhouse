@@ -261,7 +261,21 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
                 log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
     
     discover_base_registrations(force_regenerate)  # Ensure commands are discovered first
-    
+
+    # Populate _global_tool_registry so original modules are available for wrapper-based backends
+    # This ensures MCP/API backends can look up original module paths during registration
+    try:
+        from hh.gateway.registry.tool_whitelist import _scan_for_mcp_tools, _import_modules as import_tool_modules, _global_tool_registry
+        if not _global_tool_registry:
+            debug(f"Pre-populating tool registry before discovering {backend_type} handlers")
+            tool_files = _scan_for_mcp_tools()
+            import_tool_modules(tool_files)
+            debug(f"Tool registry populated with {len(tool_files)} tool modules")
+        else:
+            debug(f"Tool registry already populated with {len(_global_tool_registry)} tools")
+    except Exception as e:
+        debug(f"Could not pre-populate tool registry for {backend_type}: {e}")
+
     # Scan for handlers of this backend type
     decorator_name = BACKEND_DECORATORS.get(backend_type, f"register_{backend_type}")
     handler_files = _scan_for_decorator(decorator_name)
@@ -280,7 +294,8 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
     assert handlers_dict is not None, "handlers should be initialized as dict"
     for handler_name, handler_info in handlers.items():
         if handler_info.function:
-            module_name = handler_info.function.__module__
+            # Use original_module if available (set by MCP/API decorators), otherwise use function.__module__
+            module_name = getattr(handler_info, 'original_module', None) or handler_info.function.__module__
             function_name = handler_info.function.__name__
             action_args = getattr(handler_info, 'action_args', [])
             handlers_dict[handler_name] = {

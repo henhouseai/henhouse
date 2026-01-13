@@ -1,12 +1,19 @@
 from __future__ import annotations
 from typing import Dict, Any
 import json
-from hh.gateway.registry.registry import register_action, register_command
+from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
-from hh.gateway.response.json_standard import success_payload
+from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
 from hh.page.page_registry import get_page
+from hh.render.render import (
+    FieldConfig,
+    TableData,
+    finalize_output,
+    render_block,
+    render_header_block,
+)
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -133,12 +140,142 @@ def modify_work_meta() -> bool:
             if not success:
                 warn(f"Page {action} failed")
                 report_error("action", f"Page {action} failed")
-            response_data = page.show_page()
-            gateway.response.set_action_response(success_payload(response_data))
-    if not is_error() and response_data:
-        # Calculate total children from children_by_class
-        total_children = sum(len(group.get('children', [])) for group in response_data.get('children_by_class', {}).values())
-        log(f"Successfully executed {action} on {field} for page {page_id} with {total_children} children")
+
+            # Check for response mode flags
+            full_page = gateway.is_set('full_page')
+            full_meta = gateway.is_set('full_meta')
+
+            if full_page:
+                # Mode 3: full_page - return complete show_page() data
+                response_data = page.show_page()
+                gateway.response.set_action_response(success_payload(response_data))
+                log(f"Successfully executed {action} on {field} for page {page_id} (full_page mode)")
+            elif full_meta:
+                # Mode 2: full_meta - return specific metadata bucket
+                metadata = page.get_work_metadata()
+                response_data = {
+                    "page_id": page_id,
+                    "action": action,
+                    "field": field,
+                    "success": success,
+                    "metadata": metadata.get(field, {})
+                }
+                gateway.response.set_action_response(success_payload(response_data))
+                log(f"Successfully executed {action} on {field} for page {page_id} (full_meta mode)")
+            else:
+                # Mode 1: summary (default) - return condensed summary
+                # Generate operation summary dynamically
+                if action == 'add':
+                    if field == 'log':
+                        operation_summary = "Added 1 log entry"
+                    else:
+                        count = len(data_dict.keys()) if data_dict else 0
+                        operation_summary = f"Added {count} {field} {'entry' if count == 1 else 'entries'}"
+                elif action == 'remove':
+                    count = len(keys_list) if keys_list else 0
+                    operation_summary = f"Removed {count} {field} {'key' if count == 1 else 'keys'}"
+                elif action == 'set':
+                    count = len(data_dict.keys()) if data_dict else 0
+                    operation_summary = f"Set {count} {field} {'key' if count == 1 else 'keys'}"
+                elif action == 'set_all':
+                    count = len(data_dict.keys()) if data_dict else 0
+                    operation_summary = f"Replaced {field} with {count} {'entry' if count == 1 else 'entries'}"
+                else:
+                    operation_summary = f"Performed {action} on {field}"
+
+                response_data = {
+                    "page_id": page_id,
+                    "action": action,
+                    "field": field,
+                    "success": success,
+                    "operation_summary": operation_summary
+                }
+                gateway.response.set_action_response(success_payload(response_data))
+                log(f"Successfully executed {action} on {field} for page {page_id} (summary mode)")
     trace_out()
     return not is_error()
 
+
+@register_parser('modify_work_meta')
+def parser_modify_work_meta() -> bool:
+    """
+    Dedicated parser for modify_work_meta action.
+    Supports 3 modes: summary (default), full_meta, full_page.
+    """
+    trace_in()
+    gateway = get_gateway()
+
+    if not gateway:
+        warn("No gateway available")
+        report_error("backend", "No gateway available")
+        return trace_out(False)
+
+    if not gateway.response.has_action_response():
+        warn("No action response available")
+        report_error("backend", "No action response available")
+        return trace_out(False)
+
+    # Check for full_page mode - delegate to show_page parser
+    if gateway.is_set('full_page'):
+        from hh.page.render_show_page import show_page as parser_show_page
+        return parser_show_page()
+
+    try:
+        json_data = gateway.response.get_action_response()
+        source_data = get_data(json_data) if json_data and isinstance(json_data, dict) else {}
+
+        lines = [render_header_block("l_modify_work_meta_header")]
+
+        # Check if this is full_meta mode (has 'metadata' field)
+        is_full_meta = 'metadata' in source_data
+
+        if is_full_meta:
+            # Full metadata mode - show metadata content
+            table = TableData()
+            table.add_row("page_id", value=str(source_data.get("page_id", "")))
+            table.add_row("work_meta_action", value=source_data.get("action", ""))
+            table.add_row("work_meta_field", value=source_data.get("field", ""))
+            table.add_row("work_meta_success", value=str(source_data.get("success", False)))
+
+            # Format metadata display
+            metadata = source_data.get("metadata", {})
+            if metadata:
+                metadata_str = json.dumps(metadata, indent=2)
+                table.add_row("work_meta_content", value=metadata_str)
+
+            lines.append(
+                render_block(
+                    table,
+                    FieldConfig()
+                    .add_simple(["page_id", "work_meta_action", "work_meta_field", "work_meta_success", "work_meta_content"]),
+                    block_type="work_meta",
+                    table_overrides={"margin_l": 4},
+                )
+            )
+        else:
+            # Summary mode - show operation summary
+            table = TableData()
+            table.add_row("page_id", value=str(source_data.get("page_id", "")))
+            table.add_row("work_meta_action", value=source_data.get("action", ""))
+            table.add_row("work_meta_field", value=source_data.get("field", ""))
+            table.add_row("work_meta_success", value=str(source_data.get("success", False)))
+            table.add_row("work_meta_operation_summary", value=source_data.get("operation_summary", ""))
+
+            lines.append(
+                render_block(
+                    table,
+                    FieldConfig()
+                    .add_simple(["page_id", "work_meta_action", "work_meta_field", "work_meta_success", "work_meta_operation_summary"]),
+                    block_type="work_meta",
+                    table_overrides={"margin_l": 4},
+                )
+            )
+
+        gateway.response.add_output(finalize_output(lines))
+        log(f"Parser execution completed successfully with {len(lines)} lines")
+        return trace_out(True)
+
+    except Exception as exc:
+        warn(f"Parser execution raised an exception: {exc}")
+        report_error("backend", f"Parser execution raised an exception: {exc}")
+        return trace_out(False)

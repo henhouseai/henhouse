@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 from hh.gateway.registry.registry import (
-    register_parser, register_http, register_mcp, register_maintenance, register_download
+    register_parser, register_http, register_mcp, register_api, register_maintenance, register_download
 )
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import dc, break_section, safe_str
@@ -347,21 +347,21 @@ def mcp_error() -> bool:
         warn("No gateway available")
         trace_out()
         return False
-    
+
     # Only handle new error system
     global_errors = get_errors()
     if not global_errors:
         log("No errors to display")
         trace_out()
         return True
-    
+
     # Log header and each error to error log file
     _log_error_header(len(global_errors), "mcp")
     for error_entry in global_errors:
         _log_error_to_file(error_entry, "mcp")
-    
+
     log(f"Processing {len(global_errors)} errors from global error store")
-    
+
     # Convert ErrorEntry objects to dicts for JSON serialization (same structure as response_mcp.py)
     errors_data = [
         {
@@ -371,13 +371,55 @@ def mcp_error() -> bool:
         }
         for error in global_errors
     ]
-    
+
     # Set error output on response object (will be used by response_mcp.get_output())
     gateway.response.error_output = {
         "errors": errors_data
     }
-    
+
     log(f"MCP error handler completed successfully with {len(errors_data)} errors")
+    trace_out()
+    return True
+
+@register_api('api_error')
+def api_error() -> bool:
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        trace_out()
+        return False
+
+    # Only handle new error system
+    global_errors = get_errors()
+    if not global_errors:
+        log("No errors to display")
+        trace_out()
+        return True
+
+    # Log header and each error to error log file
+    _log_error_header(len(global_errors), "api")
+    for error_entry in global_errors:
+        _log_error_to_file(error_entry, "api")
+
+    log(f"Processing {len(global_errors)} errors from global error store")
+
+    # Convert ErrorEntry objects to dicts for JSON serialization (same structure as response_api.py)
+    errors_data = [
+        {
+            "type": error.error_type.value,
+            "content": error.content,
+            "timestamp": error.timestamp
+        }
+        for error in global_errors
+    ]
+
+    # Set error output on response object (will be used by response_api.get_output())
+    gateway.response.error_output = {
+        "errors": errors_data
+    }
+
+    log(f"API error handler completed successfully with {len(errors_data)} errors")
     trace_out()
     return True
 

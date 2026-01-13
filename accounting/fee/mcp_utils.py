@@ -6,9 +6,9 @@ Registers fee-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_fee_info',
     description='Modify fee information (fee amount and date). Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -21,7 +21,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'fee']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='fee',

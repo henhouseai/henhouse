@@ -11,7 +11,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error
 from hh.gateway.registry.registry import register_mcp
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+from hh.gateway.registry.tool_whitelist import MCPWhitelist
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None

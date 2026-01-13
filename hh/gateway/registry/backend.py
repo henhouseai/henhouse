@@ -21,15 +21,16 @@ The system uses BACKEND_TYPES to:
 - Pre-populate backends dict in registry.py
 """
 
-BACKEND_TYPES = ['action', 'parser', 'mcp', 'http', 'maintenance', 'download']
+BACKEND_TYPES = ['action', 'parser', 'mcp', 'http', 'maintenance', 'download', 'api']
 
 BACKEND_DESCRIPTIONS = {
     'action': 'Action handlers that process business logic',
-    'parser': 'Parser handlers that format output for display', 
+    'parser': 'Parser handlers that format output for display',
     'mcp': 'MCP (Model Context Protocol) handlers',
     'http': 'HTTP handlers for web/HTML output',
     'maintenance': 'Maintenance backend handlers',
-    'download': 'Download backend handlers'
+    'download': 'Download backend handlers',
+    'api': 'API handlers for TypeScript Fetch API calls'
 }
 
 BACKEND_DECORATORS = {
@@ -38,7 +39,8 @@ BACKEND_DECORATORS = {
     'mcp': 'register_mcp',
     'http': 'register_http',
     'maintenance': 'register_maintenance',
-    'download': 'register_download'
+    'download': 'register_download',
+    'api': 'register_api'
 }
 
 BACKEND_DICTS = {
@@ -47,7 +49,8 @@ BACKEND_DICTS = {
     'mcp': 'mcps',
     'http': 'https',
     'maintenance': 'maintenances',
-    'download': 'downloads'
+    'download': 'downloads',
+    'api': 'apis'
 }
 
 # Note: there is intentionally no entry for 'action' here.
@@ -59,4 +62,5 @@ BACKEND_RESPONSE_MODULES = {
     'mcp': 'hh.gateway.response.response_mcp.ResponseMCP',
     'maintenance': 'hh.gateway.response.response_maintenance.ResponseMaintenance',
     'download': 'hh.gateway.response.response_download.ResponseDownload',
+    'api': 'hh.gateway.response.response_api.ResponseAPI',
 }

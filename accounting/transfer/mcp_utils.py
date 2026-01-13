@@ -6,9 +6,9 @@ Registers transfer-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_transfer_info',
     description='Modify transfer information (date, amount, modifier, fee). If modifier is non-zero, amount is adjusted by modifier. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -23,13 +23,15 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'amount', 'fee']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='transfer',
     app_action_label='Edit Transfer Info'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_target_info',
     description='Modify the transfer target page ID. The target must be a statement, sale, or invoice. Pass null to clear the transfer target. Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -41,7 +43,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'transfer_to']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='transfer',

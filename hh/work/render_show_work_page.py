@@ -18,7 +18,6 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-@register_parser('modify_work_meta')
 @register_parser('modify_work_sort_order')
 def show_work_page() -> bool:
     return show_page()

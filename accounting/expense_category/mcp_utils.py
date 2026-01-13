@@ -6,7 +6,7 @@ Registers expense category-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
 def _expense_category_tools_registration():
     """Registration placeholder for all expense category-related MCP tools."""

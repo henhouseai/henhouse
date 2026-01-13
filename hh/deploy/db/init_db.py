@@ -9,7 +9,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
-from hh.deploy.deploy_utils import detect_project_context, ensure_certificate_exists
+from hh.deploy.deploy_utils import detect_project_context, ensure_certificate_exists, get_active_modules
 from hh.deploy.users.install import _install_config_path
 
 def _extract_domain_from_host(host: str) -> Optional[str]:
@@ -355,12 +355,27 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     
     run_sql_script(project_name, init_sql_path, "Main DB initialization", root_password_main)
     run_sql_script(cache_db_name, init_cache_sql_path, "Cache DB initialization", root_password_cache)
-    
-    # Step 4.5: Execute extension schema if it exists
-    ext_schema_path = project_path / "ext" / "deploy" / "db" / "schema_ext.sql"
-    if ext_schema_path.exists():
-        run_sql_script(project_name, ext_schema_path, "Extension schema", root_password_main)
-    
+
+    # Step 4.5: Execute module schemas (alphabetically sorted)
+    if not is_error():
+        try:
+            modules = get_active_modules()
+            log(f"Discovered {len(modules)} active modules")
+            for module in sorted(modules, key=lambda m: m.name):
+                schema_path = Path(module.path) / "deploy" / "db" / "schema.sql"
+                if schema_path.exists():
+                    run_sql_script(
+                        project_name,
+                        schema_path,
+                        f"Module schema ({module.name})",
+                        root_password_main
+                    )
+                else:
+                    debug(f"Module {module.name} has no schema.sql (skipping)")
+        except Exception as e:
+            warn(f"Failed to execute module schemas: {str(e)}")
+            report_error("action", f"Failed to execute module schemas: {str(e)}")
+
     # Step 4.6: Re-initialize connection now that databases exist
     if not is_error():
         try:
@@ -409,7 +424,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 now = dt.datetime.now()
                 user_results: List[Dict[str, Any]] = gateway.conn.read("SELECT USER() as db_user")
                 db_user = user_results[0]['db_user'] if user_results else 'unknown'
-                
+
                 insert_query = """
                     INSERT INTO pages (id, parent, name, link, class, text, last_modified, username, visibility, displayStyle)
                     VALUES (1, 0, %s, NULL, 'page', 'Hello, World!', %s, %s, 1, 1)
@@ -423,6 +438,46 @@ def init_db(args: Optional[List[str]] = None) -> bool:
             # Non-fatal - homepage creation is optional
             warn(f"Could not create homepage (non-fatal): {str(e)}")
             log("Continuing without homepage creation")
+
+    # Step 6.5: Load example data if --with-examples flag is set
+    example_data_loaded = False
+    if not is_error() and gateway.get_arg('with_examples'):
+        try:
+            # Collision detection: check max existing ID
+            max_id_query = "SELECT COALESCE(MAX(id), 0) as max_id FROM pages"
+            max_id_results: List[Dict[str, Any]] = gateway.conn.read(max_id_query)
+            max_id = max_id_results[0]['max_id'] if max_id_results else 0
+
+            if max_id >= 10000:
+                warn(f"Example data collision detected: max existing ID is {max_id} (>= 10000)")
+                warn("Example data uses IDs 10000+ by convention")
+                warn("Recommendation: Use fresh database for loading examples")
+                report_error("action", f"Example data collision: max ID {max_id} >= 10000")
+            else:
+                log(f"Collision check passed: max ID is {max_id} (< 10000)")
+
+                # Load example data from each module (alphabetically)
+                modules = get_active_modules()
+                for module in sorted(modules, key=lambda m: m.name):
+                    example_path = Path(module.path) / "deploy" / "db" / "example_data.sql"
+                    if example_path.exists():
+                        run_sql_script(
+                            project_name,
+                            example_path,
+                            f"Example data ({module.name})",
+                            root_password_main
+                        )
+                        example_data_loaded = True
+                    else:
+                        debug(f"Module {module.name} has no example_data.sql (skipping)")
+
+                if example_data_loaded:
+                    log("Example data loaded successfully")
+                else:
+                    log("No example data found in any modules")
+        except Exception as e:
+            warn(f"Failed to load example data: {str(e)}")
+            report_error("action", f"Failed to load example data: {str(e)}")
     
     # Step 7: Prepare response data
     if not is_error():
@@ -435,6 +490,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
                 "cache_tables": len(cache_tables),
                 "cache_database": cache_db_name,
                 "homepage_created": homepage_created,
+                "example_data_loaded": example_data_loaded,
                 "initialization_successful": len(created_tables) > 0 and len(cache_tables) > 0
             }
             gateway.response.set_action_response(success_payload(result_data))

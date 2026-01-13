@@ -6,9 +6,9 @@ Registers statement-related MCP tools with appropriate tier access:
 - App actions: admin app and root app only [7, 8]
 """
 
-from hh.gateway.registry.mcp_whitelist import register_mcp_tool
+from hh.gateway.registry.tool_whitelist import register_tool
 
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_statement_info',
     description='Modify statement period and balance information (start date, end date, opening balance, closing balance). Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -23,13 +23,15 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'startDate', 'endDate', 'openingBalance', 'closingBalance']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='statement',
     app_action_label='Edit Statement Info'
 )
-@register_mcp_tool(
+@register_tool(
     tool_name='modify_finance_info',
     description='Modify finance information (interest earned and finance charge). Requires admin/panel tier access with database write permissions.',
     inputSchema={
@@ -42,7 +44,9 @@ from hh.gateway.registry.mcp_whitelist import register_mcp_tool
         },
         'required': ['page_id', 'interestEarned', 'financeCharge']
     },
-    tiers=[3, 4, 7, 8],
+    mcp_tiers=[3, 4],
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     requires_approval=False,
     crud_type='update',
     app_action_group='statement',

@@ -19,6 +19,13 @@ from hh.render.config.config_registry import register_label
 @register_label('dependency_available',               'Dependency Installed',         '✅')
 @register_label('dependency_missing',                 'Dependency Missing',           '❌')
 @register_label('no_dependencies',                    'Info',                         'ℹ️')
+@register_label('module_list_header',                 'Module List:'                  )
+@register_label('module_enabled',                     'Module Enabled',               '✅')
+@register_label('module_blacklisted',                 'Module Blacklisted',           '🚫')
+@register_label('module_summary_header',              'Module Summary'                    )
+@register_label('total_modules',                      'Total Modules',                '📦')
+@register_label('enabled_modules',                    'Enabled Modules',              '✅')
+@register_label('blacklisted_modules',                'Blacklisted Modules',          '🚫')
 def _register_config():
     pass
 

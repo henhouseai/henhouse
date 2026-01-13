@@ -13,7 +13,7 @@ import json
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
 # Import MCP Whitelist class
-from hh.gateway.registry.mcp_whitelist import MCPWhitelist
+from hh.gateway.registry.tool_whitelist import MCPWhitelist
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 def get_server_info():
