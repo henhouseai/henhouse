@@ -38,7 +38,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
         },
         'required': []
     },
-    mcp_tiers=[1, 2, 3, 4],
+    mcp_tiers=[],
     api_tiers=[1, 2, 3, 4],
     requires_approval=False,
     crud_type='read'

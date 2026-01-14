@@ -404,6 +404,13 @@ def show_page(page: 'Page') -> Dict[str, Any]:
         "lower_content": lower_content,
     }
 
+    # Add raw metadata for API consumers (not MCP agents who don't need it for CRUD)
+    # MCP consumers get streamlined payloads, API consumers get full programmatic access
+    from hh.gateway.gateway import get_gateway
+    gateway = get_gateway()
+    if gateway and hasattr(gateway, 'backend') and gateway.backend == "api":
+        response_data["metadata"] = page._get_metadata_dict()
+
     # Cache refresh will be handled by wrapper method system if flag is set
 
     total_children = sum(len(group['children']) for group in children_by_class.values())

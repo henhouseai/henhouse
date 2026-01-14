@@ -29,6 +29,15 @@ def mcp_decorator(json_data: Dict[str, Any], **kwargs: Any) -> str:
         return str(json_data)
 
 
+@register_tp_decorator('api')
+def api_decorator(json_data: Dict[str, Any], **kwargs: Any) -> str:
+    """API decorator - matches MCP formatting for API consumers."""
+    if isinstance(json_data, dict):
+        return json.dumps(json_data, indent=2)
+    else:
+        return str(json_data)
+
+
 @register_tp_decorator('parser')
 def parser_decorator(json_data: Dict[str, Any], **kwargs: Any) -> str:
     if not isinstance(json_data, dict):
