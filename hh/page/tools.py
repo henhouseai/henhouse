@@ -21,8 +21,8 @@ from hh.gateway.registry.tool_whitelist import register_tool
         },
         'required': []
     },
-    mcp_tiers=[3, 4],
-    api_tiers=[3, 4],
+    mcp_tiers=[1, 2, 3, 4],
+    api_tiers=[1, 2, 3, 4],
     role_whitelist=['general', 'worker'],
     requires_approval=False,
     crud_type='read'
