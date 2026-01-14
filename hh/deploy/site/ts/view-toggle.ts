@@ -1,6 +1,6 @@
 /**
  * View Toggle System - handles hot-swapping between table and tile views for page sections.
- * Listens for clicks on toggle links and replaces DOM chunks via MCP calls.
+ * Listens for clicks on toggle links and replaces DOM chunks via API calls.
  * Supports callbacks for pre/post-processing of swapped content.
  */
 
@@ -176,7 +176,7 @@ class ViewToggle {
                          nextSibling?.id?.startsWith('overlay_') ||
                          linkElement.closest('#overlayWindow') !== null;
 
-      // Build MCP call parameters
+      // Build API call parameters
       const params: any = {
         id: parseInt(pageId, 10),
         section: section,
@@ -193,7 +193,7 @@ class ViewToggle {
         params.class_name = className;
       }
 
-      // Make MCP call to get_page_section
+      // Make API call to get_page_section
       const result = await this.rpc.call('get_page_section', params);
 
       // Extract dom_content from response

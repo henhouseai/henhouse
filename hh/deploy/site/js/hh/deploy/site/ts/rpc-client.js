@@ -67,7 +67,7 @@ export function showErrorOverlay(messages, title = 'Error') {
     let stateMessages;
     if (messages.length > 1) {
         // Multiple messages: first is summary, rest are details
-        summaryMessage = `RPC error: ${actualErrorCount} errors detected`;
+        summaryMessage = `API error: ${actualErrorCount} errors detected`;
         stateMessages = messages.slice(1); // Skip the summary message
     }
     else {
@@ -102,11 +102,11 @@ function escapeHtml(text) {
 }
 export class RPCClient {
     /**
-     * Extract and parse MCP response data from the envelope.
-     * MCP responses have structure: { content: [{ type: "text", text: "<JSON_STRING>" }] }
+     * Extract and parse API response data from the envelope.
+     * API responses have structure: { content: [{ type: "text", text: "<JSON_STRING>" }] }
      * Now parses ALL content items to extract both main data and debug data.
      */
-    extractMCPData(result) {
+    extractAPIData(result) {
         const response = { data: null };
         if (result && result.content && Array.isArray(result.content)) {
             // Parse all content items
@@ -125,7 +125,7 @@ export class RPCClient {
                     }
                     catch (e) {
                         // If parsing fails, skip this content item
-                        console.warn('Failed to parse MCP content item:', e);
+                        console.warn('Failed to parse API content item:', e);
                     }
                 }
             }
@@ -230,28 +230,28 @@ export class RPCClient {
                 }
                 // If we have multiple errors, use RPCError to format them nicely
                 if (allErrors.length > 1) {
-                    const error = new RPCError(`RPC error: ${data.error.message}`, data.error.code, allErrors);
+                    const error = new RPCError(`API error: ${data.error.message}`, data.error.code, allErrors);
                     error.debug = debugData;
                     error.requestInfo = { method, params: originalParams };
                     throw error;
                 }
                 else if (allErrors.length === 1) {
                     // Single error - use the detailed error content if available
-                    const error = new RPCError(`RPC error: ${allErrors[0].type}: ${allErrors[0].content}`, data.error.code, allErrors);
+                    const error = new RPCError(`API error: ${allErrors[0].type}: ${allErrors[0].content}`, data.error.code, allErrors);
                     error.debug = debugData;
                     error.requestInfo = { method, params: originalParams };
                     throw error;
                 }
                 else {
                     // Fallback to message only
-                    const error = new RPCError(`RPC error: ${data.error.message}`, data.error.code);
+                    const error = new RPCError(`API error: ${data.error.message}`, data.error.code);
                     error.debug = debugData;
                     error.requestInfo = { method, params: originalParams };
                     throw error;
                 }
             }
             // Extract data and debug from result
-            const result = this.extractMCPData(data.result);
+            const result = this.extractAPIData(data.result);
             // Add request info to result
             if (result.debug) {
                 result.requestInfo = { method, params: originalParams };

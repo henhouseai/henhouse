@@ -128,7 +128,7 @@ export class PageData {
         }
     }
     /**
-     * Get field-to-MCP mappings for this page class.
+     * Get field-to-API mappings for this page class.
      * Derived classes should override this to provide their specific mappings.
      * Base class provides mappings for common page fields.
      * This is protected - use getFieldMappingsPublic() for external access.
@@ -138,7 +138,7 @@ export class PageData {
             // Individual field setters (highest priority - exact matches)
             {
                 fields: ['name'],
-                mcpTool: 'modify_name',
+                apiTool: 'modify_name',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -147,7 +147,7 @@ export class PageData {
             },
             {
                 fields: ['text'],
-                mcpTool: 'modify_text',
+                apiTool: 'modify_text',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -157,7 +157,7 @@ export class PageData {
             },
             {
                 fields: ['visibility'],
-                mcpTool: 'set_page_visibility',
+                apiTool: 'set_page_visibility',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -166,7 +166,7 @@ export class PageData {
             },
             {
                 fields: ['displayStyle'],
-                mcpTool: 'set_page_display_style',
+                apiTool: 'set_page_display_style',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -268,7 +268,7 @@ export class PageData {
             const params = mapping.buildParams(fields, currentValues, pageId);
             try {
                 // Pass captured debug options to each RPC call
-                const rawResult = await rpc.call(mapping.mcpTool, params, capturedDebugOptions);
+                const rawResult = await rpc.call(mapping.apiTool, params, capturedDebugOptions);
                 // rawResult is already RPCCallResult with data and debug
                 const result = rawResult.data;
                 // Handle debug data immediately - create overlay for each response with debug
@@ -276,7 +276,7 @@ export class PageData {
                 if (rawResult.debug && Array.isArray(rawResult.debug.entries) && rawResult.debug.entries.length > 0) {
                     hasDebugData = true; // Mark that we found debug data
                     const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
-                    handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
+                    handleRPCResponseWithDebug(rawResult, mapping.apiTool, params);
                 }
                 // Clear fields from registry after successful update
                 PageManager.getInstance()['clearFields'](fields);
@@ -287,7 +287,7 @@ export class PageData {
                     }
                 });
                 const operation = {
-                    mapping: mapping.mcpTool,
+                    mapping: mapping.apiTool,
                     fields,
                     success: true,
                     result,
@@ -316,11 +316,11 @@ export class PageData {
                     if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
                         hasDebugData = true; // Mark that we found debug data
                         const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
-                        handleRPCResponseWithDebug(error, mapping.mcpTool, params);
+                        handleRPCResponseWithDebug(error, mapping.apiTool, params);
                     }
                 }
                 const operation = {
-                    mapping: mapping.mcpTool,
+                    mapping: mapping.apiTool,
                     fields,
                     success: false,
                     error,

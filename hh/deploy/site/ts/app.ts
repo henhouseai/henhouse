@@ -41,7 +41,7 @@ class ActionManager {
       const pageManager = PageManager.getInstance();
       pageManager.setPageData(pageData);
       
-      // Get available actions separately via get_app_actions MCP tool
+      // Get available actions separately via get_app_actions API tool
       const appActionsResult = await this.rpc.call('get_app_actions', { id: pageId });
       const availableActions = appActionsResult.data?.available_actions || [];
       

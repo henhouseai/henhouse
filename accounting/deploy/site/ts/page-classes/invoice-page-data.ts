@@ -21,7 +21,7 @@ export class invoice_page_data extends PageData {
       // Invoice specific mappings - two grouped operations
       {
         fields: ['date', 'reference'],
-        mcpTool: 'modify_invoice_info',
+        apiTool: 'modify_invoice_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -31,7 +31,7 @@ export class invoice_page_data extends PageData {
       },
       {
         fields: ['total', 'tax', 'shipping'],
-        mcpTool: 'modify_invoice_cost_breakdown',
+        apiTool: 'modify_invoice_cost_breakdown',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

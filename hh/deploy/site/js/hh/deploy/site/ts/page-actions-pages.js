@@ -155,7 +155,7 @@ export class PageActionsPages {
                     if (!selectedClassInfo.allow_null_names && !nameValue) {
                         throw new Error('A name is required for this page class');
                     }
-                    // Build params for add_page MCP call
+                    // Build params for add_page API call
                     const params = {
                         target_page: pageId,
                         class: selectedClassValue

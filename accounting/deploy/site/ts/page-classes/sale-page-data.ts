@@ -21,7 +21,7 @@ export class sale_page_data extends PageData {
       // Sale specific mappings - three grouped operations
       {
         fields: ['date', 'receiptNum', 'saleType'],
-        mcpTool: 'modify_sale_info',
+        apiTool: 'modify_sale_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -32,7 +32,7 @@ export class sale_page_data extends PageData {
       },
       {
         fields: ['customerName', 'address', 'city', 'state', 'postalCode', 'country'],
-        mcpTool: 'modify_customer_info',
+        apiTool: 'modify_customer_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -46,7 +46,7 @@ export class sale_page_data extends PageData {
       },
       {
         fields: ['total', 'tax', 'shipping'],
-        mcpTool: 'modify_sale_cost_breakdown',
+        apiTool: 'modify_sale_cost_breakdown',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

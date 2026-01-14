@@ -18,7 +18,7 @@ export class source_code_file_page_data extends PageData {
             // Source code file specific mappings
             {
                 fields: ['file_path'],
-                mcpTool: 'modify_file_path',
+                apiTool: 'modify_file_path',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -27,7 +27,7 @@ export class source_code_file_page_data extends PageData {
             },
             {
                 fields: ['language'],
-                mcpTool: 'modify_language',
+                apiTool: 'modify_language',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -125,7 +125,7 @@ export class source_code_file_page_data extends PageData {
                             if (textOp && textOp.success) {
                                 try {
                                     const getTextResult = await rpc.call('get_text', { page_id: pageId });
-                                    const parsedTextResult = rpc.extractMCPData(getTextResult);
+                                    const parsedTextResult = rpc.extractAPIData(getTextResult);
                                     const processedText = parsedTextResult?.processed_text;
                                     this.updatePageTextDiv(pageId, processedText);
                                 }
@@ -136,7 +136,7 @@ export class source_code_file_page_data extends PageData {
                             // Update file_path and language in internal PageData if they were changed
                             const filePathOp = result.operations?.find((op) => op.fields?.includes('file_path'));
                             if (filePathOp && filePathOp.success && filePathOp.result) {
-                                const parsedResult = rpc.extractMCPData(filePathOp.result);
+                                const parsedResult = rpc.extractAPIData(filePathOp.result);
                                 const resultPageData = parsedResult?.page || parsedResult;
                                 const newFilePath = resultPageData?.file_path;
                                 if (newFilePath !== undefined) {
@@ -145,7 +145,7 @@ export class source_code_file_page_data extends PageData {
                             }
                             const languageOp = result.operations?.find((op) => op.fields?.includes('language'));
                             if (languageOp && languageOp.success && languageOp.result) {
-                                const parsedResult = rpc.extractMCPData(languageOp.result);
+                                const parsedResult = rpc.extractAPIData(languageOp.result);
                                 const resultPageData = parsedResult?.page || parsedResult;
                                 const newLanguage = resultPageData?.language;
                                 if (newLanguage !== undefined) {

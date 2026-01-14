@@ -41,7 +41,7 @@ export class Browser {
      */
     async loadAndRender() {
         try {
-            // Call get_browser MCP tool
+            // Call get_browser API tool
             const result = await this.rpc.call('get_browser', { id: this.currentPageId });
             const browserData = result.data;
             if (!browserData) {

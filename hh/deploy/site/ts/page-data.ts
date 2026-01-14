@@ -150,15 +150,15 @@ export interface FieldRegistry {
 }
 
 /**
- * FieldMapping defines how form fields map to MCP tools.
- * Multiple fields can map to the same MCP tool (grouped operations).
+ * FieldMapping defines how form fields map to API tools.
+ * Multiple fields can map to the same API tool (grouped operations).
  * Priority: lower number = higher priority (prefer exact matches, then smaller groups)
  */
 export interface FieldMapping {
   fields: string[];           // Field names that this mapping covers
-  mcpTool: string;            // MCP tool name to call
+  apiTool: string;            // API tool name to call
   priority: number;           // Lower = higher priority (0 = exact match, 1 = small group, 2 = larger group)
-  buildParams: (fields: string[], values: { [fieldName: string]: any }, pageId: number) => any; // Function to build MCP params
+  buildParams: (fields: string[], values: { [fieldName: string]: any }, pageId: number) => any; // Function to build API params
 }
 
 export class PageData {
@@ -294,7 +294,7 @@ export class PageData {
   }
 
   /**
-   * Get field-to-MCP mappings for this page class.
+   * Get field-to-API mappings for this page class.
    * Derived classes should override this to provide their specific mappings.
    * Base class provides mappings for common page fields.
    * This is protected - use getFieldMappingsPublic() for external access.
@@ -304,7 +304,7 @@ export class PageData {
       // Individual field setters (highest priority - exact matches)
       {
         fields: ['name'],
-        mcpTool: 'modify_name',
+        apiTool: 'modify_name',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -313,7 +313,7 @@ export class PageData {
       },
       {
         fields: ['text'],
-        mcpTool: 'modify_text',
+        apiTool: 'modify_text',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -323,7 +323,7 @@ export class PageData {
       },
       {
         fields: ['visibility'],
-        mcpTool: 'set_page_visibility',
+        apiTool: 'set_page_visibility',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -332,7 +332,7 @@ export class PageData {
       },
       {
         fields: ['displayStyle'],
-        mcpTool: 'set_page_display_style',
+        apiTool: 'set_page_display_style',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -461,7 +461,7 @@ export class PageData {
       
       try {
         // Pass captured debug options to each RPC call
-        const rawResult = await rpc.call(mapping.mcpTool, params, capturedDebugOptions);
+        const rawResult = await rpc.call(mapping.apiTool, params, capturedDebugOptions);
         // rawResult is already RPCCallResult with data and debug
         const result = rawResult.data;
         
@@ -470,7 +470,7 @@ export class PageData {
         if (rawResult.debug && Array.isArray(rawResult.debug.entries) && rawResult.debug.entries.length > 0) {
           hasDebugData = true; // Mark that we found debug data
           const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
-          handleRPCResponseWithDebug(rawResult, mapping.mcpTool, params);
+          handleRPCResponseWithDebug(rawResult, mapping.apiTool, params);
         }
         
         // Clear fields from registry after successful update
@@ -484,7 +484,7 @@ export class PageData {
         });
         
         const operation = {
-          mapping: mapping.mcpTool,
+          mapping: mapping.apiTool,
           fields,
           success: true,
           result,
@@ -515,12 +515,12 @@ export class PageData {
           if (errorDebug && Array.isArray(errorDebug.entries) && errorDebug.entries.length > 0) {
             hasDebugData = true; // Mark that we found debug data
             const { handleRPCResponseWithDebug } = await import('./debug-helper.js');
-            handleRPCResponseWithDebug(error, mapping.mcpTool, params);
+            handleRPCResponseWithDebug(error, mapping.apiTool, params);
           }
         }
         
         const operation = {
-          mapping: mapping.mcpTool,
+          mapping: mapping.apiTool,
           fields,
           success: false,
           error,

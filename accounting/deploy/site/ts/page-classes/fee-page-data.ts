@@ -21,7 +21,7 @@ export class fee_page_data extends PageData {
       // Fee specific mappings - grouped operation
       {
         fields: ['fee', 'date'],
-        mcpTool: 'modify_fee_info',
+        apiTool: 'modify_fee_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

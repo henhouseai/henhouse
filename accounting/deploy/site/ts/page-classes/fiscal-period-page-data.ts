@@ -21,7 +21,7 @@ export class fiscal_period_page_data extends PageData {
       // Fiscal period specific mappings - grouped operation
       {
         fields: ['startDate', 'endDate'],
-        mcpTool: 'modify_fiscal_period_info',
+        apiTool: 'modify_fiscal_period_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

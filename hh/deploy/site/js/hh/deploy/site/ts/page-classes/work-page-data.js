@@ -20,7 +20,7 @@ export class work_page_data extends PageData {
             // Work page shared mappings
             {
                 fields: ['status'],
-                mcpTool: 'modify_work_status',
+                apiTool: 'modify_work_status',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -29,7 +29,7 @@ export class work_page_data extends PageData {
             },
             {
                 fields: ['sort_order'],
-                mcpTool: 'modify_work_sort_order',
+                apiTool: 'modify_work_sort_order',
                 priority: 0,
                 buildParams: (fields, values, pageId) => ({
                     page_id: pageId,
@@ -273,7 +273,7 @@ export class work_page_data extends PageData {
         }
         // Convert to JSON string
         const dataJson = JSON.stringify(dataObj);
-        // Call MCP tool
+        // Call API tool
         try {
             const params = {
                 page_id: pageId,

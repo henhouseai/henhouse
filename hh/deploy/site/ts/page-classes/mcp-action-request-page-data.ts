@@ -20,7 +20,7 @@ export class mcp_action_request_page_data extends PageData {
       {
         fields: ['tool_name', 'arguments', 'extraction_spec', 'status', 'result',
                  'is_create', 'is_read', 'is_update', 'is_delete'],
-        mcpTool: 'modify_mcp_action_request',
+        apiTool: 'modify_mcp_action_request',
         priority: 1, // Group operation - lower priority than individual setters
         buildParams: (fields, values, pageId) => {
           const params: any = { page_id: pageId };

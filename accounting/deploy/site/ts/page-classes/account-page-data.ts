@@ -21,7 +21,7 @@ export class account_page_data extends PageData {
       // Account specific mappings
       {
         fields: ['type'],
-        mcpTool: 'modify_account_type',
+        apiTool: 'modify_account_type',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

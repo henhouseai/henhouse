@@ -17,6 +17,7 @@
   "include": [
     "hh/deploy/site/ts/**/*",
     "ext/deploy/site/ts/**/*",
+    "accounting/deploy/site/ts/**/*",
     "self_doc/deploy/site/ts/**/*"
   ],
   "exclude": [

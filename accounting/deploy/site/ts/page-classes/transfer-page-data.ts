@@ -21,7 +21,7 @@ export class transfer_page_data extends PageData {
       // Transfer specific mappings - two separate operations
       {
         fields: ['date', 'amount', 'modifier', 'fee'],
-        mcpTool: 'modify_transfer_info',
+        apiTool: 'modify_transfer_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -33,7 +33,7 @@ export class transfer_page_data extends PageData {
       },
       {
         fields: ['transferTo'],
-        mcpTool: 'modify_target_info',
+        apiTool: 'modify_target_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

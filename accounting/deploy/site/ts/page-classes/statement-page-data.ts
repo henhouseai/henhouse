@@ -21,7 +21,7 @@ export class statement_page_data extends PageData {
       // Statement specific mappings - two grouped operations
       {
         fields: ['startDate', 'endDate', 'openingBalance', 'closingBalance'],
-        mcpTool: 'modify_statement_info',
+        apiTool: 'modify_statement_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,
@@ -33,7 +33,7 @@ export class statement_page_data extends PageData {
       },
       {
         fields: ['interestEarned', 'financeCharge'],
-        mcpTool: 'modify_finance_info',
+        apiTool: 'modify_finance_info',
         priority: 0,
         buildParams: (fields, values, pageId) => ({
           page_id: pageId,

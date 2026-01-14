@@ -136,7 +136,7 @@ export class PageManager {
         return String(value);
     }
     /**
-     * Select optimal MCP calls based on changed fields.
+     * Select optimal API calls based on changed fields.
      * Algorithm: Weighted Set Cover with Exact Match Preference
      * - Prefer exact matches (priority 0)
      * - Prefer smaller groups over larger ones
@@ -183,7 +183,7 @@ export class PageManager {
         return selected;
     }
     /**
-     * Submit changes - automatically determines which MCP calls to make using optimal mapping algorithm.
+     * Submit changes - automatically determines which API calls to make using optimal mapping algorithm.
      * Returns detailed results for each operation.
      */
     async submitChanges(rpc) {
@@ -197,20 +197,20 @@ export class PageManager {
                 message: 'No changes made'
             };
         }
-        // Select optimal MCP calls
+        // Select optimal API calls
         const optimalMappings = this.selectOptimalMappings(editableFields);
         const currentValues = this.extractFormValues();
         const pageId = this.currentPageData?.id;
         if (!pageId) {
             throw new Error('No page ID available');
         }
-        // Execute all MCP calls in parallel
+        // Execute all API calls in parallel
         const promises = optimalMappings.map(async ({ mapping, fields }) => {
             const params = mapping.buildParams(fields, currentValues, pageId);
             try {
-                const rawResult = await rpc.call(mapping.mcpTool, params);
-                // Extract MCP data from envelope (same as getPage does)
-                const result = rpc.extractMCPData(rawResult);
+                const rawResult = await rpc.call(mapping.apiTool, params);
+                // Extract API data from envelope (same as getPage does)
+                const result = rpc.extractAPIData(rawResult);
                 // Clear fields from registry after successful update (they're no longer "checked out")
                 this.clearFields(fields);
                 // Update internal PageData with new values
@@ -220,7 +220,7 @@ export class PageManager {
                     }
                 });
                 return {
-                    mapping: mapping.mcpTool,
+                    mapping: mapping.apiTool,
                     fields,
                     success: true,
                     result,
@@ -228,10 +228,10 @@ export class PageManager {
                 };
             }
             catch (error) {
-                console.error(`[PageManager] MCP call failed: ${mapping.mcpTool}`, error);
+                console.error(`[PageManager] API call failed: ${mapping.apiTool}`, error);
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 return {
-                    mapping: mapping.mcpTool,
+                    mapping: mapping.apiTool,
                     fields,
                     success: false,
                     error,
