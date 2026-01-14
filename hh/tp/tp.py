@@ -135,6 +135,13 @@ class TextProcessor:
                 if text_content:
                     log(f"Found text content: {repr(text_content[:20])}{'...' if len(text_content) > 20 else ''}")
                     elements.append({"type": "text", "content": text_content, "decorators": []})
+                elif not self._at_end():
+                    # Consume single character to avoid infinite loop on unrecognized patterns
+                    # This handles stray ]], }}, etc. that aren't part of valid markup
+                    char = self._text[self._pos]
+                    self._pos += 1
+                    log(f"Consumed stray character to avoid infinite loop: {repr(char)}")
+                    elements.append({"type": "text", "content": char, "decorators": []})
         log(f"Parsed {len(elements)} elements from unparsed text")
         trace_out()
         return elements
@@ -342,7 +349,7 @@ class TextProcessor:
                 trace_out()
                 return identifier, result
             else:
-                display = self._parse_text_until_control()
+                display = self._parse_text_until_control(inside_markup=True)
                 log(f"Parsed text display: '{display}'")
         else:
             log("No display text found")
@@ -358,7 +365,7 @@ class TextProcessor:
             result = {"type": "page_id", "value": num}
             trace_out()
             return result
-        text = self._parse_text_until_control()
+        text = self._parse_text_until_control(inside_markup=True)
         log(f"Found page link text: '{text}'")
         result = {"type": "page_link", "value": text}
         trace_out()
@@ -400,7 +407,7 @@ class TextProcessor:
         if self._peek_is("}{"):
             log("Found }}{{ bridge separator for caption")
             self._expect("}{")
-            caption = self._parse_text_until_control()
+            caption = self._parse_text_until_control(inside_markup=True)
             log(f"Parsed caption: {repr(caption)}")
         else:
             log("No caption found, expecting closing }}}}")
@@ -415,7 +422,7 @@ class TextProcessor:
         if self._peek_is("}{"):
             log("Found }{ - parsing caption")
             self._expect("}{")
-            caption = self._parse_text_until_control()
+            caption = self._parse_text_until_control(inside_markup=True)
             log(f"Parsed caption: {repr(caption)}")
         else:
             log("No }{ found - no caption")
@@ -1028,15 +1035,17 @@ class TextProcessor:
                                    self._text[temp_pos:temp_pos+2] == '{{'))
 
 
-    def _parse_text_until_control(self) -> str:
+    def _parse_text_until_control(self, inside_markup: bool = False) -> str:
         start = self._pos
         while not self._at_end():
             if self._peek_is("@") or self._peek_is("[[") or self._peek_is("{{"):
                 break
-            if self._peek_is("]]") or self._peek_is("]["):
-                break
-            if self._peek_is("}}") or self._peek_is("}{"):
-                break
+            # Only check closing tokens when inside markup (links/images)
+            if inside_markup:
+                if self._peek_is("]]") or self._peek_is("]["):
+                    break
+                if self._peek_is("}}") or self._peek_is("}{"):
+                    break
             if self._peek_is("::"):
                 break
             self._pos += 1
