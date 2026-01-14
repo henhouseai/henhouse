@@ -237,8 +237,10 @@ def get_child_by_name(parent_id: int, child_name: str) -> Optional[Any]:
         return None
 
     # Look for child with matching name under this parent
-    query = "SELECT id FROM pages WHERE parent = %s AND name = %s LIMIT 1"
-    results = gateway.conn.read(query, [parent_id, child_name])
+    # Normalize spaces for comparison (same as link normalization)
+    query = "SELECT id FROM pages WHERE parent = %s AND REPLACE(name, ' ', '') = %s LIMIT 1"
+    normalized_name = child_name.replace(' ', '')
+    results = gateway.conn.read(query, [parent_id, normalized_name])
 
     if not results:
         log(f"No child named '{child_name}' found under parent {parent_id}")
@@ -273,8 +275,10 @@ def get_child_count(parent_id: int, child_name: str) -> int:
         return 0
 
     # Count children with matching name under this parent
-    query = "SELECT COUNT(*) as count FROM pages WHERE parent = %s AND name = %s"
-    results = gateway.conn.read(query, [parent_id, child_name])
+    # Normalize spaces for comparison (same as link normalization)
+    query = "SELECT COUNT(*) as count FROM pages WHERE parent = %s AND REPLACE(name, ' ', '') = %s"
+    normalized_name = child_name.replace(' ', '')
+    results = gateway.conn.read(query, [parent_id, normalized_name])
 
     count = results[0]['count'] if results else 0
     trace_out()
@@ -320,26 +324,24 @@ def resolve_path(base_page: Any, subpath: str) -> Optional[Any]:
         if not segment:  # Skip empty segments
             continue
 
-        # Normalize segment by removing spaces (same as link normalization)
-        normalized_segment = segment.replace(' ', '')
-
         # Check if there's exactly one child with this name
-        child_count = get_child_count(page.id, normalized_segment)
+        # (get_child_count and get_child_by_name handle space normalization internally)
+        child_count = get_child_count(page.id, segment)
 
         if child_count == 1:
             # Exactly one match - safe to traverse
-            page = get_child_by_name(page.id, normalized_segment)
+            page = get_child_by_name(page.id, segment)
             if not page:
                 # This shouldn't happen if count was 1, but safety check
-                log(f"Unexpected: child '{normalized_segment}' count=1 but lookup failed")
+                log(f"Unexpected: child '{segment}' count=1 but lookup failed")
                 break
         elif child_count == 0:
             # No children with this name
-            log(f"No children named '{normalized_segment}' (from '{segment}') under page {page.id}")
+            log(f"No children named '{segment}' under page {page.id}")
             break
         else:
             # Multiple children with same name - ambiguity detected
-            log(f"Ambiguous: {child_count} children named '{normalized_segment}' (from '{segment}') under page {page.id}, stopping traversal")
+            log(f"Ambiguous: {child_count} children named '{segment}' under page {page.id}, stopping traversal")
             break
 
     final_page_id = page.id if hasattr(page, 'id') else 'unknown'
