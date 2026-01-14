@@ -320,26 +320,30 @@ def resolve_path(base_page: Any, subpath: str) -> Optional[Any]:
         if not segment:  # Skip empty segments
             continue
 
+        # Normalize segment by removing spaces (same as link normalization)
+        normalized_segment = segment.replace(' ', '')
+
         # Check if there's exactly one child with this name
-        child_count = get_child_count(page.id, segment)
+        child_count = get_child_count(page.id, normalized_segment)
 
         if child_count == 1:
             # Exactly one match - safe to traverse
-            page = get_child_by_name(page.id, segment)
+            page = get_child_by_name(page.id, normalized_segment)
             if not page:
                 # This shouldn't happen if count was 1, but safety check
-                log(f"Unexpected: child '{segment}' count=1 but lookup failed")
+                log(f"Unexpected: child '{normalized_segment}' count=1 but lookup failed")
                 break
         elif child_count == 0:
             # No children with this name
-            log(f"No children named '{segment}' under page {page.id}")
+            log(f"No children named '{normalized_segment}' (from '{segment}') under page {page.id}")
             break
         else:
             # Multiple children with same name - ambiguity detected
-            log(f"Ambiguous: {child_count} children named '{segment}' under page {page.id}, stopping traversal")
+            log(f"Ambiguous: {child_count} children named '{normalized_segment}' (from '{segment}') under page {page.id}, stopping traversal")
             break
 
-    log(f"Resolved subpath '{subpath}' from base page {base_page.id} to page {page.id}")
+    final_page_id = page.id if hasattr(page, 'id') else 'unknown'
+    log(f"Resolved subpath '{subpath}' from base page {base_page.id} to page {final_page_id}")
     trace_out()
     return page
 

@@ -51,7 +51,7 @@ def show_page() -> bool:
                 warn(f"Invalid page ID: {page_id_arg}")
                 report_error("action", "Page ID must be a number")
             if not is_error() and page_id is not None:
-                page = get_page(page_id=page_id)
+                page = get_page(page_id=page_id, with_subpath=True)
                 if not page:
                     warn(f"Page {page_id} not found")
                     report_error("action", f"Page {page_id} not found")
