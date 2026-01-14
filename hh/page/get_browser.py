@@ -72,7 +72,7 @@ def get_browser() -> bool:
                 return False
     elif page_name or page_link:
         # Use name as alias for link
-        search_term = page_name if page_name else page_link
+        search_term = str(page_name if page_name else page_link)
         log(f"Searching for page with name/link: {search_term}")
         page = find_page(link=search_term)
         if not page:

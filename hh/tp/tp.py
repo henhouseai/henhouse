@@ -590,7 +590,7 @@ class TextProcessor:
                 self._parse_errors.append(f"Error looking up page ID {page_id}: {e}")
                 return {"id": page_id, "parent": 1, "name": f"Page {page_id} (error)"}
         else:
-            page_name = identifier["value"]
+            page_name = str(identifier["value"])
             try:
                 page = find_page(link=page_name)
                 if page and hasattr(page, 'id'):

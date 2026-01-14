@@ -54,7 +54,7 @@ def get_page_action() -> bool:
                     report_error("action", f"Page {page_id} not found")
         elif page_name or page_link:
             # Use name as alias for link
-            search_term = page_name if page_name else page_link
+            search_term = str(page_name if page_name else page_link)
             log(f"Searching for page with name/link: {search_term}")
             page_obj = find_page(link=search_term)
             if not page_obj:
