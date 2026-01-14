@@ -226,15 +226,15 @@ class WorkPage(Page):
             trace_out()
             return
 
-        now_iso = dt.datetime.now().isoformat()
+        # Don't set timestamps at creation - they should be set based on status transitions
         new_page.set_metadata_value('status', status)
         new_page.set_metadata_value('sort_order', new_sort_order)
-        new_page.set_metadata_value('started_ts', now_iso)
+        new_page.set_metadata_value('started_ts', None)  # Will be set when status goes todo->doing
         new_page.set_metadata_value('ended_ts', None)
         new_page.set_metadata_value('meta', user_meta or {})
         new_page.status = status
         new_page.sort_order = new_sort_order
-        new_page.started_ts = now_iso
+        new_page.started_ts = None
         new_page.ended_ts = None
         new_page.meta = json.dumps(user_meta or {}, ensure_ascii=False)
         trace_out()
@@ -1033,10 +1033,26 @@ class WorkPage(Page):
             log("Status unchanged, no update needed")
             trace_out()
             return True
+
         metadata = self._get_metadata_dict()
+        now_iso = dt.datetime.now().isoformat()
+
+        # Set started_ts when transitioning from 'todo' to 'doing'
+        if self.status == 'todo' and status == 'doing' and not metadata.get('started_ts'):
+            metadata['started_ts'] = now_iso
+            log(f"Setting started_ts for page {self.id} (todo -> doing)")
+
+        # Set ended_ts when transitioning to 'done' (or other completion states)
+        if status == 'done' and not metadata.get('ended_ts'):
+            metadata['ended_ts'] = now_iso
+            log(f"Setting ended_ts for page {self.id} (status -> done)")
+
         metadata['status'] = status
         if self._write_metadata_dict(metadata):
             self.status = status
+            # Update instance attributes to match metadata
+            self.started_ts = metadata.get('started_ts')
+            self.ended_ts = metadata.get('ended_ts')
             log(f"Successfully updated page {self.id} status to '{status}'")
             self.flag_page_modification("status changed")
         trace_out()
