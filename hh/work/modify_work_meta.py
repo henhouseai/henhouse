@@ -152,7 +152,7 @@ def modify_work_meta() -> bool:
                 log(f"Successfully executed {action} on {field} for page {page_id} (full_page mode)")
             elif full_meta:
                 # Mode 2: full_meta - return specific metadata bucket
-                metadata = page.get_work_metadata()
+                metadata = page._get_metadata_dict()
                 response_data = {
                     "page_id": page_id,
                     "action": action,
