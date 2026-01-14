@@ -23,6 +23,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -32,6 +33,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -41,6 +43,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -50,6 +53,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -59,6 +63,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -68,6 +73,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -77,6 +83,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -86,6 +93,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )
@@ -95,6 +103,7 @@ _LISTER_SCHEMA = {
     inputSchema=_LISTER_SCHEMA,
     mcp_tiers=[3],
     api_tiers=[3],
+    role_whitelist=[],
     requires_approval=False,
     crud_type='read'
 )

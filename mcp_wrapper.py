@@ -62,6 +62,19 @@ import requests
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+# Optional role arguments (positional) - passed to tools/list requests as comma-separated list
+# Usage: python mcp_wrapper.py [role1] [role2] [role3] ...
+# Example: python mcp_wrapper.py worker auditor
+# The mcp_client will add "general" by default, so "worker auditor" becomes ["general", "worker", "auditor"]
+wrapper_role: Optional[str] = None
+if len(sys.argv) > 1:
+    # Collect all role arguments and join with commas
+    roles = sys.argv[1:]
+    wrapper_role = ','.join(roles)
+    # Debug output will show if enabled below
+else:
+    pass  # No roles specified, mcp_client will default to ["general"]
+
 def debug_print(message: str) -> None:
     """Debug print function - no-op by default. Uncomment the print line to enable debug output."""
     # Uncomment the line below to enable debug output:
@@ -187,7 +200,15 @@ def handle_request(mcp_url: str, config: dict, project_name: str) -> bool:
         mcp_request = json.loads(input_data)
         method = mcp_request.get('method', 'N/A')
         params = mcp_request.get('params', {})
-        
+
+        # Inject role into tools/list params if wrapper_role is set
+        if method == "tools/list" and wrapper_role:
+            if params is None:
+                params = {}
+                mcp_request['params'] = params
+            params['role'] = wrapper_role
+            debug_print(f"Injected role={wrapper_role} into tools/list params")
+
         # Log the call via debug_print (can be enabled by uncommenting in debug_print function)
         method_str = f"MCP call: {method}"
         if params:

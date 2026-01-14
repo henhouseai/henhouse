@@ -14,9 +14,18 @@ _SAFE_DEBUG_ATTR = "_gateway_safe_debug_instance"
 _tls = threading.local()
 _DEBUG_MODULE_PATH: Optional[str] = "hh.gateway.debug.debug_table"
 
-_use_trace = True  # Enabled by default to capture during request parsing
-_use_log = True  # Enabled by default to capture during request parsing
-_use_debug = True  # Enabled by default to capture during request parsing
+# Load debug defaults from ext/deploy/conf/debug_settings.py if it exists
+# Otherwise use hard-coded defaults
+try:
+    from ext.deploy.conf.debug_settings import DEFAULT_USE_TRACE, DEFAULT_USE_LOG, DEFAULT_USE_DEBUG
+    _use_trace = DEFAULT_USE_TRACE
+    _use_log = DEFAULT_USE_LOG
+    _use_debug = DEFAULT_USE_DEBUG
+except (ImportError, AttributeError):
+    # Settings file doesn't exist - use hard-coded defaults
+    _use_trace = True  # Enabled by default to capture during request parsing
+    _use_log = True  # Enabled by default to capture during request parsing
+    _use_debug = True  # Enabled by default to capture during request parsing
 
 _debug_init_functions: List[Callable] = []
 _initialized_functions: set = set()

@@ -28,6 +28,7 @@ from hh.gateway.connection.connection import Connection
 from hh.gateway.system.file_system import FileSystem
 from hh.gateway.system.process_manager import ProcessManager
 from hh.gateway.registry.registry import CommandRegistry
+from hh.gateway.registry.backend import BACKEND_TYPES
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 from hh.image.image_registry import refresh_stale_image_caches
 from hh.file.file_registry import refresh_stale_file_caches
@@ -80,18 +81,33 @@ class Gateway:
     def _initialize(self, raw_argv: List[str], backend: str) -> None:
         trace_in()
         initialize_debug_modules()
-        
+
         # Initialize request
         self.request = Request(raw_argv)
         self._initialize_command()
-        
-        # Configure debug module based on request flags
-        self._initialize_debug_module()
-        
-        # Initialize connection
+
+        # Allow backend override via "backend" flag (only from parser backend)
+        if backend == "parser" and self.request.is_set("backend"):
+            override_backend = self.request.get_arg("backend")
+            if override_backend in BACKEND_TYPES:
+                log(f"Backend override: {backend} -> {override_backend}")
+                self.backend = override_backend
+            else:
+                warn(f"Invalid backend override '{override_backend}'. Valid backends: {BACKEND_TYPES}")
+
+        # Initialize connection (before debug module so tier level is known)
         # Check for dry_run flag from request before initializing connection and filesystem
         dry_run = bool(self.request.get_arg('dry_run') or self.request.get_arg('dry-run'))
         self._user_tier_level = self._initialize_connection(dry_run=dry_run)
+
+        # Check if user's tier is allowed to use debugger (configured in ext/deploy/conf/debug_settings.py)
+        debug_allowed = self._is_debug_allowed_for_tier(self._user_tier_level)
+        if not debug_allowed:
+            log(f"Disabling debug flags for tier {self._user_tier_level} (not in allowed tiers)")
+            self.request.disable_debug_flags()
+
+        # Configure debug module based on request flags
+        self._initialize_debug_module()
         
         # Initialize response and filesystem
         # Initialize response after connection (so we can pass tier level)
@@ -202,8 +218,8 @@ class Gateway:
         else:
             self.debug_system = "table"
 
-        # MCP backend/flag check LAST - always uses debug_mcp
-        if self.request.get_arg("mcp") or self.backend == "mcp" or self.backend == "api" or self.backend == "maintenance":
+        # MCP/API/Maintenance backends always use debug_mcp (JSON format)
+        if self.backend == "mcp" or self.backend == "api" or self.backend == "maintenance":
             self.debug_system = "mcp"
 
         # Set debug backend and resolve function
@@ -394,6 +410,19 @@ class Gateway:
                 warn(f"Failed to restore debug system: {e}")
         trace_out()
     
+    def _is_debug_allowed_for_tier(self, tier_level: int) -> bool:
+        """Check if debug flags are allowed for this tier level (configured in ext/deploy/conf/debug_settings.py)."""
+        trace_in()
+        try:
+            from ext.deploy.conf.debug_settings import ALLOWED_TIERS
+            allowed = tier_level in ALLOWED_TIERS
+            log(f"Debug allowed for tier {tier_level}: {allowed} (allowed tiers: {ALLOWED_TIERS})")
+            return trace_out(allowed)
+        except (ImportError, AttributeError):
+            # Settings file doesn't exist or doesn't have ALLOWED_TIERS - default to allowing all tiers
+            log(f"Debug settings file not found, allowing debug for tier {tier_level}")
+            return trace_out(True)
+
     def _initialize_connection(self, dry_run: bool = False) -> int:
         """Determine and create connection type based on command-line arguments (lazy import if needed). Returns user tier level."""
         trace_in()

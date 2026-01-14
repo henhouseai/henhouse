@@ -26,8 +26,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
     mcp_tiers=[3, 4],
     api_tiers=[3, 4],
     app_action_tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update',
+    role_whitelist=['general', 'worker'],
     app_action_group='transfer',
     app_action_label='Edit Transfer Info'
 )
@@ -46,8 +45,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
     mcp_tiers=[3, 4],
     api_tiers=[3, 4],
     app_action_tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update',
+    role_whitelist=['general', 'worker'],
     app_action_group='transfer',
     app_action_label='Edit Transfer Target'
 )

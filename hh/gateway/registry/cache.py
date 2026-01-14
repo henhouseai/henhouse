@@ -262,20 +262,6 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
     
     discover_base_registrations(force_regenerate)  # Ensure commands are discovered first
 
-    # Populate _global_tool_registry so original modules are available for wrapper-based backends
-    # This ensures MCP/API backends can look up original module paths during registration
-    try:
-        from hh.gateway.registry.tool_whitelist import _scan_for_mcp_tools, _import_modules as import_tool_modules, _global_tool_registry
-        if not _global_tool_registry:
-            debug(f"Pre-populating tool registry before discovering {backend_type} handlers")
-            tool_files = _scan_for_mcp_tools()
-            import_tool_modules(tool_files)
-            debug(f"Tool registry populated with {len(tool_files)} tool modules")
-        else:
-            debug(f"Tool registry already populated with {len(_global_tool_registry)} tools")
-    except Exception as e:
-        debug(f"Could not pre-populate tool registry for {backend_type}: {e}")
-
     # Scan for handlers of this backend type
     decorator_name = BACKEND_DECORATORS.get(backend_type, f"register_{backend_type}")
     handler_files = _scan_for_decorator(decorator_name)

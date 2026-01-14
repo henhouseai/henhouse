@@ -5,6 +5,7 @@ Handles MCP (Model Context Protocol) JSON-RPC requests.
 Implements core MCP protocol methods and routes tool execution to Gateway.
 """
 from __future__ import annotations
+from typing import Optional
 import sys
 import os
 import json
@@ -60,11 +61,31 @@ def get_tier() -> str:
         tier = 'guest'
     return tier
 
-def handle_tools_list(request_id) -> dict:
-    """Handle MCP tools/list request."""
+def handle_tools_list(request_id, params: Optional[dict] = None) -> dict:
+    """Handle MCP tools/list request with optional role filtering.
+
+    Supports multiple roles with inheritance:
+    - Always starts with ["general"] by default
+    - Additional roles can be provided comma-separated in params['role']
+    - Example: role="worker,auditor" becomes ["general", "worker", "auditor"]
+    - Tool is included if ANY role in user's list matches ANY role in tool's role_whitelist
+    """
     tier = get_tier()
-    tools = MCPWhitelist.list_tools(tier)
-    
+
+    # Start with "general" role, then add any additional roles from params
+    roles = ['general']
+    if params and isinstance(params, dict):
+        role_param = params.get('role', '')
+        if role_param:
+            # Parse comma-separated roles and add to list
+            additional_roles = [r.strip() for r in role_param.split(',') if r.strip()]
+            # Add additional roles, avoiding duplicates
+            for role in additional_roles:
+                if role not in roles:
+                    roles.append(role)
+
+    tools = MCPWhitelist.list_tools(tier, roles)
+
     return {
         "jsonrpc": "2.0",
         "id": request_id,
@@ -272,7 +293,7 @@ def main() -> int:
         if method == "initialize":
             response = handle_initialize(params, request_id)
         elif method == "tools/list":
-            response = handle_tools_list(request_id)
+            response = handle_tools_list(request_id, params)
         elif method == "prompts/list":
             response = handle_prompts_list(request_id)
         elif method == "resources/list":

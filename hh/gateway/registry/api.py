@@ -11,7 +11,6 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.error.error_store import report_error
 from hh.gateway.registry.registry import register_api
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.registry.tool_whitelist import _global_tool_registry
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 trace_in = lambda message=None: None
@@ -51,16 +50,12 @@ def _api_wrapper_template(tool_name: str) -> bool:
 _wrapper_code = ""
 all_tools: set[str] = set()
 
-# Ensure tool registry is populated before scanning (trigger lazy loading if needed)
-from hh.gateway.registry.tool_whitelist import _scan_for_mcp_tools, _import_modules
-module_paths = _scan_for_mcp_tools()
-_import_modules(module_paths)
-
-# Scan _global_tool_registry for tools with api_tiers
-for tool_name, tool_config in _global_tool_registry.items():
-    api_tier_levels = tool_config.get('api_tiers', [])
-    if api_tier_levels:
-        all_tools.add(tool_name)
+# Load tool names from API cold cache (across all tiers) instead of importing all tools
+from hh.gateway.registry.tool_whitelist import APIWhitelist
+for tier in HENHOUSE_TIERS:
+    tier_whitelist = APIWhitelist._load_tier_whitelist(tier)
+    # tier_whitelist is Dict[str, Dict[str, Any]] where keys are tool names
+    all_tools.update(tier_whitelist.keys())
 
 for tool_name in all_tools:
     # Convert tool_name to valid Python function name (replace hyphens with underscores)

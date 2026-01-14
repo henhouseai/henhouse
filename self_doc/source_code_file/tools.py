@@ -22,8 +22,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
     },
     mcp_tiers=[3, 4],
     api_tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update'
+    role_whitelist=['general', 'worker']
 )
 @register_tool(
     tool_name='modify_language',
@@ -39,20 +38,10 @@ from hh.gateway.registry.tool_whitelist import register_tool
     },
     mcp_tiers=[3, 4],
     api_tiers=[3, 4],
-    requires_approval=False,
-    crud_type='update'
+    role_whitelist=['general', 'worker']
 )
 @register_tool(
     tool_name='source_code_file_combo',
-    description='Edit source code file: text, file path, and language. App action only - no MCP call.',
-    inputSchema={
-        'type': 'object',
-        'properties': {},
-        'required': []
-    },
-    app_action_tiers=[],
-    requires_approval=False,
-    crud_type='read',  # Mark as read since it's not a real MCP tool
     app_action_group='source_code',
     app_action_label='Edit Source Code File'
 )

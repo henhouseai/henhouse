@@ -63,11 +63,7 @@ def get_app_actions() -> bool:
         # get_app_actions() adds 4 to user_tier_level and checks for app actions at that tier
         # Loading the page triggers tools loading which populates the registry with page-specific actions
         app_actions = MCPWhitelist.get_app_actions(user_tier_level)
-        
-        # Add source field to mark these as hot_cache
-        for action in app_actions:
-            action['source'] = 'hot_cache'
-        
+
         response_data = {
             'available_actions': app_actions
         }

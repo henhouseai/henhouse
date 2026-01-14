@@ -172,3 +172,43 @@ class Request:
         result = self.command
         log(f"get_command result: {result}")
         return trace_out(result)
+
+    def disable_debug_flags(self) -> None:
+        """Remove all debug-related flags from request storage (for tier-based restrictions)."""
+        trace_in()
+        debug_flag_names = ['trace', 'log', 'debug', 'white', 'gray', 'black', 'debug-limit']
+
+        # Remove from flag_args
+        original_flag_count = len(self.flag_args)
+        self.flag_args = [
+            flag for flag in self.flag_args
+            if flag.replace('_', '-') not in debug_flag_names
+        ]
+        removed_flags = original_flag_count - len(self.flag_args)
+
+        # Remove from string_args
+        original_string_count = len(self.string_args)
+        keys_to_remove = [
+            key for key in self.string_args.keys()
+            if key.replace('_', '-') in debug_flag_names
+        ]
+        for key in keys_to_remove:
+            del self.string_args[key]
+        removed_strings = len(keys_to_remove)
+
+        # Remove from num_args
+        original_num_count = len(self.num_args)
+        keys_to_remove = [
+            key for key in self.num_args.keys()
+            if key.replace('_', '-') in debug_flag_names
+        ]
+        for key in keys_to_remove:
+            del self.num_args[key]
+        removed_nums = len(keys_to_remove)
+
+        if removed_flags + removed_strings + removed_nums > 0:
+            log(f"Disabled debug flags: removed {removed_flags} flags, {removed_strings} string args, {removed_nums} num args")
+        else:
+            log("No debug flags to disable")
+
+        trace_out()

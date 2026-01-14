@@ -15,12 +15,27 @@ def parse_list_arg(list_arg: str) -> List[str]:
 
 class FilterMixin:
     """Mixin class providing shared filtering functionality for debug systems"""
-    
+
     def __init__(self) -> None:
-        self.whitelist: List[str] = ["*"]
-        self.graylist: List[str] = []
-        self.blacklist: List[str] = []
-        self.summary_limit: int = 10
+        # Load filter defaults from ext/deploy/conf/debug_settings.py if it exists
+        # Otherwise use hard-coded defaults
+        try:
+            from ext.deploy.conf.debug_settings import (
+                DEFAULT_WHITELIST,
+                DEFAULT_GRAYLIST,
+                DEFAULT_BLACKLIST,
+                DEFAULT_DEBUG_LIMIT
+            )
+            self.whitelist = DEFAULT_WHITELIST.copy()
+            self.graylist = DEFAULT_GRAYLIST.copy()
+            self.blacklist = DEFAULT_BLACKLIST.copy()
+            self.summary_limit = DEFAULT_DEBUG_LIMIT
+        except (ImportError, AttributeError):
+            # Settings file doesn't exist - use hard-coded defaults
+            self.whitelist = ["*"]
+            self.graylist = []
+            self.blacklist = []
+            self.summary_limit = 10
         self._seen_combinations: Dict[str, int] = {}
         self._total_combinations: Dict[str, int] = {}
     

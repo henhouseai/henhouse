@@ -2,54 +2,17 @@
 """
 API Client Entry Point
 Handles API (TypeScript Fetch API) JSON-RPC requests.
-Implements core API protocol methods and routes tool execution to Gateway.
+Simple tool execution router: validates tool against APIWhitelist, then routes to Gateway.
+Only supports tools/call method - no MCP protocol discovery/negotiation.
 """
 from __future__ import annotations
 import sys
 import os
 import json
 
-# API Protocol Version
-API_PROTOCOL_VERSION = "1.0.0"
-
 # Import API Whitelist class
 from hh.gateway.registry.tool_whitelist import APIWhitelist
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-
-def get_server_info():
-    """Get server information for API responses."""
-    return {
-        "name": "Henhouse API Server",
-        "version": "1.0.0"
-    }
-
-# validate_arguments removed - now handled by APIWhitelist.validate_tool()
-
-def handle_initialize(params: dict, request_id) -> dict:
-    """Handle API initialize request."""
-    server_capabilities = {
-        "tools": {
-            "listChanged": True
-        },
-        "prompts": {
-            "listChanged": True
-        },
-        "resources": {
-            "subscribe": True,
-            "listChanged": True
-        },
-        "logging": {}
-    }
-
-    return {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "result": {
-            "protocolVersion": API_PROTOCOL_VERSION,
-            "capabilities": server_capabilities,
-            "serverInfo": get_server_info()
-        }
-    }
 
 def get_tier() -> str:
     """Get current tier from environment or Flask app context."""
@@ -60,45 +23,12 @@ def get_tier() -> str:
         tier = 'guest'
     return tier
 
-def handle_tools_list(request_id) -> dict:
-    """Handle API tools/list request."""
-    tier = get_tier()
-    tools = APIWhitelist.list_tools(tier)
-
-    return {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "result": {
-            "tools": tools
-        }
-    }
-
-def handle_prompts_list(request_id) -> dict:
-    """Handle API prompts/list request."""
-    return {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "result": {
-            "prompts": []
-        }
-    }
-
-def handle_resources_list(request_id) -> dict:
-    """Handle API resources/list request."""
-    return {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "result": {
-            "resources": []
-        }
-    }
-
 def handle_tools_call(params: dict, request_id) -> dict:
-    """Handle API tools/call request - validate and route to Gateway."""
+    """Handle API tools/call request - check if tool allowed, then route to Gateway."""
     tool_name = params.get("name")
     tool_arguments = params.get("arguments", {})
     tier = get_tier()
-    
+
     if not tool_name:
         return {
             "jsonrpc": "2.0",
@@ -109,18 +39,16 @@ def handle_tools_call(params: dict, request_id) -> dict:
                 "data": "Missing 'name' parameter"
             }
         }
-    
-    # Check if tool exists for this tier and validate arguments
-    is_valid, error_msg = APIWhitelist.validate_tool(tier, tool_name, tool_arguments)
-    
-    if not is_valid:
+
+    # Simple membership check - is this tool allowed for this tier?
+    if not APIWhitelist.tool_exists(tier, tool_name):
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "error": {
                 "code": -32602,
                 "message": "Invalid params",
-                "data": error_msg
+                "data": f"Tool '{tool_name}' not available for tier '{tier}'"
             }
         }
     
@@ -268,31 +196,20 @@ def main() -> int:
         
         # Handle API protocol methods directly
         response = None
-        
-        if method == "initialize":
-            response = handle_initialize(params, request_id)
-        elif method == "tools/list":
-            response = handle_tools_list(request_id)
-        elif method == "prompts/list":
-            response = handle_prompts_list(request_id)
-        elif method == "resources/list":
-            response = handle_resources_list(request_id)
-        elif method == "tools/call":
+
+        if method == "tools/call":
             response = handle_tools_call(params, request_id)
-        elif method == "notifications/initialized":
-            # Client notification - no response needed
-            return 0
         else:
             # Unknown method - return standard JSON-RPC 2.0 error
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "error": {
-                        "code": -32601,
-                        "message": "Method not found",
-                        "data": f"Unknown method: {method}"
-                    }
+            response = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": "Method not found",
+                    "data": f"Unknown method: {method}. API client only supports tools/call."
                 }
+            }
         
         # Output response
         if response:

@@ -32,14 +32,14 @@ def _get_page_class_and_load_utils(page_id: int) -> Optional[type]:
         warn("Gateway or connection not available")
         report_error("connection", "Gateway or connection not available")
         return None
-    
+
     query = "SELECT class FROM pages WHERE id = %s"
     results = gateway.conn.read(query, [page_id])
     if not results:
         warn(f"Page {page_id} not found")
         report_error("action", f"Page {page_id} not found")
         return None
-    
+
     page_class_name = str(results[0].get('class') or 'page')
     # Get the appropriate Page subclass from registry
     PageClass = get_page_class(page_class_name)
@@ -50,43 +50,58 @@ def _get_page_class_and_load_utils(page_id: int) -> Optional[type]:
         PageClass = Page
     else:
         log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
-    # Load tools for HTTP backend requests (works for both registered and base Page class)
-    _load_tools_for_page_class(PageClass)
+    # Load tools for HTTP/API backend requests (pass page_id for primary page check)
+    _load_tools_for_page_class(PageClass, page_id)
     return PageClass
 
-def _load_tools_for_page_class(PageClass: type) -> None:
-    """Dynamically import tools module for a page class and all its parent classes for HTTP or MCP backend."""
+def _load_tools_for_page_class(PageClass: type, page_id: int) -> None:
+    """Dynamically import tools module for a page class and all its parent classes for HTTP or API backend.
+    Only loads for primary page - not for child pages loaded during hydration."""
     trace_in()
     from hh.gateway.gateway import get_gateway
     gateway = get_gateway()
-    if not gateway or gateway.backend not in ("http", "mcp"):
-        # Only load tools for HTTP or MCP backend requests
+
+    # Only load tools for HTTP or API backend requests (for app actions)
+    # MCP uses cold cache for tools/list, doesn't need MRO walk
+    if not gateway or gateway.backend not in ("http", "api"):
         trace_out()
         return
-    
+
+    # Only load for primary page - check if this page_id matches the request
+    # This prevents app actions from child classes bleeding into response
+    request_page_id = None
+    if gateway.request:
+        # Check various ways the page ID might be specified
+        request_page_id = gateway.get_arg('id') or gateway.get_arg('page_id')
+
+    if request_page_id and int(request_page_id) != page_id:
+        log(f"Skipping tools load for child page {page_id} (primary is {request_page_id})")
+        trace_out()
+        return
+
     # Walk the MRO (Method Resolution Order) to load tools from each class in the inheritance chain
     loaded_modules = set()  # Track loaded modules to avoid duplicates
-    
+
     try:
         for base_class in PageClass.__mro__:
             # Skip mixins, object, and base classes that don't have meaningful modules
-            if (base_class is object or 
+            if (base_class is object or
                 base_class.__name__.endswith('Mixin') or
                 not hasattr(base_class, '__module__') or
                 not base_class.__module__):
                 continue
-            
+
             module_name = base_class.__module__
             # Extract base module path (e.g., 'hh.page.page' -> 'hh.page')
             module_parts = module_name.split('.')
             if len(module_parts) >= 2:
                 base_module = '.'.join(module_parts[:-1])
                 tools_module = f"{base_module}.tools"
-                
+
                 # Skip if we've already loaded this module
                 if tools_module in loaded_modules:
                     continue
-                
+
                 try:
                     importlib.import_module(tools_module)
                     loaded_modules.add(tools_module)

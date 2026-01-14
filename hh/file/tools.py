@@ -11,41 +11,11 @@ from hh.gateway.registry.tool_whitelist import register_tool
 
 @register_tool(
     tool_name='modify_file_description',
-    description='Modify the description of a file. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'file_id': {'type': 'integer', 'description': 'The ID of the file to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for file_id (use either file_id or id)'},
-            'description': {'type': 'string', 'description': 'The new description text for the file'},
-            'clear': {'type': 'boolean', 'description': 'If true, clears the description (sets to empty string). Use this instead of providing an empty description string.'}
-        },
-        'required': ['file_id', 'description']
-    },
-    mcp_tiers=[3],
-    api_tiers=[3],
-    requires_approval=False,
-    crud_type='update'
+    api_tiers=[3]
 )
 @register_tool(
     tool_name='set_file_visibility',
-    description='Set the visibility of a file. Requires admin/panel tier access with database write permissions.',
-    inputSchema={
-        'type': 'object',
-        'properties': {
-            'file_id': {'type': 'integer', 'description': 'The ID of the file to modify'},
-            'id': {'type': 'integer', 'description': 'Alternative parameter name for file_id (use either file_id or id)'},
-            'visibility': {'type': 'integer', 'description': 'The new visibility value for the file'}
-        },
-        'required': ['file_id', 'visibility']
-    },
-    mcp_tiers=[3],
-    api_tiers=[3, 4],
-    app_action_tiers=[],
-    requires_approval=False,
-    crud_type='update',
-    app_action_group='files',
-    app_action_label='Visibility'
+    api_tiers=[3, 4]
 )
 def _file_tools_registration():
     """Registration placeholder for all file-related MCP tools."""
