@@ -25,7 +25,7 @@ _page_cache: Dict[int, Any] = {}
 
 
 def _get_page_class_and_load_utils(page_id: int) -> Optional[type]:
-    """Helper to get PageClass and load mcp_utils. Returns PageClass or None if error."""
+    """Helper to get PageClass and load tools. Returns PageClass or None if error."""
     from hh.gateway.gateway import get_gateway
     gateway = get_gateway()
     if not gateway or not gateway.conn:
@@ -50,21 +50,21 @@ def _get_page_class_and_load_utils(page_id: int) -> Optional[type]:
         PageClass = Page
     else:
         log(f"Using registered class for '{page_class_name}': {PageClass.__name__}")
-    # Load mcp_utils for HTTP backend requests (works for both registered and base Page class)
-    _load_mcp_utils_for_page_class(PageClass)
+    # Load tools for HTTP backend requests (works for both registered and base Page class)
+    _load_tools_for_page_class(PageClass)
     return PageClass
 
-def _load_mcp_utils_for_page_class(PageClass: type) -> None:
-    """Dynamically import mcp_utils module for a page class and all its parent classes for HTTP or MCP backend."""
+def _load_tools_for_page_class(PageClass: type) -> None:
+    """Dynamically import tools module for a page class and all its parent classes for HTTP or MCP backend."""
     trace_in()
     from hh.gateway.gateway import get_gateway
     gateway = get_gateway()
     if not gateway or gateway.backend not in ("http", "mcp"):
-        # Only load mcp_utils for HTTP or MCP backend requests
+        # Only load tools for HTTP or MCP backend requests
         trace_out()
         return
     
-    # Walk the MRO (Method Resolution Order) to load mcp_utils from each class in the inheritance chain
+    # Walk the MRO (Method Resolution Order) to load tools from each class in the inheritance chain
     loaded_modules = set()  # Track loaded modules to avoid duplicates
     
     try:
@@ -81,21 +81,21 @@ def _load_mcp_utils_for_page_class(PageClass: type) -> None:
             module_parts = module_name.split('.')
             if len(module_parts) >= 2:
                 base_module = '.'.join(module_parts[:-1])
-                mcp_utils_module = f"{base_module}.mcp_utils"
+                tools_module = f"{base_module}.tools"
                 
                 # Skip if we've already loaded this module
-                if mcp_utils_module in loaded_modules:
+                if tools_module in loaded_modules:
                     continue
                 
                 try:
-                    importlib.import_module(mcp_utils_module)
-                    loaded_modules.add(mcp_utils_module)
-                    log(f"Loaded mcp_utils for {base_class.__name__} ({module_name}): {mcp_utils_module}")
+                    importlib.import_module(tools_module)
+                    loaded_modules.add(tools_module)
+                    log(f"Loaded tools for {base_class.__name__} ({module_name}): {tools_module}")
                 except ImportError:
-                    # mcp_utils doesn't exist for this module, that's okay
-                    log(f"No mcp_utils found for {base_class.__name__} ({module_name})")
+                    # tools doesn't exist for this module, that's okay
+                    log(f"No tools found for {base_class.__name__} ({module_name})")
     except Exception as e:
-        warn(f"Error loading mcp_utils for {PageClass.__name__}: {e}")
+        warn(f"Error loading tools for {PageClass.__name__}: {e}")
     trace_out()
 
 def get_page(page_id: int) -> Optional[Any]:

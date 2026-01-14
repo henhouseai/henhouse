@@ -775,7 +775,7 @@ The custom markup parsing system for page content. Implements decorator-based pr
 - Audio and video sections support table view (tile view not yet implemented)
 
 ### With MCP Backend (see mcp.md)
-- Page operations exposed as MCP tools via `mcp_utils.py`
+- Page operations exposed as MCP tools via `tools.py`
 - Tier-based access control via `@register_mcp_tool` decorators
 - `Page.get_page()` provides lightweight JSON for MCP responses
 - App actions layer provides web UI integration

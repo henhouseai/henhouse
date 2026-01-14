@@ -102,7 +102,7 @@ ext/{module_name}/
   ├── {module_name}.py          # Main class definition
   ├── modify_*.py               # Action scripts for modification methods
   ├── render_show_{module}.py   # Parser registration for display
-  ├── mcp_utils.py              # MCP tool registration
+  ├── tools.py              # MCP tool registration
   └── config_labels.py          # Label and icon registration
 ```
 
@@ -515,7 +515,7 @@ All modification methods are registered as **MCP tools** for programmatic access
 
 ### Registration Pattern
 
-Each module has an `mcp_utils.py` file that registers tools using the `@register_mcp_tool` decorator:
+Each module has an `tools.py` file that registers tools using the `@register_mcp_tool` decorator:
 
 ```python
 @register_mcp_tool(

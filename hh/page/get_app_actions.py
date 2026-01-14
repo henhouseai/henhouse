@@ -61,7 +61,7 @@ def get_app_actions() -> bool:
         user_tier_level = gateway.response.get_user_tier_level()
         
         # get_app_actions() adds 4 to user_tier_level and checks for app actions at that tier
-        # Loading the page triggers mcp_utils loading which populates the registry with page-specific actions
+        # Loading the page triggers tools loading which populates the registry with page-specific actions
         app_actions = MCPWhitelist.get_app_actions(user_tier_level)
         
         # Add source field to mark these as hot_cache

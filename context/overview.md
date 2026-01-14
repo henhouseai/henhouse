@@ -395,8 +395,8 @@ The MCP backend provides JSON-RPC 2.0 API access and serves as the unified API l
 
 - JSON-RPC 2.0 API with tier-based tool whitelisting
 - Auto-generated wrappers using exec() for all whitelisted tools
-- Lazy loading with cache rebuild on miss by scanning mcp_utils.py files
-- Decorator-based registration in module-specific mcp_utils.py files
+- Lazy loading with cache rebuild on miss by scanning tools.py files
+- Decorator-based registration in module-specific tools.py files
 
 #### **Application Actions**
 
@@ -473,7 +473,7 @@ The following documents provide detailed implementation information beyond this 
 
 ### **mcp.md**
 
-- **Tool Registration**: How `@register_mcp_tool` decorators work and file organization pattern (mcp_utils.py files)
+- **Tool Registration**: How `@register_mcp_tool` decorators work and file organization pattern (tools.py files)
 - **Whitelist Management**: Tier-specific cache files and their structure, tier whitelisting mechanics
 - **Wrapper Generation**: Auto-generated wrapper functions using exec() and response format construction
 - **Cache Behavior**: Cache rebuild on miss behavior and discovery process

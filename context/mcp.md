@@ -15,7 +15,7 @@ This document covers the Henhouse-specific implementation of the MCP (Model Cont
 ## Agent Quick Reference
 
 - **MCP Backend**: Registered as backend type in Gateway alongside `parser`, `http`, `maintenance` (not `action` - actions are not backends)
-- **Tool Whitelist**: Decorator-based system with tier-specific caches - tools registered via `@register_mcp_tool` decorators in module-specific `mcp_utils.py` files
+- **Tool Whitelist**: Decorator-based system with tier-specific caches - tools registered via `@register_mcp_tool` decorators in module-specific `tools.py` files
 - **Response Format**: `success_payload()` creates `{"content": [{"type": "text", "text": {...dict...}}]}`, ResponseMCP serializes `content[0]["text"]` dict to JSON string in JSON-RPC 2.0 format
 - **Config File**: `~/.{project_name}.cnf` (same format/location as database config)
 - **HTTP Endpoint**: `https://{host}/mcp` (host from config file, typically `https://panel.{domain}/mcp`)
@@ -162,8 +162,8 @@ Formats Gateway responses as JSON-RPC 2.0:
 **Core File**: `hh/gateway/registry/mcp_whitelist.py`
 
 Decorator-based lazy-loading whitelist system:
-- Tools registered via `@register_mcp_tool` decorators in module-specific `mcp_utils.py` files
-- Registration files located in: `hh/gateway/registry/mcp_utils.py`, `hh/page/mcp_utils.py`, `hh/agents/mcp_utils.py`, `hh/mcp_request/mcp_utils.py`, `hh/mcp_action_request/mcp_utils.py`, `hh/image/mcp_utils.py`, `hh/work/mcp_utils.py`, `hh/source_code_file/mcp_utils.py`
+- Tools registered via `@register_mcp_tool` decorators in module-specific `tools.py` files
+- Registration files located in: `hh/gateway/registry/tools.py`, `hh/page/tools.py`, `hh/agents/tools.py`, `hh/mcp_request/tools.py`, `hh/mcp_action_request/tools.py`, `hh/image/tools.py`, `hh/work/tools.py`, `hh/source_code_file/tools.py`
 - Global registry: `_global_tool_registry` dictionary populated by decorators at import time
 - Tier-specific whitelists: Each tier (guest, verified, admin, root) has separate cache file
 - Cache files: `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
@@ -296,24 +296,24 @@ Both `mcp_wrapper.py` and database connection use same detection:
 
 ### Adding a Tool to Whitelist
 
-1. **Create or Edit Registration File**: Add `@register_mcp_tool` decorator to appropriate `mcp_utils.py` file:
-   - `hh/gateway/registry/mcp_utils.py` - For registry lister tools
-   - `hh/page/mcp_utils.py` - For page-related tools
-   - `hh/agents/mcp_utils.py` - For agent-related tools
-   - `hh/mcp_request/mcp_utils.py` - For MCP request tools
-   - `hh/mcp_action_request/mcp_utils.py` - For MCP action request tools
-   - `hh/image/mcp_utils.py` - For image-related tools
-   - `hh/work/mcp_utils.py` - For work-related tools
-   - `hh/source_code_file/mcp_utils.py` - For source code file tools
-   - Or create new `mcp_utils.py` in appropriate module folder (will be auto-discovered by scanner)
+1. **Create or Edit Registration File**: Add `@register_mcp_tool` decorator to appropriate `tools.py` file:
+   - `hh/gateway/registry/tools.py` - For registry lister tools
+   - `hh/page/tools.py` - For page-related tools
+   - `hh/agents/tools.py` - For agent-related tools
+   - `hh/mcp_request/tools.py` - For MCP request tools
+   - `hh/mcp_action_request/tools.py` - For MCP action request tools
+   - `hh/image/tools.py` - For image-related tools
+   - `hh/work/tools.py` - For work-related tools
+   - `hh/source_code_file/tools.py` - For source code file tools
+   - Or create new `tools.py` in appropriate module folder (will be auto-discovered by scanner)
 
-2. **Register Tool**: Use `@register_mcp_tool` decorator on a placeholder function. See `hh/gateway/registry/mcp_whitelist.py` - `register_mcp_tool()` function for the decorator definition, and see existing `mcp_utils.py` files (e.g., `hh/page/mcp_utils.py`, `hh/gateway/registry/mcp_utils.py`) for registration examples.
+2. **Register Tool**: Use `@register_mcp_tool` decorator on a placeholder function. See `hh/gateway/registry/mcp_whitelist.py` - `register_mcp_tool()` function for the decorator definition, and see existing `tools.py` files (e.g., `hh/page/tools.py`, `hh/gateway/registry/tools.py`) for registration examples.
 
 3. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
 
 4. **Cache Rebuild**: 
    - Cache files auto-rebuild on cache miss (when tool is requested but not in cache for any tier)
-   - Rebuild process: Scans all `mcp_utils.py` files, imports modules, rebuilds ALL tier whitelists at once
+   - Rebuild process: Scans all `tools.py` files, imports modules, rebuilds ALL tier whitelists at once
    - Or manually clear cache to force rebuild: Delete `hh/gateway/registry/cache/mcp-whitelist-*.json` files
    - No Flask server restart needed (cache files are checked on each request, in-memory cache persists)
    - MCP registry auto-generates wrapper on next import (no code changes needed, uses exec() to create functions)
@@ -321,17 +321,17 @@ Both `mcp_wrapper.py` and database connection use same detection:
 ### Tool Requirements
 
 For a tool to work through MCP:
-- Must be registered with `@register_mcp_tool` decorator in an `mcp_utils.py` file
+- Must be registered with `@register_mcp_tool` decorator in an `tools.py` file
 - Must be available for the requesting tier (tier levels: 1=guest, 2=verified, 3=admin, 4=root)
 - Must have action handler registered with `@register_action` and `@register_command`
 - Must use `success_payload()` for response data (creates proper structure)
 - Should follow standard Gateway patterns (error handling, tracing)
 
-### How `mcp_utils.py` modules get imported (and when the registry is populated)
+### How `tools.py` modules get imported (and when the registry is populated)
 
 - There are two import paths:
   - **Whitelist rebuild path**: On cache miss/force rebuild, `mcp_whitelist._scan_for_mcp_tools()` finds every file with `@register_mcp_tool` under both `hh/` and `ext/`, then `_import_modules()` imports them. Each decorator call populates `_global_tool_registry`. MCP-tier tools (1-4) are written into tier caches; app-action-only tools (5-8) stay only in the in-memory registry.
-  - **Page-load path**: When a page is loaded (HTTP or MCP backend), `hh/page/page_registry.py::_load_mcp_utils_for_page_class` walks the page class MRO and `importlib.import_module("{base}.mcp_utils")` for each class. That import also runs decorators and fills `_global_tool_registry`. This is how app actions get into memory for `get_page`/`show_page` responses, even though they are not stored in the tier caches.
+  - **Page-load path**: When a page is loaded (HTTP or MCP backend), `hh/page/page_registry.py::_load_tools_for_page_class` walks the page class MRO and `importlib.import_module("{base}.tools")` for each class. That import also runs decorators and fills `_global_tool_registry`. This is how app actions get into memory for `get_page`/`show_page` responses, even though they are not stored in the tier caches.
 - `get_app_actions(user_tier_level)` reads `_global_tool_registry` (not the tier caches) and filters for app-action tier levels (5-8, mapped from user tier +4). Page classes attach these to `available_actions` for MCP responses.
 
 ### Schema Validation
