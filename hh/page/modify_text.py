@@ -59,17 +59,15 @@ def is_valid_utf8(text: str) -> bool:
                 if i == 0 or not text[i-1].isalnum():
                     return False
 
-        # Check for sequences that look like corrupted multi-byte UTF-8
-        # Pattern: Latin-1 supplement chars that shouldn't appear in normal text
-        suspicious_byte_patterns = [
-            b'[\xc2-\xc3][\x80-\xbf]{0,2}',  # Over-encoded UTF-8
-            b'\xef\xbf\xbd',  # UTF-8 replacement character (�)
-        ]
-
-        encoded_text = text.encode('utf-8')
-        for pattern in suspicious_byte_patterns:
-            if re.search(pattern, encoded_text):
-                return False
+        # RELAXED: Removed suspicious byte pattern checks that were rejecting valid UTF-8
+        # The mcp_wrapper UTF-8 fixes resolved the actual corruption issues at transport layer
+        # These checks were blocking legitimate accented characters, emojis, and other Unicode
+        #
+        # Commented out for reference:
+        # suspicious_byte_patterns = [
+        #     b'[\xc2-\xc3][\x80-\xbf]{0,2}',  # Was catching valid 2-byte UTF-8 sequences
+        #     b'\xef\xbf\xbd',  # UTF-8 replacement character (�)
+        # ]
 
         return True
 
