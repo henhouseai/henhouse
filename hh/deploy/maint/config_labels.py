@@ -67,6 +67,11 @@ from hh.render.config.config_registry import register_label
 @register_label("job_status_updated", "Status", "📋")
 @register_label("job_update_success", "Result", "✅")
 @register_label("job_update_failed", "Result", "❌")
+@register_label("generate_tsconfig_header", "TypeScript Config Generation", "⚙️")
+@register_label("modules_discovered", "Modules Discovered", "📦")
+@register_label("ts_patterns_added", "TS Patterns Added", "📝")
+@register_label("ts_config_generated", "Config Generated", "✅")
+@register_label("ts_config_path", "Config Path", "📁")
 def _register_config():
     pass
 
