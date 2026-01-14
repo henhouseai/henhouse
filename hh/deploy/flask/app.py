@@ -965,13 +965,11 @@ def dynamic_handler(path):
         if not path:
             path = "1"
 
-        # Parse path for SubPage support: first segment as name/id, rest as subpath
+        # Parse path for SubPage support
         if path:
             path_parts = path.strip('/').split('/')
             first_segment = path_parts[0]
             remaining_segments = path_parts[1:]
-
-            logging.info(f"Path parsing: path='{path}', parts={path_parts}, first='{first_segment}', remaining={remaining_segments}")
 
             # Determine if first segment is numeric (page ID) or name
             if first_segment.isdigit():
@@ -983,9 +981,6 @@ def dynamic_handler(path):
             if remaining_segments:
                 subpath = '/'.join(remaining_segments)
                 raw_argv.extend(['--subpath', subpath])
-                logging.info(f"Parsed path '{path}' -> first='{first_segment}', subpath='{subpath}'")
-            else:
-                logging.info(f"Parsed path '{path}' -> first='{first_segment}' (no subpath)")
         else:
             # Empty path defaults to homepage
             raw_argv.extend(['--id', '1'])

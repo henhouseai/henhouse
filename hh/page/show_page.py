@@ -59,7 +59,7 @@ def show_page() -> bool:
             # Use name as alias for link
             search_term = page_name if page_name else page_link
             log(f"Searching for page with name/link: {search_term}")
-            page = find_page(link=search_term)
+            page = find_page(link=search_term, with_subpath=True)
             if not page:
                 warn(f"No page found with name/link: {search_term}")
                 report_error("action", f"No page found with name/link: {search_term}")

@@ -113,7 +113,7 @@ def _load_tools_for_page_class(PageClass: type, page_id: int) -> None:
         warn(f"Error loading tools for {PageClass.__name__}: {e}")
     trace_out()
 
-def get_page(page_id: int) -> Optional[Any]:
+def get_page(page_id: int, with_subpath: bool = False) -> Optional[Any]:
     """Get page from hot cache or load from database. Page.__init__() handles cache hydration."""
     trace_in()
     if not page_id or page_id <= 0:
@@ -149,19 +149,34 @@ def get_page(page_id: int) -> Optional[Any]:
         trace_out()
         return None
     
+    # If with_subpath=True, check for --subpath argument and resolve it
+    if with_subpath and page_instance and not is_error():
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        if gateway:
+            subpath_arg = gateway.get_arg('subpath')
+            if subpath_arg:
+                log(f"Resolving subpath '{subpath_arg}' from base page {page_id}")
+                resolved_page = resolve_path(page_instance, subpath_arg)
+                if resolved_page:
+                    log(f"Subpath resolved to page {resolved_page.id}")
+                    page_instance = resolved_page
+                else:
+                    log(f"Subpath '{subpath_arg}' resolution failed, returning base page")
+
     trace_out()
     return page_instance if not is_error() else None
 
 
-def find_page(link: str) -> Optional[Any]:
-    """Find page by link. Returns page instance or None."""
+def find_page(link: str, with_subpath: bool = False) -> Optional[Any]:
+    """Find page by link. Returns page instance or None. If with_subpath=True, also resolves subpath."""
     trace_in()
     if not link:
         warn("Empty link provided")
         report_error("action", "Empty link provided")
         trace_out()
         return None
-    
+
     # Lazy import gateway locally for the link lookup query
     from hh.gateway.gateway import get_gateway
     gateway = get_gateway()
@@ -170,25 +185,25 @@ def find_page(link: str) -> Optional[Any]:
         report_error("connection", "Gateway or connection not available")
         trace_out()
         return None
-    
+
     query = "SELECT id FROM pages WHERE REPLACE(link, ' ', '') = %s"
     search_term = link.replace(' ', '')
     results = gateway.conn.read(query, [search_term])
-    
+
     if not results:
         warn(f"No page found with link: {link}")
         report_error("link_resolution", f"No page found with link: {link}")
         trace_out()
         return None
-    
+
     page_id = results[0]['id']
-    page_instance = get_page(page_id=page_id)
+    page_instance = get_page(page_id=page_id, with_subpath=with_subpath)
     if not page_instance:
         warn(f"Failed to load page {page_id} for link: {link}")
         report_error("action", f"Failed to load page {page_id} for link: {link}")
         trace_out()
         return None
-    
+
     log(f"Found page by link '{link}': page_id={page_id}, name='{page_instance.name if page_instance else 'N/A'}', loaded={page_instance is not None}")
     trace_out()
     return page_instance
