@@ -82,40 +82,46 @@ class SubPage(Page):
 
     @staticmethod
     def getChildrenOf(parent_id: int, view_type: str = 'tile') -> List[Dict[str, Any]]:
-        """Return SubPage children of a parent page."""
+        """Return SubPage children of a parent page with proper display names."""
         from hh.page.page_registry import get_page
-        from hh.page.page import Page
-
-        # Get the parent page
-        parent = get_page(parent_id)
-        if not parent:
-            return []
-
-        # Use the parent's _get_children_query but filter for subpages
-        query, params = SubPage._get_children_query(parent_id)
 
         gateway = get_gateway()
         if not gateway or not gateway.conn:
             return []
 
+        # Use SubPage's _get_children_query method
+        query, params = SubPage._get_children_query(parent_id)
         results = gateway.conn.read(query, params)
-        if not results:
-            return []
+        children_data = []
 
-        # Format results for display
-        children = []
-        for row in results:
-            child_data = {
-                'id': row['id'],
-                'name': row['name'] or f"Page {row['id']}",
-                'class': row['class'],
-                'visibility': row['visibility'],
-                'last_modified': row['last_modified'],
-                'username': row['username'],
-                'comments': row['comments'],
-                '_format': view_type,
-                'field_type': 'subpage'
-            }
-            children.append(child_data)
+        if view_type == 'table':
+            if results:
+                for row in results:
+                    child_page = get_page(page_id=row['id'])
+                    if child_page:
+                        child_data = child_page._get_child_page_data()
+                        child_count = child_page.get_child_count()
+                        child_data['num_children'] = child_count
+                        child_data['field_type'] = child_page._get_child_row_field_type()
+                        child_data['_format'] = 'table'
+                        children_data.append(child_data)
+        else:  # view_type == 'tile'
+            if results:
+                for row in results:
+                    child_page = get_page(page_id=row['id'])
+                    if child_page:
+                        child_data = child_page._get_child_page_data()
+                        # Add display_name (derived field) - this is what was missing!
+                        display_name = child_page._get_display_name()
+                        child_data['display_name'] = display_name
+                        # Add first image for tile rendering
+                        images_data = child_page.get_images_data()
+                        if images_data and len(images_data) > 0:
+                            child_data['images'] = [images_data[0]]  # Just first image
+                        else:
+                            child_data['images'] = []
+                        # Add format metadata
+                        child_data['_format'] = 'tile'
+                        children_data.append(child_data)
 
-        return children
+        return children_data
