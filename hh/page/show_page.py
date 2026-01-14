@@ -68,7 +68,8 @@ def show_page() -> bool:
         response_data = page.show_page()
         gateway.response.set_action_response(success_payload(response_data))
         # Seed page basics in one combined payload (avoid overwriting)
-        resolved_id = page_id if page_id is not None else getattr(page, 'id', None)
+        # Always use the actual resolved page's ID, not the original page_id
+        resolved_id = getattr(page, 'id', None)
         page_block = (response_data or {}).get('page') or {}
         page_title = page_block.get('title') or page_block.get('name')
         seed_payload = {'page': {'id': str(resolved_id) if resolved_id else ''}}
