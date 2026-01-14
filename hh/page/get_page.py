@@ -48,7 +48,7 @@ def get_page_action() -> bool:
                 warn(f"Invalid page ID: {page_id_arg}")
                 report_error("action", "Page ID must be a number")
             if not is_error() and page_id is not None:
-                page_obj = get_page(page_id=page_id)
+                page_obj = get_page(page_id=page_id, with_subpath=True)
                 if not page_obj:
                     warn(f"Page {page_id} not found")
                     report_error("action", f"Page {page_id} not found")
@@ -56,7 +56,7 @@ def get_page_action() -> bool:
             # Use name as alias for link
             search_term = page_name if page_name else page_link
             log(f"Searching for page with name/link: {search_term}")
-            page_obj = find_page(link=search_term)
+            page_obj = find_page(link=search_term, with_subpath=True)
             if not page_obj:
                 warn(f"No page found with name/link: {search_term}")
                 report_error("action", f"No page found with name/link: {search_term}")
