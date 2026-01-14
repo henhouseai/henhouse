@@ -965,9 +965,28 @@ def dynamic_handler(path):
         if not path:
             path = "1"
 
-        # For SubPage support, pass the full path to http_client for resolution
-        # The http_client will use resolve_path() to convert path to page ID
-        raw_argv.extend(['--path', path])
+        # Parse path for SubPage support: first segment as name/id, rest as subpath
+        if path:
+            path_parts = path.strip('/').split('/')
+            first_segment = path_parts[0]
+            remaining_segments = path_parts[1:]
+
+            # Determine if first segment is numeric (page ID) or name
+            if first_segment.isdigit():
+                raw_argv.extend(['--id', first_segment])
+            else:
+                raw_argv.extend(['--name', first_segment])
+
+            # If there are remaining segments, pass them as subpath
+            if remaining_segments:
+                subpath = '/'.join(remaining_segments)
+                raw_argv.extend(['--subpath', subpath])
+                logging.info(f"Parsed path '{path}' -> first='{first_segment}', subpath='{subpath}'")
+            else:
+                logging.info(f"Parsed path '{path}' -> first='{first_segment}' (no subpath)")
+        else:
+            # Empty path defaults to homepage
+            raw_argv.extend(['--id', '1'])
 
         # Skip id, page_id, link, and name from query string (path resolution takes precedence)
         skip_params = ['id', 'page_id', 'link', 'name']

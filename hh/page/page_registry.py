@@ -266,54 +266,43 @@ def get_child_count(parent_id: int, child_name: str) -> int:
     return count
 
 
-def resolve_path(path: str) -> Optional[Any]:
+def resolve_path(base_page: Any, subpath: str) -> Optional[Any]:
     """
-    Resolve a URL path to a page, supporting SubPage tree traversal.
+    Resolve a SubPage path starting from a base page.
 
-    Single segment paths use global link lookup (existing behavior).
-    Multi-segment paths traverse children by name, stopping at ambiguity.
-
-    If duplicate names exist, resolves to the deepest unambiguous level.
-    This prevents unpredictable behavior when multiple pages have the same name.
-
-    Examples:
-    - 'alice' -> Look up link='alice' (global link)
-    - 'alice/projects' -> Look up 'alice', then child named 'projects' (if unique)
-    - 'alice/projects' -> If multiple 'projects', resolves to 'alice' only
-    - 'alice/projects/unique' -> If 'unique' is unambiguous, resolves fully
+    Traverses children by name, stopping at ambiguity. If duplicate names exist,
+    resolves to the deepest unambiguous level to prevent unpredictable behavior.
 
     Args:
-        path: URL path, may contain multiple segments separated by /
+        base_page: Starting page instance (from name/id lookup)
+        subpath: Remaining path segments separated by /
 
     Returns:
-        Page instance at deepest unambiguous level, or None if first segment not found
+        Page instance at deepest unambiguous level, or base_page if no subpath
+
+    Examples:
+        base_page = find_page('alice')
+        resolve_path(base_page, 'projects/task1') -> traverses to projects/task1
+        resolve_path(base_page, 'projects') -> traverses to projects (if unambiguous)
+        resolve_path(base_page, 'ambiguous') -> returns base_page if multiple 'ambiguous' children
     """
     trace_in()
 
-    if not path:
+    if not base_page:
         trace_out()
         return None
 
-    # Normalize: strip leading/trailing slashes, split on /
-    path = path.strip('/')
-    if not path:
+    if not subpath:
+        # No subpath - return the base page
         trace_out()
-        return None
+        return base_page
 
-    parts = path.split('/')
+    # Split subpath and traverse
+    parts = subpath.split('/')
+    page = base_page
 
-    # First segment uses global link lookup
-    first_segment = parts[0]
-    page = find_page(first_segment)
-
-    if not page:
-        log(f"First segment '{first_segment}' not found via link lookup")
-        trace_out()
-        return None
-
-    # Remaining segments traverse children by name, stopping at ambiguity
-    for segment in parts[1:]:
-        if not segment:  # Skip empty segments (double slashes)
+    for segment in parts:
+        if not segment:  # Skip empty segments
             continue
 
         # Check if there's exactly one child with this name
@@ -335,9 +324,7 @@ def resolve_path(path: str) -> Optional[Any]:
             log(f"Ambiguous: {child_count} children named '{segment}' under page {page.id}, stopping traversal")
             break
 
-    # At this point, page is guaranteed to be not None (find_page succeeded)
-    assert page is not None, "Page should not be None at this point"
-    log(f"Resolved path '{path}' to page id={page.id} (deepest unambiguous level)")
+    log(f"Resolved subpath '{subpath}' from base page {base_page.id} to page {page.id}")
     trace_out()
     return page
 
