@@ -17,7 +17,8 @@
   "include": [
     "hh/deploy/site/ts/**/*",
     "ext/deploy/site/ts/**/*",
-    "self_doc/deploy/site/ts/**/*"
+    "self_doc/deploy/site/ts/**/*",
+    "users/deploy/site/ts/**/*"
   ],
   "exclude": [
     "node_modules"

@@ -12,6 +12,12 @@ from hh.render.config.config_registry import register_label
 @register_label('branch',                               'Branch:',                         '🌿')
 @register_label('has_changes',                          'Has Changes:',                    '📝')
 @register_label('stage_file_created',                    'Stage File Created:',             '📄')
+@register_label("tsconfig_header", "TypeScript Config Generation", "⚙️")
+@register_label("modules_discovered", "Modules Discovered", "📦")
+@register_label("ts_patterns_added", "TS Patterns Added", "📝")
+@register_label("dirs_cleaned", "Directories Cleaned", "🗑️")
+@register_label("ts_config_generated", "Config Generated", "✅")
+@register_label("ts_config_path", "Config Path", "📁")
 def _register_config():
     pass
 

@@ -9,6 +9,7 @@ module-specific TypeScript files alongside the core framework files.
 from __future__ import annotations
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -53,17 +54,18 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_action("generate_tsconfig")
-@register_command("generate_tsconfig")
-def generate_tsconfig_action() -> bool:
+@register_action("tsconfig")
+@register_command("tsconfig")
+def tsconfig_action() -> bool:
     """
     Generate a dynamic tsconfig.json that includes TypeScript files from all active modules.
 
     This action:
-    1. Discovers all active (non-blacklisted) modules
-    2. Checks each module for TypeScript source directories
-    3. Generates a tsconfig.json with appropriate includes
-    4. Handles output directory mapping for module-compiled JavaScript
+    1. Cleans compiled directories from site/js (preserves files like interact/sortable)
+    2. Discovers all active (non-blacklisted) modules
+    3. Checks each module for TypeScript source directories
+    4. Generates a tsconfig.json with appropriate includes
+    5. Handles output directory mapping for module-compiled JavaScript
 
     Returns:
         bool: True on success, False on error
@@ -91,6 +93,23 @@ def generate_tsconfig_action() -> bool:
         from hh.deploy.deploy_utils import get_active_modules
         active_modules = get_active_modules()
         log(f"Found {len(active_modules)} active modules")
+
+        # Clean out site/js directory (remove directories only, preserve files)
+        js_dir = project_root / "hh" / "deploy" / "site" / "js"
+        dirs_cleaned = 0
+        if js_dir.exists():
+            for item in js_dir.iterdir():
+                if item.is_dir():
+                    try:
+                        shutil.rmtree(item)
+                        log(f"Removed compiled directory: {item.name}")
+                        dirs_cleaned += 1
+                    except Exception as e:
+                        warn(f"Failed to remove directory {item.name}: {e}")
+        else:
+            log("site/js directory does not exist, skipping cleanup")
+
+        log(f"Cleaned {dirs_cleaned} compiled directories from site/js")
 
         # Base TypeScript config structure
         include_patterns: List[str] = [
@@ -150,6 +169,7 @@ def generate_tsconfig_action() -> bool:
             "message": f"Generated tsconfig.json with {len(active_modules)} active modules",
             "modules_discovered": len(active_modules),
             "ts_patterns_added": len(module_ts_dirs),
+            "dirs_cleaned": dirs_cleaned,
             "ts_config_generated": True,
             "ts_config_path": str(config_path)
         }
@@ -165,10 +185,10 @@ def generate_tsconfig_action() -> bool:
         return False
 
 
-@register_parser("generate_tsconfig")
-def generate_tsconfig_parser() -> bool:
+@register_parser("tsconfig")
+def tsconfig_parser() -> bool:
     """
-    Render generate_tsconfig action results.
+    Render tsconfig action results.
     """
     trace_in()
     gateway = get_gateway()
@@ -187,14 +207,15 @@ def generate_tsconfig_parser() -> bool:
         json_data = gateway.response.get_action_response()
         source_data = get_data(json_data if json_data is not None else {})
 
-        lines = [render_header_block("generate_tsconfig_header")]
+        lines = [render_header_block("l_tsconfig_header")]
 
         table = TableData()
-        table.add_row("generate_tsconfig_header", info="")
+        table.add_row("tsconfig_header", info="")
 
         # Display results
         table.add_row("modules_discovered", info=str(source_data.get("modules_discovered", 0)))
         table.add_row("ts_patterns_added", info=str(source_data.get("ts_patterns_added", 0)))
+        table.add_row("dirs_cleaned", info=str(source_data.get("dirs_cleaned", 0)))
         table.add_row("ts_config_generated", info="Yes" if source_data.get("ts_config_generated", False) else "No")
         table.add_row("ts_config_path", info=source_data.get("ts_config_path", ""))
 
@@ -202,8 +223,8 @@ def generate_tsconfig_parser() -> bool:
             render_block(
                 table,
                 FieldConfig()
-                .add_header("generate_tsconfig_header")
-                .add_simple(["modules_discovered", "ts_patterns_added", "ts_config_generated", "ts_config_path"]),
+                .add_header("tsconfig_header")
+                .add_simple(["modules_discovered", "ts_patterns_added", "dirs_cleaned", "ts_config_generated", "ts_config_path"]),
                 block_type="maintenance",
                 table_overrides={"margin_l": 4},
             )
