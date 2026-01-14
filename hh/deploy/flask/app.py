@@ -964,23 +964,13 @@ def dynamic_handler(path):
         # Treat empty path as "1" (root/homepage)
         if not path:
             path = "1"
-        
-        # Determine what to skip from query params based on path type
-        skip_params = []
-        
-        # Check if path is numeric (just digits)
-        if path.isdigit():
-            # Numeric path: use as page ID
-            raw_argv.extend(['--id', path])
-            # Skip id and page_id from query string (path takes precedence)
-            skip_params = ['id', 'page_id']
-        else:
-            # Non-numeric path: treat entire path (including slashes) as page name
-            # Convert multi-segment paths like "Bob/Sally/Wendy" into single name string
-            page_name = path  # Keep entire path as one string, including slashes
-            raw_argv.extend(['--name', page_name])
-            # Skip id, page_id, link, and name from query string (path takes precedence)
-            skip_params = ['id', 'page_id', 'link', 'name']
+
+        # For SubPage support, pass the full path to http_client for resolution
+        # The http_client will use resolve_path() to convert path to page ID
+        raw_argv.extend(['--path', path])
+
+        # Skip id, page_id, link, and name from query string (path resolution takes precedence)
+        skip_params = ['id', 'page_id', 'link', 'name']
         
         # Add query parameters as arguments (excluding those we skip)
         added = 0

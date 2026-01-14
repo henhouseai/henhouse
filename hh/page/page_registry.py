@@ -194,6 +194,154 @@ def find_page(link: str) -> Optional[Any]:
     return page_instance
 
 
+def get_child_by_name(parent_id: int, child_name: str) -> Optional[Any]:
+    """
+    Find a child page by name under a specific parent.
+
+    Used for SubPage URL traversal where we need to walk down
+    the page hierarchy by name segments.
+
+    Args:
+        parent_id: The ID of the parent page
+        child_name: The name of the child to find
+
+    Returns:
+        Page instance if found, None otherwise
+    """
+    trace_in()
+
+    if not parent_id or not child_name:
+        trace_out()
+        return None
+
+    from hh.gateway.gateway import get_gateway
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("Gateway or connection not available")
+        trace_out()
+        return None
+
+    # Look for child with matching name under this parent
+    query = "SELECT id FROM pages WHERE parent = %s AND name = %s LIMIT 1"
+    results = gateway.conn.read(query, [parent_id, child_name])
+
+    if not results:
+        log(f"No child named '{child_name}' found under parent {parent_id}")
+        trace_out()
+        return None
+
+    child_id = results[0]['id']
+    child_page = get_page(child_id)
+
+    log(f"Found child '{child_name}' (id={child_id}) under parent {parent_id}")
+    trace_out()
+    return child_page
+
+
+def get_child_count(parent_id: int, child_name: str) -> int:
+    """
+    Count how many children with a given name exist under a parent.
+
+    Used by resolve_path() to detect ambiguous names (duplicates).
+    """
+    trace_in()
+
+    if not parent_id or not child_name:
+        trace_out()
+        return 0
+
+    from hh.gateway.gateway import get_gateway
+    gateway = get_gateway()
+    if not gateway or not gateway.conn:
+        warn("Gateway or connection not available")
+        trace_out()
+        return 0
+
+    # Count children with matching name under this parent
+    query = "SELECT COUNT(*) as count FROM pages WHERE parent = %s AND name = %s"
+    results = gateway.conn.read(query, [parent_id, child_name])
+
+    count = results[0]['count'] if results else 0
+    trace_out()
+    return count
+
+
+def resolve_path(path: str) -> Optional[Any]:
+    """
+    Resolve a URL path to a page, supporting SubPage tree traversal.
+
+    Single segment paths use global link lookup (existing behavior).
+    Multi-segment paths traverse children by name, stopping at ambiguity.
+
+    If duplicate names exist, resolves to the deepest unambiguous level.
+    This prevents unpredictable behavior when multiple pages have the same name.
+
+    Examples:
+    - 'alice' -> Look up link='alice' (global link)
+    - 'alice/projects' -> Look up 'alice', then child named 'projects' (if unique)
+    - 'alice/projects' -> If multiple 'projects', resolves to 'alice' only
+    - 'alice/projects/unique' -> If 'unique' is unambiguous, resolves fully
+
+    Args:
+        path: URL path, may contain multiple segments separated by /
+
+    Returns:
+        Page instance at deepest unambiguous level, or None if first segment not found
+    """
+    trace_in()
+
+    if not path:
+        trace_out()
+        return None
+
+    # Normalize: strip leading/trailing slashes, split on /
+    path = path.strip('/')
+    if not path:
+        trace_out()
+        return None
+
+    parts = path.split('/')
+
+    # First segment uses global link lookup
+    first_segment = parts[0]
+    page = find_page(first_segment)
+
+    if not page:
+        log(f"First segment '{first_segment}' not found via link lookup")
+        trace_out()
+        return None
+
+    # Remaining segments traverse children by name, stopping at ambiguity
+    for segment in parts[1:]:
+        if not segment:  # Skip empty segments (double slashes)
+            continue
+
+        # Check if there's exactly one child with this name
+        child_count = get_child_count(page.id, segment)
+
+        if child_count == 1:
+            # Exactly one match - safe to traverse
+            page = get_child_by_name(page.id, segment)
+            if not page:
+                # This shouldn't happen if count was 1, but safety check
+                log(f"Unexpected: child '{segment}' count=1 but lookup failed")
+                break
+        elif child_count == 0:
+            # No children with this name
+            log(f"No children named '{segment}' under page {page.id}")
+            break
+        else:
+            # Multiple children with same name - ambiguity detected
+            log(f"Ambiguous: {child_count} children named '{segment}' under page {page.id}, stopping traversal")
+            break
+
+    # At this point, page is guaranteed to be not None (find_page succeeded)
+    assert page is not None, "Page should not be None at this point"
+    log(f"Resolved path '{path}' to page id={page.id} (deepest unambiguous level)")
+    trace_out()
+    return page
+
+
 def refresh_stale_page_caches() -> None:
     """Refresh cache database for all pages in hot cache that have _cache_needs_refresh flag set.
     Called by gateway during commit process, after file operations but before database commit."""

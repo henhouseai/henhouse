@@ -552,68 +552,6 @@ class Page:
             pass
         return {}
 
-    @staticmethod
-    def _validate_metadata_ascii(data: Any, path: str = "metadata") -> tuple[bool, str]:
-        """
-        Recursively validate metadata structure (ASCII validation TEMPORARILY DISABLED).
-        Returns (is_valid, error_message).
-
-        NOTE: ASCII-only validation is currently disabled for testing Unicode support in MySQL JSON fields.
-        The infrastructure remains in place for easy re-enablement if needed.
-
-        Originally: Metadata was restricted to ASCII-only to avoid encoding issues.
-        Use page text (modify_text) for Unicode content.
-
-        Args:
-            data: The data to validate (can be dict, list, str, int, float, bool, None)
-            path: Current path for error messages (e.g., "metadata.log[0].message")
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
-        if data is None:
-            return True, ""
-
-        if isinstance(data, bool):
-            # Check bool before int since bool is subclass of int
-            return True, ""
-
-        if isinstance(data, (int, float)):
-            return True, ""
-
-        if isinstance(data, str):
-            # TEMPORARILY DISABLED: ASCII-only validation for testing Unicode support
-            # for i, char in enumerate(data):
-            #     code = ord(char)
-            #     # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
-            #     if code not in (9, 10, 13) and not (32 <= code <= 126):
-            #         return False, f"{path} contains non-ASCII character at position {i} (code {code}). Metadata must be ASCII-only. Use page text for Unicode content."
-            return True, ""
-
-        if isinstance(data, dict):
-            for key, value in data.items():
-                # Validate key is ASCII string
-                if not isinstance(key, str):
-                    return False, f"{path} has non-string key: {type(key).__name__}"
-                is_valid, error_msg = Page._validate_metadata_ascii(key, f"{path}.key")
-                if not is_valid:
-                    return False, error_msg.replace(f"{path}.key", f"{path} key '{key}'")
-                # Validate value recursively
-                is_valid, error_msg = Page._validate_metadata_ascii(value, f"{path}.{key}")
-                if not is_valid:
-                    return False, error_msg
-            return True, ""
-
-        if isinstance(data, list):
-            for i, item in enumerate(data):
-                is_valid, error_msg = Page._validate_metadata_ascii(item, f"{path}[{i}]")
-                if not is_valid:
-                    return False, error_msg
-            return True, ""
-
-        # Unknown type - reject to be safe
-        return False, f"{path} has unsupported type: {type(data).__name__}"
-
     def _get_metadata_dict(self) -> Dict[str, Any]:
         metadata = getattr(self, 'metadata', None)
         if isinstance(metadata, dict):
@@ -625,14 +563,6 @@ class Page:
     def _write_metadata_dict(self, metadata: Dict[str, Any]) -> bool:
         trace_in()
         metadata = metadata or {}
-
-        # Validate all strings in metadata are ASCII-only
-        is_valid, error_msg = self._validate_metadata_ascii(metadata)
-        if not is_valid:
-            warn(error_msg)
-            report_error("action", error_msg)
-            trace_out()
-            return False
 
         metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(',', ':'))
         success = True

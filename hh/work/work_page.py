@@ -13,7 +13,6 @@ _modify_work_sort_order_internal()  Line 470
 _normalize_field_name()             Line 464
 _process_badge_text_value()         Line 278
 _sort_meta_dict()                   Line 153
-_validate_ascii_string()            Line 443
 _validate_is_string()               Line 438
 allow_inside_of()                   Line 148
 finalize_response_http()            Line 370
@@ -494,30 +493,6 @@ class WorkPage(Page):
         return isinstance(value, str)
 
     @staticmethod
-    def _validate_ascii_string(value: Any, field_name: str = "value") -> tuple[bool, str]:
-        """
-        Validate string value structure (ASCII validation TEMPORARILY DISABLED).
-        Returns (is_valid, error_message).
-
-        NOTE: ASCII-only validation is currently disabled for testing Unicode support in MySQL JSON fields.
-        The infrastructure remains in place for easy re-enablement if needed.
-
-        Originally: Work page metadata was restricted to ASCII-only to avoid encoding issues.
-        Use page text (modify_text) for Unicode content.
-        """
-        if not isinstance(value, str):
-            return False, f"{field_name} must be a string, got {type(value).__name__}"
-
-        # TEMPORARILY DISABLED: ASCII-only validation for testing Unicode support
-        # for i, char in enumerate(value):
-        #     code = ord(char)
-        #     # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
-        #     if code not in (9, 10, 13) and not (32 <= code <= 126):
-        #         return False, f"{field_name} contains non-ASCII character at position {i} (code {code}). Work page metadata must be ASCII-only. Use page text for Unicode content."
-
-        return True, ""
-
-    @staticmethod
     def _normalize_field_name(field: str) -> str:
         """Normalize field name to canonical form. Maps 'files', 'files_touched', 'files-touched' to 'files_touched'."""
         if field in ('files', 'files_touched', 'files-touched'):
@@ -724,16 +699,14 @@ class WorkPage(Page):
             return False
 
         for key, value in data.items():
-            is_valid, error_msg = self._validate_ascii_string(key, f"{field} key")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(key, str):
+                warn(f"{field} key must be a string, got {type(key).__name__}")
+                report_error("action", f"{field} key must be a string")
                 trace_out()
                 return False
-            is_valid, error_msg = self._validate_ascii_string(value, f"{field} value for key '{key}'")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(value, str):
+                warn(f"{field} value for key '{key}' must be a string, got {type(value).__name__}")
+                report_error("action", f"{field} value for key '{key}' must be a string")
                 trace_out()
                 return False
 
@@ -801,16 +774,14 @@ class WorkPage(Page):
             return False
 
         for key, value in data.items():
-            is_valid, error_msg = self._validate_ascii_string(key, "log entry key")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(key, str):
+                warn(f"log entry key must be a string, got {type(key).__name__}")
+                report_error("action", "log entry key must be a string")
                 trace_out()
                 return False
-            is_valid, error_msg = self._validate_ascii_string(value, f"log entry value for key '{key}'")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(value, str):
+                warn(f"log entry value for key '{key}' must be a string, got {type(value).__name__}")
+                report_error("action", f"log entry value for key '{key}' must be a string")
                 trace_out()
                 return False
 
@@ -938,16 +909,14 @@ class WorkPage(Page):
             return False
 
         for key, value in data.items():
-            is_valid, error_msg = self._validate_ascii_string(key, f"{field} key")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(key, str):
+                warn(f"{field} key must be a string, got {type(key).__name__}")
+                report_error("action", f"{field} key must be a string")
                 trace_out()
                 return False
-            is_valid, error_msg = self._validate_ascii_string(value, f"{field} value for key '{key}'")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(value, str):
+                warn(f"{field} value for key '{key}' must be a string, got {type(value).__name__}")
+                report_error("action", f"{field} value for key '{key}' must be a string")
                 trace_out()
                 return False
 
@@ -1016,16 +985,14 @@ class WorkPage(Page):
             return False
 
         for key, value in data.items():
-            is_valid, error_msg = self._validate_ascii_string(key, f"{field} key")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(key, str):
+                warn(f"{field} key must be a string, got {type(key).__name__}")
+                report_error("action", f"{field} key must be a string")
                 trace_out()
                 return False
-            is_valid, error_msg = self._validate_ascii_string(value, f"{field} value for key '{key}'")
-            if not is_valid:
-                warn(error_msg)
-                report_error("action", error_msg)
+            if not isinstance(value, str):
+                warn(f"{field} value for key '{key}' must be a string, got {type(value).__name__}")
+                report_error("action", f"{field} value for key '{key}' must be a string")
                 trace_out()
                 return False
 
