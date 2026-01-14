@@ -496,21 +496,24 @@ class WorkPage(Page):
     @staticmethod
     def _validate_ascii_string(value: Any, field_name: str = "value") -> tuple[bool, str]:
         """
-        Validate that a value is an ASCII-only string.
-        Allows printable ASCII (32-126) plus tab, newline, carriage return.
+        Validate string value structure (ASCII validation TEMPORARILY DISABLED).
         Returns (is_valid, error_message).
 
-        Work page metadata is stored in MySQL JSON fields and must be ASCII-only
-        to avoid encoding issues. Use page text (modify_text) for Unicode content.
+        NOTE: ASCII-only validation is currently disabled for testing Unicode support in MySQL JSON fields.
+        The infrastructure remains in place for easy re-enablement if needed.
+
+        Originally: Work page metadata was restricted to ASCII-only to avoid encoding issues.
+        Use page text (modify_text) for Unicode content.
         """
         if not isinstance(value, str):
             return False, f"{field_name} must be a string, got {type(value).__name__}"
 
-        for i, char in enumerate(value):
-            code = ord(char)
-            # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
-            if code not in (9, 10, 13) and not (32 <= code <= 126):
-                return False, f"{field_name} contains non-ASCII character at position {i} (code {code}). Work page metadata must be ASCII-only. Use page text for Unicode content."
+        # TEMPORARILY DISABLED: ASCII-only validation for testing Unicode support
+        # for i, char in enumerate(value):
+        #     code = ord(char)
+        #     # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
+        #     if code not in (9, 10, 13) and not (32 <= code <= 126):
+        #         return False, f"{field_name} contains non-ASCII character at position {i} (code {code}). Work page metadata must be ASCII-only. Use page text for Unicode content."
 
         return True, ""
 

@@ -555,12 +555,14 @@ class Page:
     @staticmethod
     def _validate_metadata_ascii(data: Any, path: str = "metadata") -> tuple[bool, str]:
         """
-        Recursively validate that all strings in metadata are ASCII-only.
-        Allows printable ASCII (32-126) plus tab, newline, carriage return.
+        Recursively validate metadata structure (ASCII validation TEMPORARILY DISABLED).
         Returns (is_valid, error_message).
 
-        Metadata is stored in MySQL JSON fields and must be ASCII-only
-        to avoid encoding issues. Use page text (modify_text) for Unicode content.
+        NOTE: ASCII-only validation is currently disabled for testing Unicode support in MySQL JSON fields.
+        The infrastructure remains in place for easy re-enablement if needed.
+
+        Originally: Metadata was restricted to ASCII-only to avoid encoding issues.
+        Use page text (modify_text) for Unicode content.
 
         Args:
             data: The data to validate (can be dict, list, str, int, float, bool, None)
@@ -580,11 +582,12 @@ class Page:
             return True, ""
 
         if isinstance(data, str):
-            for i, char in enumerate(data):
-                code = ord(char)
-                # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
-                if code not in (9, 10, 13) and not (32 <= code <= 126):
-                    return False, f"{path} contains non-ASCII character at position {i} (code {code}). Metadata must be ASCII-only. Use page text for Unicode content."
+            # TEMPORARILY DISABLED: ASCII-only validation for testing Unicode support
+            # for i, char in enumerate(data):
+            #     code = ord(char)
+            #     # Allow: tab(9), newline(10), carriage return(13), printable ASCII(32-126)
+            #     if code not in (9, 10, 13) and not (32 <= code <= 126):
+            #         return False, f"{path} contains non-ASCII character at position {i} (code {code}). Metadata must be ASCII-only. Use page text for Unicode content."
             return True, ""
 
         if isinstance(data, dict):
