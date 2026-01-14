@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
-from users.page.user import UserPage
+from users.user.user import UserPage
 from hh.page.page_class_registry import register_page_class
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.gateway import get_gateway
