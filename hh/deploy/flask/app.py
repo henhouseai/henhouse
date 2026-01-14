@@ -971,6 +971,8 @@ def dynamic_handler(path):
             first_segment = path_parts[0]
             remaining_segments = path_parts[1:]
 
+            logging.info(f"Path parsing: path='{path}', parts={path_parts}, first='{first_segment}', remaining={remaining_segments}")
+
             # Determine if first segment is numeric (page ID) or name
             if first_segment.isdigit():
                 raw_argv.extend(['--id', first_segment])
