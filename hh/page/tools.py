@@ -33,11 +33,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
 )
 @register_tool(
     tool_name='get_app_actions',
-    api_tiers=[3, 4]
-)
-@register_tool(
-    tool_name='count_pages',
-    api_tiers=[3]
+    api_tiers=[1, 2, 3, 4]
 )
 @register_tool(
     tool_name='get_text',
