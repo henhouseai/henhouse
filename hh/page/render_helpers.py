@@ -106,7 +106,7 @@ def render_path_section(
             path_item_id = path_item.get('id')
             if path_item_id is not None:
                 name = path_item.get('name') or path_item.get('title') or f"Page {path_item_id}"
-                link_href = f"{path_item_id}"
+                link_href = f"/{path_item_id}"
                 path_items.append(f'<li><a href="{link_href}">{safe_str(name)}</a></li>')
         if path_items:
             path_html = f'<ul class="path">{"".join(path_items)}</ul>'
