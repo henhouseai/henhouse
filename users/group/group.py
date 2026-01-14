@@ -62,6 +62,11 @@ class GroupPage(Page):
         """Groups can only be created inside groups_container."""
         return parent_class == 'groups_container'
 
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return section header links for group pages."""
+        return ['Groups']
+
     def _get_child_row_field_type(self) -> str:
         """Return field type for group pages in table displays."""
         return 'group'

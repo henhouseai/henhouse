@@ -59,6 +59,22 @@ class UsersContainer(Page):
         """Users containers can be inside any page type."""
         return True
 
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return section header links for users containers."""
+        return ['Users Containers']
+
+    @staticmethod
+    def _get_children_query(parent_id: int) -> tuple[str, List[Any]]:
+        """Return query for getting UsersContainer children, ordered by name."""
+        query = """
+            SELECT id, name, link, class, visibility, last_modified, username, comments
+            FROM pages
+            WHERE parent = %s AND class = 'users_container'
+            ORDER BY name
+        """
+        return query, [parent_id]
+
     def _get_child_row_field_type(self) -> str:
         """Return field type for container in table displays."""
         return 'users_container'
@@ -72,13 +88,9 @@ class UsersContainer(Page):
         if not gateway or not gateway.conn:
             return []
 
-        query = """
-            SELECT id, name, link, class, visibility, last_modified, username, comments
-            FROM pages
-            WHERE parent = %s AND class = 'users_container'
-            ORDER BY name
-        """
-        results = gateway.conn.read(query, [parent_id])
+        # Use UsersContainer's _get_children_query method
+        query, params = UsersContainer._get_children_query(parent_id)
+        results = gateway.conn.read(query, params)
         children_data = []
 
         if view_type == 'table':

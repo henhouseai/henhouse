@@ -46,6 +46,11 @@ class CompanyPage(UserPage):
     # - auto_link_name() = True (username becomes URL)
     # - allow_inside_of() restricts to users_container
 
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return section header links for company pages."""
+        return ['Companies']
+
     def _get_child_row_field_type(self) -> str:
         """Return field type for company pages in table displays."""
         return 'company'

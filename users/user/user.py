@@ -65,6 +65,11 @@ class UserPage(Page):
         """Users can only be created inside users_container."""
         return parent_class == 'users_container'
 
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return section header links for user pages."""
+        return ['Users']
+
     def _get_child_row_field_type(self) -> str:
         """Return field type for user pages in table displays."""
         return 'user'

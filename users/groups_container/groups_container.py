@@ -59,6 +59,22 @@ class GroupsContainer(Page):
         """Groups containers can be inside any page type."""
         return True
 
+    @classmethod
+    def get_section_header_links(cls, parent_id: int, section: str) -> List[str]:
+        """Return section header links for groups containers."""
+        return ['Groups Containers']
+
+    @staticmethod
+    def _get_children_query(parent_id: int) -> tuple[str, List[Any]]:
+        """Return query for getting GroupsContainer children, ordered by name."""
+        query = """
+            SELECT id, name, link, class, visibility, last_modified, username, comments
+            FROM pages
+            WHERE parent = %s AND class = 'groups_container'
+            ORDER BY name
+        """
+        return query, [parent_id]
+
     def _get_child_row_field_type(self) -> str:
         """Return field type for container in table displays."""
         return 'groups_container'
@@ -72,13 +88,9 @@ class GroupsContainer(Page):
         if not gateway or not gateway.conn:
             return []
 
-        query = """
-            SELECT id, name, link, class, visibility, last_modified, username, comments
-            FROM pages
-            WHERE parent = %s AND class = 'groups_container'
-            ORDER BY name
-        """
-        results = gateway.conn.read(query, [parent_id])
+        # Use GroupsContainer's _get_children_query method
+        query, params = GroupsContainer._get_children_query(parent_id)
+        results = gateway.conn.read(query, params)
         children_data = []
 
         if view_type == 'table':
