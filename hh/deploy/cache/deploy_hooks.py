@@ -1,5 +1,5 @@
 """
-Cache permissions hooks for deployment.
+Cache deployment hooks for framework cache management.
 """
 
 import subprocess
@@ -86,3 +86,49 @@ def set_cache_permissions() -> dict:
         warn(f"cache permissions hook: Failed to set cache permissions: {e}")
         report_error("backend", f"cache permissions hook: Failed to set cache permissions: {e}")
         return {"status": "error", "component": "cache", "error": str(e)}
+
+
+@register_module_hook('deploy_permissions_base')
+def set_base_permissions() -> dict:
+    """Set base ownership and permissions for entire deployment directory."""
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            warn("cache permissions hook: Could not detect project name")
+            return {"status": "error", "component": "base", "error": "no_project"}
+
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        dest = Path("/srv") / project_name
+
+        # Get project user info
+        project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
+        user_info = gateway.os.get_user_by_name(project_highest_user)
+        if not user_info:
+            warn(f"cache permissions hook: User not found: {project_highest_user}")
+            return {"status": "error", "component": "base", "error": "user_not_found"}
+
+        project_highest_uid = user_info["uid"]
+        deploy_group_name = f"{project_name}_deploy"
+
+        # Set base ownership for entire deployment directory
+        import subprocess
+        subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(dest)], check=True)
+
+        # Set base permissions: directories 750, files 640
+        subprocess.run(['find', str(dest), '-type', 'd', '-exec', 'chmod', '750', '{}', ';'], check=True)
+        subprocess.run(['find', str(dest), '-type', 'f', '-exec', 'chmod', '640', '{}', ';'], check=True)
+
+        log(f"cache permissions hook: Set base ownership and permissions: {project_highest_user}:{deploy_group_name} (750/640)")
+        return {
+            "status": "completed",
+            "component": "base",
+            "ownership": f"{project_highest_user}:{deploy_group_name}",
+            "permissions": "750/640",
+            "directory": str(dest)
+        }
+
+    except Exception as e:
+        warn(f"cache permissions hook: Failed to set base permissions: {e}")
+        report_error("backend", f"cache permissions hook: Failed to set base permissions: {e}")
+        return {"status": "error", "component": "base", "error": str(e)}

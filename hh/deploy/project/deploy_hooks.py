@@ -1,5 +1,5 @@
 """
-Project-level permissions hooks for deployment.
+Project deployment hooks for framework project management.
 """
 
 import subprocess
