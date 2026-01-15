@@ -1010,24 +1010,16 @@ def deploy() -> bool:
             warn(f"Failed to stop daemons before deployment: {e}")
             report_error("backend", f"Failed to stop daemons before deployment: {e}")
 
-    # Preserve git folder by temporarily moving it out, then restore after cleanup
-    git_dir = dest / 'git'
-    temp_git_path = dest.parent / f'{project_name}_git'
-    git_preserved = False
+    # Git preservation operations
     if not is_error():
         try:
-            if git_dir.exists():
-                if temp_git_path.exists():
-                    shutil.rmtree(temp_git_path)
-                    log(f"Removed existing temporary git directory: {temp_git_path}")
-                shutil.move(str(git_dir), str(temp_git_path))
-                git_preserved = True
-                log(f"Temporarily moved git directory to: {temp_git_path}")
-            else:
-                log("No git directory found to preserve")
-        except Exception as e:
-            warn(f"Failed to preserve git directory: {e}")
-            report_error("backend", f"Failed to preserve git directory: {e}")
+            log("Running git preservation operations hooks")
+            results = run_hooks('deploy_git_preserve_ops')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Git preservation operations hooks failed: {e}")
+            report_error("backend", f"Git preservation operations hooks failed: {e}")
 
     # Directory sterilization hooks
     if not is_error():
@@ -1062,28 +1054,18 @@ def deploy() -> bool:
             warn(f"Failed to sterilize deployment directory: {e}")
             report_error("backend", f"Failed to sterilize deployment directory: {e}")
 
-    # Git restoration hooks
+    # Git restoration operations
     if not is_error():
         try:
-            log("Running git restoration hooks")
-            results = run_hooks('deploy_git_restore')
+            log("Running git restoration operations hooks")
+            results = run_hooks('deploy_git_restore_ops')
             if results:
                 hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
-            warn(f"Git restoration hooks failed: {e}")
-            report_error("backend", f"Git restoration hooks failed: {e}")
+            warn(f"Git restoration operations hooks failed: {e}")
+            report_error("backend", f"Git restoration operations hooks failed: {e}")
 
-    # Restore git folder
-    if not is_error() and git_preserved:
-        try:
-            if temp_git_path.exists():
-                shutil.move(str(temp_git_path), str(git_dir))
-                log(f"Restored git directory: {git_dir}")
-            else:
-                warn(f"Temporary git directory not found: {temp_git_path}")
-        except Exception as e:
-            warn(f"Failed to restore git directory: {e}")
-            report_error("backend", f"Failed to restore git directory: {e}")
+    # Clean up git_preserved flag
 
     # Code deployment hooks
     if not is_error():

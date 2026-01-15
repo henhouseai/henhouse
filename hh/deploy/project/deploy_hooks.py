@@ -63,3 +63,84 @@ def set_git_permissions() -> dict:
         warn(f"project permissions hook: Failed to set git permissions: {e}")
         report_error("backend", f"project permissions hook: Failed to set git permissions: {e}")
         return {"status": "error", "component": "git", "error": str(e)}
+
+
+@register_module_hook('deploy_git_preserve_ops')
+def preserve_git_directory() -> dict:
+    """Preserve git directory by moving it to a temporary location."""
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            warn("project git hook: Could not detect project name")
+            return {"status": "error", "component": "git_preserve", "error": "no_project"}
+
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        dest = Path("/srv") / project_name
+        git_dir = dest / 'git'
+        temp_git_path = dest.parent / f'{project_name}_git'
+
+        if not git_dir.exists():
+            log("project git hook: Git directory does not exist, nothing to preserve")
+            return {"status": "skipped", "component": "git_preserve", "reason": "no_git_dir"}
+
+        # Clean up any existing temp git directory
+        if temp_git_path.exists():
+            import shutil
+            shutil.rmtree(temp_git_path)
+            log(f"project git hook: Removed existing temporary git directory: {temp_git_path}")
+
+        # Move git directory to temp location
+        shutil.move(str(git_dir), str(temp_git_path))
+        log(f"project git hook: Preserved git directory to: {temp_git_path}")
+
+        return {
+            "status": "completed",
+            "component": "git_preserve",
+            "git_dir": str(git_dir),
+            "temp_path": str(temp_git_path),
+            "preserved": True
+        }
+
+    except Exception as e:
+        warn(f"project git hook: Failed to preserve git directory: {e}")
+        report_error("backend", f"project git hook: Failed to preserve git directory: {e}")
+        return {"status": "error", "component": "git_preserve", "error": str(e)}
+
+
+@register_module_hook('deploy_git_restore_ops')
+def restore_git_directory() -> dict:
+    """Restore git directory from temporary location."""
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            warn("project git hook: Could not detect project name")
+            return {"status": "error", "component": "git_restore", "error": "no_project"}
+
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        dest = Path("/srv") / project_name
+        git_dir = dest / 'git'
+        temp_git_path = dest.parent / f'{project_name}_git'
+
+        if not temp_git_path.exists():
+            warn(f"project git hook: Temporary git directory not found: {temp_git_path}")
+            return {"status": "error", "component": "git_restore", "error": "temp_git_missing"}
+
+        # Move git directory back to its original location
+        import shutil
+        shutil.move(str(temp_git_path), str(git_dir))
+        log(f"project git hook: Restored git directory to: {git_dir}")
+
+        return {
+            "status": "completed",
+            "component": "git_restore",
+            "git_dir": str(git_dir),
+            "temp_path": str(temp_git_path),
+            "restored": True
+        }
+
+    except Exception as e:
+        warn(f"project git hook: Failed to restore git directory: {e}")
+        report_error("backend", f"project git hook: Failed to restore git directory: {e}")
+        return {"status": "error", "component": "git_restore", "error": str(e)}
