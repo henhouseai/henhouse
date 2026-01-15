@@ -7,7 +7,23 @@ Example hooks for testing the module hooks system.
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.gateway import get_gateway
 from hh.gateway.connection.root_connection import RootConnection
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 import datetime
+
+trace_in = lambda message=None: None
+trace_out = lambda arg=None: arg
+log = lambda message: None
+debug = lambda message: None
+warn = lambda message: None
+
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
+    log = get_log(True)
+    debug = get_debug(True)
+    warn = get_warn(True)
 
 
 @register_module_hook('deploy_before_schema')
@@ -64,41 +80,49 @@ def test_hook_log_to_database():
 
     This is a smoke test hook - writes execution timestamp to work page 1782.
     """
+    trace_in("test_hook_log_to_database")
+    debug("Starting test-deploy-start hook execution")
+
     try:
+        from hh.page.page_registry import get_page
+
         timestamp = datetime.datetime.utcnow().isoformat()
+        debug(f"Hook executing at timestamp: {timestamp}")
         print(f"[users] test-deploy-start: Executing at {timestamp}")
 
-        # Get gateway to access connection
-        gateway = get_gateway()
-        if not gateway or not gateway.conn:
-            print("[users] test-deploy-start: WARNING - No gateway/connection available")
-            return False
+        # Get page 1782
+        debug("Loading page 1782 via get_page()")
+        page = get_page(page_id=1782)
+        if not page:
+            warn("Could not load page 1782 - get_page returned None")
+            print("[users] test-deploy-start: ERROR - Could not load page 1782")
+            return trace_out(False)
 
-        # Write to page 1782's log metadata
-        log_entry = f'{{"message": "users test hook executed successfully", "timestamp": "{timestamp}"}}'
+        debug(f"Successfully loaded page 1782: class={page.class_name}, name={page.name}")
 
-        # Use direct SQL since we're in deployment context with root connection
-        query = """
-            UPDATE pages
-            SET metadata = JSON_SET(
-                COALESCE(metadata, '{}'),
-                '$.log',
-                JSON_ARRAY_APPEND(
-                    COALESCE(JSON_EXTRACT(metadata, '$.log'), '[]'),
-                    '$',
-                    CAST(%s AS JSON)
-                )
-            )
-            WHERE id = 1782
-        """
+        # Add log entry using proper work page method
+        log_data = {
+            "message": "users test hook executed successfully during deployment",
+            "timestamp": timestamp,
+            "hook_name": "test-deploy-start"
+        }
 
-        gateway.conn.update(query, (log_entry,))
-        print(f"[users] test-deploy-start: Successfully logged to page 1782")
+        debug(f"Calling page.work_add_log() with data: {log_data}")
+        success = page.work_add_log(log_data)
+        debug(f"page.work_add_log() returned: {success}")
 
-        return True
+        if success:
+            log("Successfully logged hook execution to page 1782")
+            print(f"[users] test-deploy-start: Successfully logged to page 1782")
+        else:
+            warn("page.work_add_log() returned False - log entry may not have been added")
+            print(f"[users] test-deploy-start: work_add_log returned False")
+
+        return trace_out(success)
 
     except Exception as e:
+        warn(f"Exception in test hook: {e}")
         print(f"[users] test-deploy-start: ERROR - {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return trace_out(False)
