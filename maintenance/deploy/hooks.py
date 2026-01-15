@@ -1,6 +1,7 @@
 """
 Maintenance worker deployment hooks
 """
+from typing import Dict, Any, Union
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.deploy.maintenance.maintenance_start import run_maintenance_start
 from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
@@ -21,7 +22,7 @@ except:
     pass
 
 @register_module_hook('deploy_stop_daemons')
-def stop_maintenance_daemon() -> bool:
+def stop_maintenance_daemon() -> Union[Dict[str, Any], bool]:
     """Stop maintenance worker daemon before deployment."""
     try:
         project_name, _ = detect_project_context()
@@ -33,14 +34,14 @@ def stop_maintenance_daemon() -> bool:
         run_maintenance_stop(project_name)
         log(f"maintenance hook: Maintenance daemon stopped")
 
-        return True
+        return {"module": "maintenance", "action": "stop", "status": "stopped"}
     except Exception as e:
         warn(f"maintenance hook: Failed to stop maintenance daemon: {e}")
         return False
 
 
 @register_module_hook('deploy_restart_daemons')
-def restart_maintenance_daemon() -> bool:
+def restart_maintenance_daemon() -> Union[Dict[str, Any], bool]:
     """Restart maintenance worker daemon after deployment."""
     try:
         project_name, _ = detect_project_context()
@@ -52,7 +53,7 @@ def restart_maintenance_daemon() -> bool:
         maintenance_restart_info = run_maintenance_start(project_name)
         log(f"maintenance hook: Maintenance restart status: {maintenance_restart_info.get('status')}")
 
-        return True
+        return {"module": "maintenance", "action": "restart", "maintenance_restart": maintenance_restart_info}
     except Exception as e:
         warn(f"maintenance hook: Failed to restart maintenance daemon: {e}")
         return False

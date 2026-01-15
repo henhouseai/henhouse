@@ -243,24 +243,24 @@ def get_hook_handlers(hook_name: str) -> List[Callable]:
     return trace_out(handlers)
 
 
-def run_hooks(hook_name: str) -> bool:
+def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
     """
     Execute all hooks registered for a given hook name.
 
     Hooks execute in alphabetical order by module name.
     Stops immediately on first failure (exception or False return).
-    Hook functions take no arguments.
+    Hook functions take no arguments and return a dict of data.
 
     Args:
         hook_name: Name of hook to execute
 
     Returns:
-        True if all hooks succeeded, False if any failed
+        List of dicts returned by each hook (empty list if no hooks or on failure)
 
     Example:
-        success = run_hooks('deploy_stop_daemons')
-        if not success:
-            print("Hook execution failed")
+        results = run_hooks('deploy_restart_daemons')
+        for result in results:
+            print(result)
     """
     trace_in()
 
@@ -272,13 +272,15 @@ def run_hooks(hook_name: str) -> bool:
 
     if not handlers:
         debug(f"No hooks registered for '{hook_name}' - silent no-op")
-        return trace_out(True)
+        return trace_out([])
 
     log(f"Running {len(handlers)} hooks for '{hook_name}'")
 
     # Handlers already sorted alphabetically by get_hook_handlers()
     hook_list = hooks.get(hook_name, [])
     sorted_hooks = sorted(hook_list, key=lambda h: h.module_name)
+
+    results: List[Dict[str, Any]] = []
 
     for hook_info, func in zip(sorted_hooks, handlers):
         module_name = hook_info.module_name
@@ -292,17 +294,21 @@ def run_hooks(hook_name: str) -> bool:
             if result is False:
                 warn(f"Hook '{hook_name}' from module '{module_name}' returned False - stopping")
                 report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' returned False")
-                return trace_out(False)
+                return trace_out([])
+
+            # Add result to collection (None and empty dicts are fine)
+            if result is not None:
+                results.append(result)
 
             debug(f"Hook '{hook_name}' from module '{module_name}' succeeded")
 
         except Exception as e:
             warn(f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
             report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
-            return trace_out(False)
+            return trace_out([])
 
     log(f"All hooks for '{hook_name}' completed successfully")
-    return trace_out(True)
+    return trace_out(results)
 
 
 def get_all_hook_names() -> List[str]:

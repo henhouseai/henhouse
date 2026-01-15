@@ -955,14 +955,19 @@ def deploy() -> bool:
     dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
+    # Initialize hook results collection
+    hook_results: List[Dict[str, Any]] = []
+
     # Stop running daemons prior to deployment
     if not is_error():
         try:
             log("Stopping daemons via module hooks")
-            success = run_hooks('deploy_stop_daemons')
-            if not success:
-                warn("One or more daemon stop hooks failed")
-                report_error("backend", "Failed to stop daemons before deployment (hook returned False)")
+            results = run_hooks('deploy_stop_daemons')
+            if not results:
+                warn("Daemon stop hooks failed or returned no results")
+                report_error("backend", "Failed to stop daemons before deployment")
+            else:
+                hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
             warn(f"Failed to stop daemons before deployment: {e}")
             report_error("backend", f"Failed to stop daemons before deployment: {e}")
@@ -1745,10 +1750,18 @@ def deploy() -> bool:
     if not is_error():
         try:
             log("Restarting daemons via module hooks")
-            success = run_hooks('deploy_restart_daemons')
-            if not success:
-                warn("One or more daemon restart hooks failed")
-                report_error("backend", "Failed to restart daemons after deployment (hook returned False)")
+            results = run_hooks('deploy_restart_daemons')
+            if not results:
+                warn("Daemon restart hooks failed or returned no results")
+                report_error("backend", "Failed to restart daemons after deployment")
+            else:
+                hook_results.extend(results)
+                # Extract legacy info for backwards compatibility
+                for hook_result in results:
+                    if "flask_restart" in hook_result:
+                        flask_restart_info = hook_result["flask_restart"]
+                    if "maintenance_restart" in hook_result:
+                        maintenance_restart_info = hook_result["maintenance_restart"]
         except Exception as e:  # noqa: BLE001
             warn(f"Failed to restart daemons after deployment: {e}")
             report_error("backend", f"Failed to restart daemons after deployment: {e}")
@@ -2010,8 +2023,8 @@ def deploy() -> bool:
             report_error("action", f"Failed to deploy HTTP/SSL configuration: {e}")
 
     # Final result
-    result = not is_error()
-    if result:
+    deployment_result: bool = not is_error()
+    if deployment_result:
         log("Deployment completed successfully")
         
         # Get NGINX status if available
@@ -2052,6 +2065,7 @@ def deploy() -> bool:
             "logs_permissions_set": logs_permissions_set,
             "flask_restart": flask_restart_info,
             "maintenance_restart": maintenance_restart_info,
+            "hook_results": hook_results,
             "nginx_deployed": nginx_deployed,
             "certificate_created": certificate_created,
             "certificate_path": str(certificate_path) if ssl_enabled and 'certificate_path' in locals() else None,
@@ -2070,7 +2084,7 @@ def deploy() -> bool:
     clean_all_caches()
     
     trace_out()
-    return result
+    return deployment_result
 
 
 def cleanup_old_deployment() -> None:

@@ -1,6 +1,7 @@
 """
 NGINX/Flask deployment hooks
 """
+from typing import Dict, Any, Union
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.deploy.flask.flask_start import run_flask_start
 from hh.deploy.flask.flask_stop import run_flask_stop
@@ -21,7 +22,7 @@ except:
     pass
 
 @register_module_hook('deploy_stop_daemons')
-def stop_flask_daemons() -> bool:
+def stop_flask_daemons() -> Union[Dict[str, Any], bool]:
     """Stop Flask tier daemons before deployment."""
     try:
         project_name, _ = detect_project_context()
@@ -33,14 +34,14 @@ def stop_flask_daemons() -> bool:
         run_flask_stop(project_name)
         log(f"nginx_flask hook: Flask daemons stopped")
 
-        return True
+        return {"module": "nginx_flask", "action": "stop", "status": "stopped"}
     except Exception as e:
         warn(f"nginx_flask hook: Failed to stop Flask daemons: {e}")
         return False
 
 
 @register_module_hook('deploy_restart_daemons')
-def restart_flask_daemons() -> bool:
+def restart_flask_daemons() -> Union[Dict[str, Any], bool]:
     """Restart Flask tier daemons after deployment."""
     try:
         project_name, _ = detect_project_context()
@@ -67,7 +68,7 @@ def restart_flask_daemons() -> bool:
         flask_restart_info = run_flask_start(project_name, start_port)
         log(f"nginx_flask hook: Flask restart summary: {flask_restart_info.get('summary')}")
 
-        return True
+        return {"module": "nginx_flask", "action": "restart", "flask_restart": flask_restart_info}
     except Exception as e:
         warn(f"nginx_flask hook: Failed to restart Flask daemons: {e}")
         return False
