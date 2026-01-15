@@ -57,12 +57,14 @@ CACHE_DIR.mkdir(exist_ok=True)
 CACHE_FILE = CACHE_DIR / "module-hooks.json"
 
 
-@dataclass(frozen=True)
+@dataclass
 class HookInfo:
     """Information about a registered hook function."""
-    function: Callable
     module_name: str
     module_path: str
+    function_module: str  # Python module path (e.g., 'users.deploy.deploy_hooks')
+    function_name: str    # Function name (e.g., 'test_hook_log_to_database')
+    function: Optional[Callable] = None  # Lazy-loaded callable
 
 
 # Global hook registry: hook_name -> List[HookInfo]
@@ -163,11 +165,13 @@ def register_module_hook(hook_name: str) -> Callable[[Callable], Callable]:
 
         module_name, module_path = module_info
 
-        # Create HookInfo instance
+        # Create HookInfo instance with callable
         hook_info = HookInfo(
-            function=wrapper,
             module_name=module_name,
-            module_path=module_path
+            module_path=module_path,
+            function_module=func.__module__,
+            function_name=func.__name__,
+            function=wrapper
         )
 
         # Add to registry
@@ -180,6 +184,62 @@ def register_module_hook(hook_name: str) -> Callable[[Callable], Callable]:
         return trace_out(wrapper)
 
     return decorator
+
+
+def get_hook_handlers(hook_name: str) -> List[Callable]:
+    """
+    Get callable handlers for a hook name, lazy-loading if needed.
+
+    Checks hot cache for hook metadata. If callable not yet loaded,
+    imports module on-demand to get callable.
+
+    Args:
+        hook_name: Name of hook to get handlers for
+
+    Returns:
+        List of callable functions for this hook (sorted alphabetically by module)
+
+    Example:
+        handlers = get_hook_handlers('deploy-test-start')
+        for handler in handlers:
+            handler()
+    """
+    trace_in()
+
+    if hook_name not in hooks:
+        debug(f"No hooks registered for '{hook_name}'")
+        return trace_out([])
+
+    hook_list = hooks[hook_name]
+    debug(f"Found {len(hook_list)} hooks for '{hook_name}' in hot cache")
+
+    # Sort alphabetically by module name
+    sorted_hooks = sorted(hook_list, key=lambda h: h.module_name)
+
+    handlers = []
+    for hook_info in sorted_hooks:
+        # Check if callable already loaded
+        if hook_info.function is not None:
+            debug(f"Using cached callable for {hook_info.module_name}.{hook_info.function_name}")
+            handlers.append(hook_info.function)
+        else:
+            # Lazy-load the callable
+            debug(f"Lazy-loading {hook_info.function_module}.{hook_info.function_name}")
+            try:
+                import importlib
+                module = importlib.import_module(hook_info.function_module)
+                func = getattr(module, hook_info.function_name)
+
+                # Store callable in hot cache for next time
+                hook_info.function = func
+
+                log(f"Loaded hook handler: {hook_info.function_module}.{hook_info.function_name}")
+                handlers.append(func)
+            except Exception as e:
+                warn(f"Failed to load hook {hook_info.function_module}.{hook_info.function_name}: {e}")
+                # Continue with other hooks
+
+    return trace_out(handlers)
 
 
 def run_hooks(hook_name: str, *args, **kwargs) -> bool:
@@ -204,19 +264,21 @@ def run_hooks(hook_name: str, *args, **kwargs) -> bool:
     """
     trace_in()
 
-    if hook_name not in hooks:
+    # Get callable handlers (lazy-loads if needed)
+    handlers = get_hook_handlers(hook_name)
+
+    if not handlers:
         debug(f"No hooks registered for '{hook_name}' - silent no-op")
         return trace_out(True)
 
-    hook_list = hooks[hook_name]
-    log(f"Running {len(hook_list)} hooks for '{hook_name}'")
+    log(f"Running {len(handlers)} hooks for '{hook_name}'")
 
-    # Sort hooks alphabetically by module name
+    # Handlers already sorted alphabetically by get_hook_handlers()
+    hook_list = hooks.get(hook_name, [])
     sorted_hooks = sorted(hook_list, key=lambda h: h.module_name)
 
-    for hook_info in sorted_hooks:
+    for hook_info, func in zip(sorted_hooks, handlers):
         module_name = hook_info.module_name
-        func = hook_info.function
 
         log(f"Executing hook '{hook_name}' from module '{module_name}'")
 
@@ -273,7 +335,7 @@ def get_hooks_by_module() -> Dict[str, Dict[str, List[str]]]:
     for hook_name, hook_list in hooks.items():
         for hook_info in hook_list:
             module_name = hook_info.module_name
-            func_name = hook_info.function.__name__
+            func_name = hook_info.function_name
 
             if module_name not in result:
                 result[module_name] = {}
@@ -311,7 +373,7 @@ def get_hooks_by_name() -> Dict[str, List[tuple[str, str]]]:
 
         for hook_info in sorted_hooks:
             module_name = hook_info.module_name
-            func_name = hook_info.function.__name__
+            func_name = hook_info.function_name
             result[hook_name].append((module_name, func_name))
 
     return trace_out(result)
@@ -357,8 +419,8 @@ def _build_hooks_cache() -> Dict[str, Any]:
             cache_data["hooks"][hook_name].append({
                 "module_name": hook_info.module_name,
                 "module_path": hook_info.module_path,
-                "function_module": hook_info.function.__module__,
-                "function_name": hook_info.function.__name__
+                "function_module": hook_info.function_module,
+                "function_name": hook_info.function_name
             })
 
     log(f"Built hooks cache with {len(cache_data['hooks'])} hook names")
@@ -435,8 +497,11 @@ def discover_module_hooks(force_regenerate: bool = False) -> Dict[str, Any]:
     """
     Discover all module hooks by scanning for @register_module_hook decorators.
 
-    If cache exists, uses it. Otherwise, scans all modules and builds cache.
-    No throttle - trust cache if it exists, only rescan if missing or force_regenerate=True.
+    Loads hook metadata from cache into hot cache (strings only, no callables).
+    Actual imports happen lazily via get_hook_handlers().
+
+    If hot cache already populated, no-ops. If cache exists, loads JSON into hot cache.
+    Otherwise, scans and builds cache.
 
     Args:
         force_regenerate: If True, force rescan even if cache exists
@@ -451,12 +516,36 @@ def discover_module_hooks(force_regenerate: bool = False) -> Dict[str, Any]:
     """
     trace_in()
 
-    # Check if cache exists and should be used
+    # Check if hot cache already populated (avoid redundant work)
+    if not force_regenerate and hooks:
+        debug(f"Hot cache already populated with {len(hooks)} hook names - skipping discovery")
+        # Return cached structure (rebuild from hot cache)
+        cache_data = _build_hooks_cache()
+        return trace_out(cache_data)
+
+    # Check if cold cache exists and should be used
     if not force_regenerate and CACHE_FILE.exists():
-        cache_data = _load_hooks_cache()
-        if cache_data is not None:
-            log("Using cached module hooks")
-            return trace_out(cache_data)
+        loaded_cache = _load_hooks_cache()
+        if loaded_cache is not None:
+            log("Using cached module hooks - populating hot cache with metadata")
+
+            # Populate hot cache with metadata (no callables yet - lazy loaded)
+            for hook_name, hook_list in loaded_cache.get('hooks', {}).items():
+                if hook_name not in hooks:
+                    hooks[hook_name] = []
+
+                for hook_dict in hook_list:
+                    hook_info = HookInfo(
+                        module_name=hook_dict['module_name'],
+                        module_path=hook_dict['module_path'],
+                        function_module=hook_dict['function_module'],
+                        function_name=hook_dict['function_name'],
+                        function=None  # Lazy-loaded by get_hook_handlers()
+                    )
+                    hooks[hook_name].append(hook_info)
+
+            log(f"Populated hot cache with {len(hooks)} hook names (callables will be lazy-loaded)")
+            return trace_out(loaded_cache)
 
     # Cache doesn't exist or force_regenerate - scan for hooks
     log("Discovering module hooks by scanning for @register_module_hook decorators...")

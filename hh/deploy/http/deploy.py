@@ -36,7 +36,7 @@ from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
 from hh.deploy.deploy_utils import (
     load_whitelist_with_extensions,
 )
-from hh.gateway.registry.module_hooks import run_hooks
+from hh.gateway.registry.module_hooks import run_hooks, discover_module_hooks
 
 def _iso_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -857,6 +857,14 @@ def deploy() -> bool:
     if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
+
+    # Discover module hooks (load from cache or scan)
+    log("Discovering module hooks...")
+    try:
+        discover_module_hooks()
+        log("Module hooks discovery complete")
+    except Exception as e:
+        warn(f"Module hooks discovery failed: {e}")
 
     # Run test hooks at start of deployment
     log("Running test-deploy-start hooks...")
