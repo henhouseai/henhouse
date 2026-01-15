@@ -1,6 +1,11 @@
-# Page classes from self_doc module to include in JavaScript whitelist
+from __future__ import annotations
+from typing import List
 
-DOCUMENT_CLASSES = [
-    'document',
-    'doc_section',
+JS_PAGE_CLASSES_WHITELIST: List[str] = [
+    'source-code-file-page-data.js',
+    'document-page-data.ts',
+    'doc-section-page-data.ts',
 ]
+
+
+
