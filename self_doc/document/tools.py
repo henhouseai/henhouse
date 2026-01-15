@@ -23,10 +23,12 @@ from hh.gateway.registry.tool_whitelist import register_tool
     },
     mcp_tiers=[3, 4],
     api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
     role_whitelist=['worker']
 )
 @register_tool(
     tool_name='document_combo',
+    app_action_tiers=[3, 4],
     app_action_group='document',
     app_action_label='Edit Document'
 )
