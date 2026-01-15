@@ -1,5 +1,5 @@
 """
-Flask Module - Web Serving Subsystem
+NGINX/Flask Module - Web Serving Subsystem
 
 Provides Flask application deployment, NGINX reverse proxy configuration,
 and SSL certificate management for Henhouse projects.
@@ -13,7 +13,7 @@ This module will contain:
 """
 
 MODULE = {
-    "name": "flask",
+    "name": "nginx_flask",
     "version": "1.0.0",
     "description": "Web serving subsystem - Flask apps, NGINX config, SSL certificates",
     "dependencies": []
