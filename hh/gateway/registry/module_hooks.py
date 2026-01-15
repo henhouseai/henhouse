@@ -289,14 +289,14 @@ def run_hooks(hook_name: str, *args, **kwargs) -> bool:
             # Check for explicit False return (indicates failure)
             if result is False:
                 warn(f"Hook '{hook_name}' from module '{module_name}' returned False - stopping")
-                report_error("hook", f"Hook '{hook_name}' from module '{module_name}' returned False")
+                report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' returned False")
                 return trace_out(False)
 
             debug(f"Hook '{hook_name}' from module '{module_name}' succeeded")
 
         except Exception as e:
             warn(f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
-            report_error("hook", f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
+            report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
             return trace_out(False)
 
     log(f"All hooks for '{hook_name}' completed successfully")

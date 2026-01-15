@@ -143,7 +143,7 @@ def test_hook_returns_false():
     trace_in("test_hook_returns_false")
     log("Test hook intentionally returning False")
     print("[users] test-error-handling: Intentionally returning False")
-    report_error("test-hook", "Test hook intentionally returned False for error handling test")
+    report_error("deployment", "Test hook intentionally returned False for error handling test")
     return trace_out(False)
 
 
