@@ -35,6 +35,7 @@ from typing import Any, Callable, Dict, List, Optional
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.registry.module_discovery import load_manifest
 from hh.deploy.cache.cache_cleanup_registry import register_cache_cleanup, get_deployment_paths
+from hh.gateway.error.error_store import report_error
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -93,22 +94,22 @@ def _discover_module_from_function(func: Callable) -> Optional[tuple[str, str]]:
     trace_in()
 
     if not hasattr(func, '__code__') or not func.__code__.co_filename:
-        debug(f"Function {func.__name__} has no __code__.co_filename attribute")
+        log(f"Function {func.__name__} has no __code__.co_filename attribute")
         return trace_out(None)
 
     # Normalize paths for cross-platform compatibility (especially Windows)
     current_dir = os.path.normcase(os.path.normpath(os.path.dirname(os.path.abspath(func.__code__.co_filename))))
     project_root = os.path.normcase(os.path.normpath(os.getcwd()))
 
-    debug(f"Looking for module for {func.__name__}: starting from {current_dir}, project_root={project_root}")
+    log(f"Looking for module for {func.__name__}: starting from {current_dir}, project_root={project_root}")
 
     # Walk up directories until we find __module__.py or hit project root
     while current_dir and current_dir != project_root:
         manifest_path = os.path.join(current_dir, '__module__.py')
-        debug(f"Checking for __module__.py at: {current_dir}")
+        log(f"Checking for __module__.py at: {current_dir}")
 
         if os.path.exists(manifest_path):
-            debug(f"Found __module__.py at {manifest_path}")
+            log(f"Found __module__.py at {manifest_path}")
             # Found a module! Load the manifest
             manifest = load_manifest(current_dir)
             if manifest and 'name' in manifest:
@@ -119,7 +120,7 @@ def _discover_module_from_function(func: Callable) -> Optional[tuple[str, str]]:
                 warn(f"Found __module__.py at {current_dir} but failed to load manifest")
                 return trace_out(None)
         else:
-            debug(f"No __module__.py at {current_dir}, moving up")
+            log(f"No __module__.py at {current_dir}, moving up")
 
         # Move up one directory
         parent_dir = os.path.normcase(os.path.normpath(os.path.dirname(current_dir)))
@@ -128,7 +129,7 @@ def _discover_module_from_function(func: Callable) -> Optional[tuple[str, str]]:
             break
         current_dir = parent_dir
 
-    debug(f"No module found for function {func.__name__} (searched up from {func.__code__.co_filename})")
+    log(f"No module found for function {func.__name__} (searched up from {func.__code__.co_filename})")
     return trace_out(None)
 
 
@@ -288,12 +289,14 @@ def run_hooks(hook_name: str, *args, **kwargs) -> bool:
             # Check for explicit False return (indicates failure)
             if result is False:
                 warn(f"Hook '{hook_name}' from module '{module_name}' returned False - stopping")
+                report_error("hook", f"Hook '{hook_name}' from module '{module_name}' returned False")
                 return trace_out(False)
 
             debug(f"Hook '{hook_name}' from module '{module_name}' succeeded")
 
         except Exception as e:
             warn(f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
+            report_error("hook", f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
             return trace_out(False)
 
     log(f"All hooks for '{hook_name}' completed successfully")

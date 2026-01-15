@@ -8,6 +8,7 @@ from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.gateway import get_gateway
 from hh.gateway.connection.root_connection import RootConnection
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
+from hh.gateway.error.error_store import report_error
 import datetime
 
 trace_in = lambda message=None: None
@@ -142,6 +143,7 @@ def test_hook_returns_false():
     trace_in("test_hook_returns_false")
     log("Test hook intentionally returning False")
     print("[users] test-error-handling: Intentionally returning False")
+    report_error("test-hook", "Test hook intentionally returned False for error handling test")
     return trace_out(False)
 
 

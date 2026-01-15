@@ -874,8 +874,10 @@ def deploy() -> bool:
             log("Test hooks executed successfully")
         else:
             warn("Test hook execution returned False")
+            report_error("deploy", "Deployment stopped because test-deploy-start hook failed")
     except Exception as e:
         warn(f"Test hook execution failed: {e}")
+        report_error("deploy", f"Deployment stopped because test-deploy-start hook raised exception: {e}")
         # Don't fail deployment on test hook failure for now
 
     # Test error handling with intentional failures
@@ -884,10 +886,13 @@ def deploy() -> bool:
         success = run_hooks('test-error-handling')
         if success:
             warn("ERROR: test-error-handling hooks returned True - should have failed!")
+            report_error("deploy", "test-error-handling hooks returned True when they should have failed (test failure)")
         else:
             log("test-error-handling hooks failed as expected")
+            report_error("deploy", "Deployment stopped because test-error-handling hook failed (expected for error handling test)")
     except Exception as e:
         log(f"test-error-handling hooks raised exception (expected): {e}")
+        report_error("deploy", f"Deployment stopped because test-error-handling hook raised exception (expected): {e}")
 
     # Detect project context
     current_path = Path.cwd()
