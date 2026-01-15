@@ -1534,7 +1534,7 @@ def deploy() -> bool:
                                     # Registry is at: source/hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js
                                     # Module file is at: source/hh/deploy/site/js/{module}/deploy/site/ts/page-classes/{filename}
                                     # So relative path should be: ../../{module}/deploy/site/ts/page-classes/{filename}
-                                    relative_parts = ['..', '..', module.path, 'deploy', 'site', 'ts', 'page-classes', filename]
+                                    relative_parts = ['..', '..', '..', '..', module.path, 'deploy', 'site', 'ts', 'page-classes', filename]
                                     relative_path_str = '/'.join(relative_parts)
                                     if relative_path_str not in page_class_files:
                                         page_class_files.append(relative_path_str)
