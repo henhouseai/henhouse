@@ -208,7 +208,6 @@ def get_hook_handlers(hook_name: str) -> List[Callable]:
     trace_in()
 
     if hook_name not in hooks:
-        debug(f"No hooks registered for '{hook_name}'")
         return trace_out([])
 
     hook_list = hooks[hook_name]
@@ -271,7 +270,6 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
     handlers = get_hook_handlers(hook_name)
 
     if not handlers:
-        debug(f"No hooks registered for '{hook_name}' - silent no-op")
         return trace_out([])
 
     log(f"Running {len(handlers)} hooks for '{hook_name}'")
@@ -529,7 +527,7 @@ def discover_module_hooks(force_regenerate: bool = False) -> Dict[str, Any]:
 
     # Check if hot cache already populated (avoid redundant work)
     if not force_regenerate and hooks:
-        debug(f"Hot cache already populated with {len(hooks)} hook names - skipping discovery")
+        log(f"Hot cache already populated with {len(hooks)} hook names - skipping discovery")
         # Return cached structure (rebuild from hot cache)
         cache_data = _build_hooks_cache()
         return trace_out(cache_data)
