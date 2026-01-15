@@ -854,6 +854,20 @@ def deploy() -> bool:
         trace_out()
         return False
 
+    # Initialize hook results collection
+    hook_results: List[Dict[str, Any]] = []
+
+    # Pre-deployment validation hooks
+    if not is_error():
+        try:
+            log("Running pre-deployment validation hooks")
+            results = run_hooks('deploy_pre_validation')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Pre-deployment validation hooks failed: {e}")
+            report_error("backend", f"Pre-deployment validation hooks failed: {e}")
+
     # Detect project context
     current_path = Path.cwd()
     while current_path != current_path.parent:
@@ -876,7 +890,18 @@ def deploy() -> bool:
     EXT_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'EXT_DEPLOY_WHITELIST')
     HH_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'HH_EXTRA_DEPLOY_FILES')
     EXT_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXT_EXTRA_DEPLOY_FILES')
-    
+
+    # Config loading hooks
+    if not is_error():
+        try:
+            log("Running config loading hooks")
+            results = run_hooks('deploy_load_config')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Config loading hooks failed: {e}")
+            report_error("backend", f"Config loading hooks failed: {e}")
+
     # Load deployment configuration from install config
     cfg_path = _install_config_path(project_name)
     if not cfg_path.exists():
@@ -955,8 +980,16 @@ def deploy() -> bool:
     dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
-    # Initialize hook results collection
-    hook_results: List[Dict[str, Any]] = []
+    # Git preservation hooks
+    if not is_error():
+        try:
+            log("Running git preservation hooks")
+            results = run_hooks('deploy_git_preserve')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Git preservation hooks failed: {e}")
+            report_error("backend", f"Git preservation hooks failed: {e}")
 
     # Stop running daemons prior to deployment
     if not is_error():
@@ -991,6 +1024,17 @@ def deploy() -> bool:
             warn(f"Failed to preserve git directory: {e}")
             report_error("backend", f"Failed to preserve git directory: {e}")
 
+    # Directory sterilization hooks
+    if not is_error():
+        try:
+            log("Running directory sterilization hooks")
+            results = run_hooks('deploy_sterilize_directory')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Directory sterilization hooks failed: {e}")
+            report_error("backend", f"Directory sterilization hooks failed: {e}")
+
     # Sterilize deployment directory (remove everything except preserved git)
     if not is_error():
         try:
@@ -1013,6 +1057,17 @@ def deploy() -> bool:
             warn(f"Failed to sterilize deployment directory: {e}")
             report_error("backend", f"Failed to sterilize deployment directory: {e}")
 
+    # Git restoration hooks
+    if not is_error():
+        try:
+            log("Running git restoration hooks")
+            results = run_hooks('deploy_git_restore')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Git restoration hooks failed: {e}")
+            report_error("backend", f"Git restoration hooks failed: {e}")
+
     # Restore git folder
     if not is_error() and git_preserved:
         try:
@@ -1024,6 +1079,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to restore git directory: {e}")
             report_error("backend", f"Failed to restore git directory: {e}")
+
+    # Code deployment hooks
+    if not is_error():
+        try:
+            log("Running code deployment hooks")
+            results = run_hooks('deploy_code')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Code deployment hooks failed: {e}")
+            report_error("backend", f"Code deployment hooks failed: {e}")
 
     # Deploy main code
     if not is_error():
@@ -1053,6 +1119,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to deploy ext code: {e}")
             report_error("backend", f"Failed to deploy ext code: {e}")
+
+    # Ext cleanup hooks
+    if not is_error():
+        try:
+            log("Running ext cleanup hooks")
+            results = run_hooks('deploy_ext_cleanup')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Ext cleanup hooks failed: {e}")
+            report_error("backend", f"Ext cleanup hooks failed: {e}")
 
     # Clean ext/deploy directory but preserve whitelisted items (if ext/ was deployed)
     if not is_error() and ext_code_deployed:
@@ -1097,6 +1174,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to clean ext/deploy directory while preserving whitelisted items: {e}")
             report_error("backend", f"Failed to clean ext/deploy directory while preserving whitelisted items: {e}")
+
+    # Module deployment hooks
+    if not is_error():
+        try:
+            log("Running module deployment hooks")
+            results = run_hooks('deploy_modules')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Module deployment hooks failed: {e}")
+            report_error("backend", f"Module deployment hooks failed: {e}")
 
     # Deploy discovered peer modules
     if not is_error():
@@ -1177,6 +1265,17 @@ def deploy() -> bool:
             warn(f"Error deploying modules: {e}")
             report_error("backend", f"Error deploying modules: {e}")
 
+    # Framework cleanup hooks
+    if not is_error():
+        try:
+            log("Running framework cleanup hooks")
+            results = run_hooks('deploy_framework_cleanup')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Framework cleanup hooks failed: {e}")
+            report_error("backend", f"Framework cleanup hooks failed: {e}")
+
     # Clean deployment directory but preserve whitelisted items
     if not is_error():
         deploy_dir = dest / 'hh' / 'deploy'
@@ -1218,6 +1317,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to clean deploy directory while preserving whitelisted items: {e}")
             report_error("backend", f"Failed to clean deploy directory while preserving whitelisted items: {e}")
+
+    # Cache cleanup hooks
+    if not is_error():
+        try:
+            log("Running cache cleanup hooks")
+            results = run_hooks('deploy_cache_cleanup')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Cache cleanup hooks failed: {e}")
+            report_error("backend", f"Cache cleanup hooks failed: {e}")
 
     # Clean cache files
     if not is_error():
@@ -1368,6 +1478,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to deploy context folders: {e}")
             report_error("backend", f"Failed to deploy context folders: {e}")
+
+    # Site assets deployment hooks
+    if not is_error():
+        try:
+            log("Running site assets deployment hooks")
+            results = run_hooks('deploy_site_assets')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Site assets deployment hooks failed: {e}")
+            report_error("backend", f"Site assets deployment hooks failed: {e}")
 
     # Deploy site folders (js, css, misc)
     if not is_error():
@@ -1610,6 +1731,17 @@ def deploy() -> bool:
             warn(f"Failed to deploy site folders: {e}")
             report_error("backend", f"Failed to deploy site folders: {e}")
 
+    # Permissions setup hooks
+    if not is_error():
+        try:
+            log("Running permissions setup hooks")
+            results = run_hooks('deploy_permissions')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Permissions setup hooks failed: {e}")
+            report_error("backend", f"Permissions setup hooks failed: {e}")
+
     # Set ownership and permissions
     if not is_error():
         ownership_set = False
@@ -1638,6 +1770,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to set ownership and permissions: {e}")
             report_error("backend", f"Failed to set ownership and permissions: {e}")
+
+    # Cache permissions setup hooks
+    if not is_error():
+        try:
+            log("Running cache permissions setup hooks")
+            results = run_hooks('deploy_cache_permissions')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Cache permissions setup hooks failed: {e}")
+            report_error("backend", f"Cache permissions setup hooks failed: {e}")
 
     # Set up cache permissions
     if not is_error():
@@ -1670,6 +1813,17 @@ def deploy() -> bool:
         except Exception as e:
             warn(f"Failed to set up cache permissions: {e}")
             report_error("backend", f"Failed to set up cache permissions: {e}")
+
+    # Logs setup hooks
+    if not is_error():
+        try:
+            log("Running logs setup hooks")
+            results = run_hooks('deploy_logs_setup')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Logs setup hooks failed: {e}")
+            report_error("backend", f"Logs setup hooks failed: {e}")
 
     # Set up logs directory for Flask daemons
     if not is_error():
@@ -1759,7 +1913,17 @@ def deploy() -> bool:
     deployment_result: bool = not is_error()
     if deployment_result:
         log("Deployment completed successfully")
-        
+
+        # Manifest update hooks
+        try:
+            log("Running manifest update hooks")
+            results = run_hooks('deploy_manifest_update')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Manifest update hooks failed: {e}")
+            report_error("backend", f"Manifest update hooks failed: {e}")
+
         # Add to manifest
         try:
             _manifest_add_site(project_name, domain, deployment_mode)
