@@ -1471,23 +1471,34 @@ def deploy() -> bool:
                         """Convert kebab-case to snake_case (e.g., 'source-code-file' -> 'source_code_file')."""
                         return kebab.replace('-', '_')
                     
-                    # Collect page class files from both hh/ and ext/ page-classes/ folders
-                    # Process whitelist and check if files exist in either location
+                    # Collect page class files from hh/, ext/, and module page-classes/ folders
+                    # Process whitelist and check if files exist in any location
                     # Store relative paths from registry file location (hh/deploy/site/ts/) to page-classes files
                     page_class_files: List[str] = []
-                    
+
                     # Registry file will be at: source/hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js
                     # So we calculate relative paths from: source/hh/deploy/site/js/hh/deploy/site/ts/
                     registry_file_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts'
                     hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
                     ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
-                    
+
                     # Check if ext/ directory exists (not an error if missing)
                     ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
                     if not ext_dir_exists:
                         log(f"Extension page-classes directory not found: {ext_page_classes_dir} (this is normal if ext/ folder doesn't exist)")
+
+                    # Get active modules for module page-classes directories
+                    try:
+                        from hh.deploy.deploy_utils import get_active_modules
+                        modules = get_active_modules()
+                        log(f"Found {len(modules)} active modules for page-classes discovery")
+                    except Exception as e:
+                        warn(f"Error getting active modules: {e}")
+                        modules = []
                     
                     for filename in JS_PAGE_CLASSES_WHITELIST:
+                        file_found = False
+
                         # Check hh/ first
                         hh_file = hh_page_classes_dir / filename
                         if hh_file.exists() and hh_file.is_file():
@@ -1497,8 +1508,10 @@ def deploy() -> bool:
                             if relative_path_str not in page_class_files:
                                 page_class_files.append(relative_path_str)
                                 log(f"Found page class file in hh/: {relative_path_str}")
-                        elif ext_dir_exists:
-                            # Check ext/ if not found in hh/ and ext/ directory exists
+                                file_found = True
+
+                        # Check ext/ if not found in hh/ and ext/ directory exists
+                        if not file_found and ext_dir_exists:
                             ext_file = ext_page_classes_dir / filename
                             if ext_file.exists() and ext_file.is_file():
                                 # Calculate relative path from registry file directory (hh/deploy/site/ts/)
@@ -1509,12 +1522,27 @@ def deploy() -> bool:
                                 if relative_path_str not in page_class_files:
                                     page_class_files.append(relative_path_str)
                                     log(f"Found page class file in ext/: {relative_path_str}")
-                            else:
-                                # File not found in either location - log but don't error
-                                log(f"Page class file not found (whitelisted but missing): {filename}")
-                        else:
-                            # File not found in hh/ and ext/ doesn't exist - log but don't error
-                            log(f"Page class file not found in hh/ and ext/ not available: {filename}")
+                                    file_found = True
+
+                        # Check module directories if not found in hh/ or ext/
+                        if not file_found:
+                            for module in modules:
+                                module_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / module.path / 'deploy' / 'site' / 'ts' / 'page-classes'
+                                module_file = module_page_classes_dir / filename
+                                if module_file.exists() and module_file.is_file():
+                                    # Calculate relative path from registry file directory (hh/deploy/site/ts/)
+                                    # From: hh/deploy/site/ts/ -> Up 4 levels to js/ -> Then module/deploy/site/ts/page-classes/
+                                    relative_path = module_file.relative_to(registry_file_dir.parent.parent.parent.parent)
+                                    relative_path_str = str(relative_path).replace('\\', '/')
+                                    if relative_path_str not in page_class_files:
+                                        page_class_files.append(relative_path_str)
+                                        log(f"Found page class file in module {module.name}: {relative_path_str}")
+                                        file_found = True
+                                        break
+
+                        if not file_found:
+                            # File not found in any location - log but don't error
+                            log(f"Page class file not found (whitelisted but missing): {filename}")
                     
                     # Generate registry file
                     if page_class_files:
