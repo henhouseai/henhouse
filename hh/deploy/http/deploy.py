@@ -1259,70 +1259,24 @@ def deploy() -> bool:
             warn(f"Failed to clean cache files: {e}")
             report_error("backend", f"Failed to clean cache files: {e}")
 
-    # Deploy Flask app with tier suffixes
+    # Deploy Flask apps via module hooks
+    flask_deployed = []
     if not is_error():
-        flask_deployed = []
         try:
-            app_source = source / FLASK_APP_SOURCE
-            if app_source.exists():
-                for i, tier in enumerate(HENHOUSE_TIERS):
-                    app_name = f'{project_name}_{tier}.py'
-                    app_dest = dest / app_name
-                    
-                    # Read the app.py content
-                    with open(app_source, 'r') as f:
-                        content = f.read()
-                    
-                    # Replace the port with the tier-specific port
-                    port = start_port + i
-                    content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
-                    
-                    # Replace the log file path with tier-specific path
-                    log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
-                    content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-                    
-                    # Write the modified content
-                    with open(app_dest, 'w') as f:
-                        f.write(content)
-                    
-                    flask_deployed.append(app_name)
-                    log(f"Deployed Flask app: {app_name} (port {port})")
-                log(f"Flask deployment complete: {len(flask_deployed)} instances")
+            log("Deploying Flask apps via module hooks")
+            results = run_hooks('deploy_flask_apps')
+            if not results:
+                warn("Flask app deployment hooks failed or returned no results")
+                report_error("backend", "Failed to deploy Flask apps")
             else:
-                log("Flask app.py not found, skipping Flask deployment")
+                hook_results.extend(results)
+                # Extract flask_deployed for backwards compatibility
+                for hook_result in results:
+                    if "flask_deployed" in hook_result:
+                        flask_deployed = hook_result["flask_deployed"]
         except Exception as e:
             warn(f"Failed to deploy Flask apps: {e}")
             report_error("backend", f"Failed to deploy Flask apps: {e}")
-
-    # Deploy media server Flask app
-    if not is_error():
-        try:
-            media_source = source / MEDIA_SERVER_SOURCE
-            if media_source.exists():
-                media_dest = dest / f'{project_name}_media.py'
-                
-                # Read the media_server.py content
-                with open(media_source, 'r') as f:
-                    content = f.read()
-                
-                # Replace the port with media server port (after all tier apps)
-                media_port = start_port + len(HENHOUSE_TIERS)
-                content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {media_port}')
-                
-                # Replace the log file path with media server path
-                log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
-                content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-                
-                # Write the modified content
-                with open(media_dest, 'w') as f:
-                    f.write(content)
-                
-                log(f"Deployed Media Server Flask app: {project_name}_media.py (port {media_port})")
-            else:
-                log("Media server media_server.py not found, skipping media server deployment")
-        except Exception as e:
-            warn(f"Failed to deploy media server: {e}")
-            report_error("backend", f"Failed to deploy media server: {e}")
 
     # Deploy maintenance worker script
     if not is_error():
@@ -1766,276 +1720,45 @@ def deploy() -> bool:
             warn(f"Failed to restart daemons after deployment: {e}")
             report_error("backend", f"Failed to restart daemons after deployment: {e}")
 
-    # Step: HTTP/SSL Deployment (NGINX setup and certificate management)
+    # Deploy NGINX and SSL via module hooks
     nginx_deployed = False
     certificate_created = False
-    server_ip = get_server_ip()  # Detect server IP for all deployments
-    log(f"Detected server IP: {server_ip}")
-    deployment_mode = "https"  # Track deployment mode for manifest
+    certificate_path = None
+    server_ip = ""
+    deployment_mode = "https"
+    nginx_status_data = {}
     if not is_error():
         try:
-            if ssl_enabled:
-                log(f"Starting HTTPS deployment for domain: {domain}")
-                deployment_mode = "https" if not is_local else "https_local"
+            log("Deploying NGINX and SSL via module hooks")
+            results = run_hooks('deploy_nginx_and_ssl')
+            if not results:
+                warn("NGINX/SSL deployment hooks failed or returned no results")
+                report_error("action", "Failed to deploy NGINX/SSL")
             else:
-                log(f"Starting HTTP-only deployment for domain: {domain}")
-                deployment_mode = "http" if not is_local else "http_local"
-            
-            # Import NGINX helpers
-            from hh.deploy.http.nginx_config_helpers import detect_flask_ports
-            
-            if ssl_enabled:
-            
-                # SSL deployment path
-                # Check for certificate creation flags
-                create_mode = None
-                if gateway.get_arg('self_cert') or gateway.get_arg('self-cert'):
-                    create_mode = "self-cert"
-                elif gateway.get_arg('get_cert') or gateway.get_arg('get-cert'):
-                    create_mode = "get-cert"
-                    if is_local:
-                        warn("Cannot obtain Let's Encrypt certificate for local domain")
-                        warn(f"Domain '{domain}' is detected as local - use -self-cert flag instead")
-                        report_error("action", "Cannot obtain Let's Encrypt certificate for local domain")
-                        trace_out()
-                        return False
-                
-                    # Determine certificate path based on certificate type
-                if create_mode == "self-cert":
-                    certificate_path = ssl_cert_dir_self_signed / domain
-                elif create_mode == "get-cert":
-                    certificate_path = ssl_cert_dir_letsencrypt / domain
-                else:
-                    # Try to detect existing certificate (check both locations)
-                    letsencrypt_path = ssl_cert_dir_letsencrypt / domain / "fullchain.pem"
-                    self_signed_path = ssl_cert_dir_self_signed / domain / "fullchain.pem"
-                    if letsencrypt_path.exists():
-                        certificate_path = ssl_cert_dir_letsencrypt / domain
-                        log(f"Found existing Let's Encrypt certificate at {certificate_path}")
-                    elif self_signed_path.exists():
-                        certificate_path = ssl_cert_dir_self_signed / domain
-                        log(f"Found existing self-signed certificate at {certificate_path}")
-                    else:
-                        # Default to Let's Encrypt location if no certificate found
-                        certificate_path = ssl_cert_dir_letsencrypt / domain
-                        warn(f"Certificate not found at either {letsencrypt_path} or {self_signed_path}")
-                        warn("Use -self-cert flag to generate self-signed certificate, or -get-cert flag to obtain Let's Encrypt certificate")
-                        report_error("action", f"Certificate not found for domain {domain}")
-                        trace_out()
-                        return False
-                
-                # Determine certificate file path
-                # NGINX always expects fullchain.pem and privkey.pem
-                cert_file_path = certificate_path / "fullchain.pem"
-                
-                # For self-signed certificates, create the certificate BEFORE setting up NGINX
-                # (NGINX config test requires the certificate file to exist)
-                if create_mode == "self-cert":
-                    log("Creating self-signed certificate before NGINX setup...")
-                    from hh.deploy.deploy_utils import generate_self_signed_certificate
-                    cert_name = domain.replace('.', '_')  # Use domain as cert name base
-                    cert_owner_user = "root"
-                    cert_owner_group = "root"
-                    
-                    if generate_self_signed_certificate(certificate_path, cert_name, cert_owner_user, cert_owner_group):
-                        certificate_created = True
-                        log(f"Self-signed certificate generated at {certificate_path}")
-                        
-                        # Verify certificate exists and fix permissions if needed
-                        if cert_file_path.exists():
-                            if not ensure_certificate_exists(
-                                cert_path=str(cert_file_path),
-                                cert_owner_user="root",
-                                cert_owner_group="root",
-                                create_mode=None  # Don't create, just verify/fix
-                            ):
-                                warn("Certificate verification failed after creation")
-                                report_error("action", "Certificate verification failed after creation")
-                    else:
-                        warn("Failed to generate self-signed certificate")
-                        report_error("action", "Failed to generate self-signed certificate")
-                        trace_out()
-                        return False
-            
-                # Verify certificate exists (for existing certificates or after self-signed creation)
-                if create_mode is None and not cert_file_path.exists():
-                    warn(f"Certificate file not found at {cert_file_path}")
-                    report_error("action", f"Certificate file not found at {cert_file_path}")
-                    trace_out()
-                    return False
-                
-                # Set up NGINX with SSL configuration (pointing to certificate path)
-                # For self-signed: certificate already exists
-                # For Let's Encrypt: cert doesn't exist yet, but NGINX needs to be running for ACME challenge
-                log("Installing NGINX SSL configuration...")
-                
-                if is_local:
-                    # For local deployments, detect server IP and use client IP access control
-                    server_ip = get_server_ip()
-                    log(f"Local deployment: detected server IP: {server_ip}")
-                    log(f"Local deployment: using client IP access control: {local_allow_block}")
-                    
-                    # Generate local SSL config
-                    config_content = create_nginx_ssl_config_local(domain, project_name, local_allow_block, server_ip, str(certificate_path))
-                    if not config_content:
-                        warn("Failed to generate local NGINX SSL configuration")
-                        report_error("action", "Failed to generate local NGINX SSL configuration")
-                    else:
-                        # Write to sites-available
-                        config_file = nginx_sites_available / domain
-                        config_file.write_text(config_content)
-                        log(f"Local NGINX SSL config written to: {config_file}")
-                        
-                        # Ensure symlink exists in sites-enabled
-                        enabled_file = nginx_sites_enabled / domain
-                        if enabled_file.exists():
-                            enabled_file.unlink()
-                        enabled_file.symlink_to(config_file)
-                        log(f"Symlink created: {enabled_file}")
-                        
-                        # Test Nginx configuration
-                        test_result = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
-                        if test_result.returncode != 0:
-                            warn(f"Nginx configuration test failed: {test_result.stderr}")
-                            report_error("action", f"Nginx configuration test failed: {test_result.stderr}")
-                        else:
-                            log("Nginx SSL configuration test passed")
-
-                            # Reload Nginx
-                            reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
-                            if reload_result.returncode != 0:
-                                restart_result = subprocess.run(['systemctl', 'restart', 'nginx'], capture_output=True, text=True)
-                                if restart_result.returncode != 0:
-                                    warn(f"Failed to reload/restart Nginx: {restart_result.stderr}")
-                                    report_error("action", f"Failed to reload/restart Nginx: {restart_result.stderr}")
-                                else:
-                                    log("Nginx restarted successfully")
-                                    nginx_deployed = True
-                            else:
-                                log("Nginx reloaded successfully")
-                                nginx_deployed = True
-
-                            # Create decoy server for local deployments
-                            if nginx_deployed:
-                                if not create_local_decoy(server_ip, nginx_sites_available, nginx_sites_enabled):
-                                    warn("Failed to create local decoy server")
-                else:
-                    # For public deployments, use standard SSL config (binds to all interfaces)
-                    if install_nginx_ssl_config(domain, project_name, str(certificate_path), nginx_sites_available, nginx_sites_enabled):
-                        nginx_deployed = True
-                        log("NGINX SSL configuration installed successfully")
-                    else:
-                        warn("NGINX SSL configuration installation failed")
-                        report_error("action", "NGINX SSL configuration installation failed")
-                
-                # Now get Let's Encrypt certificate if needed (NGINX is running, which is required for ACME challenge)
-                # Note: Self-signed certificates are already created above, before NGINX setup
-                if not is_error() and create_mode == "get-cert":
-                    log("Obtaining Let's Encrypt certificate (NGINX must be running for ACME challenge)...")
-                    from hh.deploy.deploy_utils import get_certificate_from_letsencrypt
-                    if get_certificate_from_letsencrypt(domain, certificate_path):
-                        certificate_created = True
-                        log(f"Let's Encrypt certificate obtained for {domain}")
-                        
-                        # Verify certificate exists and fix permissions if needed
-                        if cert_file_path.exists():
-                            if not ensure_certificate_exists(
-                                cert_path=str(cert_file_path),
-                                cert_owner_user="root",
-                                cert_owner_group="root",
-                                create_mode=None  # Don't create, just verify/fix
-                            ):
-                                warn("Certificate verification failed after creation")
-                                report_error("action", "Certificate verification failed after creation")
-                    else:
-                        warn("Failed to obtain Let's Encrypt certificate")
-                        report_error("action", "Failed to obtain Let's Encrypt certificate")
-            
-            else:
-                # HTTP-only deployment path
-                log("Installing NGINX HTTP-only configuration...")
-                
-                if is_local:
-                    # For local deployments, detect server IP and use client IP access control
-                    server_ip = get_server_ip()
-                    log(f"Local deployment: detected server IP: {server_ip}")
-                    log(f"Local deployment: using client IP access control: {local_allow_block}")
-                    
-                    # Generate local HTTP config
-                    config_content = create_nginx_config_local(domain, project_name, local_allow_block, server_ip)
-                    if not config_content:
-                        warn("Failed to generate local NGINX HTTP configuration")
-                        report_error("action", "Failed to generate local NGINX HTTP configuration")
-                    else:
-                        # Write to sites-available
-                        config_file = nginx_sites_available / domain
-                        config_file.write_text(config_content)
-                        log(f"Local NGINX HTTP config written to: {config_file}")
-                        
-                        # Ensure symlink exists in sites-enabled
-                        enabled_file = nginx_sites_enabled / domain
-                        if enabled_file.exists():
-                            enabled_file.unlink()
-                        enabled_file.symlink_to(config_file)
-                        log(f"Symlink created: {enabled_file}")
-                        
-                        # Test Nginx configuration
-                        test_result = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
-                        if test_result.returncode != 0:
-                            warn(f"Nginx configuration test failed: {test_result.stderr}")
-                            report_error("action", f"Nginx configuration test failed: {test_result.stderr}")
-                        else:
-                            log("Nginx HTTP configuration test passed")
-
-                            # Reload Nginx
-                            reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
-                            if reload_result.returncode != 0:
-                                restart_result = subprocess.run(['systemctl', 'restart', 'nginx'], capture_output=True, text=True)
-                                if restart_result.returncode != 0:
-                                    warn(f"Failed to reload/restart Nginx: {restart_result.stderr}")
-                                    report_error("action", f"Failed to reload/restart Nginx: {restart_result.stderr}")
-                                else:
-                                    log("Nginx restarted successfully")
-                                    nginx_deployed = True
-                            else:
-                                log("Nginx reloaded successfully")
-                                nginx_deployed = True
-
-                            # Create decoy server for local deployments
-                            if nginx_deployed:
-                                if not create_local_decoy(server_ip, nginx_sites_available, nginx_sites_enabled):
-                                    warn("Failed to create local decoy server")
-                else:
-                    # For public deployments, use standard HTTP config (binds to all interfaces)
-                    if install_nginx_config(domain, project_name, nginx_sites_available, nginx_sites_enabled):
-                        nginx_deployed = True
-                        log("NGINX HTTP configuration installed successfully")
-                    else:
-                        warn("NGINX HTTP configuration installation failed")
-                        report_error("action", "NGINX HTTP configuration installation failed")
-            
-            # Check NGINX status
-            nginx_status = check_nginx_status()
-            log(f"NGINX status: active={nginx_status.get('is_active', False)}")
-            
+                hook_results.extend(results)
+                # Extract values for backwards compatibility
+                for hook_result in results:
+                    if "nginx_deployed" in hook_result:
+                        nginx_deployed = hook_result["nginx_deployed"]
+                    if "certificate_created" in hook_result:
+                        certificate_created = hook_result["certificate_created"]
+                    if "certificate_path" in hook_result:
+                        certificate_path = hook_result["certificate_path"]
+                    if "deployment_mode" in hook_result:
+                        deployment_mode = hook_result["deployment_mode"]
+                    if "nginx_active" in hook_result:
+                        nginx_status_data = {
+                            'is_active': hook_result.get("nginx_active", False),
+                            'enabled_sites': hook_result.get("nginx_enabled_sites", [])
+                        }
         except Exception as e:
-            warn(f"Failed to deploy HTTP/SSL configuration: {e}")
-            report_error("action", f"Failed to deploy HTTP/SSL configuration: {e}")
+            warn(f"Failed to deploy NGINX/SSL: {e}")
+            report_error("action", f"Failed to deploy NGINX/SSL: {e}")
 
     # Final result
     deployment_result: bool = not is_error()
     if deployment_result:
         log("Deployment completed successfully")
-        
-        # Get NGINX status if available
-        nginx_status_data = {}
-        if 'nginx_status' in locals():
-            nginx_status_data = nginx_status
-        else:
-            try:
-                nginx_status_data = check_nginx_status()
-            except Exception:
-                pass
         
         # Add to manifest
         try:
@@ -2068,7 +1791,7 @@ def deploy() -> bool:
             "hook_results": hook_results,
             "nginx_deployed": nginx_deployed,
             "certificate_created": certificate_created,
-            "certificate_path": str(certificate_path) if ssl_enabled and 'certificate_path' in locals() else None,
+            "certificate_path": certificate_path,
             "nginx_active": nginx_status_data.get('is_active', False),
             "nginx_enabled_sites": nginx_status_data.get('enabled_sites', []),
             "local_allow_block": local_allow_block if is_local else None,
