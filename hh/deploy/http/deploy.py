@@ -36,7 +36,6 @@ from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
 from hh.deploy.deploy_utils import (
     load_whitelist_with_extensions,
 )
-from hh.gateway.registry.module_hooks import run_hooks, discover_module_hooks
 
 def _iso_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -857,42 +856,6 @@ def deploy() -> bool:
     if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
-
-    # Discover module hooks (load from cache or scan)
-    log("Discovering module hooks...")
-    try:
-        discover_module_hooks()
-        log("Module hooks discovery complete")
-    except Exception as e:
-        warn(f"Module hooks discovery failed: {e}")
-
-    # Run test hooks at start of deployment
-    log("Running test-deploy-start hooks...")
-    try:
-        success = run_hooks('test-deploy-start')
-        if success:
-            log("Test hooks executed successfully")
-        else:
-            warn("Test hook execution returned False")
-            report_error("deployment", "Deployment stopped because test-deploy-start hook failed")
-    except Exception as e:
-        warn(f"Test hook execution failed: {e}")
-        report_error("deployment", f"Deployment stopped because test-deploy-start hook raised exception: {e}")
-        # Don't fail deployment on test hook failure for now
-
-    # Test error handling with intentional failures
-    log("Testing error handling with test-error-handling hooks...")
-    try:
-        success = run_hooks('test-error-handling')
-        if success:
-            warn("ERROR: test-error-handling hooks returned True - should have failed!")
-            report_error("deployment", "test-error-handling hooks returned True when they should have failed (test failure)")
-        else:
-            log("test-error-handling hooks failed as expected")
-            report_error("deployment", "Deployment stopped because test-error-handling hook failed (expected for error handling test)")
-    except Exception as e:
-        log(f"test-error-handling hooks raised exception (expected): {e}")
-        report_error("deployment", f"Deployment stopped because test-error-handling hook raised exception (expected): {e}")
 
     # Detect project context
     current_path = Path.cwd()

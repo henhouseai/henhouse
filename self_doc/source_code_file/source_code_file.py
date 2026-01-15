@@ -373,37 +373,56 @@ class SourceCodeFile(Page):
         # No additional cleanup needed; metadata lives on the page row.
         trace_out()
     
+    def modify_source_code_file_info(self, file_path: Optional[str] = None, language: Optional[str] = None) -> bool:
+        """
+        Modify source code file metadata fields.
+        Updates file_path and/or language.
+        """
+        trace_in("modify_source_code_file_info")
+
+        # Get current metadata
+        metadata = self._get_metadata_dict()
+
+        # Track changes
+        changes_made = []
+
+        # Update file_path if provided
+        if file_path is not None:
+            old_value = metadata.get('file_path', '')
+            if file_path != old_value:
+                metadata['file_path'] = file_path
+                self.file_path = file_path
+                changes_made.append(f"file_path: '{old_value}' -> '{file_path}'")
+                log(f"Updated file_path to '{file_path}'")
+
+        # Update language if provided
+        if language is not None:
+            old_value = metadata.get('language', '')
+            if language != old_value:
+                metadata['language'] = language
+                self.language = language
+                changes_made.append(f"language: '{old_value}' -> '{language}'")
+                log(f"Updated language to '{language}'")
+
+        # Write metadata if changes were made
+        if changes_made:
+            if self._write_metadata_dict(metadata):
+                log(f"Successfully updated source code file {self.id}: {', '.join(changes_made)}")
+                self.flag_page_modification("source code file info changed")
+            else:
+                warn("Failed to write metadata")
+                trace_out()
+                return False
+
+        trace_out()
+        return not is_error()
+
+    # Legacy methods for backward compatibility - now just call unified method
     def modify_file_path(self, file_path: str) -> bool:
         """Modify the file_path of this source code file."""
-        trace_in()
-        log(f"Starting file path modification for page {self.id}: '{self.file_path}' -> '{file_path}'")
-        if file_path == self.file_path:
-            log("File path unchanged, no update needed")
-            trace_out()
-            return True
-        metadata = self._get_metadata_dict()
-        metadata['file_path'] = file_path
-        if self._write_metadata_dict(metadata):
-            self.file_path = file_path
-            log(f"Successfully updated page {self.id} file path to '{file_path}'")
-            self.flag_page_modification("file path changed")
-        trace_out()
-        return not is_error()
-    
+        return self.modify_source_code_file_info(file_path=file_path)
+
     def modify_language(self, language: str) -> bool:
         """Modify the language of this source code file."""
-        trace_in()
-        log(f"Starting language modification for page {self.id}: '{self.language}' -> '{language}'")
-        if language == self.language:
-            log("Language unchanged, no update needed")
-            trace_out()
-            return True
-        metadata = self._get_metadata_dict()
-        metadata['language'] = language
-        if self._write_metadata_dict(metadata):
-            self.language = language
-            log(f"Successfully updated page {self.id} language to '{language}'")
-            self.flag_page_modification("language changed")
-        trace_out()
-        return not is_error()
+        return self.modify_source_code_file_info(language=language)
 
