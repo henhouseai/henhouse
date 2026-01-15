@@ -1530,10 +1530,12 @@ def deploy() -> bool:
                                 module_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / module.path / 'deploy' / 'site' / 'ts' / 'page-classes'
                                 module_file = module_page_classes_dir / filename
                                 if module_file.exists() and module_file.is_file():
-                                    # Calculate relative path from registry file directory (hh/deploy/site/ts/)
-                                    # From: hh/deploy/site/ts/ -> Up 4 levels to js/ -> Then module/deploy/site/ts/page-classes/
-                                    relative_path = module_file.relative_to(registry_file_dir.parent.parent.parent.parent)
-                                    relative_path_str = str(relative_path).replace('\\', '/')
+                                    # Calculate relative path from registry file directory (hh/deploy/site/js/hh/deploy/site/ts/)
+                                    # Registry is at: source/hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js
+                                    # Module file is at: source/hh/deploy/site/js/{module}/deploy/site/ts/page-classes/{filename}
+                                    # So relative path should be: ../{module}/deploy/site/ts/page-classes/{filename}
+                                    relative_parts = ['..', module.path, 'deploy', 'site', 'ts', 'page-classes', filename]
+                                    relative_path_str = '/'.join(relative_parts)
                                     if relative_path_str not in page_class_files:
                                         page_class_files.append(relative_path_str)
                                         log(f"Found page class file in module {module.name}: {relative_path_str}")
