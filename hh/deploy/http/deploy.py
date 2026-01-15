@@ -1438,7 +1438,6 @@ def deploy() -> bool:
     # Deploy context folders and files
     if not is_error():
         context_deployed = []
-        site_deployed = []
         try:
             for item_str in CONTEXT_WHITELIST:
                 source_item = source / item_str
@@ -1466,257 +1465,45 @@ def deploy() -> bool:
             warn(f"Failed to deploy context folders: {e}")
             report_error("backend", f"Failed to deploy context folders: {e}")
 
-    # Site assets deployment hooks
+    # Site preparation hooks
     if not is_error():
         try:
-            log("Running site assets deployment hooks")
-            results = run_hooks('deploy_site_assets')
+            log("Running site preparation hooks")
+            results = run_hooks('deploy_site_prepare')
             if results:
                 hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
-            warn(f"Site assets deployment hooks failed: {e}")
-            report_error("backend", f"Site assets deployment hooks failed: {e}")
+            warn(f"Site preparation hooks failed: {e}")
+            report_error("backend", f"Site preparation hooks failed: {e}")
 
-    # Deploy site folders (js, css, misc)
+    # Site deployment hooks (JS, CSS, misc - run in alphabetical order)
+    site_deployed = []
+    js_count = 0
+    css_count = 0
+    misc_count = 0
     if not is_error():
         try:
-            site_dest = dest / 'site'
-            if site_dest.exists():
-                shutil.rmtree(site_dest)
-                log(f"Cleared existing site directory: {site_dest}")
-            site_dest.mkdir(parents=True, exist_ok=True)
-            
-            js_count = 0
-            css_count = 0
-            misc_count = 0
-            
-            # Deploy JS files
-            js_dest = site_dest / 'js'
-            js_dest.mkdir(exist_ok=True)
-            for js_item in JS_WHITELIST:
-                source_item = source / js_item
-                if source_item.exists():
-                    if source_item.is_dir():
-                        # If it's a directory, deploy all .js files in it (preserving subfolder structure)
-                        for js_file in source_item.rglob('*.js'):
-                            # Calculate relative path from source_item to preserve subfolder structure
-                            relative_path = js_file.relative_to(source_item)
-                            dest_js = js_dest / relative_path
-                            # Create parent directories if they don't exist
-                            dest_js.parent.mkdir(parents=True, exist_ok=True)
-                            if dest_js.exists():
-                                dest_js.unlink()
-                            shutil.copy2(js_file, dest_js)
-                            site_deployed.append(f"js/{relative_path.as_posix()}")
-                            js_count += 1
-                            log(f"Deployed JS file from folder: {js_file} -> site/js/{relative_path.as_posix()}")
-                    else:
-                        # If it's a file, deploy it directly to js root
-                        dest_js = js_dest / source_item.name
-                        if dest_js.exists():
-                            dest_js.unlink()
-                        shutil.copy2(source_item, dest_js)
-                        site_deployed.append(f"js/{source_item.name}")
-                        js_count += 1
-                        log(f"Deployed JS file: {js_item} -> site/js/{source_item.name}")
-                else:
-                    log(f"JS file/folder not found: {js_item}")
-            
-            # Generate page-classes-registry.js
-            if not is_error():
-                try:
-                    log("Generating page-classes-registry.js")
-                    
-                    def kebab_to_pascal(kebab: str) -> str:
-                        """Convert kebab-case to PascalCase (e.g., 'source-code-file' -> 'SourceCodeFile')."""
-                        parts = kebab.split('-')
-                        return ''.join(word.capitalize() for word in parts)
-                    
-                    def kebab_to_snake(kebab: str) -> str:
-                        """Convert kebab-case to snake_case (e.g., 'source-code-file' -> 'source_code_file')."""
-                        return kebab.replace('-', '_')
-                    
-                    # Collect page class files from hh/, ext/, and module page-classes/ folders
-                    # Process whitelist and check if files exist in any location
-                    # Store relative paths from registry file location (hh/deploy/site/ts/) to page-classes files
-                    page_class_files: List[str] = []
+            log("Running site deployment hooks")
+            results = run_hooks('deploy_site')
+            if results:
+                hook_results.extend(results)
+                # Extract legacy info for backwards compatibility
+                for hook_result in results:
+                    if "js_files" in hook_result:
+                        site_deployed.extend(hook_result["js_files"])
+                        js_count += hook_result.get("js_count", 0)
+                    if "registry_files" in hook_result:
+                        site_deployed.extend(hook_result["registry_files"])
+                    if "files" in hook_result and hook_result.get("component") == "site_css":
+                        site_deployed.extend(hook_result["files"])
+                        css_count += hook_result.get("count", 0)
+                    if "files" in hook_result and hook_result.get("component") == "site_misc":
+                        site_deployed.extend(hook_result["files"])
+                        misc_count += hook_result.get("count", 0)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Site deployment hooks failed: {e}")
+            report_error("backend", f"Site deployment hooks failed: {e}")
 
-                    # Registry file will be at: source/hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js
-                    # So we calculate relative paths from: source/hh/deploy/site/js/hh/deploy/site/ts/
-                    registry_file_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts'
-                    hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
-                    ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
-
-                    # Check if ext/ directory exists (not an error if missing)
-                    ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
-                    if not ext_dir_exists:
-                        log(f"Extension page-classes directory not found: {ext_page_classes_dir} (this is normal if ext/ folder doesn't exist)")
-
-                    # Get active modules for module page-classes directories
-                    try:
-                        from hh.deploy.deploy_utils import get_active_modules
-                        modules = get_active_modules()
-                        log(f"Found {len(modules)} active modules for page-classes discovery")
-                    except Exception as e:
-                        warn(f"Error getting active modules: {e}")
-                        modules = []
-                    
-                    for filename in JS_PAGE_CLASSES_WHITELIST:
-                        file_found = False
-
-                        # Check hh/ first
-                        hh_file = hh_page_classes_dir / filename
-                        if hh_file.exists() and hh_file.is_file():
-                            # Calculate relative path from registry file directory (hh/deploy/site/ts/)
-                            relative_path = hh_file.relative_to(registry_file_dir)
-                            relative_path_str = str(relative_path).replace('\\', '/')
-                            if relative_path_str not in page_class_files:
-                                page_class_files.append(relative_path_str)
-                                log(f"Found page class file in hh/: {relative_path_str}")
-                                file_found = True
-
-                        # Check ext/ if not found in hh/ and ext/ directory exists
-                        if not file_found and ext_dir_exists:
-                            ext_file = ext_page_classes_dir / filename
-                            if ext_file.exists() and ext_file.is_file():
-                                # Calculate relative path from registry file directory (hh/deploy/site/ts/)
-                                # Need to go up to js/ level, then into ext/ path
-                                # From: hh/deploy/site/ts/ -> Up 4 levels to js/ -> Then ext/deploy/site/ts/page-classes/
-                                relative_path = ext_file.relative_to(registry_file_dir.parent.parent.parent.parent)
-                                relative_path_str = str(relative_path).replace('\\', '/')
-                                if relative_path_str not in page_class_files:
-                                    page_class_files.append(relative_path_str)
-                                    log(f"Found page class file in ext/: {relative_path_str}")
-                                    file_found = True
-
-                        # Check module directories if not found in hh/ or ext/
-                        if not file_found:
-                            for module in modules:
-                                module_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / module.path / 'deploy' / 'site' / 'ts' / 'page-classes'
-                                module_file = module_page_classes_dir / filename
-                                if module_file.exists() and module_file.is_file():
-                                    # Calculate relative path from registry file directory (hh/deploy/site/js/hh/deploy/site/ts/)
-                                    # Registry is at: source/hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js
-                                    # Module file is at: source/hh/deploy/site/js/{module}/deploy/site/ts/page-classes/{filename}
-                                    # So relative path should be: ../../{module}/deploy/site/ts/page-classes/{filename}
-                                    relative_parts = ['..', '..', '..', '..', module.path, 'deploy', 'site', 'ts', 'page-classes', filename]
-                                    relative_path_str = '/'.join(relative_parts)
-                                    if relative_path_str not in page_class_files:
-                                        page_class_files.append(relative_path_str)
-                                        log(f"Found page class file in module {module.name}: {relative_path_str}")
-                                        file_found = True
-                                        break
-
-                        if not file_found:
-                            # File not found in any location - log but don't error
-                            log(f"Page class file not found (whitelisted but missing): {filename}")
-                    
-                    # Generate registry file
-                    if page_class_files:
-                        registry_lines: List[str] = []
-                        registry_lines.append("// Auto-generated during deployment - do not edit manually")
-                        registry_lines.append("")
-                        
-                        # Generate imports
-                        import_lines: List[str] = []
-                        registry_entries: List[str] = []
-                        
-                        for relative_path_str in sorted(page_class_files):
-                            # Extract filename from relative path for base_name conversion
-                            filename = os.path.basename(relative_path_str)
-                            # Remove .js extension and -page-data suffix
-                            base_name = filename.replace('.js', '')
-                            if base_name.endswith('-page-data'):
-                                base_name = base_name[:-10]  # Remove '-page-data'
-                            
-                            # Convert to snake_case for class name (matches actual export names)
-                            class_name = kebab_to_snake(base_name) + '_page_data'
-                            
-                            # Convert to snake_case for registry key
-                            registry_key = kebab_to_snake(base_name)
-                            
-                            # Generate import using full relative path (preserves nested structure)
-                            # For hh/ files: relative_path_str is already correct (e.g., "page-classes/ask-page-data.js")
-                            # For ext/ files: relative_path_str is from js/ level, need to add ../../../../ prefix
-                            if relative_path_str.startswith('ext/'):
-                                # Ext file: go up 4 levels from registry file (hh/deploy/site/ts/) to js/, then into ext/
-                                import_path = f"../../../../{relative_path_str}"
-                            else:
-                                # Hh file: already relative to registry file directory
-                                import_path = f"./{relative_path_str}"
-                            import_lines.append(f"import {{ {class_name} }} from '{import_path}';")
-                            
-                            # Generate registry entry
-                            registry_entries.append(f"  '{registry_key}': {class_name},")
-                        
-                        registry_lines.extend(import_lines)
-                        registry_lines.append("")
-                        registry_lines.append("export const PAGE_CLASS_REGISTRY = {")
-                        registry_lines.extend(registry_entries)
-                        registry_lines.append("};")
-                        
-                        # Write registry file to placeholder location in deployment destination (overwrites compiled placeholder)
-                        registry_file = dest / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
-                        registry_content = '\n'.join(registry_lines) + '\n'
-                        try:
-                            registry_file.write_text(registry_content, encoding='utf-8')
-                        except Exception as e:
-                            warn(f"Failed to write page-classes-registry.js: {e}")
-                            raise
-                        site_deployed.append("js/hh/deploy/site/ts/page-classes-registry.js")
-                        log(f"Generated page-classes-registry.js with {len(page_class_files)} page classes")
-                    else:
-                        log("No page class files found in whitelist, skipping registry generation")
-                        
-                except Exception as e:  # noqa: BLE001
-                    log(f"Failed to generate page-classes-registry.js: {e}")
-                    # Don't error out - registry generation is optional
-            
-            # Deploy CSS files
-            css_dest = site_dest / 'css'
-            css_dest.mkdir(exist_ok=True)
-            for css_file in CSS_WHITELIST:
-                source_css = source / css_file
-                if source_css.exists():
-                    dest_css = css_dest / source_css.name
-                    if dest_css.exists():
-                        dest_css.unlink()
-                    shutil.copy2(source_css, dest_css)
-                    site_deployed.append(f"css/{source_css.name}")
-                    css_count += 1
-                    log(f"Deployed CSS file: {css_file} -> site/css/{source_css.name}")
-                else:
-                    log(f"CSS file not found: {css_file}")
-            
-            # Deploy misc files (top level in site/)
-            for misc_file in MISC_WHITELIST:
-                source_misc = source / misc_file
-                if source_misc.exists():
-                    if source_misc.is_dir():
-                        # Copy entire directory
-                        dest_misc = site_dest / source_misc.name
-                        if dest_misc.exists():
-                            shutil.rmtree(dest_misc)
-                        shutil.copytree(source_misc, dest_misc)
-                        site_deployed.append(misc_file)
-                        misc_count += 1
-                        log(f"Deployed misc directory: {misc_file} -> site/{source_misc.name}")
-                    else:
-                        # Copy single file
-                        dest_misc = site_dest / source_misc.name
-                        if dest_misc.exists():
-                            dest_misc.unlink()
-                        shutil.copy2(source_misc, dest_misc)
-                        site_deployed.append(misc_file)
-                        misc_count += 1
-                        log(f"Deployed misc file: {misc_file} -> site/{source_misc.name}")
-                else:
-                    log(f"Misc file not found: {misc_file}")
-            
-            log(f"Site deployment complete: {len(site_deployed)} items (JS: {js_count}, CSS: {css_count}, MISC: {misc_count})")
-        except Exception as e:
-            warn(f"Failed to deploy site folders: {e}")
-            report_error("backend", f"Failed to deploy site folders: {e}")
 
     # Phase 1: Pre-permissions setup
     if not is_error():
@@ -1852,9 +1639,9 @@ def deploy() -> bool:
             "flask_deployed": flask_deployed,
             "context_deployed": context_deployed,
             "site_deployed": site_deployed,
-            "js_count": js_count if 'js_count' in locals() else 0,
-            "css_count": css_count if 'css_count' in locals() else 0,
-            "misc_count": misc_count if 'misc_count' in locals() else 0,
+            "js_count": js_count,
+            "css_count": css_count,
+            "misc_count": misc_count,
             "ownership_set": ownership_set,
             "cache_permissions_set": cache_permissions_set,
             "logs_permissions_set": logs_permissions_set,
