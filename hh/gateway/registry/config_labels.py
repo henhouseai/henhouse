@@ -26,6 +26,11 @@ from hh.render.config.config_registry import register_label
 @register_label('total_modules',                      'Total Modules',                '📦')
 @register_label('enabled_modules',                    'Enabled Modules',              '✅')
 @register_label('blacklisted_modules',                'Blacklisted Modules',          '🚫')
+@register_label('module_hooks_header',                'Module Hooks:',                '🔗')
+@register_label('hook_row',                           'Hook',                         '🔗')
+@register_label('hook_list_header',                   'Hook List:',                   '🔗')
+@register_label('hook_summary_header',                'Hook Summary:',                 '📊')
+@register_label('total_hooks',                        'Total Hooks',                  '🔗')
 def _register_config():
     pass
 

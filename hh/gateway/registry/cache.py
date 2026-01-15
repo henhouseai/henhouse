@@ -29,10 +29,9 @@ def _initialize_debug():
 CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
-# Throttling: prevent repeated scans within 1 hour
+# Legacy throttle variables (no longer used - cache is trusted if it exists)
 _last_base_scan_time: float = 0.0
 _last_backend_scan_times: Dict[str, float] = {}
-SCAN_THROTTLE_SECONDS = 3600.0
 
 def _scan_for_decorator(decorator_name: str) -> List[str]:
     trace_in()
@@ -114,41 +113,19 @@ def _read_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
 def discover_base_registrations(force_regenerate: bool = False) -> tuple[List[str], List[str]]:
     trace_in()
     import time
-    
-    global _last_base_scan_time
-    
+
     cache_file = CACHE_DIR / "base-reg.json"
     current_time = time.time()
-    
-    # Always check throttle first, even if force_regenerate is True
-    if cache_file.exists():
+
+    # Check if cache exists and should be used (no throttle - trust cache if exists)
+    if not force_regenerate and cache_file.exists():
         cache_data = _read_cache_file_with_retry(cache_file)
         if cache_data is not None:
-            # Check if we've scanned recently (throttle to prevent repeated scans)
-            last_scan_str = cache_data.get('last_scan', '0')
-            try:
-                last_scan_timestamp = float(last_scan_str)
-            except (ValueError, TypeError):
-                last_scan_timestamp = 0
-            
-            time_since_scan = current_time - last_scan_timestamp
-            
-            # Also check in-memory throttle
-            time_since_memory_scan = current_time - _last_base_scan_time
-            
-            # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
-            if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
-                log(f"Throttling: using cached base registry (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
-                trace_out()
-                return cache_data.get('backends', []), list(cache_data.get('commands', {}).keys())
-            
-            # Cache exists and is old enough - check if we should use it or regenerate
-            if not force_regenerate:
-                log(f"Found base cache with {len(cache_data.get('backends', []))} backends and {len(cache_data.get('commands', {}))} commands (last scan: {time_since_scan:.1f}s ago)")
-                trace_out()
-                return cache_data.get('backends', []), list(cache_data.get('commands', {}).keys())
-            else:
-                log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
+            log(f"Using cached base registry with {len(cache_data.get('backends', []))} backends and {len(cache_data.get('commands', {}))} commands")
+            trace_out()
+            return cache_data.get('backends', []), list(cache_data.get('commands', {}).keys())
+        else:
+            log("Cache file exists but failed to load, proceeding with scan")
     
     log("Discovering base registrations...")
     command_files = _scan_for_decorator("register_command")
@@ -184,10 +161,7 @@ def discover_base_registrations(force_regenerate: bool = False) -> tuple[List[st
         "commands": command_data,
         "last_scan": str(current_time)
     }
-    
-    # Update in-memory scan time
-    _last_base_scan_time = current_time
-    
+
     # Atomic write: write to temp file, then rename
     try:
         temp_file = cache_file.with_suffix('.tmp')
@@ -222,43 +196,20 @@ def discover_all_commands() -> List[str]:
 def discover_backend_specific_registrations(backend_type: str, force_regenerate: bool = False) -> Dict[str, Any]:
     trace_in()
     import time
-    
-    global _last_backend_scan_times
-    
+
     log(f"Starting discovery for backend: {backend_type}")
     cache_file = CACHE_DIR / f"{backend_type}-reg.json"
     current_time = time.time()
-    
-    # Always check throttle first, even if force_regenerate is True
-    if cache_file.exists():
+
+    # Check if cache exists and should be used (no throttle - trust cache if exists)
+    if not force_regenerate and cache_file.exists():
         cache_data = _read_cache_file_with_retry(cache_file)
         if cache_data is not None:
-            # Check if we've scanned recently (throttle to prevent repeated scans)
-            last_scan_str = cache_data.get('last_scan', '0')
-            try:
-                last_scan_timestamp = float(last_scan_str)
-            except (ValueError, TypeError):
-                last_scan_timestamp = 0
-            
-            time_since_scan = current_time - last_scan_timestamp
-            
-            # Also check in-memory throttle
-            last_memory_scan = _last_backend_scan_times.get(backend_type, 0.0)
-            time_since_memory_scan = current_time - last_memory_scan
-            
-            # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
-            if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
-                log(f"Throttling: using cached {backend_type} registry (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
-                trace_out()
-                return cache_data
-            
-            # Cache exists and is old enough - check if we should use it or regenerate
-            if not force_regenerate:
-                log(f"Found {backend_type} cache with {len(cache_data.get('handlers', {}))} handlers (last scan: {time_since_scan:.1f}s ago)")
-                trace_out()
-                return cache_data
-            else:
-                log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
+            log(f"Using cached {backend_type} registry with {len(cache_data.get('handlers', {}))} handlers")
+            trace_out()
+            return cache_data
+        else:
+            log("Cache file exists but failed to load, proceeding with scan")
     
     discover_base_registrations(force_regenerate)  # Ensure commands are discovered first
 
@@ -339,10 +290,7 @@ def discover_backend_specific_registrations(backend_type: str, force_regenerate:
     
     # Add last_scan timestamp
     registrations['last_scan'] = str(current_time)
-    
-    # Update in-memory scan time
-    _last_backend_scan_times[backend_type] = current_time
-    
+
     # Atomic write: write to temp file, then rename
     try:
         temp_file = cache_file.with_suffix('.tmp')
@@ -374,6 +322,28 @@ def discover_all_backend_handlers(force_regenerate: bool = False) -> Dict[str, L
         log(f"Discovered {len(handlers)} {backend_type} handlers")
     trace_out()
     return all_handlers
+
+def discover_all_module_hooks(force_regenerate: bool = False) -> Dict[str, Any]:
+    """
+    Discover all module hooks by delegating to module_hooks.discover_module_hooks().
+
+    Args:
+        force_regenerate: If True, force rescan even if cache exists
+
+    Returns:
+        Cache dict with hooks structure from module_hooks registry
+
+    Example:
+        >>> hooks_cache = discover_all_module_hooks()
+        >>> print(hooks_cache['hooks'].keys())
+        dict_keys(['deploy_before_schema', 'install_config'])
+    """
+    trace_in()
+    from hh.gateway.registry.module_hooks import discover_module_hooks
+    hooks_cache = discover_module_hooks(force_regenerate=force_regenerate)
+    log(f"Discovered {len(hooks_cache.get('hooks', {}))} hook names")
+    trace_out()
+    return hooks_cache
 
 def check_command_exists(command_name: str) -> bool:
     trace_in()

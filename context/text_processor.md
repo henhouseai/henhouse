@@ -230,6 +230,7 @@ Provides error handling:
 - Database errors are logged with context
 - Decorator errors fall back to original text
 - Missing pages/images are handled gracefully
+- **Unexpected token handling**: Malformed wiki syntax tokens (e.g., stray brackets `]]`, `}}` not part of valid markup) are consumed as single characters and treated as plain text, preventing infinite loops during parsing
 
 ## Integration Points
 

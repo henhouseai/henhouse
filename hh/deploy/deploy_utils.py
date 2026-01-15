@@ -373,8 +373,7 @@ def load_dict_whitelist_with_extensions(
 
 # Module cache setup
 _MODULE_CACHE_DIR: Optional[Path] = None  # Will be initialized on first use
-_module_last_scan_time: float = 0.0
-MODULE_SCAN_THROTTLE_SECONDS = 3600.0
+_module_last_scan_time: float = 0.0  # Legacy (no longer used - cache is trusted if it exists)
 
 class ModuleInfo(NamedTuple):
     """Information about a discovered module."""
@@ -443,52 +442,31 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
     Discover active modules in the project root.
 
     Scans the project root for folders containing a __module__.py manifest file.
-    Uses cold cache with 1-hour throttle to avoid repeated filesystem scans.
+    Uses cold cache (no throttle - trust cache if exists, only rescan if missing or force_regenerate=True).
 
     Args:
-        force_regenerate: If True, ignore cache and force a new scan (still respects throttle)
+        force_regenerate: If True, force a new scan even if cache exists
 
     Returns:
         List of ModuleInfo objects for discovered modules
     """
     trace_in()
-    global _module_last_scan_time
 
     cache_dir = _get_module_cache_dir()
     cache_file = cache_dir / "modules.json"
     current_time = time.time()
 
-    # Always check throttle first
-    if cache_file.exists():
+    # Check if cache exists and should be used (no throttle - trust cache if exists)
+    if not force_regenerate and cache_file.exists():
         cache_data = _read_module_cache_file_with_retry(cache_file)
         if cache_data is not None:
-            # Check if we've scanned recently
-            last_scan_str = cache_data.get('last_scan', '0')
-            try:
-                last_scan_timestamp = float(last_scan_str)
-            except (ValueError, TypeError):
-                last_scan_timestamp = 0
-
-            time_since_scan = current_time - last_scan_timestamp
-            time_since_memory_scan = current_time - _module_last_scan_time
-
-            # If we've scanned recently, honor throttle and use cache
-            if time_since_scan < MODULE_SCAN_THROTTLE_SECONDS or time_since_memory_scan < MODULE_SCAN_THROTTLE_SECONDS:
-                log(f"Throttling: using cached modules (scanned {time_since_scan:.1f}s ago, throttle: {MODULE_SCAN_THROTTLE_SECONDS}s)")
-                modules_data = cache_data.get('modules', [])
-                result = [ModuleInfo(**m) for m in modules_data]
-                trace_out()
-                return result
-
-            # Cache exists and is old enough - check if we should use it or regenerate
-            if not force_regenerate:
-                log(f"Found module cache with {len(cache_data.get('modules', []))} modules (last scan: {time_since_scan:.1f}s ago)")
-                modules_data = cache_data.get('modules', [])
-                result = [ModuleInfo(**m) for m in modules_data]
-                trace_out()
-                return result
-            else:
-                log(f"Force regenerate requested, proceeding with scan")
+            log(f"Using cached modules with {len(cache_data.get('modules', []))} modules")
+            modules_data = cache_data.get('modules', [])
+            result = [ModuleInfo(**m) for m in modules_data]
+            trace_out()
+            return result
+        else:
+            log("Cache file exists but failed to load, proceeding with scan")
 
     log("Discovering active modules...")
 
@@ -597,9 +575,6 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
         "last_scan": str(current_time)
     }
 
-    # Update in-memory scan time
-    _module_last_scan_time = current_time
-
     try:
         # Atomic write using temp file
         temp_file = cache_file.with_suffix('.tmp')
@@ -620,49 +595,31 @@ def get_all_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
 
     Scans the project root for folders containing a __module__.py manifest file.
     Unlike get_active_modules(), this returns ALL discovered modules regardless of blacklist.
-    Uses same cold cache pattern with separate cache file.
+    Uses cold cache (no throttle - trust cache if exists, only rescan if missing or force_regenerate=True).
 
     Args:
-        force_regenerate: If True, ignore cache and force a new scan (still respects throttle)
+        force_regenerate: If True, force a new scan even if cache exists
 
     Returns:
         List of ModuleInfo objects for ALL discovered modules (enabled + blacklisted)
     """
     trace_in()
-    global _module_last_scan_time
 
     cache_dir = _get_module_cache_dir()
     cache_file = cache_dir / "modules_all.json"
     current_time = time.time()
 
-    # Check cache and throttle
-    if cache_file.exists():
+    # Check if cache exists and should be used (no throttle - trust cache if exists)
+    if not force_regenerate and cache_file.exists():
         cache_data = _read_module_cache_file_with_retry(cache_file)
         if cache_data is not None:
-            last_scan_str = cache_data.get('last_scan', '0')
-            try:
-                last_scan_timestamp = float(last_scan_str)
-            except (ValueError, TypeError):
-                last_scan_timestamp = 0
-
-            time_since_scan = current_time - last_scan_timestamp
-            time_since_memory_scan = current_time - _module_last_scan_time
-
-            # Honor throttle
-            if time_since_scan < MODULE_SCAN_THROTTLE_SECONDS or time_since_memory_scan < MODULE_SCAN_THROTTLE_SECONDS:
-                log(f"Throttling: using cached all-modules (scanned {time_since_scan:.1f}s ago)")
-                modules_data = cache_data.get('modules', [])
-                result = [ModuleInfo(**m) for m in modules_data]
-                trace_out()
-                return result
-
-            # Use cache if not forcing regenerate
-            if not force_regenerate:
-                log(f"Found all-modules cache with {len(cache_data.get('modules', []))} modules")
-                modules_data = cache_data.get('modules', [])
-                result = [ModuleInfo(**m) for m in modules_data]
-                trace_out()
-                return result
+            log(f"Using cached all-modules with {len(cache_data.get('modules', []))} modules")
+            modules_data = cache_data.get('modules', [])
+            result = [ModuleInfo(**m) for m in modules_data]
+            trace_out()
+            return result
+        else:
+            log("Cache file exists but failed to load, proceeding with scan")
 
     log("Discovering all modules (including blacklisted)...")
 
@@ -758,8 +715,6 @@ def get_all_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
         "modules": modules_data,
         "last_scan": str(current_time)
     }
-
-    _module_last_scan_time = current_time
 
     try:
         # Atomic write using temp file

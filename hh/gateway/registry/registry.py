@@ -59,7 +59,7 @@ def create_backend_decorator(backend_type: str):
                 from hh.gateway.registry.tool_whitelist import _global_tool_registry
                 if actual_name in _global_tool_registry:
                     original_module = _global_tool_registry[actual_name]['module']
-                    debug(f"Found original module for {backend_type} '{actual_name}': {original_module}")
+                    log(f"Found original module for {backend_type} '{actual_name}': {original_module}")
             except Exception as e:
                 # Silently ignore - original_module will remain None for non-tool-based backends
                 pass

@@ -56,6 +56,7 @@ def module_list_action() -> bool:
 
     try:
         from hh.deploy.deploy_utils import get_active_modules, get_all_modules
+        from hh.gateway.registry.cache import discover_all_module_hooks
 
         # Get all discovered modules (before blacklist filtering)
         all_modules = get_all_modules()
@@ -66,20 +67,35 @@ def module_list_action() -> bool:
         active_module_names = {m.name for m in active_modules}
         log(f"Found {len(active_modules)} active modules")
 
+        # Get hooks organized by module
+        hooks_cache = discover_all_module_hooks()
+        hooks_by_module: Dict[str, List[str]] = {}  # module_name -> [hook_name, ...]
+        for hook_name, hook_list in hooks_cache.get('hooks', {}).items():
+            for hook_entry in hook_list:
+                module_name = hook_entry.get('module_name', '')
+                if module_name not in hooks_by_module:
+                    hooks_by_module[module_name] = []
+                hooks_by_module[module_name].append(hook_name)
+        log(f"Found hooks in {len(hooks_by_module)} modules")
+
         # Build module list with status
         modules_data: List[Dict[str, Any]] = []
         for module in sorted(all_modules, key=lambda m: m.name):
             is_enabled = module.name in active_module_names
+            module_hooks = sorted(hooks_by_module.get(module.name, []))
+            hook_count = len(module_hooks)
             module_info: Dict[str, Any] = {
                 "name": module.name,
                 "path": module.path,
                 "description": module.description or "",
                 "version": module.version or "",
+                "hook_count": hook_count,
+                "hooks": module_hooks,  # List of hook names
                 "is_enabled": is_enabled,
                 "status": "enabled" if is_enabled else "blacklisted",
             }
             modules_data.append(module_info)
-            debug(f"Module {module.name}: {module_info['status']}")
+            debug(f"Module {module.name}: {module_info['status']}, {hook_count} hooks")
 
         payload = {
             "total_modules": len(all_modules),
@@ -137,19 +153,23 @@ def module_list_parser() -> bool:
         # Build module table
         table = TableData()
 
-        # Header row - conditionally include path
+        # Header row - conditionally include path, always include version and hooks
         if show_path:
             table.add_row(
                 "module_list_header",
                 name="Module",
                 path="Path",
                 description="Description",
+                version="Version",
+                hooks="Hooks",
             )
         else:
             table.add_row(
                 "module_list_header",
                 name="Module",
                 description="Description",
+                version="Version",
+                hooks="Hooks",
             )
 
         for module_info in modules:
@@ -158,9 +178,11 @@ def module_list_parser() -> bool:
             path = module_info.get("path", "")
             description = module_info.get("description", "")
             version = module_info.get("version", "")
+            hook_count = module_info.get("hook_count", 0)
 
-            # Add version to description if present
-            desc_with_version = f"{description} (v{version})" if version else description
+            # Format version and hooks for display
+            version_str = safe_str(version) if version else "-"
+            hooks_str = str(hook_count) if hook_count > 0 else "-"
 
             if status == "enabled":
                 if show_path:
@@ -168,13 +190,17 @@ def module_list_parser() -> bool:
                         "module_enabled",
                         name=safe_str(name),
                         path=safe_str(path),
-                        description=safe_str(desc_with_version),
+                        description=safe_str(description),
+                        version=version_str,
+                        hooks=hooks_str,
                     )
                 else:
                     table.add_row(
                         "module_enabled",
                         name=safe_str(name),
-                        description=safe_str(desc_with_version),
+                        description=safe_str(description),
+                        version=version_str,
+                        hooks=hooks_str,
                     )
             else:
                 if show_path:
@@ -182,25 +208,29 @@ def module_list_parser() -> bool:
                         "module_blacklisted",
                         name=safe_str(name),
                         path=safe_str(path),
-                        description=safe_str(desc_with_version),
+                        description=safe_str(description),
+                        version=version_str,
+                        hooks=hooks_str,
                     )
                 else:
                     table.add_row(
                         "module_blacklisted",
                         name=safe_str(name),
-                        description=safe_str(desc_with_version),
+                        description=safe_str(description),
+                        version=version_str,
+                        hooks=hooks_str,
                     )
 
-        # Field config - conditionally include path
+        # Field config - conditionally include path, always include version and hooks
         field_config = (FieldConfig()
             .add_header("module_list_header")
             .add_simple_color("module_enabled", "green")
             .add_simple_color("module_blacklisted", "red"))
 
         if show_path:
-            field_config.add_simple(["name", "path", "description"])
+            field_config.add_simple(["name", "path", "description", "version", "hooks"])
         else:
-            field_config.add_simple(["name", "description"])
+            field_config.add_simple(["name", "description", "version", "hooks"])
 
         lines.append(
             render_block(
@@ -229,6 +259,34 @@ def module_list_parser() -> bool:
                 table_overrides={"margin_l": 4},
             )
         )
+
+        # Add per-module hook tables (only for modules with hooks)
+        modules_with_hooks = [m for m in modules if m.get("hook_count", 0) > 0]
+
+        if modules_with_hooks:
+            for module_info in modules_with_hooks:
+                module_name = module_info.get("name", "unknown")
+                module_hooks = module_info.get("hooks", [])
+
+                # Build hooks table for this module
+                hooks_table = TableData()
+                # Header row with module name as explicit label value (overrides field-config)
+                hooks_table.add_row("hook_summary_header", hook_name=safe_str(module_name))
+
+                for hook_name in module_hooks:
+                    hooks_table.add_row("hook_row", hook_name=safe_str(hook_name))
+
+                # Render hooks table
+                lines.append(
+                    render_block(
+                        hooks_table,
+                        FieldConfig()
+                        .add_simple(["hook_row"])
+                        .add_simple(["hook_summary_header"]),
+                        block_type="rows",
+                        table_overrides={"margin_l": 4},
+                    )
+                )
 
         break_section(lines)
         gateway.response.add_output(finalize_output(lines))

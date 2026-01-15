@@ -206,14 +206,15 @@ def _load_root_dsn(project_name: str) -> Tuple[Optional[Dict[str, Union[str, int
     return trace_out((None, None, None))
 
 class Connection:
-    """Gateway-owned connection manager for main, cache, and history databases."""
-    
+    """Gateway-owned connection manager for main, cache, and module databases."""
+
     def __init__(self, dry_run: bool = False):
         self.main: Optional[Any] = None
         self.cache: Optional[Any] = None
-        self.history: Optional[Any] = None
+        self.module_dbs: Dict[str, Any] = {}  # Module databases (history, analytics, etc.)
         self._main_transaction_started: bool = False
         self._cache_transaction_started: bool = False
+        self._module_transactions_started: Dict[str, bool] = {}  # Track per-module DB transactions
         self._initialized: bool = False
         self._dry_run: bool = dry_run
         self._cache_buffer: List[Tuple[str, str, Optional[Sequence[Union[str, int, float, bool, None]]]]] = []
@@ -231,11 +232,57 @@ class Connection:
         trace_in()
         return trace_out(None)
 
-    def _get_history_dsn(self, project_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
-        """Get history database DSN. Override in subclasses for root connections.
-        Returns None to use default from _load_dsn()."""
+    def _get_module_db_dsn(self, project_name: str, db_name: str) -> Optional[Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]]]:
+        """Get module database DSN from config file.
+
+        Loads DSN for a module database using config prefix pattern:
+        - {db_name}_host (required to enable this module DB)
+        - {db_name}_user (defaults to main user)
+        - {db_name}_password (defaults to main password)
+        - {db_name}_database (defaults to {project}_{db_name})
+        - {db_name}_port (defaults to 3306)
+        - {db_name}_ssl_ca, etc. (optional SSL config)
+
+        Returns None if {db_name}_host is not configured.
+        """
         trace_in()
-        return trace_out(None)
+        config = configparser.ConfigParser()
+        path = os.path.expanduser(f'~/.{project_name}.cnf')
+
+        if not os.path.exists(path):
+            log(f"Config file not found: {path}")
+            return trace_out(None)
+
+        config.read(path)
+
+        # Module DB is optional - only connect if {db_name}_host is configured
+        db_host = config.get('client', f'{db_name}_host', fallback=None)
+        if not db_host:
+            log(f"Module DB '{db_name}' not configured ({db_name}_host not found)")
+            return trace_out(None)
+
+        # Get main DSN for defaults
+        main_user = config.get('client', 'user', fallback='root')
+        main_password = config.get('client', 'password', fallback='')
+        main_port = config.getint('client', 'port', fallback=3306)
+
+        dsn: Dict[str, Union[str, int, Dict[str, Union[str, bool, int]]]] = {
+            'host': db_host,
+            'user': config.get('client', f'{db_name}_user', fallback=main_user),
+            'password': config.get('client', f'{db_name}_password', fallback=main_password),
+            'database': config.get('client', f'{db_name}_database', fallback=f"{project_name}_{db_name}"),
+            'port': config.getint('client', f'{db_name}_port', fallback=main_port)
+        }
+
+        # SSL/TLS is optional - try module-specific SSL first, fallback to main SSL
+        ssl_dict = _build_ssl_dict(config, f'{db_name}_')
+        if ssl_dict is None:
+            ssl_dict = _build_ssl_dict(config, '')
+        if ssl_dict is not None:
+            dsn['ssl'] = ssl_dict
+
+        log(f"Module DB '{db_name}' DSN loaded: host={dsn['host']}, database={dsn['database']}")
+        return trace_out(dsn)
     
     def _detect_user_tier_level(self, project_name: str, username: str) -> int:
         """Detect user tier level from DSN username. Returns tier level (0 if unknown)."""
@@ -329,10 +376,23 @@ class Connection:
                 warn("Cache DSN not available, using main database for cache")
                 self.cache = self.main
             
-            # History database connection - only attempt if explicitly configured
-            # (History database doesn't exist yet, so skip unless history_host is set)
-            self.history = None
-            
+            # Module databases - load from module registry (TODO: integrate with module discovery)
+            # For now, hardcode checking for 'history' as our test case
+            # In full implementation, this will query module registry for all declared databases
+            module_db_names = ['history']  # TODO: get from module registry
+            for db_name in module_db_names:
+                module_dsn = self._get_module_db_dsn(project_name, db_name)
+                if module_dsn:
+                    # Extract SSL dict and pass separately
+                    module_ssl = module_dsn.pop('ssl', None) if isinstance(module_dsn.get('ssl'), dict) else None
+                    if module_ssl is not None:
+                        self.module_dbs[db_name] = pymysql.connect(**module_dsn, ssl=module_ssl, cursorclass=cursorclass)  # type: ignore[call-arg]
+                    else:
+                        self.module_dbs[db_name] = pymysql.connect(**module_dsn, cursorclass=cursorclass)  # type: ignore[call-arg]
+                    log(f"Module database '{db_name}' connection opened: host={module_dsn['host']}, database={module_dsn['database']}")
+                else:
+                    log(f"Module database '{db_name}' not configured, skipping")
+
             self._initialized = True
             log("All database connections initialized successfully")
             trace_out()
@@ -355,16 +415,18 @@ class Connection:
             return
         
         log("Starting connection cleanup...")
-        
-        if self.history and self.history is not self.main and self.history is not self.cache:
-            try:
-                if hasattr(self.history, 'open') and self.history.open:
-                    self.history.close()
-                    log("History database connection closed")
-            except Exception as e:
-                warn(f"Error closing history connection: {e}")
-            self.history = None
-        
+
+        # Close module databases
+        for db_name, db_conn in list(self.module_dbs.items()):
+            if db_conn and db_conn is not self.main and db_conn is not self.cache:
+                try:
+                    if hasattr(db_conn, 'open') and db_conn.open:
+                        db_conn.close()
+                        log(f"Module database '{db_name}' connection closed")
+                except Exception as e:
+                    warn(f"Error closing module database '{db_name}' connection: {e}")
+        self.module_dbs.clear()
+
         if self.cache and self.cache is not self.main:
             try:
                 if hasattr(self.cache, 'open') and self.cache.open:
@@ -385,6 +447,7 @@ class Connection:
         
         self._main_transaction_started = False
         self._cache_transaction_started = False
+        self._module_transactions_started.clear()
         self._cache_buffer.clear()
         self._cache_flag_buffer.clear()
         self._initialized = False
@@ -397,29 +460,52 @@ class Connection:
         return trace_out(self._initialized)
     
     def commit(self) -> None:
-        """Commit the main database transaction. If dry_run is enabled, rolls back instead.
-        Cache transactions are handled independently by write_cache()."""
+        """Commit the main database transaction, then commit module DB transactions.
+        If dry_run is enabled, rolls back instead.
+        Cache transactions are handled independently by write_cache().
+        Module DB commits are non-blocking - failures logged but don't block main/cache."""
         trace_in()
         if not self._main_transaction_started:
             log("No main transaction to commit")
             trace_out()
             return
-        
+
         if self._dry_run:
             log("Dry run mode enabled - rolling back main transaction instead of committing")
             self.rollback()
             trace_out()
             return
-        
+
         log("Committing main database transaction...")
-        
+
         try:
             if self.main:
                 self.main.commit()
                 log("Transaction committed on main database")
-            
+
             self._main_transaction_started = False
             log("Main transaction committed successfully")
+
+            # Commit module database transactions (non-blocking)
+            for db_name in list(self._module_transactions_started.keys()):
+                if self._module_transactions_started.get(db_name, False):
+                    try:
+                        if db_name in self.module_dbs and self.module_dbs[db_name]:
+                            self.module_dbs[db_name].commit()
+                            log(f"Transaction committed on module database '{db_name}'")
+                        self._module_transactions_started[db_name] = False
+                    except Exception as module_exc:
+                        # Log error but don't block - module DB failures are non-critical
+                        warn(f"Failed to commit module DB '{db_name}' transaction (non-blocking): {module_exc}")
+                        # Try to rollback the failed module DB
+                        try:
+                            if db_name in self.module_dbs and self.module_dbs[db_name]:
+                                self.module_dbs[db_name].rollback()
+                                log(f"Module DB '{db_name}' transaction rolled back after commit failure")
+                        except Exception as rollback_exc:
+                            warn(f"Failed to rollback module DB '{db_name}' after commit failure: {rollback_exc}")
+                        self._module_transactions_started[db_name] = False
+
         except Exception as e:
             warn(f"Failed to commit main transaction: {e}")
             raise
@@ -427,16 +513,16 @@ class Connection:
             trace_out()
     
     def rollback(self) -> None:
-        """Rollback the main database transaction.
+        """Rollback the main database transaction and all module DB transactions.
         Cache transactions are handled independently by write_cache()."""
         trace_in()
         if not self._main_transaction_started:
             log("No main transaction to rollback")
             trace_out()
             return
-        
+
         log("Rolling back main database transaction...")
-        
+
         try:
             if self.main:
                 try:
@@ -444,9 +530,22 @@ class Connection:
                     log("Transaction rolled back on main database")
                 except Exception as e:
                     warn(f"Error rolling back main transaction: {e}")
-            
+
             self._main_transaction_started = False
             log("Main transaction rolled back")
+
+            # Rollback module database transactions
+            for db_name in list(self._module_transactions_started.keys()):
+                if self._module_transactions_started.get(db_name, False):
+                    try:
+                        if db_name in self.module_dbs and self.module_dbs[db_name]:
+                            self.module_dbs[db_name].rollback()
+                            log(f"Transaction rolled back on module database '{db_name}'")
+                        self._module_transactions_started[db_name] = False
+                    except Exception as module_exc:
+                        warn(f"Error rolling back module DB '{db_name}' transaction: {module_exc}")
+                        self._module_transactions_started[db_name] = False
+
         except Exception as e:
             warn(f"Error during main transaction rollback: {e}")
         finally:
@@ -835,4 +934,171 @@ class Connection:
             self._cache_buffer.clear()
             self._cache_flag_buffer.clear()
             trace_out()
-    
+
+    # Module database operations (generic CRUD for any registered module DB)
+    def read_module_db(self, db_name: str, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> List[Dict[str, Any]]:
+        """Execute a SELECT query on a module database. Returns list of dict rows."""
+        trace_in()
+        if not self._initialized or db_name not in self.module_dbs:
+            warn(f"Module database '{db_name}' not initialized, returning empty result")
+            trace_out()
+            return []
+
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Module DB '{db_name}' READ: {sql_preview}, params={params}")
+
+        try:
+            with self.module_dbs[db_name].cursor() as cur:
+                cur.execute(sql, params or [])
+                rows = cur.fetchall()
+                if isinstance(rows, list) and rows and not isinstance(rows[0], dict):
+                    columns = [d[0] for d in cur.description]
+                    result = [dict(zip(columns, r)) for r in rows]
+                    log(f"Module DB '{db_name}' READ executed successfully: {len(result)} rows returned (converted to dict)")
+                else:
+                    result = list(rows)
+                    log(f"Module DB '{db_name}' READ executed successfully: {len(result)} rows returned")
+                trace_out()
+                return result
+        except Exception as exc:
+            warn(f"Module DB '{db_name}' READ execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.module_dbs[db_name])
+            trace_out()
+            raise
+
+    def _start_module_transaction(self, db_name: str) -> None:
+        """Start a transaction on a module database. Called automatically on first write."""
+        if self._module_transactions_started.get(db_name, False):
+            return
+
+        trace_in()
+        log(f"Starting transaction on module database '{db_name}'...")
+
+        try:
+            if db_name in self.module_dbs:
+                with self.module_dbs[db_name].cursor() as cur:
+                    cur.execute("START TRANSACTION")
+                log(f"Transaction started on module database '{db_name}'")
+
+            self._module_transactions_started[db_name] = True
+            log(f"Module DB '{db_name}' transaction started successfully")
+        except Exception as e:
+            warn(f"Failed to start module DB '{db_name}' transaction: {e}")
+            raise
+        finally:
+            trace_out()
+
+    def create_module_db(self, db_name: str, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT query on a module database. Returns lastrowid."""
+        trace_in()
+        if not self._initialized or db_name not in self.module_dbs:
+            warn(f"Module database '{db_name}' not initialized, returning 0")
+            trace_out()
+            return 0
+
+        self._start_module_transaction(db_name)
+
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Module DB '{db_name}' CREATE: {sql_preview}, params={params}")
+
+        try:
+            with self.module_dbs[db_name].cursor() as cur:
+                cur.execute(sql, params or [])
+                lastrowid = cur.lastrowid
+                log(f"Module DB '{db_name}' CREATE executed successfully: lastrowid={lastrowid}")
+                trace_out()
+                return lastrowid
+        except Exception as exc:
+            warn(f"Module DB '{db_name}' CREATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.module_dbs[db_name])
+            trace_out()
+            raise
+
+    def update_module_db(self, db_name: str, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an UPDATE query on a module database. Returns rowcount."""
+        trace_in()
+        if not self._initialized or db_name not in self.module_dbs:
+            warn(f"Module database '{db_name}' not initialized, returning 0")
+            trace_out()
+            return 0
+
+        self._start_module_transaction(db_name)
+
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Module DB '{db_name}' UPDATE: {sql_preview}, params={params}")
+
+        try:
+            with self.module_dbs[db_name].cursor() as cur:
+                cur.execute(sql, params or [])
+                rowcount = cur.rowcount
+                log(f"Module DB '{db_name}' UPDATE executed successfully: {rowcount} rows affected")
+                trace_out()
+                return rowcount
+        except Exception as exc:
+            warn(f"Module DB '{db_name}' UPDATE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.module_dbs[db_name])
+            trace_out()
+            raise
+
+    def upsert_module_db(self, db_name: str, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute an INSERT ... ON DUPLICATE KEY UPDATE query on a module database. Returns lastrowid (0 if updated, non-zero if inserted)."""
+        trace_in()
+        if not self._initialized or db_name not in self.module_dbs:
+            warn(f"Module database '{db_name}' not initialized, returning 0")
+            trace_out()
+            return 0
+
+        self._start_module_transaction(db_name)
+
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Module DB '{db_name}' UPSERT: {sql_preview}, params={params}")
+
+        try:
+            with self.module_dbs[db_name].cursor() as cur:
+                cur.execute(sql, params or [])
+                lastrowid = cur.lastrowid
+                log(f"Module DB '{db_name}' UPSERT executed successfully: lastrowid={lastrowid}")
+                trace_out()
+                return lastrowid
+        except Exception as exc:
+            warn(f"Module DB '{db_name}' UPSERT execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.module_dbs[db_name])
+            trace_out()
+            raise
+
+    def delete_module_db(self, db_name: str, sql: str, params: Optional[Sequence[Union[str, int, float, bool, None]]] = None) -> int:
+        """Execute a DELETE query on a module database. Returns rowcount."""
+        trace_in()
+        if not self._initialized or db_name not in self.module_dbs:
+            warn(f"Module database '{db_name}' not initialized, returning 0")
+            trace_out()
+            return 0
+
+        self._start_module_transaction(db_name)
+
+        sql_preview = sql[:500] + ('...' if len(sql) > 500 else '')
+        log(f"Module DB '{db_name}' DELETE: {sql_preview}, params={params}")
+
+        try:
+            with self.module_dbs[db_name].cursor() as cur:
+                cur.execute(sql, params or [])
+                rowcount = cur.rowcount
+                log(f"Module DB '{db_name}' DELETE executed successfully: {rowcount} rows affected")
+                trace_out()
+                return rowcount
+        except Exception as exc:
+            warn(f"Module DB '{db_name}' DELETE execution failed: {exc}")
+            setattr(exc, 'sql', sql)
+            setattr(exc, 'params', params or [])
+            self._classify_and_attach_error(exc, self.module_dbs[db_name])
+            trace_out()
+            raise
+
