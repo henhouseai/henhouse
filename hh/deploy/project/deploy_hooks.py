@@ -68,6 +68,8 @@ def set_git_permissions() -> dict:
 @register_module_hook('deploy_git_preserve_ops')
 def preserve_git_directory() -> dict:
     """Preserve git directory by moving it to a temporary location."""
+    import shutil
+
     try:
         project_name, current_path = detect_project_context()
         if not project_name:
@@ -86,7 +88,6 @@ def preserve_git_directory() -> dict:
 
         # Clean up any existing temp git directory
         if temp_git_path.exists():
-            import shutil
             shutil.rmtree(temp_git_path)
             log(f"project git hook: Removed existing temporary git directory: {temp_git_path}")
 
@@ -111,6 +112,8 @@ def preserve_git_directory() -> dict:
 @register_module_hook('deploy_git_restore_ops')
 def restore_git_directory() -> dict:
     """Restore git directory from temporary location."""
+    import shutil
+
     try:
         project_name, current_path = detect_project_context()
         if not project_name:
@@ -128,7 +131,6 @@ def restore_git_directory() -> dict:
             return {"status": "error", "component": "git_restore", "error": "temp_git_missing"}
 
         # Move git directory back to its original location
-        import shutil
         shutil.move(str(temp_git_path), str(git_dir))
         log(f"project git hook: Restored git directory to: {git_dir}")
 
