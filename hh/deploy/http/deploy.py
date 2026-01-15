@@ -857,6 +857,11 @@ def deploy() -> bool:
     # Initialize hook results collection
     hook_results: List[Dict[str, Any]] = []
 
+    # Initialize legacy permission variables for backward compatibility
+    ownership_set = False
+    cache_permissions_set = False
+    logs_permissions_set = False
+
     # Pre-deployment validation hooks
     if not is_error():
         try:
@@ -1731,128 +1736,49 @@ def deploy() -> bool:
             warn(f"Failed to deploy site folders: {e}")
             report_error("backend", f"Failed to deploy site folders: {e}")
 
-    # Permissions setup hooks
+    # Phase 1: Pre-permissions setup
     if not is_error():
         try:
-            log("Running permissions setup hooks")
-            results = run_hooks('deploy_permissions')
+            log("Running pre-permissions setup hooks")
+            results = run_hooks('deploy_permissions_pre')
             if results:
                 hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
-            warn(f"Permissions setup hooks failed: {e}")
-            report_error("backend", f"Permissions setup hooks failed: {e}")
+            warn(f"Pre-permissions setup hooks failed: {e}")
+            report_error("backend", f"Pre-permissions setup hooks failed: {e}")
 
-    # Set ownership and permissions
-    if not is_error():
-        ownership_set = False
-        try:
-            project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-            user_info = gateway.os.get_user_by_name(project_highest_user)
-            if not user_info:
-                raise ValueError(f"User not found: {project_highest_user}")
-            project_highest_uid = user_info["uid"]
-            deploy_group_name = f"{project_name}_deploy"
-            
-            subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(dest)], check=True)
-            subprocess.run(['find', str(dest), '-type', 'd', '-exec', 'chmod', '750', '{}', ';'], check=True)
-            subprocess.run(['find', str(dest), '-type', 'f', '-exec', 'chmod', '640', '{}', ';'], check=True)
-            
-            # Fix git directory permissions
-            git_dir = dest / 'git'
-            if git_dir.exists():
-                subprocess.run(['chown', '-R', f'{project_highest_uid}:{project_name}', str(git_dir)], check=True)
-                subprocess.run(['find', str(git_dir), '-type', 'd', '-exec', 'chmod', '770', '{}', ';'], check=True)
-                subprocess.run(['find', str(git_dir), '-type', 'f', '-exec', 'chmod', '660', '{}', ';'], check=True)
-                log(f"Set git directory permissions: {project_highest_user}:{project_name}")
-            
-            ownership_set = True
-            log(f"Set ownership and permissions: {project_highest_user}:{deploy_group_name}")
-        except Exception as e:
-            warn(f"Failed to set ownership and permissions: {e}")
-            report_error("backend", f"Failed to set ownership and permissions: {e}")
-
-    # Cache permissions setup hooks
+    # Phase 2: Base permissions setup
     if not is_error():
         try:
-            log("Running cache permissions setup hooks")
-            results = run_hooks('deploy_cache_permissions')
+            log("Running base permissions setup hooks")
+            results = run_hooks('deploy_permissions_base')
             if results:
                 hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
-            warn(f"Cache permissions setup hooks failed: {e}")
-            report_error("backend", f"Cache permissions setup hooks failed: {e}")
+            warn(f"Base permissions setup hooks failed: {e}")
+            report_error("backend", f"Base permissions setup hooks failed: {e}")
 
-    # Set up cache permissions
-    if not is_error():
-        cache_permissions_set = False
-        try:
-            project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-            user_info = gateway.os.get_user_by_name(project_highest_user)
-            if not user_info:
-                raise ValueError(f"User not found: {project_highest_user}")
-            project_highest_uid = user_info["uid"]
-            deploy_group_name = f"{project_name}_deploy"
-            
-            cache_dirs = [dest / cache_dir for cache_dir in get_cache_directories()]
-            
-            for cache_dir in cache_dirs:
-                if cache_dir.exists():
-                    gateway.files.chmod(str(cache_dir), 0o2775)
-                    log(f"Set cache directory permissions: {cache_dir}")
-                else:
-                    cache_dir.mkdir(parents=True, exist_ok=True)
-                    gateway.files.chmod(str(cache_dir), 0o2775)
-                    log(f"Created cache directory with group write: {cache_dir}")
-                
-                # Set ownership so all tier users can write via group permissions
-                subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(cache_dir)], check=True)
-                log(f"Set cache directory ownership: {cache_dir} -> {project_highest_user}:{deploy_group_name}")
-            
-            cache_permissions_set = True
-            log("Cache directory permissions set successfully")
-        except Exception as e:
-            warn(f"Failed to set up cache permissions: {e}")
-            report_error("backend", f"Failed to set up cache permissions: {e}")
-
-    # Logs setup hooks
+    # Phase 3: Special permissions setup
     if not is_error():
         try:
-            log("Running logs setup hooks")
-            results = run_hooks('deploy_logs_setup')
+            log("Running special permissions setup hooks")
+            results = run_hooks('deploy_permissions_special')
             if results:
                 hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
-            warn(f"Logs setup hooks failed: {e}")
-            report_error("backend", f"Logs setup hooks failed: {e}")
+            warn(f"Special permissions setup hooks failed: {e}")
+            report_error("backend", f"Special permissions setup hooks failed: {e}")
 
-    # Set up logs directory for Flask daemons
+    # Phase 4: Permissions verification
     if not is_error():
-        logs_permissions_set = False
         try:
-            logs_dir = dest / 'logs'
-            if logs_dir.exists():
-                shutil.rmtree(logs_dir)
-                log(f"Cleared existing logs directory: {logs_dir}")
-            logs_dir.mkdir(parents=True, exist_ok=True)
-            gateway.files.chmod(str(logs_dir), 0o2775)
-            
-            # Set ownership so Flask daemons can write logs
-            project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-            user_info = gateway.os.get_user_by_name(project_highest_user)
-            if not user_info:
-                raise ValueError(f"User not found: {project_highest_user}")
-            project_highest_uid = user_info["uid"]
-            deploy_group_name = f"{project_name}_deploy"
-            subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(logs_dir)], check=True)
-            
-            log(f"Created fresh logs directory with group write: {logs_dir}")
-            log(f"Set logs directory ownership: {project_highest_user}:{deploy_group_name}")
-            
-            logs_permissions_set = True
-            log("Logs directory permissions set successfully")
-        except Exception as e:
-            warn(f"Failed to set up logs permissions: {e}")
-            report_error("backend", f"Failed to set up logs permissions: {e}")
+            log("Running permissions verification hooks")
+            results = run_hooks('deploy_permissions_verify')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Permissions verification hooks failed: {e}")
+            report_error("backend", f"Permissions verification hooks failed: {e}")
 
     # Restart daemons after permissions/logs are in place
     if not is_error():
