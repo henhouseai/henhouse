@@ -707,7 +707,7 @@ def deploy_nginx_and_ssl() -> Union[Dict[str, Any], bool]:
             # Create self-signed certificate if needed
             if create_mode == "self-cert":
                 log("nginx_flask hook: Creating self-signed certificate...")
-                from hh.deploy.deploy_utils import generate_self_signed_certificate, ensure_certificate_exists
+                from nginx_flask.deploy.ssl_helpers import generate_self_signed_certificate, ensure_certificate_exists
                 cert_name = domain.replace('.', '_')
 
                 if generate_self_signed_certificate(certificate_path, cert_name, "root", "root"):
@@ -787,7 +787,7 @@ def deploy_nginx_and_ssl() -> Union[Dict[str, Any], bool]:
             # Get Let's Encrypt certificate if needed
             if not is_error() and create_mode == "get-cert":
                 log("nginx_flask hook: Obtaining Let's Encrypt certificate...")
-                from hh.deploy.deploy_utils import get_certificate_from_letsencrypt, ensure_certificate_exists
+                from nginx_flask.deploy.ssl_helpers import get_certificate_from_letsencrypt, ensure_certificate_exists
                 if get_certificate_from_letsencrypt(domain, certificate_path):
                     certificate_created = True
                     log(f"nginx_flask hook: Let's Encrypt certificate obtained for {domain}")
