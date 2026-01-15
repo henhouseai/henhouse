@@ -166,13 +166,13 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
         else:
             # Local dev mode: run as current user
             cmd = [sys.executable, str(worker_path)]
-        debug(f"Starting maintenance daemon: {cmd} in {cwd} as {user}")
-        
+        log(f"Starting maintenance daemon: {cmd} in {cwd} as {user}")
+
         # Use ProcessManager to start background process
         started_pid = pm.start_background_process(cmd, cwd=cwd, log_file=None, user=user)
-        
+
         if started_pid:
-            debug(f"Started process with PID: {started_pid}")
+            log(f"Started process with PID: {started_pid}")
         else:
             start_result = {'status': 'failed', 'error': 'Failed to start process'}
             warn(f"Maintenance daemon failed to start")
@@ -184,7 +184,7 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
         
         # Check if the maintenance daemon is actually running using ProcessManager
         check_processes = pm.list_processes(process_name)
-        debug(f"Process check for '{process_name}': found {len(check_processes)} processes")
+        log(f"Process check for '{process_name}': found {len(check_processes)} processes")
         
         if check_processes:
             result_status = 'restarted' if killed_any else 'started'
@@ -288,25 +288,25 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
         else:
             # Local dev mode: run as current user
             cmd = [sys.executable, str(worker_path)]
-        debug(f"Starting {daemon_name} daemon: {cmd} in {cwd} as {user}")
+        log(f"Starting {daemon_name} daemon: {cmd} in {cwd} as {user}")
         
         # Use ProcessManager to start background process
         started_pid = pm.start_background_process(cmd, cwd=cwd, log_file=None, user=user)
-        
+
         if started_pid:
-            debug(f"Started process with PID: {started_pid}")
+            log(f"Started process with PID: {started_pid}")
         else:
             start_result = {'status': 'failed', 'error': 'Failed to start process'}
             warn(f"{daemon_name} daemon failed to start")
             trace_out()
             return start_result
-        
+
         # Give it a moment for the daemon to start
         time.sleep(1)
-        
+
         # Check if the daemon is actually running using ProcessManager
         check_processes = pm.list_processes(process_name)
-        debug(f"Process check for '{process_name}': found {len(check_processes)} processes")
+        log(f"Process check for '{process_name}': found {len(check_processes)} processes")
         
         if check_processes:
             result_status = 'restarted' if killed_any else 'started'

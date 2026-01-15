@@ -474,7 +474,7 @@ def _load_hooks_cache() -> Optional[Dict[str, Any]]:
     trace_in()
 
     if not CACHE_FILE.exists():
-        debug("Hooks cache file does not exist")
+        log("Hooks cache file does not exist")
         return trace_out(None)
 
     try:
@@ -592,7 +592,7 @@ def cleanup_module_hooks_cache():
             removed_files.append(str(cache_file))
             log(f"Removed cache file: {cache_file}")
         else:
-            debug(f"Cache file does not exist: {cache_file}")
+            log(f"Cache file does not exist: {cache_file}")
 
     trace_out()
 

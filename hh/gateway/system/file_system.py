@@ -478,7 +478,7 @@ class FileSystem:
             # Local file check
             exists = Path(path).exists() and Path(path).is_file()
             if not exists:
-                debug(f"File does not exist (local): {path}")
+                log(f"File does not exist (local): {path}")
             return trace_out(exists)
         except Exception as e:
             warn(f"Error checking file existence: {path}: {e}")
@@ -500,7 +500,7 @@ class FileSystem:
         try:
             exists = Path(path).exists() and Path(path).is_dir()
             if not exists:
-                debug(f"Directory does not exist: {path}")
+                log(f"Directory does not exist: {path}")
             return trace_out(exists)
         except Exception as e:
             warn(f"Error checking directory existence: {path}: {e}")

@@ -792,7 +792,7 @@ def cleanup_module_cache():
             removed_files.append(str(cache_file))
             log(f"Removed module cache file: {cache_file}")
         else:
-            debug(f"Module cache file does not exist: {cache_file}")
+            log(f"Module cache file does not exist: {cache_file}")
 
     trace_out()
     return {

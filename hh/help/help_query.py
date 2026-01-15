@@ -308,7 +308,7 @@ def cleanup_help_registry_cache():
             removed_files.append(str(registry_file))
             log(f"Removed help registry cache: {registry_file}")
         else:
-            debug(f"Help registry cache file does not exist: {registry_file}")
+            log(f"Help registry cache file does not exist: {registry_file}")
     
     trace_out()
     

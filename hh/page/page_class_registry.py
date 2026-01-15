@@ -285,7 +285,7 @@ def cleanup_page_class_cache():
             removed_files.append(str(cache_file))
             log(f"Removed cold cache file: {cache_file}")
         else:
-            debug(f"Cold cache file does not exist: {cache_file}")
+            log(f"Cold cache file does not exist: {cache_file}")
     trace_out()
     return {
         'success': True,

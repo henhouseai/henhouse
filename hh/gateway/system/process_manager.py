@@ -217,16 +217,16 @@ class ProcessManager:
         try:
             # Build the actual command
             actual_cmd = cmd.copy()
-            
+
             # Handle user switching on Unix (deployed mode)
-            debug(f"User switching check: user={user}, is_unix={self.is_unix}, is_privileged={self.is_privileged()}")
+            log(f"User switching check: user={user}, is_unix={self.is_unix}, is_privileged={self.is_privileged()}")
             if user and self.is_unix and self.is_privileged():
                 # Wrap command with sudo -u
                 cmd_str = ' '.join(actual_cmd)
                 # Don't redirect to log_file here - let the process handle its own logging
                 actual_cmd = ['sudo', '-u', user, 'bash', '-c', f'cd {cwd or "."} && nohup {cmd_str} &']
-                
-                debug(f"User switching command: {' '.join(actual_cmd)}")
+
+                log(f"User switching command: {' '.join(actual_cmd)}")
                 
                 # Use array form for proper argument handling
                 process = subprocess.Popen(

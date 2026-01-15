@@ -61,17 +61,17 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
         cache_permissions_set = source_data.get('cache_permissions_set', False)
         
         log(f"Rendering deploy section for: {project_name}")
-        debug(f"Source data keys: {list(source_data.keys())}")
-        debug(f"Code deployed: {code_deployed}, type: {type(code_deployed)}")
-        debug(f"Cache cleaned: {cache_cleaned}, type: {type(cache_cleaned)}")
-        debug(f"Context deployed: {context_deployed}, type: {type(context_deployed)}")
-        
+        log(f"Source data keys: {list(source_data.keys())}")
+        log(f"Code deployed: {code_deployed}, type: {type(code_deployed)}")
+        log(f"Cache cleaned: {cache_cleaned}, type: {type(cache_cleaned)}")
+        log(f"Context deployed: {context_deployed}, type: {type(context_deployed)}")
+
         # Project header
         deploy_data.add_row(
             'project_header',
             value=safe_str(project_name)
         )
-        debug(f"Added project data: {deploy_data.num_rows()} items")
+        log(f"Added project data: {deploy_data.num_rows()} items")
         
         # Code deployment
         if not gateway.is_no('code'):
@@ -89,34 +89,34 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
         
         # Cache cleanup - show specific details
         if not gateway.is_no('cache'):
-            debug(f"Processing cache_cleaned: {cache_cleaned}")
+            log(f"Processing cache_cleaned: {cache_cleaned}")
             if isinstance(cache_cleaned, dict):
                 if cache_cleaned.get('pycache_dirs', 0) > 0:
                     deploy_data.add_row(
                         'cache_cleaned',
                         value=safe_str(f"{cache_cleaned['pycache_dirs']} __pycache__ dirs")
                     )
-                    debug(f"Added pycache dirs: {cache_cleaned['pycache_dirs']}")
+                    log(f"Added pycache dirs: {cache_cleaned['pycache_dirs']}")
                 if cache_cleaned.get('pyc_files', 0) > 0:
                     deploy_data.add_row(
                         'cache_cleaned',
                         value=safe_str(f"{cache_cleaned['pyc_files']} .pyc files")
                     )
-                    debug(f"Added pyc files: {cache_cleaned['pyc_files']}")
+                    log(f"Added pyc files: {cache_cleaned['pyc_files']}")
                 if cache_cleaned.get('cache_files', 0) > 0:
                     deploy_data.add_row(
                         'cache_cleaned',
                         value=safe_str(f"{cache_cleaned['cache_files']} cache files")
                     )
-                    debug(f"Added cache files: {cache_cleaned['cache_files']}")
+                    log(f"Added cache files: {cache_cleaned['cache_files']}")
                 if cache_cleaned.get('cache_dirs', 0) > 0:
                     deploy_data.add_row(
                         'cache_cleaned',
                         value=safe_str(f"{cache_cleaned['cache_dirs']} .cache dirs")
                     )
-                    debug(f"Added cache dirs: {cache_cleaned['cache_dirs']}")
+                    log(f"Added cache dirs: {cache_cleaned['cache_dirs']}")
             else:
-                debug(f"Cache cleaned is not a dict: {type(cache_cleaned)}")
+                log(f"Cache cleaned is not a dict: {type(cache_cleaned)}")
         
         # Flask deployment - show each app
         if not gateway.is_no('flask'):
@@ -191,10 +191,10 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                     'maintenance_restart',
                     value=safe_str(detail)
                 )
-        
-        debug(f"Final deploy_data: {deploy_data.num_rows()} items")
-        debug(f"Deploy data structure: {deploy_data}")
-        
+
+        log(f"Final deploy_data: {deploy_data.num_rows()} items")
+        log(f"Deploy data structure: {deploy_data}")
+
         lines.append(render_block(
             deploy_data,
             FieldConfig()

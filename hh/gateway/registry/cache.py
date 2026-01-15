@@ -444,7 +444,7 @@ def cleanup_gateway_registry_cache():
                 removed_files.append(str(cache_file))
                 log(f"Removed cache file: {cache_file}")
             else:
-                debug(f"Cache file does not exist: {cache_file}")
+                log(f"Cache file does not exist: {cache_file}")
     
     trace_out()
     

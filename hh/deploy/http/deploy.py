@@ -878,6 +878,17 @@ def deploy() -> bool:
         warn(f"Test hook execution failed: {e}")
         # Don't fail deployment on test hook failure for now
 
+    # Test error handling with intentional failures
+    log("Testing error handling with test-error-handling hooks...")
+    try:
+        success = run_hooks('test-error-handling')
+        if success:
+            warn("ERROR: test-error-handling hooks returned True - should have failed!")
+        else:
+            log("test-error-handling hooks failed as expected")
+    except Exception as e:
+        log(f"test-error-handling hooks raised exception (expected): {e}")
+
     # Detect project context
     current_path = Path.cwd()
     while current_path != current_path.parent:

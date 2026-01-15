@@ -126,3 +126,51 @@ def test_hook_log_to_database():
         import traceback
         traceback.print_exc()
         return trace_out(False)
+
+
+@register_module_hook('test-error-handling')
+def test_hook_returns_false():
+    """
+    Test hook that returns False to test error handling.
+
+    This hook intentionally returns False to verify that:
+    1. run_hooks() catches the False return
+    2. Error is logged appropriately
+    3. Subsequent hooks (if any) are not executed
+    4. Deployment script handles the failure correctly
+    """
+    trace_in("test_hook_returns_false")
+    log("Test hook intentionally returning False")
+    print("[users] test-error-handling: Intentionally returning False")
+    return trace_out(False)
+
+
+@register_module_hook('test-error-handling')
+def test_hook_raises_exception():
+    """
+    Test hook that raises an exception to test error handling.
+
+    This hook intentionally raises an exception to verify that:
+    1. run_hooks() catches the exception
+    2. Error is logged with exception details
+    3. Subsequent hooks (if any) are not executed
+    4. Deployment script handles the failure correctly
+    """
+    trace_in("test_hook_raises_exception")
+    log("Test hook intentionally raising exception")
+    print("[users] test-error-handling: About to raise exception")
+    raise RuntimeError("Intentional test exception from hook")
+
+
+@register_module_hook('test-error-handling')
+def test_hook_should_not_execute():
+    """
+    Test hook that should never execute due to earlier failure.
+
+    If this hook executes, it means error handling is not working correctly
+    because the earlier hooks should have failed and stopped execution.
+    """
+    trace_in("test_hook_should_not_execute")
+    warn("THIS HOOK SHOULD NOT HAVE EXECUTED - error handling failed!")
+    print("[users] test-error-handling: ERROR - This hook should not have executed!")
+    return trace_out(True)
