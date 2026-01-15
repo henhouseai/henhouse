@@ -97,7 +97,7 @@ The central orchestrator and state manager for the entire Henhouse system. It ma
 1. **Entry Point**: `init_gateway(raw_argv, backend)` creates and initializes Gateway
 2. **Initialization** (in `Gateway.__init__()`):
    - `_initialize()`: Sets up all subsystems in proper order
-     - `_initialize_debug_module()`: Configures debugging based on request flags
+     - `_initialize_debug_module()`: Configures debugging based on request flags and per-tier access control (configured in ext/deploy/conf/debug_settings.py)
      - `_initialize_command()`: Extracts command from parsed request (with defaults for http/parser backends)
      - `_initialize_connection()`: Initializes database connection and returns user tier level
      - `_initialize_response()`: Initializes backend-specific Response subclass
@@ -110,6 +110,21 @@ The central orchestrator and state manager for the entire Henhouse system. It ma
    - `_process_errors()`: Processes errors and runs error handler if available
    - `_commit()`: Commits file operations, refreshes caches, and commits database transactions
    - `flush_debug()`: Outputs debug information
+
+### Backend Override Feature
+
+**Parser Backend Only**: The parser backend supports a `-backend <type>` flag that allows running any command through a different backend type for smoke testing and debugging purposes.
+
+**Supported Backend Types**: `parser` (default), `http`, `mcp`, `api`, `maintenance`
+
+**Usage Examples**:
+```bash
+python hen.py show-page id=123 -backend http    # Test HTTP backend output from CLI
+python hen.py show-page id=123 -backend mcp     # Test MCP backend output from CLI
+python hen.py show-page id=123 -backend api     # Test API backend output from CLI
+```
+
+**Implementation**: During Gateway initialization, if the incoming backend is "parser" and a "backend" argument is provided, the Gateway temporarily switches to the specified backend type for that request only.
 
 ### Critical Methods
 

@@ -342,6 +342,19 @@ The parser backend provides command-line access to all system functions, routing
 - Direct gateway dispatch with argument parsing and validation
 - Supports all debug flags and filtering options
 
+#### **Backend Override Flag**
+
+- **Flag**: `-backend <type>` (parser backend only)
+- **Purpose**: Allows running any command through a different backend for smoke testing and debugging
+- **Supported Types**: `parser` (default), `http`, `mcp`, `api`, `maintenance`
+- **Usage Examples**:
+  ```bash
+  python hen.py show-page id=123 -backend http
+  python hen.py show-page id=123 -backend mcp
+  python hen.py show-page id=123 -backend api
+  ```
+- **Benefits**: Test backend consistency, debug backend-specific issues, compare output formats without switching contexts
+
 #### **Table Rendering**
 
 - Uses unified render system for structured output formatting

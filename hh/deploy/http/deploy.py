@@ -36,6 +36,7 @@ from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
 from hh.deploy.deploy_utils import (
     load_whitelist_with_extensions,
 )
+from hh.gateway.registry.module_hooks import run_hooks
 
 def _iso_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -856,6 +857,18 @@ def deploy() -> bool:
     if not gateway.os or not gateway.os.require_privileged():
         trace_out()
         return False
+
+    # Run test hooks at start of deployment
+    log("Running test-deploy-start hooks...")
+    try:
+        success = run_hooks('test-deploy-start')
+        if success:
+            log("Test hooks executed successfully")
+        else:
+            warn("Test hook execution returned False")
+    except Exception as e:
+        warn(f"Test hook execution failed: {e}")
+        # Don't fail deployment on test hook failure for now
 
     # Detect project context
     current_path = Path.cwd()

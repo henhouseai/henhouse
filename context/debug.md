@@ -548,6 +548,77 @@ The debug output is included in the MCP response as a separate content item:
 
 ---
 
+## 7. Per-Tier Debug Control
+
+The debug system includes per-tier access control that restricts debug flag usage based on user tier level, providing security and performance benefits in production environments.
+
+### Configuration File
+
+**Location**: `ext/deploy/conf/debug_settings.py`
+
+**Purpose**: Defines which user tiers are allowed to enable debug flags (`-debug`, `-log`, `-trace`, etc.)
+
+### Configuration Format
+
+```python
+# Tier levels allowed to activate debug flags
+# 1 = guest, 2 = verified, 3 = admin, 4 = root
+# Example: [3, 4] means only admin and root can use debugger
+# Example: [1, 2, 3, 4] means all tiers can use debugger
+ALLOWED_TIERS: List[int] = [3, 4]
+```
+
+### Default Behavior
+
+By default, only admin (tier 3) and root (tier 4) users can enable debug flags. This provides:
+
+- **Production Security**: Guest and verified users cannot access potentially sensitive debug information
+- **Performance Protection**: Prevents lower-tier users from triggering debug overhead
+- **Controlled Access**: Debug capabilities remain available to system administrators
+
+### Implementation
+
+The system checks tier permissions during gateway initialization:
+
+1. User tier level is determined from database connection (username pattern: `{project}_{tier}`)
+2. Gateway checks `ALLOWED_TIERS` configuration
+3. If user's tier is not allowed, debug flags are automatically disabled
+4. System logs the tier restriction for audit purposes
+
+### Configuration Options
+
+The debug settings file also configures other debug defaults:
+
+```python
+# Default debug mode states
+DEFAULT_USE_TRACE: bool = True
+DEFAULT_USE_LOG: bool = True
+DEFAULT_USE_DEBUG: bool = True
+
+# Default filter values
+DEFAULT_WHITELIST: List[str] = ["*"]        # Include all modules
+DEFAULT_GRAYLIST: List[str] = []            # Include all files
+DEFAULT_BLACKLIST: List[str] = []           # Exclude nothing
+DEFAULT_DEBUG_LIMIT: int = 10               # Max messages per combination
+```
+
+### Security Benefits
+
+- **Information Disclosure Prevention**: Debug output may contain sensitive system information
+- **Performance Impact Mitigation**: Debug overhead is restricted to authorized users
+- **Compliance Support**: Audit trails of debug usage by tier level
+
+### Troubleshooting
+
+If debug flags are not working as expected:
+
+1. **Check User Tier**: Verify your database connection uses correct tier (check DSN username)
+2. **Verify Configuration**: Ensure `ext/deploy/conf/debug_settings.py` exists and `ALLOWED_TIERS` includes your tier
+3. **Check Logs**: Look for "Disabling debug flags for tier X" messages in gateway logs
+4. **Default Behavior**: If config file is missing, all tiers can use debug flags
+
+---
+
 ## Debug System Use Guide
 
 This section provides comprehensive guidance for using the Henhouse debug system effectively, with practical examples and best practices for system investigation and troubleshooting.
