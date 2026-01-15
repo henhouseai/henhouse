@@ -1,1 +1,0 @@
-# self_doc module initialization

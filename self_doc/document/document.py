@@ -256,6 +256,10 @@ class Document(Page):
         trace_out()
         return not is_error()
 
+    def finalize_response_http(self, source_data: Dict[str, Any]) -> None:
+        """Document keeps page_summary badge even for HTTP backend."""
+        pass  # Don't remove page_summary badge
+
     def _add_badge_headers(self) -> Dict[str, Any]:
         """Override to add document metadata to badge headers."""
         trace_in()
