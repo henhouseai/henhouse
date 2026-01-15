@@ -36,6 +36,7 @@ from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
 from hh.deploy.deploy_utils import (
     load_whitelist_with_extensions,
 )
+from hh.gateway.registry.module_hooks import run_hooks
 
 def _iso_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -836,10 +837,6 @@ from hh.deploy.conf.deploy_whitelist import (
     MEDIA_SERVER_SOURCE,
     MAINTENANCE_APP_SOURCE,
 )
-from hh.deploy.flask.flask_start import run_flask_start
-from hh.deploy.flask.flask_stop import run_flask_stop
-from hh.deploy.maintenance.maintenance_start import run_maintenance_start
-from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
 from hh.deploy.users.install import _install_config_path
 
 @register_action('deploy')
@@ -868,7 +865,7 @@ def deploy() -> bool:
     else:
         project_name = Path.cwd().name
         current_path = Path.cwd()
-    
+
     # Load whitelists with extension support
     CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
     JS_WHITELIST = load_whitelist_with_extensions('js_whitelist', 'JS_WHITELIST')
@@ -961,10 +958,11 @@ def deploy() -> bool:
     # Stop running daemons prior to deployment
     if not is_error():
         try:
-            log("Stopping maintenance daemon prior to deployment")
-            run_maintenance_stop(project_name)
-            log("Stopping Flask daemons prior to deployment")
-            run_flask_stop(project_name)
+            log("Stopping daemons via module hooks")
+            success = run_hooks('deploy_stop_daemons')
+            if not success:
+                warn("One or more daemon stop hooks failed")
+                report_error("backend", "Failed to stop daemons before deployment (hook returned False)")
         except Exception as e:  # noqa: BLE001
             warn(f"Failed to stop daemons before deployment: {e}")
             report_error("backend", f"Failed to stop daemons before deployment: {e}")
@@ -1355,8 +1353,8 @@ def deploy() -> bool:
             warn(f"Failed to deploy EXT maintenance workers: {e}")
             report_error("backend", f"Failed to deploy EXT maintenance workers: {e}")
 
-    flask_restart_info = {}
-    maintenance_restart_info = {}
+    flask_restart_info: Dict[str, Any] = {}
+    maintenance_restart_info: Dict[str, Any] = {}
 
     # Deploy extra top-level files (config-driven)
     if not is_error():
@@ -1746,11 +1744,11 @@ def deploy() -> bool:
     # Restart daemons after permissions/logs are in place
     if not is_error():
         try:
-            log("Starting Flask daemons after deployment")
-            flask_restart_info = run_flask_start(project_name, start_port)
-            log("Starting maintenance daemon after deployment")
-            maintenance_restart_info = run_maintenance_start(project_name)
-            log(f"Daemon restart summary: Flask={flask_restart_info.get('summary')}, Maintenance={maintenance_restart_info.get('status')}")
+            log("Restarting daemons via module hooks")
+            success = run_hooks('deploy_restart_daemons')
+            if not success:
+                warn("One or more daemon restart hooks failed")
+                report_error("backend", "Failed to restart daemons after deployment (hook returned False)")
         except Exception as e:  # noqa: BLE001
             warn(f"Failed to restart daemons after deployment: {e}")
             report_error("backend", f"Failed to restart daemons after deployment: {e}")

@@ -243,27 +243,29 @@ def get_hook_handlers(hook_name: str) -> List[Callable]:
     return trace_out(handlers)
 
 
-def run_hooks(hook_name: str, *args, **kwargs) -> bool:
+def run_hooks(hook_name: str) -> bool:
     """
     Execute all hooks registered for a given hook name.
 
     Hooks execute in alphabetical order by module name.
     Stops immediately on first failure (exception or False return).
+    Hook functions take no arguments.
 
     Args:
         hook_name: Name of hook to execute
-        *args: Positional arguments to pass to hook functions
-        **kwargs: Keyword arguments to pass to hook functions
 
     Returns:
         True if all hooks succeeded, False if any failed
 
     Example:
-        success = run_hooks('deploy_before_schema', project_name='myproject')
+        success = run_hooks('deploy_stop_daemons')
         if not success:
             print("Hook execution failed")
     """
     trace_in()
+
+    # Ensure hooks are discovered (idempotent - no-ops if already done)
+    discover_module_hooks()
 
     # Get callable handlers (lazy-loads if needed)
     handlers = get_hook_handlers(hook_name)
@@ -284,7 +286,7 @@ def run_hooks(hook_name: str, *args, **kwargs) -> bool:
         log(f"Executing hook '{hook_name}' from module '{module_name}'")
 
         try:
-            result = func(*args, **kwargs)
+            result = func()
 
             # Check for explicit False return (indicates failure)
             if result is False:
