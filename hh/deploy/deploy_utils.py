@@ -159,21 +159,31 @@ def load_whitelist_with_extensions(
     # Step 4: Load and apply module extensions
     try:
         modules = get_active_modules()
+        debug(f"Found {len(modules)} active modules for {base_name} whitelist merging")
+        for module in modules:
+            debug(f"Checking module: {module.name} at path: {module.path}")
         module_count = 0
         for module in modules:
             module_conf = project_root / module.path / "deploy" / "conf"
             module_file = module_conf / f"{base_name}.py"
+            debug(f"Looking for module whitelist file: {module_file}")
             module_list = _load_list_from_file(module_file, var_name)
 
             if module_list is not None:
+                debug(f"Found {len(module_list)} items in module {module.name} whitelist: {module_list}")
                 for item in module_list:
                     if item in result and item not in blacklisted_items:
                         warn(f"Duplicate item in module {module.name} extension (not blacklisted): {item} in {module_file}")
                     if item not in result:
+                        debug(f"Adding item from module {module.name}: {item}")
                         result.append(item)
                         module_count += 1
+            else:
+                debug(f"No whitelist found for module {module.name} at {module_file}")
         if module_count > 0:
             log(f"Applied module extensions: added {module_count} items, final count: {len(result)}")
+        else:
+            debug(f"No items added from module extensions for {base_name}")
     except Exception as e:
         warn(f"Error loading module extensions for {base_name}: {e}")
 
