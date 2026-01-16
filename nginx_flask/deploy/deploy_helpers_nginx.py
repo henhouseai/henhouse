@@ -7,7 +7,7 @@ import subprocess
 import shutil
 from pathlib import Path
 from typing import Tuple, Optional, List, Dict, Any
-from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_warn, register_debug_init
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_warn, get_debug, register_debug_init
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.error.error_store import report_error
 

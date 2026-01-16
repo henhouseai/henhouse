@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any
 from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init
 from hh.gateway.error.error_store import report_error
 from hh.gateway.registry.module_hooks import register_module_hook
 

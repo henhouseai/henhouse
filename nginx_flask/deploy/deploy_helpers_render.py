@@ -6,7 +6,7 @@ from hh.render.render import TableData, FieldConfig, render_block
 from hh.gateway.gateway import get_gateway
 from hh.gateway.response.json_standard import get_data
 from hh.gateway.registry.module_hooks import register_module_hook
-from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_warn, register_debug_init
+from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_warn, get_debug, register_debug_init
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

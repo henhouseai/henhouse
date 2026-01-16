@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any
 from hh.deploy.deploy_utils import detect_project_context
-from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init
 from hh.gateway.registry.module_hooks import register_module_hook
 
 trace_in = lambda message=None: None

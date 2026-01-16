@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 from hh.deploy.deploy_utils import detect_project_context, get_active_modules
-from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init
 from hh.gateway.error.error_store import report_error
 from hh.gateway.registry.module_hooks import register_module_hook
 
@@ -58,7 +58,7 @@ def prepare_site_directory() -> Dict[str, Any]:
 
 
 @register_module_hook('deploy_site')
-def deploy_site_css(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
+def deploy_site_css() -> Dict[str, Any]:
     """Deploy CSS files to the site directory."""
     trace_in()
 
@@ -73,6 +73,9 @@ def deploy_site_css(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str,
     site_dest = dest / 'site'
     css_dest = site_dest / 'css'
     css_dest.mkdir(exist_ok=True)
+
+    # Import the pre-validated whitelists from the main deploy_hooks module
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
 
     # Get CSS whitelist (pre-validated)
     CSS_WHITELIST = pre_validated_whitelists.get('CSS_WHITELIST', [])
@@ -106,7 +109,7 @@ def deploy_site_css(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str,
 
 
 @register_module_hook('deploy_site')
-def deploy_site_js(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
+def deploy_site_js() -> Dict[str, Any]:
     """Deploy JavaScript files and generate registry."""
     trace_in()
     """Deploy JavaScript files and generate registry."""
@@ -121,6 +124,9 @@ def deploy_site_js(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, 
     site_dest = dest / 'site'
     js_dest = site_dest / 'js'
     js_dest.mkdir(exist_ok=True)
+
+    # Import the pre-validated whitelists from the main deploy_hooks module
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
 
     # Get JS whitelists (pre-validated)
     JS_WHITELIST = pre_validated_whitelists.get('JS_WHITELIST', [])
@@ -281,10 +287,10 @@ def deploy_site_js(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, 
 
 
 @register_module_hook('deploy_site')
-def deploy_site_misc(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
+def deploy_site_misc() -> Dict[str, Any]:
     """Deploy miscellaneous files to the site directory."""
     trace_in()
-    """Deploy miscellaneous files to the site directory."""
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -294,6 +300,9 @@ def deploy_site_misc(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str
     source = current_path
     dest = Path("/srv") / project_name
     site_dest = dest / 'site'
+
+    # Import the pre-validated whitelists from the main deploy_hooks module
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
 
     # Get misc whitelist (pre-validated)
     MISC_WHITELIST = pre_validated_whitelists.get('MISC_WHITELIST', [])

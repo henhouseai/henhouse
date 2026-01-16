@@ -1,8 +1,7 @@
 from typing import Dict, Any, List
 from hh.gateway.registry.module_hooks import register_module_hook
-from hh.gateway.registry.debug import get_log, get_warn
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init
 from hh.deploy.deploy_utils import load_whitelist_with_extensions
-from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_debug, get_warn, register_debug_init
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
