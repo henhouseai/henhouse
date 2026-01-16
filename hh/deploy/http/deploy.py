@@ -65,11 +65,6 @@ def deploy() -> bool:
         trace_out()
         return False
 
-    # Extract validated config values
-    project_name = pre_validated_config['project_name']
-
-
-    dest = Path("/srv") / project_name
 
     # Git preservation hooks
     if not is_error():
@@ -325,7 +320,6 @@ def deploy() -> bool:
 
     if not is_error():
         result_data = {
-            "project_name": project_name,
             "hook_results": hook_results
         }
         gateway.response.set_action_response(success_payload(result_data))
@@ -364,10 +358,15 @@ def render_deploy_hookified() -> bool:
         trace_out()
         return False
 
-    # Get project name from response data for summary table header
+    # Get project name from hook results (deploy_pre_validate)
     json_data = gateway.response.get_action_response()
     source_data = get_data(json_data if json_data is not None else {})
-    project_name = source_data.get('project_name', 'Unknown')
+    project_name = 'Unknown'
+    hook_results = source_data.get('hook_results', [])
+    for result in hook_results:
+        if result.get('project_name'):
+            project_name = result['project_name']
+            break
 
     lines = []
     lines.append(render_header_block('l_deploy_header'))
