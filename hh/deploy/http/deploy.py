@@ -46,10 +46,24 @@ def deploy() -> bool:
     # Initialize hook results collection
     hook_results: List[Dict[str, Any]] = []
 
-    # Define deployment phases as a list of hook configurations
+    # Run pre-validation first
+    if not is_error():
+        log("Running pre-deployment validation hooks")
+        results = run_hooks('deploy_pre_validate')
+        if results:
+            hook_results.extend(results)
+
+    # Check pre-validation results before proceeding
+    from .deploy_hooks import pre_validated_config
+    if pre_validated_config is None:
+        warn("Pre-validation not completed - configuration not available")
+        report_error("backend", "Pre-validation not completed - configuration not available")
+        trace_out()
+        return False
+
+    # Define remaining deployment phases
     deployment_phases = [
-        # Pre-deployment preparation
-        ('deploy_pre_validate', 'pre-deployment validation'),
+        # Pre-deployment preparation (continued)
         ('deploy_git_preserve', 'git preservation'),
         ('deploy_stop_daemons', 'daemon stop'),
         ('deploy_git_preserve_ops', 'git preservation operations'),
@@ -83,21 +97,13 @@ def deploy() -> bool:
         ('deploy_manifest', 'site manifest addition'),
     ]
 
-    # Execute all deployment phases
+    # Execute remaining deployment phases
     for hook_name, description in deployment_phases:
         if not is_error():
             log(f"Running {description} hooks")
             results = run_hooks(hook_name)
             if results:
                 hook_results.extend(results)
-
-    # Special handling for pre-validation configuration check
-    from .deploy_hooks import pre_validated_config
-    if pre_validated_config is None:
-        warn("Pre-validation not completed - configuration not available")
-        report_error("backend", "Pre-validation not completed - configuration not available")
-        trace_out()
-        return False
 
     if not is_error():
         result_data = {
