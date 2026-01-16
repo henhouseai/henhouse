@@ -207,3 +207,68 @@ def set_base_permissions() -> dict:
         warn(f"cache permissions hook: Failed to set base permissions: {e}")
         report_error("backend", f"cache permissions hook: Failed to set base permissions: {e}")
         return {"status": "error", "component": "base", "error": str(e)}
+
+
+@register_module_hook('deploy_cache_cleanup')
+def cleanup_deployment_cache_files() -> dict:
+    """Clean cache files from deployment directory."""
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            warn("cache cleanup hook: Could not detect project name")
+            return {"status": "error", "component": "cache_cleanup", "error": "no_project"}
+
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        dest = Path("/srv") / project_name
+
+        cache_cleaned = {
+            'pycache_dirs': 0,
+            'pyc_files': 0,
+            'cache_files': 0,
+            'cache_dirs': 0
+        }
+
+        # Remove __pycache__ directories
+        for pycache_dir in dest.rglob('__pycache__'):
+            import shutil
+            shutil.rmtree(pycache_dir)
+            cache_cleaned['pycache_dirs'] += 1
+            log(f"Removed __pycache__ directory: {pycache_dir}")
+
+        # Remove .pyc files
+        for pyc_file in dest.rglob('*.pyc'):
+            pyc_file.unlink()
+            cache_cleaned['pyc_files'] += 1
+            log(f"Removed .pyc file: {pyc_file}")
+
+        # Remove cache files
+        cache_patterns = ['*-reg.json', '*.cycle.json', 'cache.json', '*.cache']
+        for pattern in cache_patterns:
+            for cache_file in dest.rglob(pattern):
+                cache_file.unlink()
+                cache_cleaned['cache_files'] += 1
+                log(f"Removed cache file: {cache_file}")
+
+        # Remove .cache directories
+        for cache_dir in dest.rglob('.cache'):
+            import shutil
+            shutil.rmtree(cache_dir)
+            cache_cleaned['cache_dirs'] += 1
+            log(f"Removed .cache directory: {cache_dir}")
+
+        log(f"Cache cleanup complete: {cache_cleaned['pycache_dirs']} __pycache__ dirs, {cache_cleaned['pyc_files']} .pyc files, {cache_cleaned['cache_files']} cache files, {cache_cleaned['cache_dirs']} .cache dirs")
+
+        return {
+            "status": "completed",
+            "component": "cache_cleanup",
+            "cache_cleaned": cache_cleaned,
+            "directory": str(dest),
+            # Render-related data (namespaced to avoid conflicts)
+            "render_cache_cleaned": cache_cleaned
+        }
+
+    except Exception as e:
+        warn(f"cache cleanup hook: Failed to clean cache files: {e}")
+        report_error("backend", f"cache cleanup hook: Failed to clean cache files: {e}")
+        return {"status": "error", "component": "cache_cleanup", "error": str(e)}

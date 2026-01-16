@@ -50,6 +50,7 @@ def deploy() -> bool:
     ownership_set = False
     cache_permissions_set = False
     logs_permissions_set = False
+    cache_cleaned: Dict[str, int] = {}  # Will be populated from hook results
 
     # Pre-deployment validation hooks - each module validates its own config
     if not is_error():
@@ -86,18 +87,11 @@ def deploy() -> bool:
     is_local = pre_validated_config['is_local']
 
     # Load whitelists with extension support
+    from hh.deploy.deploy_utils import load_tuple_whitelist_with_extensions
     CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
     DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
     CLIENT_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'CLIENT_WHITELIST')
-
-    # Load APP_WHITELIST as tuples (custom loading since load_whitelist_with_extensions expects strings)
-    from hh.deploy.deploy_utils import _load_list_from_file, detect_project_context
-    from typing import List
-    project_name, project_root = detect_project_context()
-    hh_conf = project_root / "hh" / "deploy" / "conf"
-    base_app_file = hh_conf / "deploy_whitelist.py"
-    APP_WHITELIST: List[tuple] = _load_list_from_file(base_app_file, 'APP_WHITELIST') or []
-
+    APP_WHITELIST = load_tuple_whitelist_with_extensions('deploy_whitelist', 'APP_WHITELIST')
 
     HH_EXTRA_DEPLOY_FILES = CLIENT_WHITELIST  # All client files now in one list
     EXT_EXTRA_DEPLOY_FILES: List[str] = []  # No longer separate EXT list
@@ -301,45 +295,22 @@ def deploy() -> bool:
             warn(f"Cache cleanup hooks failed: {e}")
             report_error("backend", f"Cache cleanup hooks failed: {e}")
 
-    # Clean cache files
+    # Cache cleanup hooks
     if not is_error():
-        cache_cleaned = {
-            'pycache_dirs': 0,
-            'pyc_files': 0,
-            'cache_files': 0,
-            'cache_dirs': 0
-        }
         try:
-            # Remove __pycache__ directories
-            for pycache_dir in dest.rglob('__pycache__'):
-                shutil.rmtree(pycache_dir)
-                cache_cleaned['pycache_dirs'] += 1
-                log(f"Removed __pycache__ directory: {pycache_dir}")
-
-            # Remove .pyc files
-            for pyc_file in dest.rglob('*.pyc'):
-                pyc_file.unlink()
-                cache_cleaned['pyc_files'] += 1
-                log(f"Removed .pyc file: {pyc_file}")
-
-            # Remove cache files
-            cache_patterns = ['*-reg.json', '*.cycle.json', 'cache.json', '*.cache']
-            for pattern in cache_patterns:
-                for cache_file in dest.rglob(pattern):
-                    cache_file.unlink()
-                    cache_cleaned['cache_files'] += 1
-                    log(f"Removed cache file: {cache_file}")
-
-            # Remove .cache directories
-            for cache_dir in dest.rglob('.cache'):
-                shutil.rmtree(cache_dir)
-                cache_cleaned['cache_dirs'] += 1
-                log(f"Removed .cache directory: {cache_dir}")
-
-            log(f"Cache cleanup complete: {cache_cleaned['pycache_dirs']} __pycache__ dirs, {cache_cleaned['pyc_files']} .pyc files, {cache_cleaned['cache_files']} cache files, {cache_cleaned['cache_dirs']} .cache dirs")
-        except Exception as e:
-            warn(f"Failed to clean cache files: {e}")
-            report_error("backend", f"Failed to clean cache files: {e}")
+            log("Running cache cleanup hooks")
+            results = run_hooks('deploy_cache_cleanup')
+            if results:
+                hook_results.extend(results)
+                # Extract cache_cleaned from hook results for use in final result
+                cache_cleaned = {}
+                for result in results:
+                    if result.get('component') == 'cache_cleanup' and result.get('cache_cleaned'):
+                        cache_cleaned = result['cache_cleaned']
+                        break
+        except Exception as e:  # noqa: BLE001
+            warn(f"Cache cleanup hooks failed: {e}")
+            report_error("backend", f"Cache cleanup hooks failed: {e}")
 
     # Deploy Flask apps via module hooks
     if not is_error():
@@ -352,51 +323,18 @@ def deploy() -> bool:
             warn(f"Flask app deployment hooks failed: {e}")
             report_error("backend", f"Flask app deployment hooks failed: {e}")
 
-    # Deploy maintenance worker script
+    # Deploy maintenance workers via module hooks
     if not is_error():
         try:
-            # Find maintenance app source from APP_WHITELIST
-            maint_source_path = None
-            for app_item in APP_WHITELIST:
-                if isinstance(app_item, tuple) and len(app_item) == 2:
-                    app_name, source_path = app_item
-                    if app_name == 'maintenance':
-                        maint_source_path = source_path
-                        break
-
-            if maint_source_path:
-                maint_source = source / maint_source_path
-                if maint_source.exists():
-                    maint_dest = dest / f'{project_name}_maintenance.py'
-                    content = maint_source.read_text()
-                    content = content.replace('__PROJECT_NAME__', project_name)
-                    with open(maint_dest, 'w') as f:
-                        f.write(content)
-                    log(f"Deployed maintenance worker: {maint_dest}")
-                else:
-                    log("Maintenance worker template not found, skipping deployment")
-            else:
-                log("Maintenance app source not found in APP_WHITELIST, skipping deployment")
-        except Exception as e:
-            warn(f"Failed to deploy maintenance worker: {e}")
-            report_error("backend", f"Failed to deploy maintenance worker: {e}")
-    
-    # Deploy EXT maintenance workers (e.g., migration_worker.py)
-    if not is_error():
-        try:
-            ext_maint_dir = source / "ext" / "deploy" / "maintenance"
-            if ext_maint_dir.exists():
-                for worker_file in ext_maint_dir.glob("*_worker.py"):
-                    daemon_name = worker_file.stem.replace("_worker", "")
-                    maint_dest = dest / f'{project_name}_maintenance_{daemon_name}.py'
-                    content = worker_file.read_text()
-                    # No replacement needed for EXT workers (they find project root themselves)
-                    with open(maint_dest, 'w') as f:
-                        f.write(content)
-                    log(f"Deployed EXT maintenance worker: {maint_dest} (from {worker_file.name})")
-        except Exception as e:
-            warn(f"Failed to deploy EXT maintenance workers: {e}")
-            report_error("backend", f"Failed to deploy EXT maintenance workers: {e}")
+            log("Running maintenance worker deployment hooks")
+            results = run_hooks('deploy_flask_apps')
+            if results:
+                # Filter for maintenance module results
+                maintenance_results = [r for r in results if r.get('module') == 'maintenance']
+                hook_results.extend(maintenance_results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Maintenance worker deployment hooks failed: {e}")
+            report_error("backend", f"Maintenance worker deployment hooks failed: {e}")
 
     flask_restart_info: Dict[str, Any] = {}
     maintenance_restart_info: Dict[str, Any] = {}

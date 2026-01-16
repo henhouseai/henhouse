@@ -153,6 +153,76 @@ def load_whitelist_with_extensions(
     return result
 
 
+def load_tuple_whitelist_with_extensions(
+    base_name: str,
+    var_name: str
+) -> List[tuple]:
+    """
+    Load a whitelist of tuples from all active modules with support for ext blacklists.
+
+    Processing order:
+    1. Load whitelists from all active modules (hh, ext, and regular modules)
+    2. Load blacklist from ext/deploy/conf/{base_name}_blacklist.py (if exists)
+    3. Subtract blacklist items from combined result
+    4. Warn about duplicates across modules but keep first occurrence
+
+    Args:
+        base_name: Base filename without .py extension (e.g., 'deploy_whitelist')
+        var_name: Variable name to load (e.g., 'APP_WHITELIST')
+
+    Returns:
+        Final combined list of tuples from all modules
+    """
+    trace_in()
+    log(f"Loading tuple whitelist: {base_name}.{var_name}")
+
+    # Detect project context
+    project_name, project_root = detect_project_context()
+
+    # Determine paths
+    ext_conf = project_root / "ext" / "deploy" / "conf"
+
+    result: List[tuple] = []
+    blacklisted_items: set[tuple] = set()
+
+    # Step 1: Load whitelists from all active modules equally
+    try:
+        modules = get_active_modules()
+        log(f"Loading {base_name}.{var_name} from {len(modules)} active modules")
+
+        for module in modules:
+            module_conf = project_root / module.path / "deploy" / "conf"
+            module_file = module_conf / f"{base_name}.py"
+            module_list = _load_list_from_file(module_file, var_name)
+
+            if module_list is not None:
+                for item in module_list:
+                    if item in result:
+                        warn(f"Duplicate item '{item}' from {module.name} module (keeping first occurrence)")
+                    else:
+                        result.append(item)
+                log(f"Loaded {len(module_list)} items from {module.name} module")
+    except Exception as e:
+        warn(f"Error loading module whitelists for {base_name}: {e}")
+
+    # Step 2: Load and apply blacklist
+    blacklist_file = ext_conf / f"{base_name}_blacklist.py"
+    blacklist_var_name = var_name
+
+    blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
+    if blacklist is not None:
+        blacklisted_items = set(blacklist)
+        # Remove blacklisted items from result
+        original_count = len(result)
+        result = [item for item in result if item not in blacklisted_items]
+        removed_count = original_count - len(result)
+        if removed_count > 0:
+            log(f"Applied blacklist: removed {removed_count} blacklisted items, {len(result)} remaining")
+
+    trace_out()
+    return result
+
+
 def load_dict_whitelist_with_extensions(
     base_name: str,
     var_name: str
