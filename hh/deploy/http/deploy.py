@@ -46,6 +46,9 @@ def deploy() -> bool:
     # Initialize hook results collection
     hook_results: List[Dict[str, Any]] = []
 
+    # Import deploy_hooks to register the pre-validate hook
+    from .deploy_hooks import pre_validated_config
+
     # Pre-deployment validation hooks - each module validates its own config
     if not is_error():
         try:
@@ -57,8 +60,7 @@ def deploy() -> bool:
             warn(f"Pre-deployment validation hooks failed: {e}")
             report_error("backend", f"Pre-deployment validation hooks failed: {e}")
 
-    # Access pre-validated configuration from hooks
-    from .deploy_hooks import pre_validated_config
+    # Check pre-validated configuration from hooks
     if pre_validated_config is None:
         warn("Pre-validation not completed - configuration not available")
         report_error("backend", "Pre-validation not completed - configuration not available")
