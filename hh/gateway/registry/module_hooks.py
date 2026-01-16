@@ -35,7 +35,7 @@ from typing import Any, Callable, Dict, List, Optional
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.registry.module_discovery import load_manifest
 from hh.deploy.cache.cache_cleanup_registry import register_cache_cleanup, get_deployment_paths
-from hh.gateway.error.error_store import report_error
+from hh.gateway.error.error_store import report_error, is_error
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -247,8 +247,10 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
     Execute all hooks registered for a given hook name.
 
     Hooks execute in alphabetical order by module name.
-    Stops immediately on first failure (exception or False return).
-    Hook functions take no arguments and return a dict of data.
+    Stops immediately on first failure (exception).
+    Hook functions take no arguments and return a dict of data when they have results to contribute.
+    Exceptions raised by hooks are caught, reported as errors, and stop execution.
+    Hooks should not implement their own error handling - that's handled centrally here.
 
     Args:
         hook_name: Name of hook to execute
@@ -284,16 +286,15 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
     for hook_info, func in zip(sorted_hooks, handlers):
         module_name = hook_info.module_name
 
+        # Check if any previous error occurred - stop processing hooks if so
+        if is_error():
+            warn(f"Stopping hook execution for '{hook_name}' due to previous error")
+            break
+
         debug(f"Executing hook '{hook_name}' from module '{module_name}'")
 
         try:
             result = func()
-
-            # Check for explicit False return (indicates failure)
-            if result is False:
-                warn(f"Hook '{hook_name}' from module '{module_name}' returned False - stopping")
-                report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' returned False")
-                return trace_out([])
 
             # Add result to collection (None and empty dicts are fine)
             if result is not None:
@@ -302,8 +303,9 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
             log(f"Hook '{hook_name}' from module '{module_name}' succeeded")
 
         except Exception as e:
-            warn(f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
-            report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
+            func_name = hook_info.function_name
+            warn(f"Hook '{hook_name}' failed: {module_name}.{func_name}")
+            report_error("deployment", f"Hook '{hook_name}' failed: {module_name}.{func_name}")
             return trace_out([])
 
     log(f"All hooks for '{hook_name}' completed successfully")

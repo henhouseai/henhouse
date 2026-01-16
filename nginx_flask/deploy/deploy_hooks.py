@@ -16,6 +16,10 @@ from nginx_flask.deploy.deploy_helpers_nginx import get_server_ip, create_nginx_
 from nginx_flask.deploy.deploy_helpers_flask import stop_flask_daemons_helper, restart_flask_daemons_helper, deploy_flask_apps_helper
 from nginx_flask.deploy.deploy_helpers_permissions import set_flask_logs_permissions_helper, set_site_permissions_helper
 from nginx_flask.deploy.deploy_helpers_site import prepare_site_directory_helper, deploy_site_css_helper, deploy_site_js_helper, deploy_site_misc_helper
+from nginx_flask.deploy.deploy_helpers_directory import sterilize_deployment_directory_helper
+from nginx_flask.deploy.deploy_helpers_modules import deploy_modules_helper, clean_module_deploy_directories_helper
+from nginx_flask.deploy.deploy_helpers_clients import deploy_client_files_helper
+from nginx_flask.deploy.deploy_helpers_context import deploy_context_helper
 
 
 log = lambda message: None
@@ -295,6 +299,61 @@ def deploy_site_misc() -> Dict[str, Any]:
         warn(f"nginx_flask hook: Failed to deploy misc files: {e}")
         report_error("backend", f"nginx_flask hook: Failed to deploy misc files: {e}")
         return {"status": "error", "component": "site_misc", "error": str(e)}
+
+
+@register_module_hook('deploy_sterilize_directory')
+def sterilize_deployment_directory() -> Dict[str, Any]:
+    """Sterilize deployment directory by removing all contents except preserved items."""
+    try:
+        return sterilize_deployment_directory_helper()
+    except Exception as e:
+        warn(f"nginx_flask hook: Failed to sterilize deployment directory: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to sterilize deployment directory: {e}")
+        return {"status": "error", "component": "directory_sterilization", "error": str(e)}
+
+
+@register_module_hook('deploy_modules')
+def deploy_modules() -> Dict[str, Any]:
+    """Deploy module files from DEPLOY_WHITELIST to deployment directory."""
+    try:
+        return deploy_modules_helper()
+    except Exception as e:
+        warn(f"nginx_flask hook: Failed to deploy modules: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to deploy modules: {e}")
+        return {"status": "error", "component": "module_deployment", "error": str(e)}
+
+
+@register_module_hook('deploy_framework_cleanup')
+def clean_module_deploy_directories() -> Dict[str, Any]:
+    """Clean up module deploy directories after deployment."""
+    try:
+        return clean_module_deploy_directories_helper()
+    except Exception as e:
+        warn(f"nginx_flask hook: Failed to clean module deploy directories: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to clean module deploy directories: {e}")
+        return {"status": "error", "component": "module_deploy_cleanup", "error": str(e)}
+
+
+@register_module_hook('deploy_client_files')
+def deploy_client_files() -> Dict[str, Any]:
+    """Deploy client files from CLIENT_WHITELIST to deployment directory."""
+    try:
+        return deploy_client_files_helper()
+    except Exception as e:
+        warn(f"nginx_flask hook: Failed to deploy client files: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to deploy client files: {e}")
+        return {"status": "error", "component": "client_files", "error": str(e)}
+
+
+@register_module_hook('deploy_context')
+def deploy_context() -> Dict[str, Any]:
+    """Deploy context folders and files to deployment directory."""
+    try:
+        return deploy_context_helper()
+    except Exception as e:
+        warn(f"nginx_flask hook: Failed to deploy context: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to deploy context: {e}")
+        return {"status": "error", "component": "context_deployment", "error": str(e)}
 
 
 @register_module_hook('deploy_nginx_and_ssl')
