@@ -113,6 +113,7 @@ def load_whitelist_with_extensions(
     ext_conf = project_root / "ext" / "deploy" / "conf"
 
     result: List[str] = []
+    blacklisted_items: set[str] = set()  # Initialize before try block
 
     # Step 1: Load whitelists from all active modules equally
     try:
@@ -147,6 +148,8 @@ def load_whitelist_with_extensions(
         removed_count = original_count - len(result)
         if removed_count > 0:
             log(f"Applied blacklist: removed {removed_count} blacklisted items, {len(result)} remaining")
+    else:
+        blacklisted_items = set()  # Ensure it's always set
 
     # Load whitelists from all active modules equally
     try:
