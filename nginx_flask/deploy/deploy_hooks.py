@@ -274,27 +274,24 @@ def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
                 except ValueError:
                     start_port = 5001
 
-        # Load app sources from whitelist (custom loading for tuples)
-        from hh.deploy.deploy_utils import _load_list_from_file
-        from typing import List
-        # current_path is already set from detect_project_context() at function start
-        hh_conf = current_path / "hh" / "deploy" / "conf"
-        base_app_file = hh_conf / "deploy_whitelist.py"
-        app_whitelist: List[tuple] = _load_list_from_file(base_app_file, 'APP_WHITELIST') or []
+        # Load app sources from aggregated whitelist
+        from hh.deploy.deploy_utils import load_whitelist_with_extensions
+        app_whitelist = load_whitelist_with_extensions('deploy_whitelist', 'APP_WHITELIST')  # type: ignore
 
         from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
         source = current_path
         dest = Path("/srv") / project_name
-        flask_deployed = []
+        flask_deployed: List[str] = []
 
         # Deploy Flask tier apps
         flask_source_path = None
-        for app_tuple in app_whitelist:
-            app_name, source_path = app_tuple
-            if app_name == 'flask':
-                flask_source_path = source_path
-                break
+        for app_item in app_whitelist:
+            if isinstance(app_item, tuple) and len(app_item) == 2:
+                app_name, source_path = app_item
+                if app_name == 'flask':
+                    flask_source_path = source_path
+                    break
 
         if flask_source_path:
             app_source = source / flask_source_path
@@ -326,11 +323,12 @@ def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
 
         # Deploy media server Flask app
         media_source_path = None
-        for app_tuple in app_whitelist:
-            app_name, source_path = app_tuple
-            if app_name == 'media':
-                media_source_path = source_path
-                break
+        for app_item in app_whitelist:
+            if isinstance(app_item, tuple) and len(app_item) == 2:
+                app_name, source_path = app_item
+                if app_name == 'media':
+                    media_source_path = source_path
+                    break
 
         media_deployed = False
         if media_source_path:

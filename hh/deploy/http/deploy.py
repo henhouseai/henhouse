@@ -499,11 +499,12 @@ def deploy() -> bool:
         try:
             # Find maintenance app source from APP_WHITELIST
             maint_source_path = None
-            for app_tuple in APP_WHITELIST:
-                app_name, source_path = app_tuple
-                if app_name == 'maintenance':
-                    maint_source_path = source_path
-                    break
+            for app_item in APP_WHITELIST:
+                if isinstance(app_item, tuple) and len(app_item) == 2:
+                    app_name, source_path = app_item
+                    if app_name == 'maintenance':
+                        maint_source_path = source_path
+                        break
 
             if maint_source_path:
                 maint_source = source / maint_source_path
