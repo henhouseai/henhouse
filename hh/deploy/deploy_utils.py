@@ -88,75 +88,67 @@ def load_whitelist_with_extensions(
     var_name: str
 ) -> List[str]:
     """
-    Load a whitelist from hh/deploy/conf/ with support for ext/deploy/conf/ and module blacklists/extensions.
+    Load a whitelist from all active modules with support for ext blacklists.
 
     Processing order:
-    1. Load base whitelist from hh/deploy/conf/{base_name}.py
+    1. Load whitelists from all active modules (hh, ext, and regular modules)
     2. Load blacklist from ext/deploy/conf/{base_name}_blacklist.py (if exists)
-    3. Subtract blacklist items from base
-    4. Load extension whitelist from ext/deploy/conf/{base_name}.py (if exists)
-    5. Load extension whitelists from all module/deploy/conf/{base_name}.py files
-    6. For each item in extensions (ext or module):
-       - If item already exists in result AND was not blacklisted: WARN
-       - Add item to result
+    3. Subtract blacklist items from combined result
+    4. Warn about duplicates across modules but keep first occurrence
 
     Args:
         base_name: Base filename without .py extension (e.g., 'css_whitelist')
         var_name: Variable name to load (e.g., 'CSS_WHITELIST')
 
     Returns:
-        Final combined list of strings
+        Final combined list of strings from all modules
     """
     trace_in()
     log(f"Loading whitelist: {base_name}.{var_name}")
-    
+
     # Detect project context
     project_name, project_root = detect_project_context()
-    
+
     # Determine paths
-    hh_conf = project_root / "hh" / "deploy" / "conf"
     ext_conf = project_root / "ext" / "deploy" / "conf"
-    
-    # Step 1: Load base whitelist
-    base_file = hh_conf / f"{base_name}.py"
-    loaded_result = _load_list_from_file(base_file, var_name)
-    
-    if loaded_result is None:
-        warn(f"Base whitelist {base_name}.{var_name} not found in {base_file}")
-        result: List[str] = []
-    else:
-        # Make a copy to avoid modifying the original
-        result = list(loaded_result)
-        log(f"Loaded base whitelist: {len(result)} items")
-    
-    # Track blacklisted items (for warning purposes)
-    blacklisted_items: set[str] = set()
-    
+
+    result: List[str] = []
+
+    # Step 1: Load whitelists from all active modules equally
+    try:
+        modules = get_active_modules()
+        log(f"Loading {base_name}.{var_name} from {len(modules)} active modules")
+
+        for module in modules:
+            module_conf = project_root / module.path / "deploy" / "conf"
+            module_file = module_conf / f"{base_name}.py"
+            module_list = _load_list_from_file(module_file, var_name)
+
+            if module_list is not None:
+                for item in module_list:
+                    if item in result:
+                        warn(f"Duplicate item '{item}' from {module.name} module (keeping first occurrence)")
+                    else:
+                        result.append(item)
+                log(f"Loaded {len(module_list)} items from {module.name} module")
+    except Exception as e:
+        warn(f"Error loading module whitelists for {base_name}: {e}")
+
     # Step 2: Load and apply blacklist
     blacklist_file = ext_conf / f"{base_name}_blacklist.py"
-    # Use same variable name - the file name already indicates it's a blacklist
     blacklist_var_name = var_name
-    
+
     blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
     if blacklist is not None:
         blacklisted_items = set(blacklist)
         # Remove blacklisted items from result
+        original_count = len(result)
         result = [item for item in result if item not in blacklisted_items]
-        log(f"Applied blacklist: removed {len(blacklisted_items)} items, {len(result)} remaining")
-    
-    # Step 3: Load and apply extension
-    ext_file = ext_conf / f"{base_name}.py"
-    ext_list = _load_list_from_file(ext_file, var_name)
+        removed_count = original_count - len(result)
+        if removed_count > 0:
+            log(f"Applied blacklist: removed {removed_count} blacklisted items, {len(result)} remaining")
 
-    if ext_list is not None:
-        for item in ext_list:
-            if item in result and item not in blacklisted_items:
-                warn(f"Duplicate item in extension (not blacklisted): {item} in {ext_file}")
-            if item not in result:
-                result.append(item)
-        log(f"Applied extension: added {len(ext_list)} items, final count: {len(result)}")
-
-    # Step 4: Load and apply module extensions
+    # Load whitelists from all active modules equally
     try:
         modules = get_active_modules()
         module_count = 0
@@ -168,14 +160,14 @@ def load_whitelist_with_extensions(
             if module_list is not None:
                 for item in module_list:
                     if item in result and item not in blacklisted_items:
-                        warn(f"Duplicate item in module {module.name} extension (not blacklisted): {item} in {module_file}")
+                        warn(f"Duplicate item from {module.name} module (not blacklisted): {item} in {module_file}")
                     if item not in result:
                         result.append(item)
                         module_count += 1
         if module_count > 0:
-            log(f"Applied module extensions: added {module_count} items, final count: {len(result)}")
+            log(f"Loaded additional items from modules: {module_count} items, final count: {len(result)}")
     except Exception as e:
-        warn(f"Error loading module extensions for {base_name}: {e}")
+        warn(f"Error loading module whitelists for {base_name}: {e}")
 
     trace_out()
     return result
