@@ -73,3 +73,60 @@ def add_site_to_manifest() -> dict:
     except Exception as e:
         warn(f"nginx_flask manifest: Failed to add site to manifest: {e}")
         return {"status": "error", "reason": str(e)}
+
+
+@register_module_hook('deploy_render')
+def render_manifest_info() -> Dict[str, Any]:
+    """Render manifest information for deployed sites."""
+    trace_in()
+
+    # Access pre-validated config from the shared storage
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
+
+    # Get project and domain info
+    http_config = pre_validated_whitelists.get('http_config')
+    if not http_config:
+        warn("nginx_flask manifest render: HTTP config not available")
+        return trace_out({"status": "error", "reason": "no_config"})
+
+    project_name = http_config.get('project_name')
+
+    if not project_name:
+        warn("nginx_flask manifest render: Project name not available")
+        return trace_out({"status": "error", "reason": "missing_project"})
+
+    # Check if manifest exists and has entries
+    cfg_path = _install_config_path(project_name)
+    if not cfg_path.exists():
+        warn("nginx_flask manifest render: Install config not found")
+        return trace_out({"status": "error", "reason": "no_config_file"})
+
+    import configparser
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+
+    if not parser.has_section("manifest_sites"):
+        warn("nginx_flask manifest render: No manifest_sites section found")
+        return trace_out({"status": "skipped", "reason": "no_manifest"})
+
+    # Build manifest table
+    from hh.render.render import TableData, FieldConfig
+    table_data = TableData()
+    manifest_sites = parser.items("manifest_sites")
+
+    if not manifest_sites:
+        warn("nginx_flask manifest render: Manifest sites section exists but is empty")
+        return trace_out({"status": "skipped", "reason": "empty_manifest"})
+
+    for site_domain, mode_timestamp in manifest_sites:
+        mode, timestamp = mode_timestamp.split(':', 1) if ':' in mode_timestamp else (mode_timestamp, 'unknown')
+        table_data.add_row('manifest_site', value=f"{site_domain} ({mode})")
+
+    field_config = FieldConfig()
+    field_config.add_simple(['manifest_site'])
+
+    log(f"nginx_flask manifest render: Rendered {len(manifest_sites)} manifest sites")
+    return trace_out({
+        "table_data": table_data,
+        "field_config": field_config
+    })

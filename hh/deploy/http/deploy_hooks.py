@@ -22,4 +22,3 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-
