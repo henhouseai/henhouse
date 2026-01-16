@@ -320,6 +320,16 @@ def deploy() -> bool:
         trace_out()
         return False
     
+
+    # Test the new hookified rendering system (executes but doesn't affect output yet)
+    from hh.gateway.registry.module_hooks import run_hooks
+    try:
+        render_results = run_hooks('deploy_render')
+        log(f"Successfully executed {len(render_results)} deploy_render hooks")
+    except Exception as e:
+        warn(f"deploy_render hooks failed: {e}")
+
+
     json_data = gateway.response.get_action_response()
     lines = []
     lines.append(render_header_block('l_deploy_header'))
@@ -327,7 +337,7 @@ def deploy() -> bool:
     log(f"Processing deploy data successfully")
     
     render_deploy_section(source_data, lines)
-    
+
     result = finalize_output(lines)
     gateway.response.add_output(result)
     log(f"Parser execution completed successfully with {len(result)} characters")
