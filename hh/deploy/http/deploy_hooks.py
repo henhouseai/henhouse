@@ -157,6 +157,7 @@ def render_deployment_summary():
     from hh.render.render import TableData, FieldConfig, render_block
     from hh.gateway.gateway import get_gateway
     from hh.gateway.response.json_standard import get_data
+    from hh.render.render import FieldConfig as FieldConfigClass
 
     # Access final deployment results directly
     gateway = get_gateway()
