@@ -186,30 +186,6 @@ def deploy() -> bool:
             warn(f"Module deployment hooks failed: {e}")
             report_error("backend", f"Module deployment hooks failed: {e}")
 
-    # Deploy discovered peer modules
-    if not is_error():
-        try:
-            from hh.deploy.deploy_utils import get_active_modules
-            modules = get_active_modules()
-            deployed_modules = []
-            for module in modules:
-                module_source = source / module.path
-                module_dest = dest / module.path
-                try:
-                    if module_source.exists() and module_source.is_dir():
-                        shutil.copytree(module_source, module_dest)
-                        deployed_modules.append(module)
-                        log(f"Deployed module {module.name}: {module_source} -> {module_dest}")
-                    else:
-                        warn(f"Module source not found: {module_source}")
-                except Exception as e:
-                    warn(f"Failed to deploy module {module.name}: {e}")
-                    report_error("backend", f"Failed to deploy module {module.name}: {e}")
-
-        except Exception as e:
-            warn(f"Error deploying modules: {e}")
-            report_error("backend", f"Error deploying modules: {e}")
-
     # Framework cleanup hooks
     if not is_error():
         try:
@@ -220,69 +196,6 @@ def deploy() -> bool:
         except Exception as e:  # noqa: BLE001
             warn(f"Framework cleanup hooks failed: {e}")
             report_error("backend", f"Framework cleanup hooks failed: {e}")
-
-    # Clean all module deploy directories but preserve whitelisted items
-    if not is_error():
-        # Get all active modules dynamically
-        try:
-            from hh.deploy.deploy_utils import get_active_modules
-            active_modules = get_active_modules(force_regenerate=True)
-            module_names = {module.name for module in active_modules}
-            log(f"Active modules for deploy cleanup: {sorted(module_names)}")
-        except Exception as e:
-            warn(f"Failed to get active modules for deploy cleanup: {e}")
-            module_names = set()  # No modules to clean if discovery fails
-
-        # Clean deploy directories for all active modules
-        for module_name in sorted(module_names):
-            module_deploy_dir = dest / module_name / 'deploy'
-            module_preserved_items = {}
-
-            try:
-                if module_deploy_dir.exists():
-                    # Find whitelisted items for this module
-                    module_whitelist_items = [
-                        item for item in DEPLOY_WHITELIST
-                        if item.startswith(f'{module_name}/deploy/')
-                    ]
-
-                    # Temporarily move whitelisted items out
-                    for full_item_path in module_whitelist_items:
-                        item_path = dest / full_item_path
-                        if item_path.exists():
-                            # Create a safe temp name from the full path
-                            temp_name = full_item_path.replace('/', '_').replace('.', '_')
-                            temp_path = dest / f".{project_name}_{temp_name}_tmp"
-
-                            # Clean up existing temp if it exists
-                            if temp_path.exists():
-                                if temp_path.is_dir():
-                                    shutil.rmtree(temp_path)
-                                else:
-                                    temp_path.unlink()
-
-                            # Move item to temp location
-                            shutil.move(str(item_path), str(temp_path))
-                            module_preserved_items[full_item_path] = (item_path, temp_path)
-                            log(f"Temporarily moved {full_item_path}: {item_path} -> {temp_path}")
-
-                    # Remove entire module deploy directory contents
-                    shutil.rmtree(module_deploy_dir)
-                    log(f"Removed {module_name}/deploy directory: {module_deploy_dir}")
-
-                    # Recreate module deploy directory and restore preserved items
-                    module_deploy_dir.mkdir(parents=True, exist_ok=True)
-                    for full_item_path, (original_path, temp_path) in module_preserved_items.items():
-                        if temp_path.exists():
-                            restored_path = dest / full_item_path
-                            # Ensure parent directory exists
-                            restored_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.move(str(temp_path), str(restored_path))
-                            log(f"Restored {full_item_path}: {restored_path}")
-
-            except Exception as e:
-                warn(f"Failed to clean {module_name}/deploy directory: {e}")
-                report_error("backend", f"Failed to clean {module_name}/deploy directory: {e}")
 
     # Cache cleanup hooks
     if not is_error():

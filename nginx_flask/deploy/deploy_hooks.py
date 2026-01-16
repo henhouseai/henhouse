@@ -12,7 +12,10 @@ from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.registry.debug import get_log, get_warn
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from nginx_flask.deploy.nginx_helpers import get_server_ip, create_nginx_ssl_config_local, create_nginx_config_local, install_nginx_ssl_config, install_nginx_config, create_local_decoy, check_nginx_status
+from nginx_flask.deploy.deploy_helpers_nginx import get_server_ip, create_nginx_ssl_config_local, create_nginx_config_local, install_nginx_ssl_config, install_nginx_config, create_local_decoy, check_nginx_status
+from nginx_flask.deploy.deploy_helpers_flask import stop_flask_daemons_helper, restart_flask_daemons_helper, deploy_flask_apps_helper
+from nginx_flask.deploy.deploy_helpers_permissions import set_flask_logs_permissions_helper, set_site_permissions_helper
+from nginx_flask.deploy.deploy_helpers_site import prepare_site_directory_helper, deploy_site_css_helper, deploy_site_js_helper, deploy_site_misc_helper
 
 
 log = lambda message: None
@@ -201,16 +204,7 @@ def render_nginx_domain_table():
 def stop_flask_daemons() -> Union[Dict[str, Any], bool]:
     """Stop Flask tier daemons before deployment."""
     try:
-        project_name, _ = detect_project_context()
-        if not project_name:
-            warn("nginx_flask hook: Could not detect project name")
-            return False
-
-        log(f"nginx_flask hook: Stopping Flask daemons for {project_name}")
-        run_flask_stop(project_name)
-        log(f"nginx_flask hook: Flask daemons stopped")
-
-        return {"module": "nginx_flask", "action": "stop", "status": "stopped"}
+        return stop_flask_daemons_helper()
     except Exception as e:
         warn(f"nginx_flask hook: Failed to stop Flask daemons: {e}")
         return False
@@ -220,31 +214,7 @@ def stop_flask_daemons() -> Union[Dict[str, Any], bool]:
 def restart_flask_daemons() -> Union[Dict[str, Any], bool]:
     """Restart Flask tier daemons after deployment."""
     try:
-        project_name, _ = detect_project_context()
-        if not project_name:
-            warn("nginx_flask hook: Could not detect project name")
-            return False
-
-        # Get start_port from install config
-        from hh.deploy.users.install import _install_config_path
-        import configparser
-        cfg_path = _install_config_path(project_name)
-        start_port = 5001
-        if cfg_path.exists():
-            parser = configparser.ConfigParser()
-            parser.read(cfg_path)
-            if "install" in parser:
-                port_str = parser["install"].get("flask_start_port", "5001").strip()
-                try:
-                    start_port = int(port_str)
-                except ValueError:
-                    start_port = 5001
-
-        log(f"nginx_flask hook: Starting Flask daemons for {project_name}")
-        flask_restart_info = run_flask_start(project_name, start_port)
-        log(f"nginx_flask hook: Flask restart summary: {flask_restart_info.get('summary')}")
-
-        return {"module": "nginx_flask", "action": "restart", "flask_restart": flask_restart_info}
+        return restart_flask_daemons_helper()
     except Exception as e:
         warn(f"nginx_flask hook: Failed to restart Flask daemons: {e}")
         return False
@@ -254,115 +224,7 @@ def restart_flask_daemons() -> Union[Dict[str, Any], bool]:
 def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
     """Deploy Flask tier applications and media server."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask hook: Could not detect project name")
-            return False
-
-        # Get start_port from install config
-        from hh.deploy.users.install import _install_config_path
-        import configparser
-        cfg_path = _install_config_path(project_name)
-        start_port = 5001
-        if cfg_path.exists():
-            parser = configparser.ConfigParser()
-            parser.read(cfg_path)
-            if "install" in parser:
-                port_str = parser["install"].get("flask_start_port", "5001").strip()
-                try:
-                    start_port = int(port_str)
-                except ValueError:
-                    start_port = 5001
-
-        # Load app sources from aggregated whitelist
-        from hh.deploy.deploy_utils import load_whitelist_with_extensions
-        app_whitelist = load_whitelist_with_extensions('deploy_whitelist', 'APP_WHITELIST')  # type: ignore
-
-        from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-
-        source = current_path
-        dest = Path("/srv") / project_name
-        flask_deployed: List[str] = []
-
-        # Deploy Flask tier apps
-        flask_source_path = None
-        for app_item in app_whitelist:
-            if isinstance(app_item, tuple) and len(app_item) == 2:
-                app_name, source_path = app_item
-                if app_name == 'flask':
-                    flask_source_path = source_path
-                    break
-
-        if flask_source_path:
-            app_source = source / flask_source_path
-            if app_source.exists():
-                for i, tier in enumerate(HENHOUSE_TIERS):
-                    app_name = f'{project_name}_{tier}.py'
-                    app_dest = dest / app_name
-
-                    # Read the app.py content
-                    with open(app_source, 'r') as f:
-                        content = f.read()
-
-                    # Replace the port with the tier-specific port
-                    port = start_port + i
-                    content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
-
-                    # Replace the log file path with tier-specific path
-                    log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
-                    content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-                    # Write the modified content
-                    with open(app_dest, 'w') as f:
-                        f.write(content)
-
-                    flask_deployed.append(app_name)
-                    log(f"nginx_flask hook: Deployed Flask app: {app_name} (port {port})")
-                log(f"nginx_flask hook: Flask deployment complete: {len(flask_deployed)} instances")
-            else:
-                log("nginx_flask hook: Flask app.py not found, skipping Flask deployment")
-
-        # Deploy media server Flask app
-        media_source_path = None
-        for app_item in app_whitelist:
-            if isinstance(app_item, tuple) and len(app_item) == 2:
-                app_name, source_path = app_item
-                if app_name == 'media':
-                    media_source_path = source_path
-                    break
-
-        media_deployed = False
-        if media_source_path:
-            media_source = source / media_source_path
-            if media_source.exists():
-                media_dest = dest / f'{project_name}_media.py'
-
-                # Read the media_server.py content
-                with open(media_source, 'r') as f:
-                    content = f.read()
-
-                # Replace the port with media server port (after all tier apps)
-                media_port = start_port + len(HENHOUSE_TIERS)
-            content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {media_port}')
-
-            # Replace the log file path with media server path
-            log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
-            content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-
-            # Write the modified content
-            with open(media_dest, 'w') as f:
-                f.write(content)
-
-            media_deployed = True
-            log(f"nginx_flask hook: Deployed Media Server Flask app: {project_name}_media.py (port {media_port})")
-        else:
-            log("nginx_flask hook: Media server media_server.py not found, skipping media server deployment")
-
-        return {
-            "module": "nginx_flask",
-            "action": "deploy_apps",
-            "flask_deployed": flask_deployed,
-            "media_deployed": media_deployed
-        }
+        return deploy_flask_apps_helper()
     except Exception as e:
         warn(f"nginx_flask hook: Failed to deploy Flask apps: {e}")
         report_error("backend", f"nginx_flask hook: Failed to deploy Flask apps: {e}")
@@ -373,51 +235,10 @@ def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
 def set_flask_logs_permissions() -> Dict[str, Any]:
     """Set special permissions for Flask daemon logs directory."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask permissions hook: Could not detect project name")
-            return {"status": "error", "component": "flask_logs", "error": "no_project"}
-
-        from hh.gateway.gateway import get_gateway
-        import shutil
-        gateway = get_gateway()
-        dest = Path("/srv") / project_name
-        logs_dir = dest / 'logs'
-
-        # Clear existing logs directory and recreate
-        if logs_dir.exists():
-            shutil.rmtree(logs_dir)
-            log(f"nginx_flask permissions hook: Cleared existing logs directory: {logs_dir}")
-        logs_dir.mkdir(parents=True, exist_ok=True)
-
-        # Set group write permissions for logs (2775)
-        gateway.files.chmod(str(logs_dir), 0o2775)
-
-        # Set ownership so Flask daemons can write logs
-        project_highest_user = f"{project_name}_{HENHOUSE_TIERS[-1]}"
-        user_info = gateway.os.get_user_by_name(project_highest_user)
-        if not user_info:
-            warn(f"nginx_flask permissions hook: User not found: {project_highest_user}")
-            return {"status": "error", "component": "flask_logs", "error": "user_not_found"}
-
-        project_highest_uid = user_info["uid"]
-        deploy_group_name = f"{project_name}_deploy"
-        subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(logs_dir)], check=True)
-
-        log(f"nginx_flask permissions hook: Created fresh logs directory with group write: {logs_dir}")
-        log(f"nginx_flask permissions hook: Set logs directory ownership: {project_highest_user}:{deploy_group_name}")
-
-        return {
-            "status": "completed",
-            "component": "flask_logs",
-            "permissions": "2775",
-            "ownership": f"{project_highest_user}:{deploy_group_name}",
-            "directory": str(logs_dir)
-        }
-
+        return set_flask_logs_permissions_helper()
     except Exception as e:
-        warn(f"nginx_flask permissions hook: Failed to set Flask logs permissions: {e}")
-        report_error("backend", f"nginx_flask permissions hook: Failed to set Flask logs permissions: {e}")
+        warn(f"nginx_flask hook: Failed to set Flask logs permissions: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to set Flask logs permissions: {e}")
         return {"status": "error", "component": "flask_logs", "error": str(e)}
 
 
@@ -425,43 +246,10 @@ def set_flask_logs_permissions() -> Dict[str, Any]:
 def set_site_permissions() -> Dict[str, Any]:
     """Set special permissions for site files (HTML, JS, CSS, etc.)."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask permissions hook: Could not detect project name")
-            return {"status": "error", "component": "site", "error": "no_project"}
-
-        from hh.gateway.gateway import get_gateway
-        gateway = get_gateway()
-        dest = Path("/srv") / project_name
-        site_dir = dest / 'site'
-
-        if not site_dir.exists():
-            log("nginx_flask permissions hook: Site directory does not exist, skipping site permissions")
-            return {"status": "skipped", "component": "site", "reason": "no_site_dir"}
-
-        # Ensure web-accessible files have proper permissions for nginx
-        # Site files should be readable by web server (644 for files, 755 for dirs)
-        import subprocess
-
-        # Set directory permissions (755 - readable/executable by all, writable by owner)
-        subprocess.run(['find', str(site_dir), '-type', 'd', '-exec', 'chmod', '755', '{}', ';'], check=True)
-
-        # Set file permissions (644 - readable by all, writable by owner)
-        subprocess.run(['find', str(site_dir), '-type', 'f', '-exec', 'chmod', '644', '{}', ';'], check=True)
-
-        log(f"nginx_flask permissions hook: Set site directory permissions: 755/644 for {site_dir}")
-
-        return {
-            "status": "completed",
-            "component": "site",
-            "permissions": "755/644",
-            "directory": str(site_dir),
-            "note": "web_accessible_permissions"
-        }
-
+        return set_site_permissions_helper()
     except Exception as e:
-        warn(f"nginx_flask permissions hook: Failed to set site permissions: {e}")
-        report_error("backend", f"nginx_flask permissions hook: Failed to set site permissions: {e}")
+        warn(f"nginx_flask hook: Failed to set site permissions: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to set site permissions: {e}")
         return {"status": "error", "component": "site", "error": str(e)}
 
 
@@ -469,34 +257,10 @@ def set_site_permissions() -> Dict[str, Any]:
 def prepare_site_directory() -> Dict[str, Any]:
     """Prepare the site directory by clearing and recreating it."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask site prepare hook: Could not detect project name")
-            return {"status": "error", "component": "site_prepare", "error": "no_project"}
-
-        from hh.gateway.gateway import get_gateway
-        gateway = get_gateway()
-        dest = Path("/srv") / project_name
-        site_dest = dest / 'site'
-
-        # Clear existing site directory and recreate
-        if site_dest.exists():
-            import shutil
-            shutil.rmtree(site_dest)
-            log(f"nginx_flask site prepare hook: Cleared existing site directory: {site_dest}")
-        site_dest.mkdir(parents=True, exist_ok=True)
-        log(f"nginx_flask site prepare hook: Created fresh site directory: {site_dest}")
-
-        return {
-            "status": "completed",
-            "component": "site_prepare",
-            "directory": str(site_dest),
-            "action": "cleared_and_created"
-        }
-
+        return prepare_site_directory_helper()
     except Exception as e:
-        warn(f"nginx_flask site prepare hook: Failed to prepare site directory: {e}")
-        report_error("backend", f"nginx_flask site prepare hook: Failed to prepare site directory: {e}")
+        warn(f"nginx_flask hook: Failed to prepare site directory: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to prepare site directory: {e}")
         return {"status": "error", "component": "site_prepare", "error": str(e)}
 
 
@@ -504,54 +268,10 @@ def prepare_site_directory() -> Dict[str, Any]:
 def deploy_site_css() -> Dict[str, Any]:
     """Deploy CSS files to the site directory."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask site css hook: Could not detect project name")
-            return {"status": "error", "component": "site_css", "error": "no_project"}
-
-        from hh.gateway.gateway import get_gateway
-        gateway = get_gateway()
-        source = current_path
-        dest = Path("/srv") / project_name
-        site_dest = dest / 'site'
-        css_dest = site_dest / 'css'
-        css_dest.mkdir(exist_ok=True)
-
-        # Get CSS whitelist (pre-validated)
-        CSS_WHITELIST = pre_validated_whitelists.get('CSS_WHITELIST', [])
-        if not CSS_WHITELIST:
-            raise ValueError("CSS_WHITELIST not pre-validated")
-
-        css_count = 0
-        css_deployed = []
-
-        for css_file in CSS_WHITELIST:
-            source_css = source / css_file
-            if source_css.exists():
-                dest_css = css_dest / source_css.name
-                if dest_css.exists():
-                    dest_css.unlink()
-                import shutil
-                shutil.copy2(source_css, dest_css)
-                css_deployed.append(f"css/{source_css.name}")
-                css_count += 1
-                log(f"nginx_flask site css hook: Deployed CSS file: {css_file} -> site/css/{source_css.name}")
-            else:
-                log(f"nginx_flask site css hook: CSS file not found: {css_file}")
-
-        return {
-            "status": "completed",
-            "component": "site_css",
-            "count": css_count,
-            "files": css_deployed,
-            # Render-related data (namespaced to avoid conflicts)
-            "render_css_deployed": css_count,
-            "render_css_files": css_deployed
-        }
-
+        return deploy_site_css_helper(pre_validated_whitelists)
     except Exception as e:
-        warn(f"nginx_flask site css hook: Failed to deploy CSS files: {e}")
-        report_error("backend", f"nginx_flask site css hook: Failed to deploy CSS files: {e}")
+        warn(f"nginx_flask hook: Failed to deploy CSS files: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to deploy CSS files: {e}")
         return {"status": "error", "component": "site_css", "error": str(e)}
 
 
@@ -559,187 +279,10 @@ def deploy_site_css() -> Dict[str, Any]:
 def deploy_site_js() -> Dict[str, Any]:
     """Deploy JavaScript files and generate registry."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask site js hook: Could not detect project name")
-            return {"status": "error", "component": "site_js", "error": "no_project"}
-
-        from hh.gateway.gateway import get_gateway
-        gateway = get_gateway()
-        source = current_path
-        dest = Path("/srv") / project_name
-        site_dest = dest / 'site'
-        js_dest = site_dest / 'js'
-        js_dest.mkdir(exist_ok=True)
-
-        # Get JS whitelists (pre-validated)
-        JS_WHITELIST = pre_validated_whitelists.get('JS_WHITELIST', [])
-        JS_PAGE_CLASSES_WHITELIST = pre_validated_whitelists.get('JS_PAGE_CLASSES_WHITELIST', [])
-        if not JS_WHITELIST or not JS_PAGE_CLASSES_WHITELIST:
-            raise ValueError("JS whitelists not pre-validated")
-
-        js_count = 0
-        js_deployed = []
-
-        # Deploy JS files
-        for js_item in JS_WHITELIST:
-            source_item = source / js_item
-            if source_item.exists():
-                if source_item.is_dir():
-                    # Deploy all .js files in directory preserving structure
-                    for js_file in source_item.rglob('*.js'):
-                        relative_path = js_file.relative_to(source_item)
-                        dest_js = js_dest / relative_path
-                        dest_js.parent.mkdir(parents=True, exist_ok=True)
-                        if dest_js.exists():
-                            dest_js.unlink()
-                        import shutil
-                        shutil.copy2(js_file, dest_js)
-                        js_deployed.append(f"js/{relative_path.as_posix()}")
-                        js_count += 1
-                        log(f"nginx_flask site js hook: Deployed JS file from folder: {js_file} -> site/js/{relative_path.as_posix()}")
-                else:
-                    # Deploy single JS file
-                    dest_js = js_dest / source_item.name
-                    if dest_js.exists():
-                        dest_js.unlink()
-                    import shutil
-                    shutil.copy2(source_item, dest_js)
-                    js_deployed.append(f"js/{source_item.name}")
-                    js_count += 1
-                    log(f"nginx_flask site js hook: Deployed JS file: {js_item} -> site/js/{source_item.name}")
-            else:
-                log(f"nginx_flask site js hook: JS file/folder not found: {js_item}")
-
-        # Generate page-classes-registry.js
-        registry_deployed = []
-        try:
-            log("nginx_flask site js hook: Generating page-classes-registry.js")
-
-            def kebab_to_pascal(kebab: str) -> str:
-                parts = kebab.split('-')
-                return ''.join(word.capitalize() for word in parts)
-
-            def kebab_to_snake(kebab: str) -> str:
-                return kebab.replace('-', '_')
-
-            # Find page class files
-            page_class_files = []
-            registry_file_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts'
-            hh_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes'
-            ext_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / 'ext' / 'deploy' / 'site' / 'ts' / 'page-classes'
-
-            ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
-            if not ext_dir_exists:
-                log("nginx_flask site js hook: Extension page-classes directory not found (this is normal if ext/ folder doesn't exist)")
-
-            # Get active modules
-            from hh.deploy.deploy_utils import get_active_modules
-            modules = get_active_modules()
-            log(f"nginx_flask site js hook: Found {len(modules)} active modules for page-classes discovery")
-
-            for filename in JS_PAGE_CLASSES_WHITELIST:
-                file_found = False
-
-                # Check hh/
-                hh_file = hh_page_classes_dir / filename
-                if hh_file.exists() and hh_file.is_file():
-                    relative_path = hh_file.relative_to(registry_file_dir)
-                    relative_path_str = str(relative_path).replace('\\', '/')
-                    if relative_path_str not in page_class_files:
-                        page_class_files.append(relative_path_str)
-                        log(f"nginx_flask site js hook: Found page class file in hh/: {relative_path_str}")
-                        file_found = True
-
-                # Check ext/
-                if not file_found and ext_dir_exists:
-                    ext_file = ext_page_classes_dir / filename
-                    if ext_file.exists() and ext_file.is_file():
-                        relative_path = ext_file.relative_to(registry_file_dir.parent.parent.parent.parent)
-                        relative_path_str = str(relative_path).replace('\\', '/')
-                        if relative_path_str not in page_class_files:
-                            page_class_files.append(relative_path_str)
-                            log(f"nginx_flask site js hook: Found page class file in ext/: {relative_path_str}")
-                            file_found = True
-
-                # Check modules
-                if not file_found:
-                    for module in modules:
-                        module_page_classes_dir = source / 'hh' / 'deploy' / 'site' / 'js' / module.path / 'deploy' / 'site' / 'ts' / 'page-classes'
-                        module_file = module_page_classes_dir / filename
-                        if module_file.exists() and module_file.is_file():
-                            relative_parts = ['..', '..', '..', '..', module.path, 'deploy', 'site', 'ts', 'page-classes', filename]
-                            relative_path_str = '/'.join(relative_parts)
-                            if relative_path_str not in page_class_files:
-                                page_class_files.append(relative_path_str)
-                                log(f"nginx_flask site js hook: Found page class file in module {module.name}: {relative_path_str}")
-                                file_found = True
-                                break
-
-                if not file_found:
-                    log(f"nginx_flask site js hook: Page class file not found (whitelisted but missing): {filename}")
-
-            # Generate registry
-            if page_class_files:
-                registry_lines = []
-                registry_lines.append("// Auto-generated during deployment - do not edit manually")
-                registry_lines.append("")
-
-                import_lines = []
-                registry_entries = []
-
-                for relative_path_str in sorted(page_class_files):
-                    filename = os.path.basename(relative_path_str)
-                    base_name = filename.replace('.js', '')
-                    if base_name.endswith('-page-data'):
-                        base_name = base_name[:-10]
-
-                    class_name = kebab_to_snake(base_name) + '_page_data'
-                    registry_key = kebab_to_snake(base_name)
-
-                    if relative_path_str.startswith('ext/'):
-                        import_path = f"../../../../{relative_path_str}"
-                    else:
-                        import_path = f"./{relative_path_str}"
-                    import_lines.append(f"import {{ {class_name} }} from '{import_path}';")
-                    registry_entries.append(f"  '{registry_key}': {class_name},")
-
-                registry_lines.extend(import_lines)
-                registry_lines.append("")
-                registry_lines.append("export const PAGE_CLASS_REGISTRY = {")
-                registry_lines.extend(registry_entries)
-                registry_lines.append("};")
-
-                registry_file = dest / 'site' / 'js' / 'hh' / 'deploy' / 'site' / 'ts' / 'page-classes-registry.js'
-                registry_content = '\n'.join(registry_lines) + '\n'
-                try:
-                    registry_file.write_text(registry_content, encoding='utf-8')
-                except Exception as e:
-                    warn(f"nginx_flask site js hook: Failed to write page-classes-registry.js: {e}")
-                    raise
-                registry_deployed.append("js/hh/deploy/site/ts/page-classes-registry.js")
-                log(f"nginx_flask site js hook: Generated page-classes-registry.js with {len(page_class_files)} page classes")
-            else:
-                log("nginx_flask site js hook: No page class files found in whitelist, skipping registry generation")
-
-        except Exception as e:
-            warn(f"nginx_flask site js hook: Failed to generate page-classes-registry.js: {e}")
-
-        return {
-            "status": "completed",
-            "component": "site_js",
-            "js_count": js_count,
-            "js_files": js_deployed,
-            "registry_files": registry_deployed,
-            # Render-related data (namespaced to avoid conflicts)
-            "render_js_deployed": js_count,
-            "render_js_files": js_deployed,
-            "render_registry_generated": len(registry_deployed)
-        }
-
+        return deploy_site_js_helper(pre_validated_whitelists)
     except Exception as e:
-        warn(f"nginx_flask site js hook: Failed to deploy JS files: {e}")
-        report_error("backend", f"nginx_flask site js hook: Failed to deploy JS files: {e}")
+        warn(f"nginx_flask hook: Failed to deploy JS files: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to deploy JS files: {e}")
         return {"status": "error", "component": "site_js", "error": str(e)}
 
 
@@ -747,64 +290,10 @@ def deploy_site_js() -> Dict[str, Any]:
 def deploy_site_misc() -> Dict[str, Any]:
     """Deploy miscellaneous files to the site directory."""
     try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            warn("nginx_flask site misc hook: Could not detect project name")
-            return {"status": "error", "component": "site_misc", "error": "no_project"}
-
-        from hh.gateway.gateway import get_gateway
-        gateway = get_gateway()
-        source = current_path
-        dest = Path("/srv") / project_name
-        site_dest = dest / 'site'
-
-        # Get misc whitelist (pre-validated)
-        MISC_WHITELIST = pre_validated_whitelists.get('MISC_WHITELIST', [])
-        if not MISC_WHITELIST:
-            raise ValueError("MISC_WHITELIST not pre-validated")
-
-        misc_count = 0
-        misc_deployed = []
-
-        for misc_file in MISC_WHITELIST:
-            source_misc = source / misc_file
-            if source_misc.exists():
-                if source_misc.is_dir():
-                    # Deploy entire directory
-                    dest_misc = site_dest / source_misc.name
-                    if dest_misc.exists():
-                        import shutil
-                        shutil.rmtree(dest_misc)
-                    shutil.copytree(source_misc, dest_misc)
-                    misc_deployed.append(misc_file)
-                    misc_count += 1
-                    log(f"nginx_flask site misc hook: Deployed misc directory: {misc_file} -> site/{source_misc.name}")
-                else:
-                    # Deploy single file
-                    dest_misc = site_dest / source_misc.name
-                    if dest_misc.exists():
-                        dest_misc.unlink()
-                    import shutil
-                    shutil.copy2(source_misc, dest_misc)
-                    misc_deployed.append(misc_file)
-                    misc_count += 1
-                    log(f"nginx_flask site misc hook: Deployed misc file: {misc_file} -> site/{source_misc.name}")
-            else:
-                log(f"nginx_flask site misc hook: Misc file not found: {misc_file}")
-
-        return {
-            "status": "completed",
-            "component": "site_misc",
-            "count": misc_count,
-            "files": misc_deployed,
-            # Render-related data (namespaced to avoid conflicts)
-            "render_misc_deployed": misc_count,
-            "render_misc_files": misc_deployed
-        }
-
+        return deploy_site_misc_helper(pre_validated_whitelists)
     except Exception as e:
-        warn(f"nginx_flask site misc hook: Failed to deploy misc files: {e}")
-        report_error("backend", f"nginx_flask site misc hook: Failed to deploy misc files: {e}")
+        warn(f"nginx_flask hook: Failed to deploy misc files: {e}")
+        report_error("backend", f"nginx_flask hook: Failed to deploy misc files: {e}")
         return {"status": "error", "component": "site_misc", "error": str(e)}
 
 
@@ -904,7 +393,7 @@ def deploy_nginx_and_ssl() -> Union[Dict[str, Any], bool]:
             # Create self-signed certificate if needed
             if create_mode == "self-cert":
                 log("nginx_flask hook: Creating self-signed certificate...")
-                from nginx_flask.deploy.ssl_helpers import generate_self_signed_certificate, ensure_certificate_exists
+                from nginx_flask.deploy.deploy_helpers_ssl import generate_self_signed_certificate, ensure_certificate_exists
                 cert_name = domain.replace('.', '_')
 
                 if generate_self_signed_certificate(certificate_path, cert_name, "root", "root"):
@@ -984,7 +473,7 @@ def deploy_nginx_and_ssl() -> Union[Dict[str, Any], bool]:
             # Get Let's Encrypt certificate if needed
             if not is_error() and create_mode == "get-cert":
                 log("nginx_flask hook: Obtaining Let's Encrypt certificate...")
-                from nginx_flask.deploy.ssl_helpers import get_certificate_from_letsencrypt, ensure_certificate_exists
+                from nginx_flask.deploy.deploy_helpers_ssl import get_certificate_from_letsencrypt, ensure_certificate_exists
                 if get_certificate_from_letsencrypt(domain, certificate_path):
                     certificate_created = True
                     log(f"nginx_flask hook: Let's Encrypt certificate obtained for {domain}")

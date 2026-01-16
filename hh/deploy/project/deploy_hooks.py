@@ -174,3 +174,141 @@ def restore_git_directory() -> dict:
         warn(f"project git hook: Failed to restore git directory: {e}")
         report_error("backend", f"project git hook: Failed to restore git directory: {e}")
         return {"status": "error", "component": "git_restore", "error": str(e)}
+
+
+@register_module_hook('deploy_modules')
+def deploy_discovered_modules() -> dict:
+    """Deploy all discovered modules to destination."""
+    import shutil
+
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            warn("project modules hook: Could not detect project name")
+            return {"status": "error", "component": "modules", "error": "no_project"}
+
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        source = current_path
+        dest = Path("/srv") / project_name
+
+        from hh.deploy.deploy_utils import get_active_modules
+        modules = get_active_modules()
+        deployed_modules = []
+
+        for module in modules:
+            module_source = source / module.path
+            module_dest = dest / module.path
+            try:
+                if module_source.exists() and module_source.is_dir():
+                    shutil.copytree(module_source, module_dest)
+                    deployed_modules.append(module.name)
+                    log(f"project modules hook: Deployed module {module.name}: {module_source} -> {module_dest}")
+                else:
+                    warn(f"project modules hook: Module source not found: {module_source}")
+            except Exception as e:
+                warn(f"project modules hook: Failed to deploy module {module.name}: {e}")
+                report_error("backend", f"project modules hook: Failed to deploy module {module.name}: {e}")
+
+        log(f"project modules hook: Deployed {len(deployed_modules)} modules")
+
+        return {
+            "status": "completed",
+            "action": "deploy_modules",
+            "modules_deployed": deployed_modules,
+            "modules_count": len(deployed_modules)
+        }
+
+    except Exception as e:
+        warn(f"project modules hook: Failed to deploy modules: {e}")
+        report_error("backend", f"project modules hook: Failed to deploy modules: {e}")
+        return {"status": "error", "component": "modules", "error": str(e)}
+
+
+@register_module_hook('deploy_framework_cleanup')
+def cleanup_module_deploy_directories() -> dict:
+    """Clean module deploy directories but preserve whitelisted items."""
+    import shutil
+
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            warn("project cleanup hook: Could not detect project name")
+            return {"status": "error", "component": "framework_cleanup", "error": "no_project"}
+
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        dest = Path("/srv") / project_name
+
+        from hh.deploy.deploy_utils import get_active_modules, load_whitelist_with_extensions
+        active_modules = get_active_modules(force_regenerate=True)
+        module_names = {module.name for module in active_modules}
+        log(f"project cleanup hook: Active modules for deploy cleanup: {sorted(module_names)}")
+
+        DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
+        cleaned_modules = []
+
+        # Clean deploy directories for all active modules
+        for module_name in sorted(module_names):
+            module_deploy_dir = dest / module_name / 'deploy'
+            module_preserved_items = {}
+
+            try:
+                if module_deploy_dir.exists():
+                    # Find whitelisted items for this module
+                    module_whitelist_items = [
+                        item for item in DEPLOY_WHITELIST
+                        if item.startswith(f'{module_name}/deploy/')
+                    ]
+
+                    # Temporarily move whitelisted items out
+                    for full_item_path in module_whitelist_items:
+                        item_path = dest / full_item_path
+                        if item_path.exists():
+                            # Create a safe temp name from the full path
+                            temp_name = full_item_path.replace('/', '_').replace('.', '_')
+                            temp_path = dest / f".{project_name}_{temp_name}_tmp"
+
+                            # Clean up existing temp if it exists
+                            if temp_path.exists():
+                                if temp_path.is_dir():
+                                    shutil.rmtree(temp_path)
+                                else:
+                                    temp_path.unlink()
+
+                            # Move item to temp location
+                            shutil.move(str(item_path), str(temp_path))
+                            module_preserved_items[full_item_path] = (item_path, temp_path)
+                            log(f"project cleanup hook: Temporarily moved {full_item_path}: {item_path} -> {temp_path}")
+
+                    # Remove entire module deploy directory contents
+                    shutil.rmtree(module_deploy_dir)
+                    log(f"project cleanup hook: Removed {module_name}/deploy directory: {module_deploy_dir}")
+
+                    # Recreate module deploy directory and restore preserved items
+                    module_deploy_dir.mkdir(parents=True, exist_ok=True)
+                    for full_item_path, (original_path, temp_path) in module_preserved_items.items():
+                        if temp_path.exists():
+                            restored_path = dest / full_item_path
+                            # Ensure parent directory exists
+                            restored_path.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.move(str(temp_path), str(restored_path))
+                            log(f"project cleanup hook: Restored {full_item_path}: {restored_path}")
+
+                    cleaned_modules.append(module_name)
+
+            except Exception as e:
+                warn(f"project cleanup hook: Failed to clean {module_name}/deploy directory: {e}")
+                report_error("backend", f"project cleanup hook: Failed to clean {module_name}/deploy directory: {e}")
+
+        return {
+            "status": "completed",
+            "component": "framework_cleanup",
+            "modules_cleaned": cleaned_modules,
+            "modules_count": len(cleaned_modules)
+        }
+
+    except Exception as e:
+        warn(f"project cleanup hook: Failed to cleanup module deploy directories: {e}")
+        report_error("backend", f"project cleanup hook: Failed to cleanup module deploy directories: {e}")
+        return {"status": "error", "component": "framework_cleanup", "error": str(e)}

@@ -154,44 +154,89 @@ def render_deployment_summary():
     gateway = get_gateway()
     json_data = gateway.response.get_action_response()
     source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
 
     table_data = TableData()
 
-    # Project info
-    project_name = source_data.get('project_name', 'Unknown')
+    # Project info - read from hook results (deploy_pre_validate)
+    project_name = 'Unknown'
+    for result in hook_results:
+        if result.get('project_name'):
+            project_name = result['project_name']
+            break
     table_data.add_row('project_info', value=project_name)
 
-    # Code deployment status
-    code_deployed = source_data.get('code_deployed', False)
+    # Code deployment status - derived from hook results (deploy_modules)
+    code_deployed = any(result.get('action') == 'deploy_modules' and result.get('status') == 'completed'
+                       for result in hook_results)
     table_data.add_row('code_deployed', value='Yes' if code_deployed else 'No')
 
-    # Deployment cleaning status
-    deployment_cleaned = source_data.get('deployment_cleaned', False)
+    # Deployment cleaning status - derived from hook results (deploy_framework_cleanup)
+    deployment_cleaned = any(result.get('component') == 'framework_cleanup' and result.get('status') == 'completed'
+                            for result in hook_results)
     table_data.add_row('deployment_cleaned', value='Yes' if deployment_cleaned else 'No')
 
-    # Context deployed files
-    context_deployed = source_data.get('context_deployed', [])
-    for context_file in context_deployed:
-        table_data.add_row('context_deployed', value=context_file)
+    # Context deployed files - from hook results (context deployment hooks)
+    for result in hook_results:
+        if result.get('component') == 'context' and result.get('files'):
+            for context_file in result['files']:
+                table_data.add_row('context_deployed', value=context_file)
 
-    # Ownership permissions
-    ownership_set = source_data.get('ownership_set', False)
-    if ownership_set:
-        # Find ownership info from hook results
-        hook_results = source_data.get('hook_results', [])
-        for result in hook_results:
-            if result.get('component') == 'base' and result.get('ownership'):
-                ownership_value = result['ownership']
-                table_data.add_row('ownership_set', value=ownership_value)
-                break
+    # Ownership permissions - from hook results (base permissions)
+    for result in hook_results:
+        if result.get('component') == 'base' and result.get('ownership'):
+            ownership_value = result['ownership']
+            table_data.add_row('ownership_set', value=ownership_value)
+            break
 
-    # Logs permissions
-    logs_permissions_set = source_data.get('logs_permissions_set', False)
+    # Logs permissions - from hook results (flask_logs, maintenance_logs)
+    logs_permissions_set = any(result.get('component') in ['flask_logs', 'maintenance_logs']
+                              for result in hook_results)
     if logs_permissions_set:
         table_data.add_row('logs_permissions_set', value='Yes')
 
-    # Maintenance restart status
-    hook_results = source_data.get('hook_results', [])
+    # Cache cleaning - from hook results (deploy_cache_cleanup)
+    for result in hook_results:
+        if result.get('component') == 'cache_cleanup' and result.get('cache_cleaned'):
+            cache_cleaned = result['cache_cleaned']
+            if isinstance(cache_cleaned, dict):
+                if cache_cleaned.get('pycache_dirs', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pycache_dirs']} __pycache__ dirs")
+                if cache_cleaned.get('pyc_files', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pyc_files']} .pyc files")
+                if cache_cleaned.get('cache_files', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_files']} cache files")
+                if cache_cleaned.get('cache_dirs', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_dirs']} .cache dirs")
+            break
+
+    # Flask deployment - from hook results (deploy_flask_apps)
+    for result in hook_results:
+        if result.get('action') == 'deploy_apps' and result.get('flask_deployed'):
+            flask_apps = result['flask_deployed']
+            for app in flask_apps:
+                table_data.add_row('flask_deployed', value=app)
+
+    # Site deployment - from hook results (site deployment hooks)
+    js_count = 0
+    css_count = 0
+    misc_count = 0
+    for result in hook_results:
+        if result.get('component') == 'site_js' and result.get('js_count'):
+            js_count = result['js_count']
+        elif result.get('component') == 'site_css' and result.get('count'):
+            css_count = result['count']
+        elif result.get('component') == 'site_misc' and result.get('count'):
+            misc_count = result['count']
+
+    if js_count > 0:
+        table_data.add_row('js_count', value=f"{js_count} files")
+    if css_count > 0:
+        table_data.add_row('css_count', value=f"{css_count} files")
+    if misc_count > 0:
+        table_data.add_row('misc_count', value=f"{misc_count} files")
+
+    # Maintenance restart status - from hook results (deploy_restart_daemons)
     for result in hook_results:
         if (result.get('module') == 'maintenance' and
             result.get('action') == 'restart' and
@@ -210,6 +255,7 @@ def render_deployment_summary():
     field_config = FieldConfig()
     field_config.add_simple(['project_info', 'code_deployed', 'deployment_cleaned',
                            'context_deployed', 'ownership_set', 'logs_permissions_set',
+                           'cache_cleaned', 'flask_deployed', 'js_count', 'css_count', 'misc_count',
                            'maintenance_restart'])
 
     return {
