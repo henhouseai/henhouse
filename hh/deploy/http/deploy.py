@@ -463,7 +463,6 @@ def render_deploy_hookified() -> bool:
     # Build output: summary table first, then full tables
     if summary_table_data.num_rows() > 0:
         # Add project_header field to config
-        from hh.render.render import FieldConfig
         project_config = FieldConfig()
         project_config.add_simple(['project_header'])
         summary_field_config.configs.extend(project_config.configs)
