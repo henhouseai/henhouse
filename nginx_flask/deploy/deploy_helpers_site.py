@@ -1,5 +1,5 @@
 """
-Site deployment hooks for nginx_flask module.
+Site deployment helper functions for nginx_flask module.
 
 These functions handle site directory setup and deployment of CSS, JS, and misc files.
 """
@@ -8,29 +8,26 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 from hh.deploy.deploy_utils import detect_project_context, get_active_modules
-from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
+from hh.gateway.registry.debug import get_log, get_warn
 from hh.gateway.error.error_store import report_error
-from hh.gateway.registry.module_hooks import register_module_hook
 
-trace_in = lambda message=None: None
-trace_out = lambda arg=None: arg
 log = lambda message: None
 warn = lambda message: None
 
-@register_debug_init
-def _initialize_debug():
-    global trace_in, trace_out, log, warn
-    trace_in = get_trace_in(True)
-    trace_out = get_trace_out(True)
+def _init_debug():
+    global log, warn
+    from hh.gateway.registry.debug import get_log, get_warn
     log = get_log(True)
     warn = get_warn(True)
 
+try:
+    _init_debug()
+except:
+    pass
 
-@register_module_hook('deploy_site_prepare')
-def prepare_site_directory() -> Dict[str, Any]:
+
+def prepare_site_directory_helper() -> Dict[str, Any]:
     """Prepare the site directory by clearing and recreating it."""
-    trace_in()
-
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -47,19 +44,16 @@ def prepare_site_directory() -> Dict[str, Any]:
     site_dest.mkdir(parents=True, exist_ok=True)
     log(f"nginx_flask site prepare: Created fresh site directory: {site_dest}")
 
-    return trace_out({
+    return {
         "status": "completed",
         "component": "site_prepare",
         "directory": str(site_dest),
         "action": "cleared_and_created"
-    })
+    }
 
 
-@register_module_hook('deploy_site')
-def deploy_site_css() -> Dict[str, Any]:
+def deploy_site_css_helper(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
     """Deploy CSS files to the site directory."""
-    trace_in()
-
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -73,7 +67,6 @@ def deploy_site_css() -> Dict[str, Any]:
     css_dest.mkdir(exist_ok=True)
 
     # Get CSS whitelist (pre-validated)
-    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
     CSS_WHITELIST = pre_validated_whitelists.get('CSS_WHITELIST', [])
     if not CSS_WHITELIST:
         raise ValueError("CSS_WHITELIST not pre-validated")
@@ -94,21 +87,18 @@ def deploy_site_css() -> Dict[str, Any]:
         else:
             log(f"nginx_flask site css: CSS file not found: {css_file}")
 
-    return trace_out({
+    return {
         "status": "completed",
         "component": "site_css",
         "count": css_count,
         "files": css_deployed,
         "render_css_deployed": css_count,
         "render_css_files": css_deployed
-    })
+    }
 
 
-@register_module_hook('deploy_site')
-def deploy_site_js() -> Dict[str, Any]:
+def deploy_site_js_helper(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
     """Deploy JavaScript files and generate registry."""
-    trace_in()
-
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -122,7 +112,6 @@ def deploy_site_js() -> Dict[str, Any]:
     js_dest.mkdir(exist_ok=True)
 
     # Get JS whitelists (pre-validated)
-    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
     JS_WHITELIST = pre_validated_whitelists.get('JS_WHITELIST', [])
     JS_PAGE_CLASSES_WHITELIST = pre_validated_whitelists.get('JS_PAGE_CLASSES_WHITELIST', [])
     if not JS_WHITELIST or not JS_PAGE_CLASSES_WHITELIST:
@@ -268,7 +257,7 @@ def deploy_site_js() -> Dict[str, Any]:
     except Exception as e:
         warn(f"nginx_flask site js: Failed to generate page-classes-registry.js: {e}")
 
-    return trace_out({
+    return {
         "status": "completed",
         "component": "site_js",
         "js_count": js_count,
@@ -277,14 +266,11 @@ def deploy_site_js() -> Dict[str, Any]:
         "render_js_deployed": js_count,
         "render_js_files": js_deployed,
         "render_registry_generated": len(registry_deployed)
-    })
+    }
 
 
-@register_module_hook('deploy_site')
-def deploy_site_misc() -> Dict[str, Any]:
+def deploy_site_misc_helper(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
     """Deploy miscellaneous files to the site directory."""
-    trace_in()
-
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -296,7 +282,6 @@ def deploy_site_misc() -> Dict[str, Any]:
     site_dest = dest / 'site'
 
     # Get misc whitelist (pre-validated)
-    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
     MISC_WHITELIST = pre_validated_whitelists.get('MISC_WHITELIST', [])
     if not MISC_WHITELIST:
         raise ValueError("MISC_WHITELIST not pre-validated")
@@ -328,11 +313,11 @@ def deploy_site_misc() -> Dict[str, Any]:
         else:
             log(f"nginx_flask site misc: Misc file not found: {misc_file}")
 
-    return trace_out({
+    return {
         "status": "completed",
         "component": "site_misc",
         "count": misc_count,
         "files": misc_deployed,
         "render_misc_deployed": misc_count,
         "render_misc_files": misc_deployed
-    })
+    }

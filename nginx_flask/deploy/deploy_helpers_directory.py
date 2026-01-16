@@ -1,5 +1,5 @@
 """
-Directory sterilization hook for nginx_flask module.
+Directory sterilization helper for nginx_flask module.
 
 Handles clearing and preparing the deployment directory.
 """
@@ -7,28 +7,25 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any
 from hh.deploy.deploy_utils import detect_project_context
-from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
-from hh.gateway.registry.module_hooks import register_module_hook
+from hh.gateway.registry.debug import get_log, get_warn
 
-trace_in = lambda message=None: None
-trace_out = lambda arg=None: arg
 log = lambda message: None
 warn = lambda message: None
 
-@register_debug_init
-def _initialize_debug():
-    global trace_in, trace_out, log, warn
-    trace_in = get_trace_in(True)
-    trace_out = get_trace_out(True)
+def _init_debug():
+    global log, warn
+    from hh.gateway.registry.debug import get_log, get_warn
     log = get_log(True)
     warn = get_warn(True)
 
+try:
+    _init_debug()
+except:
+    pass
 
-@register_module_hook('deploy_sterilize_directory')
-def sterilize_deployment_directory() -> Dict[str, Any]:
+
+def sterilize_deployment_directory_helper() -> Dict[str, Any]:
     """Sterilize deployment directory by removing all contents except preserved items."""
-    trace_in()
-
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -56,10 +53,10 @@ def sterilize_deployment_directory() -> Dict[str, Any]:
         removed_count = 0
         action = "created"
 
-    return trace_out({
+    return {
         "status": "completed",
         "component": "directory_sterilization",
         "directory": str(dest),
         "action": action,
         "items_removed": removed_count
-    })
+    }
