@@ -148,29 +148,6 @@ def load_whitelist_with_extensions(
         removed_count = original_count - len(result)
         if removed_count > 0:
             log(f"Applied blacklist: removed {removed_count} blacklisted items, {len(result)} remaining")
-    else:
-        blacklisted_items = set()  # Ensure it's always set
-
-    # Load whitelists from all active modules equally
-    try:
-        modules = get_active_modules()
-        module_count = 0
-        for module in modules:
-            module_conf = project_root / module.path / "deploy" / "conf"
-            module_file = module_conf / f"{base_name}.py"
-            module_list = _load_list_from_file(module_file, var_name)
-
-            if module_list is not None:
-                for item in module_list:
-                    if item in result and item not in blacklisted_items:
-                        warn(f"Duplicate item from {module.name} module (not blacklisted): {item} in {module_file}")
-                    if item not in result:
-                        result.append(item)
-                        module_count += 1
-        if module_count > 0:
-            log(f"Loaded additional items from modules: {module_count} items, final count: {len(result)}")
-    except Exception as e:
-        warn(f"Error loading module whitelists for {base_name}: {e}")
 
     trace_out()
     return result
