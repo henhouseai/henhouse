@@ -46,277 +46,58 @@ def deploy() -> bool:
     # Initialize hook results collection
     hook_results: List[Dict[str, Any]] = []
 
-    # Pre-deployment validation hooks - each module validates its own config
-    if not is_error():
-        try:
-            log("Running pre-deployment validation hooks")
-            results = run_hooks('deploy_pre_validate')
+    # Define deployment phases as a list of hook configurations
+    deployment_phases = [
+        # Pre-deployment preparation
+        ('deploy_pre_validate', 'pre-deployment validation'),
+        ('deploy_git_preserve', 'git preservation'),
+        ('deploy_stop_daemons', 'daemon stop'),
+        ('deploy_git_preserve_ops', 'git preservation operations'),
+        ('deploy_sterilize_directory', 'directory sterilization'),
+        ('deploy_git_restore_ops', 'git restoration operations'),
+
+        # Core deployment
+        ('deploy_modules', 'module deployment'),
+        ('deploy_framework_cleanup', 'framework cleanup'),
+        ('deploy_cache_cleanup', 'cache cleanup'),
+        ('deploy_cache_cleanup', 'cache cleanup'),  # Duplicate for thorough cleanup
+        ('deploy_flask_apps', 'Flask app deployment'),
+        ('deploy_flask_apps', 'maintenance worker deployment'),  # Uses same hook but different description
+
+        # Site deployment
+        ('deploy_client_files', 'client file deployment'),
+        ('deploy_context', 'context deployment'),
+        ('deploy_site_prepare', 'site preparation'),
+        ('deploy_site', 'site deployment'),
+
+        # Permissions and services
+        ('deploy_permissions_pre', 'pre-permissions setup'),
+        ('deploy_permissions_base', 'base permissions setup'),
+        ('deploy_permissions_special', 'special permissions setup'),
+        ('deploy_permissions_verify', 'permissions verification'),
+        ('deploy_restart_daemons', 'daemon restart'),
+
+        # Final deployment steps
+        ('deploy_nginx_and_ssl', 'NGINX and SSL deployment'),
+        ('deploy_manifest_update', 'manifest update'),
+        ('deploy_manifest', 'site manifest addition'),
+    ]
+
+    # Execute all deployment phases
+    for hook_name, description in deployment_phases:
+        if not is_error():
+            log(f"Running {description} hooks")
+            results = run_hooks(hook_name)
             if results:
                 hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Pre-deployment validation hooks failed: {e}")
-            report_error("backend", f"Pre-deployment validation hooks failed: {e}")
 
-    # Access pre-validated configuration from hooks
+    # Special handling for pre-validation configuration check
     from .deploy_hooks import pre_validated_config
     if pre_validated_config is None:
         warn("Pre-validation not completed - configuration not available")
         report_error("backend", "Pre-validation not completed - configuration not available")
         trace_out()
         return False
-
-
-    # Git preservation hooks
-    if not is_error():
-        try:
-            log("Running git preservation hooks")
-            results = run_hooks('deploy_git_preserve')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Git preservation hooks failed: {e}")
-            report_error("backend", f"Git preservation hooks failed: {e}")
-
-    # Stop running daemons prior to deployment
-    if not is_error():
-        try:
-            log("Running daemon stop hooks")
-            results = run_hooks('deploy_stop_daemons')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Daemon stop hooks failed: {e}")
-            report_error("backend", f"Daemon stop hooks failed: {e}")
-
-    # Git preservation operations
-    if not is_error():
-        try:
-            log("Running git preservation operations hooks")
-            results = run_hooks('deploy_git_preserve_ops')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Git preservation operations hooks failed: {e}")
-            report_error("backend", f"Git preservation operations hooks failed: {e}")
-
-    # Directory sterilization hooks
-    if not is_error():
-        try:
-            log("Running directory sterilization hooks")
-            results = run_hooks('deploy_sterilize_directory')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Directory sterilization hooks failed: {e}")
-            report_error("backend", f"Directory sterilization hooks failed: {e}")
-
-    # Git restoration operations
-    if not is_error():
-        try:
-            log("Running git restoration operations hooks")
-            results = run_hooks('deploy_git_restore_ops')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Git restoration operations hooks failed: {e}")
-            report_error("backend", f"Git restoration operations hooks failed: {e}")
-
-    # Module deployment hooks
-    if not is_error():
-        try:
-            log("Running module deployment hooks")
-            results = run_hooks('deploy_modules')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Module deployment hooks failed: {e}")
-            report_error("backend", f"Module deployment hooks failed: {e}")
-
-    # Framework cleanup hooks
-    if not is_error():
-        try:
-            log("Running framework cleanup hooks")
-            results = run_hooks('deploy_framework_cleanup')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Framework cleanup hooks failed: {e}")
-            report_error("backend", f"Framework cleanup hooks failed: {e}")
-
-    # Cache cleanup hooks
-    if not is_error():
-        try:
-            log("Running cache cleanup hooks")
-            results = run_hooks('deploy_cache_cleanup')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Cache cleanup hooks failed: {e}")
-            report_error("backend", f"Cache cleanup hooks failed: {e}")
-
-    # Cache cleanup hooks
-    if not is_error():
-        try:
-            log("Running cache cleanup hooks")
-            results = run_hooks('deploy_cache_cleanup')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Cache cleanup hooks failed: {e}")
-            report_error("backend", f"Cache cleanup hooks failed: {e}")
-
-    # Deploy Flask apps via module hooks
-    if not is_error():
-        try:
-            log("Running Flask app deployment hooks")
-            results = run_hooks('deploy_flask_apps')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Flask app deployment hooks failed: {e}")
-            report_error("backend", f"Flask app deployment hooks failed: {e}")
-
-    # Deploy maintenance workers via module hooks
-    if not is_error():
-        try:
-            log("Running maintenance worker deployment hooks")
-            results = run_hooks('deploy_flask_apps')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Maintenance worker deployment hooks failed: {e}")
-            report_error("backend", f"Maintenance worker deployment hooks failed: {e}")
-
-    # Deploy client files via hooks
-    if not is_error():
-        try:
-            log("Running client file deployment hooks")
-            results = run_hooks('deploy_client_files')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Client file deployment hooks failed: {e}")
-            report_error("backend", f"Client file deployment hooks failed: {e}")
-
-    # Deploy context folders and files via hooks
-    if not is_error():
-        try:
-            log("Running context deployment hooks")
-            results = run_hooks('deploy_context')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Context deployment hooks failed: {e}")
-            report_error("backend", f"Context deployment hooks failed: {e}")
-
-    # Site preparation hooks
-    if not is_error():
-        try:
-            log("Running site preparation hooks")
-            results = run_hooks('deploy_site_prepare')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Site preparation hooks failed: {e}")
-            report_error("backend", f"Site preparation hooks failed: {e}")
-
-    # Site deployment hooks (JS, CSS, misc - run in alphabetical order)
-    if not is_error():
-        try:
-            log("Running site deployment hooks")
-            results = run_hooks('deploy_site')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Site deployment hooks failed: {e}")
-            report_error("backend", f"Site deployment hooks failed: {e}")
-
-
-    # Phase 1: Pre-permissions setup
-    if not is_error():
-        try:
-            log("Running pre-permissions setup hooks")
-            results = run_hooks('deploy_permissions_pre')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Pre-permissions setup hooks failed: {e}")
-            report_error("backend", f"Pre-permissions setup hooks failed: {e}")
-
-    # Phase 2: Base permissions setup
-    if not is_error():
-        try:
-            log("Running base permissions setup hooks")
-            results = run_hooks('deploy_permissions_base')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Base permissions setup hooks failed: {e}")
-            report_error("backend", f"Base permissions setup hooks failed: {e}")
-
-    # Phase 3: Special permissions setup
-    if not is_error():
-        try:
-            log("Running special permissions setup hooks")
-            results = run_hooks('deploy_permissions_special')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Special permissions setup hooks failed: {e}")
-            report_error("backend", f"Special permissions setup hooks failed: {e}")
-
-    # Phase 4: Permissions verification
-    if not is_error():
-        try:
-            log("Running permissions verification hooks")
-            results = run_hooks('deploy_permissions_verify')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Permissions verification hooks failed: {e}")
-            report_error("backend", f"Permissions verification hooks failed: {e}")
-
-    # Restart daemons after permissions/logs are in place
-    if not is_error():
-        try:
-            log("Running daemon restart hooks")
-            results = run_hooks('deploy_restart_daemons')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Daemon restart hooks failed: {e}")
-            report_error("backend", f"Daemon restart hooks failed: {e}")
-
-    # Deploy NGINX and SSL via module hooks
-    if not is_error():
-        try:
-            log("Running NGINX and SSL deployment hooks")
-            results = run_hooks('deploy_nginx_and_ssl')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"NGINX and SSL deployment hooks failed: {e}")
-            report_error("backend", f"NGINX and SSL deployment hooks failed: {e}")
-
-    if not is_error():
-        try:
-            log("Running manifest update hooks")
-            results = run_hooks('deploy_manifest_update')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Manifest update hooks failed: {e}")
-            report_error("backend", f"Manifest update hooks failed: {e}")
-
-    if not is_error():
-        try:
-            log("Adding site to manifest")
-            results = run_hooks('deploy_manifest')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Manifest addition failed: {e}")
-            report_error("backend", f"Manifest addition failed: {e}")
 
     if not is_error():
         result_data = {
