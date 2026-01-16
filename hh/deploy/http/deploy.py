@@ -326,8 +326,7 @@ def deploy() -> bool:
     if not is_error():
         result_data = {
             "project_name": project_name,
-            "hook_results": hook_results,
-            "status": "deployed"
+            "hook_results": hook_results
         }
         gateway.response.set_action_response(success_payload(result_data))
     else:
