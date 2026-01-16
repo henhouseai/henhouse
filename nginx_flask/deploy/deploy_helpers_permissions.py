@@ -112,7 +112,8 @@ def set_site_permissions() -> Dict[str, Any]:
     })
 
 
-def set_cache_permissions_helper() -> dict:
+@register_module_hook('deploy_permissions_special')
+def set_cache_permissions() -> dict:
     """Set special permissions for cache directories."""
     try:
         from hh.deploy.deploy_utils import detect_project_context
@@ -181,7 +182,8 @@ def set_cache_permissions_helper() -> dict:
         return {"status": "error", "component": "cache", "error": str(e)}
 
 
-def set_base_permissions_helper() -> dict:
+@register_module_hook('deploy_permissions_base')
+def set_base_permissions() -> dict:
     """Set base ownership and permissions for entire deployment directory."""
     try:
         from hh.deploy.deploy_utils import detect_project_context
