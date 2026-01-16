@@ -176,11 +176,11 @@ def render_deployment_summary():
                             for result in hook_results)
     table_data.add_row('deployment_cleaned', value='Yes' if deployment_cleaned else 'No')
 
-    # Context deployed files - from hook results (context deployment hooks)
+    # Context deployed files - from hook results (deploy_context)
     for result in hook_results:
-        if result.get('component') == 'context' and result.get('files'):
-            for context_file in result['files']:
-                table_data.add_row('context_deployed', value=context_file)
+        if result.get('component') == 'context_deployment' and result.get('items'):
+            for item in result['items']:
+                table_data.add_row('context_deployed', value=item)
 
     # Ownership permissions - from hook results (base permissions)
     for result in hook_results:

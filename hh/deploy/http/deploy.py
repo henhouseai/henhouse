@@ -142,28 +142,6 @@ def deploy() -> bool:
             warn(f"Directory sterilization hooks failed: {e}")
             report_error("backend", f"Directory sterilization hooks failed: {e}")
 
-    # Sterilize deployment directory (remove everything except preserved git)
-    if not is_error():
-        try:
-            if dest.exists():
-                # Remove all contents
-                for item in dest.iterdir():
-                    try:
-                        if item.is_dir():
-                            shutil.rmtree(item)
-                        else:
-                            item.unlink()
-                        log(f"Removed: {item}")
-                    except Exception as e:
-                        warn(f"Failed to remove {item}: {e}")
-                log(f"Sterilized deployment directory: {dest}")
-            else:
-                dest.mkdir(parents=True, exist_ok=True)
-                log(f"Created deployment directory: {dest}")
-        except Exception as e:
-            warn(f"Failed to sterilize deployment directory: {e}")
-            report_error("backend", f"Failed to sterilize deployment directory: {e}")
-
     # Git restoration operations
     if not is_error():
         try:
@@ -252,58 +230,27 @@ def deploy() -> bool:
     flask_restart_info: Dict[str, Any] = {}
     maintenance_restart_info: Dict[str, Any] = {}
 
-    # Deploy extra top-level files (config-driven)
+    # Deploy client files via hooks
     if not is_error():
         try:
-            for rel_path in HH_EXTRA_DEPLOY_FILES:
-                src = source / rel_path
-                if src.exists():
-                    dst = dest / src.name
-                    shutil.copy2(src, dst)
-                    log(f"Deployed HH extra file: {rel_path}")
-                else:
-                    log(f"HH extra deploy file not found: {rel_path}")
-            for rel_path in EXT_EXTRA_DEPLOY_FILES:
-                src = source / rel_path
-                if src.exists():
-                    dst = dest / src.name
-                    shutil.copy2(src, dst)
-                    log(f"Deployed EXT extra file: {rel_path}")
-                else:
-                    log(f"EXT extra deploy file not found: {rel_path}")
-        except Exception as e:
-            warn(f"Failed to deploy extra files: {e}")
-            report_error("backend", f"Failed to deploy extra files: {e}")
+            log("Running client file deployment hooks")
+            results = run_hooks('deploy_client_files')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Client file deployment hooks failed: {e}")
+            report_error("backend", f"Client file deployment hooks failed: {e}")
 
-    # Deploy context folders and files
+    # Deploy context folders and files via hooks
     if not is_error():
-        context_deployed = []
         try:
-            for item_str in CONTEXT_WHITELIST:
-                source_item = source / item_str
-                if source_item.exists():
-                    dest_item = dest / 'context' / item_str
-                    if source_item.is_dir():
-                        # Handle directories
-                        if dest_item.exists():
-                            shutil.rmtree(dest_item)
-                        shutil.copytree(source_item, dest_item, ignore=should_ignore_context_path)
-                        context_deployed.append(item_str)
-                        log(f"Deployed context folder: {item_str} -> context/{item_str}")
-                    elif source_item.is_file():
-                        # Handle files
-                        dest_item.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(source_item, dest_item)
-                        context_deployed.append(item_str)
-                        log(f"Deployed context file: {item_str} -> context/{item_str}")
-                    else:
-                        log(f"Context item is neither file nor directory: {item_str}")
-                else:
-                    log(f"Context item not found: {item_str}")
-            log(f"Context deployment complete: {len(context_deployed)} items")
-        except Exception as e:
-            warn(f"Failed to deploy context folders: {e}")
-            report_error("backend", f"Failed to deploy context folders: {e}")
+            log("Running context deployment hooks")
+            results = run_hooks('deploy_context')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Context deployment hooks failed: {e}")
+            report_error("backend", f"Context deployment hooks failed: {e}")
 
     # Site preparation hooks
     if not is_error():
@@ -439,7 +386,6 @@ def deploy() -> bool:
             "deployment_cleaned": True,  # Module deploy directories cleaned
             "cache_cleaned": cache_cleaned,
             "flask_deployed": flask_deployed,
-            "context_deployed": context_deployed,
             "site_deployed": site_deployed,
             "js_count": js_count,
             "css_count": css_count,
