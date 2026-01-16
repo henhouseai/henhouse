@@ -47,9 +47,7 @@ def deploy() -> bool:
     hook_results: List[Dict[str, Any]] = []
 
     # Initialize legacy permission variables for backward compatibility
-    ownership_set = False
     cache_permissions_set = False
-    logs_permissions_set = False
     cache_cleaned: Dict[str, int] = {}  # Will be populated from hook results
 
     # Pre-deployment validation hooks - each module validates its own config
@@ -264,12 +262,6 @@ def deploy() -> bool:
             report_error("backend", f"Site preparation hooks failed: {e}")
 
     # Site deployment hooks (JS, CSS, misc - run in alphabetical order)
-    site_deployed: List[str] = []
-    js_count = 0
-    css_count = 0
-    misc_count = 0
-    flask_restart_info = {}
-    maintenance_restart_info = {}
     if not is_error():
         try:
             log("Running site deployment hooks")
@@ -338,7 +330,6 @@ def deploy() -> bool:
 
     # Deploy NGINX and SSL via module hooks
     deployment_mode = "https"
-    flask_deployed: List[str] = []
     nginx_deployed = False
     certificate_created = False
     nginx_status_data: Dict[str, Any] = {}
@@ -382,19 +373,8 @@ def deploy() -> bool:
             "is_local": is_local,
             "ssl_enabled": ssl_enabled,
             "deployment_mode": deployment_mode,
-            "code_deployed": True,
-            "deployment_cleaned": True,  # Module deploy directories cleaned
             "cache_cleaned": cache_cleaned,
-            "flask_deployed": flask_deployed,
-            "site_deployed": site_deployed,
-            "js_count": js_count,
-            "css_count": css_count,
-            "misc_count": misc_count,
-            "ownership_set": ownership_set,
             "cache_permissions_set": cache_permissions_set,
-            "logs_permissions_set": logs_permissions_set,
-            "flask_restart": flask_restart_info,
-            "maintenance_restart": maintenance_restart_info,
             "hook_results": hook_results,
             "nginx_deployed": nginx_deployed,
             "certificate_created": certificate_created,
