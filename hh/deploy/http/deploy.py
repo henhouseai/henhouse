@@ -64,7 +64,6 @@ def deploy() -> bool:
     # Define remaining deployment phases
     deployment_phases = [
         # Pre-deployment preparation (continued)
-        ('deploy_git_preserve', 'git preservation'),
         ('deploy_stop_daemons', 'daemon stop'),
         ('deploy_git_preserve_ops', 'git preservation operations'),
         ('deploy_sterilize_directory', 'directory sterilization'),
@@ -85,15 +84,12 @@ def deploy() -> bool:
         ('deploy_site', 'site deployment'),
 
         # Permissions and services
-        ('deploy_permissions_pre', 'pre-permissions setup'),
         ('deploy_permissions_base', 'base permissions setup'),
         ('deploy_permissions_special', 'special permissions setup'),
-        ('deploy_permissions_verify', 'permissions verification'),
         ('deploy_restart_daemons', 'daemon restart'),
 
         # Final deployment steps
         ('deploy_nginx_and_ssl', 'NGINX and SSL deployment'),
-        ('deploy_manifest_update', 'manifest update'),
         ('deploy_manifest', 'site manifest addition'),
     ]
 
