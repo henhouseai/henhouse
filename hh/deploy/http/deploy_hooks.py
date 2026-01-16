@@ -142,6 +142,14 @@ def validate_deployment_config():
 
     log(f"Pre-validated deployment config for project: {project_name}")
 
+    return {
+        "project_name": project_name,
+        "source": str(source),
+        "domain": domain,
+        "is_local": is_local,
+        "ssl_enabled": ssl_enabled
+    }
+
 
 @register_module_hook('deploy_render')
 def render_deployment_summary():

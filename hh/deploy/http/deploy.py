@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.gateway.response.json_standard import success_payload
+from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.http.deploy_helpers import _manifest_add_site, should_ignore_context_path
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
@@ -422,9 +422,14 @@ def render_deploy_hookified() -> bool:
         trace_out()
         return False
 
+    # Get project name from response data for summary table header
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data if json_data is not None else {})
+    project_name = source_data.get('project_name', 'Unknown')
+
     lines = []
     lines.append(render_header_block('l_deploy_header'))
-    log(f"Processing hookified deploy data")
+    log(f"Processing hookified deploy data for project: {project_name}")
 
     # Call deploy_render hooks from all modules
     from hh.gateway.registry.module_hooks import run_hooks
@@ -434,6 +439,9 @@ def render_deploy_hookified() -> bool:
     summary_table_data = TableData()
     summary_field_config = FieldConfig()
     full_tables = []  # List of (instruction_index, render_block) tuples
+
+    # Add project name as first row of summary table
+    summary_table_data.add_row('project_header', value=project_name)
 
     # Process each render instruction and collect pieces
     for i, instruction in enumerate(render_instructions):
@@ -452,8 +460,14 @@ def render_deploy_hookified() -> bool:
             # Merge field configs (add all simple fields - hooks should NOT define headers)
             summary_field_config.configs.extend(piece_field_config.configs)
 
-    # Build output: summary table first, then full tables in order
-    if summary_table_data.num_rows() > 0 and summary_field_config.configs:
+    # Build output: summary table first, then full tables
+    if summary_table_data.num_rows() > 0:
+        # Add project_header field to config
+        from hh.render.render import FieldConfig
+        project_config = FieldConfig()
+        project_config.add_simple(['project_header'])
+        summary_field_config.configs.extend(project_config.configs)
+
         # Add summary header since we have content (hooks only provide simple fields)
         summary_field_config.add_header('deploy_summary')
         summary_block = render_block(summary_table_data, summary_field_config, block_type='deploy_summary')
