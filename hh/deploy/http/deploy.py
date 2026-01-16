@@ -46,10 +46,6 @@ def deploy() -> bool:
     # Initialize hook results collection
     hook_results: List[Dict[str, Any]] = []
 
-    # Initialize legacy permission variables for backward compatibility
-    cache_permissions_set = False
-    cache_cleaned: Dict[str, int] = {}  # Will be populated from hook results
-
     # Pre-deployment validation hooks - each module validates its own config
     if not is_error():
         try:
@@ -71,28 +67,12 @@ def deploy() -> bool:
 
     # Extract validated config values
     project_name = pre_validated_config['project_name']
-    current_path = pre_validated_config['current_path']
     source = pre_validated_config['source']
     start_port = pre_validated_config['start_port']
     domain = pre_validated_config['domain']
-    ssl_enabled = pre_validated_config['ssl_enabled']
-    ssl_cert_dir_letsencrypt = pre_validated_config['ssl_cert_dir_letsencrypt']
-    ssl_cert_dir_self_signed = pre_validated_config['ssl_cert_dir_self_signed']
-    local_allow_block = pre_validated_config['local_allow_block']
-    nginx_sites_available = pre_validated_config['nginx_sites_available']
-    nginx_sites_enabled = pre_validated_config['nginx_sites_enabled']
-    certificate_path = pre_validated_config['certificate_path']
     is_local = pre_validated_config['is_local']
 
-    # Load whitelists with extension support
-    from hh.deploy.deploy_utils import load_tuple_whitelist_with_extensions
-    CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
-    DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
-    CLIENT_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'CLIENT_WHITELIST')
-    APP_WHITELIST = load_tuple_whitelist_with_extensions('deploy_whitelist', 'APP_WHITELIST')
 
-    HH_EXTRA_DEPLOY_FILES = CLIENT_WHITELIST  # All client files now in one list
-    EXT_EXTRA_DEPLOY_FILES: List[str] = []  # No longer separate EXT list
     dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
@@ -191,12 +171,6 @@ def deploy() -> bool:
             results = run_hooks('deploy_cache_cleanup')
             if results:
                 hook_results.extend(results)
-                # Extract cache_cleaned from hook results for use in final result
-                cache_cleaned = {}
-                for result in results:
-                    if result.get('component') == 'cache_cleanup' and result.get('cache_cleaned'):
-                        cache_cleaned = result['cache_cleaned']
-                        break
         except Exception as e:  # noqa: BLE001
             warn(f"Cache cleanup hooks failed: {e}")
             report_error("backend", f"Cache cleanup hooks failed: {e}")
@@ -218,15 +192,10 @@ def deploy() -> bool:
             log("Running maintenance worker deployment hooks")
             results = run_hooks('deploy_flask_apps')
             if results:
-                # Filter for maintenance module results
-                maintenance_results = [r for r in results if r.get('module') == 'maintenance']
-                hook_results.extend(maintenance_results)
+                hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
             warn(f"Maintenance worker deployment hooks failed: {e}")
             report_error("backend", f"Maintenance worker deployment hooks failed: {e}")
-
-    flask_restart_info: Dict[str, Any] = {}
-    maintenance_restart_info: Dict[str, Any] = {}
 
     # Deploy client files via hooks
     if not is_error():
@@ -330,10 +299,6 @@ def deploy() -> bool:
 
     # Deploy NGINX and SSL via module hooks
     deployment_mode = "https"
-    nginx_deployed = False
-    certificate_created = False
-    nginx_status_data: Dict[str, Any] = {}
-    server_ip = ""
     if not is_error():
         try:
             log("Running NGINX and SSL deployment hooks")
@@ -344,9 +309,7 @@ def deploy() -> bool:
             warn(f"NGINX and SSL deployment hooks failed: {e}")
             report_error("backend", f"NGINX and SSL deployment hooks failed: {e}")
 
-    # Final result
-    deployment_result: bool = not is_error()
-    if deployment_result:
+    if not is_error():
         log("Deployment completed successfully")
 
         # Manifest update hooks
@@ -359,7 +322,7 @@ def deploy() -> bool:
             warn(f"Manifest update hooks failed: {e}")
             report_error("backend", f"Manifest update hooks failed: {e}")
 
-        # Add to manifest
+    if not is_error():
         try:
             _manifest_add_site(project_name, domain, deployment_mode)
         except Exception as e:
@@ -367,22 +330,7 @@ def deploy() -> bool:
         
         result_data = {
             "project_name": project_name,
-            "source": str(source),
-            "destination": str(dest),
-            "domain": domain,
-            "is_local": is_local,
-            "ssl_enabled": ssl_enabled,
-            "deployment_mode": deployment_mode,
-            "cache_cleaned": cache_cleaned,
-            "cache_permissions_set": cache_permissions_set,
             "hook_results": hook_results,
-            "nginx_deployed": nginx_deployed,
-            "certificate_created": certificate_created,
-            "certificate_path": certificate_path,
-            "nginx_active": nginx_status_data.get('is_active', False),
-            "nginx_enabled_sites": nginx_status_data.get('enabled_sites', []),
-            "local_allow_block": local_allow_block if is_local else None,
-            "server_ip": server_ip,
             "status": "deployed"
         }
         gateway.response.set_action_response(success_payload(result_data))
@@ -393,8 +341,7 @@ def deploy() -> bool:
     from hh.deploy.cache.cache_cleanup_registry import clean_all_caches
     clean_all_caches()
     
-    trace_out()
-    return deployment_result
+    return trace_out(not is_error())
 
 
 @register_parser('deploy')
