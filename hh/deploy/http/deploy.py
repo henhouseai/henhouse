@@ -254,7 +254,7 @@ def deploy() -> bool:
 
                     # Temporarily move whitelisted items out
                     for full_item_path in module_whitelist_items:
-                        item_path = Path(full_item_path)
+                        item_path = dest / full_item_path
                         if item_path.exists():
                             # Create a safe temp name from the full path
                             temp_name = full_item_path.replace('/', '_').replace('.', '_')
@@ -280,7 +280,7 @@ def deploy() -> bool:
                     module_deploy_dir.mkdir(parents=True, exist_ok=True)
                     for full_item_path, (original_path, temp_path) in module_preserved_items.items():
                         if temp_path.exists():
-                            restored_path = Path(full_item_path)
+                            restored_path = dest / full_item_path
                             # Ensure parent directory exists
                             restored_path.parent.mkdir(parents=True, exist_ok=True)
                             shutil.move(str(temp_path), str(restored_path))
