@@ -54,10 +54,11 @@ def deploy() -> bool:
             hook_results.extend(results)
 
     # Check pre-validation results before proceeding
-    from .deploy_hooks import pre_validated_config
-    if pre_validated_config is None:
-        warn("Pre-validation not completed - configuration not available")
-        report_error("backend", "Pre-validation not completed - configuration not available")
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
+    http_config = pre_validated_whitelists.get('http_config')
+    if http_config is None:
+        warn("Pre-validation not completed - HTTP configuration not available")
+        report_error("backend", "Pre-validation not completed - HTTP configuration not available")
         trace_out()
         return False
 

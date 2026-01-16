@@ -1,6 +1,7 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init
+from hh.gateway.error.error_store import report_error
 from hh.deploy.deploy_utils import load_whitelist_with_extensions
 
 trace_in = lambda message=None: None
@@ -19,7 +20,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 # Pre-validated configuration storage for nginx_flask module
-pre_validated_whitelists: Dict[str, List[str]] = {}
+pre_validated_whitelists: Dict[str, Any] = {}
 
 @register_module_hook('deploy_pre_validate')
 def validate_nginx_flask_config():
@@ -39,4 +40,3 @@ def validate_nginx_flask_config():
     except Exception as e:
         warn(f"Failed to load NGINX/Flask whitelists: {e}")
         raise ValueError(f"Failed to load NGINX/Flask whitelists: {e}")
-

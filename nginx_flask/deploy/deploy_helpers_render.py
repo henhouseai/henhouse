@@ -184,3 +184,43 @@ def render_nginx_domain_table() -> Dict[str, Any]:
     return trace_out({
         "render_block": domain_table_html
     })
+
+
+@register_module_hook('deploy_render')
+def render_cache_operations() -> Dict[str, Any]:
+    """Render cache-specific deployment operations."""
+    # Access final deployment results directly
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    table_data = TableData()
+
+    # Cache cleaning details - read from hook results
+    for result in hook_results:
+        if result.get('component') == 'cache_cleanup' and result.get('cache_cleaned'):
+            cache_cleaned = result['cache_cleaned']
+            if isinstance(cache_cleaned, dict):
+                if cache_cleaned.get('pycache_dirs', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pycache_dirs']} __pycache__ dirs")
+                if cache_cleaned.get('pyc_files', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pyc_files']} .pyc files")
+                if cache_cleaned.get('cache_files', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_files']} cache files")
+                if cache_cleaned.get('cache_dirs', 0) > 0:
+                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_dirs']} .cache dirs")
+            break
+
+    # Cache permissions - read from hook results
+    cache_permissions_set = any(result.get('component') == 'cache' and result.get('status') == 'completed'
+                               for result in hook_results)
+    table_data.add_row('cache_permissions', value='Yes' if cache_permissions_set else 'No')
+
+    field_config = FieldConfig()
+    field_config.add_simple(['cache_cleaned', 'cache_permissions'])
+
+    return {
+        "table_data": table_data,
+        "field_config": field_config
+    }
