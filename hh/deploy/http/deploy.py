@@ -46,10 +46,6 @@ def deploy() -> bool:
     # Initialize hook results collection
     hook_results: List[Dict[str, Any]] = []
 
-    # Initialize legacy permission variables for backward compatibility
-    cache_permissions_set = False
-    cache_cleaned: Dict[str, int] = {}  # Will be populated from hook results
-
     # Pre-deployment validation hooks - each module validates its own config
     if not is_error():
         try:
@@ -76,12 +72,6 @@ def deploy() -> bool:
     start_port = pre_validated_config['start_port']
     domain = pre_validated_config['domain']
     ssl_enabled = pre_validated_config['ssl_enabled']
-    ssl_cert_dir_letsencrypt = pre_validated_config['ssl_cert_dir_letsencrypt']
-    ssl_cert_dir_self_signed = pre_validated_config['ssl_cert_dir_self_signed']
-    local_allow_block = pre_validated_config['local_allow_block']
-    nginx_sites_available = pre_validated_config['nginx_sites_available']
-    nginx_sites_enabled = pre_validated_config['nginx_sites_enabled']
-    certificate_path = pre_validated_config['certificate_path']
     is_local = pre_validated_config['is_local']
 
     # Load whitelists with extension support
@@ -191,12 +181,6 @@ def deploy() -> bool:
             results = run_hooks('deploy_cache_cleanup')
             if results:
                 hook_results.extend(results)
-                # Extract cache_cleaned from hook results for use in final result
-                cache_cleaned = {}
-                for result in results:
-                    if result.get('component') == 'cache_cleanup' and result.get('cache_cleaned'):
-                        cache_cleaned = result['cache_cleaned']
-                        break
         except Exception as e:  # noqa: BLE001
             warn(f"Cache cleanup hooks failed: {e}")
             report_error("backend", f"Cache cleanup hooks failed: {e}")
@@ -329,11 +313,6 @@ def deploy() -> bool:
             report_error("backend", f"Daemon restart hooks failed: {e}")
 
     # Deploy NGINX and SSL via module hooks
-    deployment_mode = "https"
-    nginx_deployed = False
-    certificate_created = False
-    nginx_status_data: Dict[str, Any] = {}
-    server_ip = ""
     if not is_error():
         try:
             log("Running NGINX and SSL deployment hooks")
@@ -361,28 +340,19 @@ def deploy() -> bool:
 
         # Add to manifest
         try:
+            # Extract deployment_mode from hook results
+            deployment_mode = "http"  # default
+            for result in hook_results:
+                if result.get('deployment_mode'):
+                    deployment_mode = result['deployment_mode']
+                    break
             _manifest_add_site(project_name, domain, deployment_mode)
         except Exception as e:
             warn(f"Failed to record site in manifest: {e}")
         
         result_data = {
             "project_name": project_name,
-            "source": str(source),
-            "destination": str(dest),
-            "domain": domain,
-            "is_local": is_local,
-            "ssl_enabled": ssl_enabled,
-            "deployment_mode": deployment_mode,
-            "cache_cleaned": cache_cleaned,
-            "cache_permissions_set": cache_permissions_set,
             "hook_results": hook_results,
-            "nginx_deployed": nginx_deployed,
-            "certificate_created": certificate_created,
-            "certificate_path": certificate_path,
-            "nginx_active": nginx_status_data.get('is_active', False),
-            "nginx_enabled_sites": nginx_status_data.get('enabled_sites', []),
-            "local_allow_block": local_allow_block if is_local else None,
-            "server_ip": server_ip,
             "status": "deployed"
         }
         gateway.response.set_action_response(success_payload(result_data))
