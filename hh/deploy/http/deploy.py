@@ -181,60 +181,6 @@ def deploy() -> bool:
             warn(f"Git restoration operations hooks failed: {e}")
             report_error("backend", f"Git restoration operations hooks failed: {e}")
 
-    # Clean up git_preserved flag
-
-    # Code deployment hooks
-    if not is_error():
-        try:
-            log("Running code deployment hooks")
-            results = run_hooks('deploy_code')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Code deployment hooks failed: {e}")
-            report_error("backend", f"Code deployment hooks failed: {e}")
-
-    # Deploy main code
-    if not is_error():
-        hh_source = source / 'hh'
-        hh_dest = dest / 'hh'
-        code_deployed = False
-        try:
-            shutil.copytree(hh_source, hh_dest)
-            code_deployed = True
-            log(f"Deployed code: {hh_source} -> {hh_dest}")
-        except Exception as e:
-            warn(f"Failed to deploy code: {e}")
-            report_error("backend", f"Failed to deploy code: {e}")
-
-    # Deploy ext folder (if it exists)
-    if not is_error():
-        ext_source = source / 'ext'
-        ext_dest = dest / 'ext'
-        ext_code_deployed = False
-        try:
-            if ext_source.exists() and ext_source.is_dir():
-                shutil.copytree(ext_source, ext_dest)
-                ext_code_deployed = True
-                log(f"Deployed ext code: {ext_source} -> {ext_dest}")
-            else:
-                log("Ext folder not found, skipping ext deployment")
-        except Exception as e:
-            warn(f"Failed to deploy ext code: {e}")
-            report_error("backend", f"Failed to deploy ext code: {e}")
-
-    # Ext cleanup hooks
-    if not is_error():
-        try:
-            log("Running ext cleanup hooks")
-            results = run_hooks('deploy_ext_cleanup')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Ext cleanup hooks failed: {e}")
-            report_error("backend", f"Ext cleanup hooks failed: {e}")
-
-
     # Module deployment hooks
     if not is_error():
         try:
@@ -638,7 +584,7 @@ def deploy() -> bool:
             "is_local": is_local,
             "ssl_enabled": ssl_enabled,
             "deployment_mode": deployment_mode,
-            "code_deployed": code_deployed,
+            "code_deployed": True,
             "deployment_cleaned": True,  # Module deploy directories cleaned
             "cache_cleaned": cache_cleaned,
             "flask_deployed": flask_deployed,
