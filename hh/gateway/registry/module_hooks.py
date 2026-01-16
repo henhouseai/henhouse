@@ -211,7 +211,7 @@ def get_hook_handlers(hook_name: str) -> List[Callable]:
         return trace_out([])
 
     hook_list = hooks[hook_name]
-    debug(f"Found {len(hook_list)} hooks for '{hook_name}' in hot cache")
+    log(f"Found {len(hook_list)} hooks for '{hook_name}' in hot cache")
 
     # Sort alphabetically by module name
     sorted_hooks = sorted(hook_list, key=lambda h: h.module_name)
@@ -220,11 +220,11 @@ def get_hook_handlers(hook_name: str) -> List[Callable]:
     for hook_info in sorted_hooks:
         # Check if callable already loaded
         if hook_info.function is not None:
-            debug(f"Using cached callable for {hook_info.module_name}.{hook_info.function_name}")
+            log(f"Using cached callable for {hook_info.module_name}.{hook_info.function_name}")
             handlers.append(hook_info.function)
         else:
             # Lazy-load the callable
-            debug(f"Lazy-loading {hook_info.function_module}.{hook_info.function_name}")
+            log(f"Lazy-loading {hook_info.function_module}.{hook_info.function_name}")
             try:
                 import importlib
                 module = importlib.import_module(hook_info.function_module)
@@ -298,7 +298,7 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
             if result is not None:
                 results.append(result)
 
-            debug(f"Hook '{hook_name}' from module '{module_name}' succeeded")
+            log(f"Hook '{hook_name}' from module '{module_name}' succeeded")
 
         except Exception as e:
             warn(f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")

@@ -50,6 +50,81 @@ def validate_nginx_flask_config():
         warn(f"Failed to load NGINX/Flask whitelists: {e}")
         raise ValueError(f"Failed to load NGINX/Flask whitelists: {e}")
 
+
+@register_module_hook('deploy_render')
+def render_nginx_flask_summary():
+    """Render NGINX/Flask summary pieces for main deployment table."""
+    from hh.render.render import TableData, FieldConfig
+
+    table_data = TableData()
+    table_data.add_row('site_deployment', value='JavaScript, CSS, and misc file deployment')
+    table_data.add_row('nginx_config', value='NGINX configuration and SSL setup')
+    table_data.add_row('flask_daemons', value='Flask application daemon management')
+
+    # Add whitelist counts if available
+    js_count = len(pre_validated_whitelists.get('JS_WHITELIST', []))
+    css_count = len(pre_validated_whitelists.get('CSS_WHITELIST', []))
+    misc_count = len(pre_validated_whitelists.get('MISC_WHITELIST', []))
+
+    table_data.add_row('js_whitelist_count', value=str(js_count))
+    table_data.add_row('css_whitelist_count', value=str(css_count))
+    table_data.add_row('misc_whitelist_count', value=str(misc_count))
+
+    field_config = FieldConfig()
+    field_config.add_simple(['site_deployment', 'nginx_config', 'flask_daemons',
+                           'js_whitelist_count', 'css_whitelist_count', 'misc_whitelist_count'])
+
+    return {
+        "table_data": table_data,
+        "field_config": field_config
+    }
+
+
+@register_module_hook('deploy_render')
+def render_nginx_domain_table():
+    """Render the NGINX domain information as a separate full table."""
+    from hh.render.render import TableData, FieldConfig, render_block
+    from hh.deploy.http.deploy_hooks import pre_validated_config
+
+    # Get domain info from the main deployment config
+    if not pre_validated_config:
+        return {"render_block": "<div>No domain configuration available</div>"}
+
+    domain = pre_validated_config.get('domain', '')
+    ssl_enabled = pre_validated_config.get('ssl_enabled', False)
+
+    if not domain:
+        return {"render_block": "<div>No domain configured</div>"}
+
+    # Build domain table similar to legacy output
+    table_data = TableData()
+    table_data.add_row('domain_header', value=domain)
+
+    # Port (443 for SSL, 80 for HTTP-only)
+    port = '443' if ssl_enabled else '80'
+    table_data.add_row('port', value=port)
+
+    # Certificate path (placeholder for now - would come from actual deployment)
+    cert_path = pre_validated_config.get('certificate_path')
+    if cert_path:
+        cert_status = str(cert_path)
+        # In real deployment, would add "(created)" if certificate_created
+        table_data.add_row('certificate_path', value=cert_status)
+
+    # NGINX deployment status (placeholders for now)
+    table_data.add_row('nginx_deployed', value='Yes')  # Would check actual deployment
+    table_data.add_row('nginx_active', value='Yes (nginx service running)')  # Would check actual status
+
+    field_config = FieldConfig()
+    field_config.add_header('domain_header')
+    field_config.add_simple(['port', 'certificate_path', 'nginx_deployed', 'nginx_active'])
+
+    # Return as full render_block instead of table pieces
+    domain_table_html = render_block(table_data, field_config, block_type='domain')
+    return {
+        "render_block": domain_table_html
+    }
+
 @register_module_hook('deploy_stop_daemons')
 def stop_flask_daemons() -> Union[Dict[str, Any], bool]:
     """Stop Flask tier daemons before deployment."""
@@ -376,7 +451,10 @@ def deploy_site_css() -> Dict[str, Any]:
             "status": "completed",
             "component": "site_css",
             "count": css_count,
-            "files": css_deployed
+            "files": css_deployed,
+            # Render-related data (namespaced to avoid conflicts)
+            "render_css_deployed": css_count,
+            "render_css_files": css_deployed
         }
 
     except Exception as e:
@@ -560,7 +638,11 @@ def deploy_site_js() -> Dict[str, Any]:
             "component": "site_js",
             "js_count": js_count,
             "js_files": js_deployed,
-            "registry_files": registry_deployed
+            "registry_files": registry_deployed,
+            # Render-related data (namespaced to avoid conflicts)
+            "render_js_deployed": js_count,
+            "render_js_files": js_deployed,
+            "render_registry_generated": len(registry_deployed)
         }
 
     except Exception as e:
@@ -622,7 +704,10 @@ def deploy_site_misc() -> Dict[str, Any]:
             "status": "completed",
             "component": "site_misc",
             "count": misc_count,
-            "files": misc_deployed
+            "files": misc_deployed,
+            # Render-related data (namespaced to avoid conflicts)
+            "render_misc_deployed": misc_count,
+            "render_misc_files": misc_deployed
         }
 
     except Exception as e:

@@ -53,6 +53,27 @@ def validate_users_config():
         raise ValueError(f"Failed to validate users config: {e}")
 
 
+@register_module_hook('deploy_render')
+def render_users_operations():
+    """Render users-specific deployment operations."""
+    from hh.render.render import TableData, FieldConfig
+
+    if not pre_validated_users_config:
+        return {"render_block": "<div>Users config not available</div>"}
+
+    table_data = TableData()
+    table_data.add_row('user_management', value='User account setup and permissions')
+    table_data.add_row('project_name', value=pre_validated_users_config.get('project_name', 'Unknown'))
+
+    field_config = FieldConfig()
+    field_config.add_simple(['user_management', 'project_name'])
+
+    return {
+        "table_data": table_data,
+        "field_config": field_config
+    }
+
+
 @register_module_hook('deploy_before_schema')
 def setup_database_users(project_name: str, config: dict):
     """

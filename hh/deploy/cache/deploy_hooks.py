@@ -54,6 +54,28 @@ def validate_cache_config():
         warn(f"Failed to validate cache config: {e}")
         raise ValueError(f"Failed to validate cache config: {e}")
 
+
+@register_module_hook('deploy_render')
+def render_cache_operations():
+    """Render cache-specific deployment operations."""
+    from hh.render.render import TableData, FieldConfig
+
+    if not pre_validated_cache_config:
+        return {"render_block": "<div>Cache config not available</div>"}
+
+    table_data = TableData()
+    table_data.add_row('cache_cleanup', value='Python cache directory cleanup')
+    table_data.add_row('permissions_set', value='Base permissions applied')
+    table_data.add_row('cache_dirs_processed', value=str(len(pre_validated_cache_config.get('cache_directories', []))))
+
+    field_config = FieldConfig()
+    field_config.add_simple(['cache_cleanup', 'permissions_set', 'cache_dirs_processed'])
+
+    return {
+        "table_data": table_data,
+        "field_config": field_config
+    }
+
 @register_module_hook('deploy_permissions_special')
 def set_cache_permissions() -> dict:
     """Set special permissions for cache directories."""
@@ -109,7 +131,10 @@ def set_cache_permissions() -> dict:
             "component": "cache",
             "permissions": "2775",
             "ownership": f"{project_highest_user}:{deploy_group_name}",
-            "directories": cache_results
+            "directories": cache_results,
+            # Render-related data (namespaced to avoid conflicts)
+            "render_cache_permissions_set": True,
+            "render_cache_dirs_count": len(cache_results)
         }
 
     except Exception as e:
@@ -155,7 +180,10 @@ def set_base_permissions() -> dict:
             "component": "base",
             "ownership": f"{project_highest_user}:{deploy_group_name}",
             "permissions": "750/640",
-            "directory": str(dest)
+            "directory": str(dest),
+            # Render-related data (namespaced to avoid conflicts)
+            "render_base_permissions_set": True,
+            "render_base_directory": str(dest)
         }
 
     except Exception as e:
