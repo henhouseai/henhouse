@@ -1,5 +1,5 @@
 """
-Flask deployment helper functions for nginx_flask module.
+Flask deployment hooks for nginx_flask module.
 
 These functions handle Flask tier daemon and application deployment operations.
 """
@@ -10,26 +10,29 @@ from hh.deploy.flask.flask_start import run_flask_start
 from hh.deploy.flask.flask_stop import run_flask_stop
 from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from hh.gateway.registry.debug import get_log, get_warn
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
 from hh.gateway.error.error_store import report_error
+from hh.gateway.registry.module_hooks import register_module_hook
 
+trace_in = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 warn = lambda message: None
 
-def _init_debug():
-    global log, warn
-    from hh.gateway.registry.debug import get_log, get_warn
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
     log = get_log(True)
     warn = get_warn(True)
 
-try:
-    _init_debug()
-except:
-    pass
 
-
-def stop_flask_daemons_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_stop_daemons')
+def stop_flask_daemons() -> Dict[str, Any]:
     """Stop Flask tier daemons before deployment."""
+    trace_in()
+
     project_name, _ = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -38,11 +41,14 @@ def stop_flask_daemons_helper() -> Dict[str, Any]:
     run_flask_stop(project_name)
     log(f"nginx_flask: Flask daemons stopped")
 
-    return {"module": "nginx_flask", "action": "stop", "status": "stopped"}
+    return trace_out({"module": "nginx_flask", "action": "stop", "status": "stopped"})
 
 
-def restart_flask_daemons_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_restart_daemons')
+def restart_flask_daemons() -> Dict[str, Any]:
     """Restart Flask tier daemons after deployment."""
+    trace_in()
+
     project_name, _ = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -66,11 +72,14 @@ def restart_flask_daemons_helper() -> Dict[str, Any]:
     flask_restart_info = run_flask_start(project_name, start_port)
     log(f"nginx_flask: Flask restart summary: {flask_restart_info.get('summary')}")
 
-    return {"module": "nginx_flask", "action": "restart", "flask_restart": flask_restart_info}
+    return trace_out({"module": "nginx_flask", "action": "restart", "flask_restart": flask_restart_info})
 
 
-def deploy_flask_apps_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_flask_apps')
+def deploy_flask_apps() -> Dict[str, Any]:
     """Deploy Flask tier applications and media server."""
+    trace_in()
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -125,7 +134,7 @@ def deploy_flask_apps_helper() -> Dict[str, Any]:
                 # Replace the log file path with tier-specific path
                 log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
                 content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-
+                
                 # Write the modified content
                 with open(app_dest, 'w') as f:
                     f.write(content)
@@ -162,7 +171,7 @@ def deploy_flask_apps_helper() -> Dict[str, Any]:
             # Replace the log file path with media server path
             log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
             content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-
+            
             # Write the modified content
             with open(media_dest, 'w') as f:
                 f.write(content)
@@ -174,9 +183,9 @@ def deploy_flask_apps_helper() -> Dict[str, Any]:
     else:
         log("nginx_flask: Media server source path not found in APP_WHITELIST")
 
-    return {
+    return trace_out({
         "module": "nginx_flask",
         "action": "deploy_apps",
         "flask_deployed": flask_deployed,
         "media_deployed": media_deployed
-    }
+    })

@@ -1,5 +1,5 @@
 """
-Context deployment helper for nginx_flask module.
+Context deployment hook for nginx_flask module.
 
 Handles deployment of context files and folders.
 """
@@ -7,21 +7,21 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 from hh.deploy.deploy_utils import detect_project_context, load_whitelist_with_extensions
-from hh.gateway.registry.debug import get_log, get_warn
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
+from hh.gateway.registry.module_hooks import register_module_hook
 
+trace_in = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
 warn = lambda message: None
 
-def _init_debug():
-    global log, warn
-    from hh.gateway.registry.debug import get_log, get_warn
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
     log = get_log(True)
     warn = get_warn(True)
-
-try:
-    _init_debug()
-except:
-    pass
 
 
 def should_ignore_context_path(directory: str, contents: List[str]) -> List[str]:
@@ -51,8 +51,11 @@ def should_ignore_context_path(directory: str, contents: List[str]) -> List[str]
     return ignored
 
 
-def deploy_context_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_context')
+def deploy_context() -> Dict[str, Any]:
     """Deploy context folders and files to deployment directory."""
+    trace_in()
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -93,11 +96,11 @@ def deploy_context_helper() -> Dict[str, Any]:
 
     log(f"nginx_flask context: Context deployment complete - {file_count} files, {dir_count} directories")
 
-    return {
+    return trace_out({
         "status": "completed",
         "component": "context_deployment",
         "files_deployed": file_count,
         "directories_deployed": dir_count,
         "total_items": len(deployed_items),
         "items": deployed_items
-    }
+    })
