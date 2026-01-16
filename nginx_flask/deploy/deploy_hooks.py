@@ -26,6 +26,30 @@ try:
 except:
     pass
 
+# Pre-validated configuration storage for nginx_flask module
+pre_validated_whitelists: Dict[str, List[str]] = {}
+
+@register_module_hook('deploy_pre_validate')
+def validate_nginx_flask_config():
+    """Pre-validate NGINX/Flask specific configuration including whitelists."""
+    global pre_validated_whitelists
+
+    log("Validating NGINX/Flask deployment configuration")
+
+    from hh.deploy.deploy_utils import load_whitelist_with_extensions
+
+    # Load whitelists that will be used by site deployment hooks
+    try:
+        pre_validated_whitelists['JS_WHITELIST'] = load_whitelist_with_extensions('js_whitelist', 'JS_WHITELIST')
+        pre_validated_whitelists['CSS_WHITELIST'] = load_whitelist_with_extensions('css_whitelist', 'CSS_WHITELIST')
+        pre_validated_whitelists['JS_PAGE_CLASSES_WHITELIST'] = load_whitelist_with_extensions('js_page_classes_whitelist', 'JS_PAGE_CLASSES_WHITELIST')
+        pre_validated_whitelists['MISC_WHITELIST'] = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
+
+        log("Pre-validated NGINX/Flask whitelists")
+    except Exception as e:
+        warn(f"Failed to load NGINX/Flask whitelists: {e}")
+        raise ValueError(f"Failed to load NGINX/Flask whitelists: {e}")
+
 @register_module_hook('deploy_stop_daemons')
 def stop_flask_daemons() -> Union[Dict[str, Any], bool]:
     """Stop Flask tier daemons before deployment."""
@@ -326,8 +350,10 @@ def deploy_site_css() -> Dict[str, Any]:
         css_dest = site_dest / 'css'
         css_dest.mkdir(exist_ok=True)
 
-        # Get CSS whitelist
-        from hh.deploy.conf.css_whitelist import CSS_WHITELIST
+        # Get CSS whitelist (pre-validated)
+        CSS_WHITELIST = pre_validated_whitelists.get('CSS_WHITELIST', [])
+        if not CSS_WHITELIST:
+            raise ValueError("CSS_WHITELIST not pre-validated")
 
         css_count = 0
         css_deployed = []
@@ -376,9 +402,11 @@ def deploy_site_js() -> Dict[str, Any]:
         js_dest = site_dest / 'js'
         js_dest.mkdir(exist_ok=True)
 
-        # Get JS whitelist
-        from hh.deploy.conf.js_whitelist import JS_WHITELIST
-        from hh.deploy.conf.js_page_classes_whitelist import JS_PAGE_CLASSES_WHITELIST
+        # Get JS whitelists (pre-validated)
+        JS_WHITELIST = pre_validated_whitelists.get('JS_WHITELIST', [])
+        JS_PAGE_CLASSES_WHITELIST = pre_validated_whitelists.get('JS_PAGE_CLASSES_WHITELIST', [])
+        if not JS_WHITELIST or not JS_PAGE_CLASSES_WHITELIST:
+            raise ValueError("JS whitelists not pre-validated")
 
         js_count = 0
         js_deployed = []
@@ -556,8 +584,10 @@ def deploy_site_misc() -> Dict[str, Any]:
         dest = Path("/srv") / project_name
         site_dest = dest / 'site'
 
-        # Get misc whitelist
-        from hh.deploy.conf.misc_whitelist import MISC_WHITELIST
+        # Get misc whitelist (pre-validated)
+        MISC_WHITELIST = pre_validated_whitelists.get('MISC_WHITELIST', [])
+        if not MISC_WHITELIST:
+            raise ValueError("MISC_WHITELIST not pre-validated")
 
         misc_count = 0
         misc_deployed = []

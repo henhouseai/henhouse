@@ -26,6 +26,32 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
+# Pre-validated configuration storage for users module
+pre_validated_users_config: dict = {}
+
+@register_module_hook('deploy_pre_validate')
+def validate_users_config():
+    """Pre-validate users-specific configuration."""
+    global pre_validated_users_config
+
+    log("Validating users deployment configuration")
+
+    try:
+        from hh.deploy.deploy_utils import detect_project_context
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            raise ValueError("Could not detect project context")
+
+        pre_validated_users_config = {
+            'project_name': project_name,
+            'current_path': current_path
+        }
+
+        log(f"Pre-validated users config for: {project_name}")
+    except Exception as e:
+        warn(f"Failed to validate users config: {e}")
+        raise ValueError(f"Failed to validate users config: {e}")
+
 
 @register_module_hook('deploy_before_schema')
 def setup_database_users(project_name: str, config: dict):

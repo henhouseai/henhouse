@@ -23,6 +23,31 @@ try:
 except:
     pass
 
+# Pre-validated configuration storage for maintenance module
+pre_validated_maintenance_config: dict = {}
+
+@register_module_hook('deploy_pre_validate')
+def validate_maintenance_config():
+    """Pre-validate maintenance-specific configuration."""
+    global pre_validated_maintenance_config
+
+    log("Validating maintenance deployment configuration")
+
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            raise ValueError("Could not detect project context")
+
+        pre_validated_maintenance_config = {
+            'project_name': project_name,
+            'current_path': current_path
+        }
+
+        log(f"Pre-validated maintenance config for: {project_name}")
+    except Exception as e:
+        warn(f"Failed to validate maintenance config: {e}")
+        raise ValueError(f"Failed to validate maintenance config: {e}")
+
 @register_module_hook('deploy_stop_daemons')
 def stop_maintenance_daemon() -> Union[Dict[str, Any], bool]:
     """Stop maintenance worker daemon before deployment."""

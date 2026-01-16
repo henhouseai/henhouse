@@ -24,6 +24,36 @@ try:
 except:
     pass
 
+# Pre-validated configuration storage for cache module
+pre_validated_cache_config: dict = {}
+
+@register_module_hook('deploy_pre_validate')
+def validate_cache_config():
+    """Pre-validate cache-specific configuration."""
+    global pre_validated_cache_config
+
+    log("Validating cache deployment configuration")
+
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            raise ValueError("Could not detect project context")
+
+        # Validate cache directories exist or can be created
+        from hh.deploy.cache.cache_cleanup_registry import get_cache_directories
+        cache_dirs = get_cache_directories()
+
+        pre_validated_cache_config = {
+            'project_name': project_name,
+            'current_path': current_path,
+            'cache_directories': cache_dirs
+        }
+
+        log(f"Pre-validated cache config for: {project_name}")
+    except Exception as e:
+        warn(f"Failed to validate cache config: {e}")
+        raise ValueError(f"Failed to validate cache config: {e}")
+
 @register_module_hook('deploy_permissions_special')
 def set_cache_permissions() -> dict:
     """Set special permissions for cache directories."""

@@ -24,6 +24,32 @@ try:
 except:
     pass
 
+# Pre-validated configuration storage for project module
+pre_validated_git_config: dict = {}
+
+@register_module_hook('deploy_pre_validate')
+def validate_project_config():
+    """Pre-validate project-specific configuration."""
+    global pre_validated_git_config
+
+    log("Validating project deployment configuration")
+
+    # For now, just store basic project context - git operations validate their own paths
+    try:
+        project_name, current_path = detect_project_context()
+        if not project_name:
+            raise ValueError("Could not detect project context")
+
+        pre_validated_git_config = {
+            'project_name': project_name,
+            'current_path': current_path
+        }
+
+        log(f"Pre-validated project config for: {project_name}")
+    except Exception as e:
+        warn(f"Failed to validate project config: {e}")
+        raise ValueError(f"Failed to validate project config: {e}")
+
 @register_module_hook('deploy_permissions_special')
 def set_git_permissions() -> dict:
     """Set special permissions for git directory."""

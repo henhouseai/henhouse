@@ -1,7 +1,6 @@
 import os
 import shutil
 import subprocess
-import configparser
 import json
 import datetime
 from pathlib import Path
@@ -53,7 +52,6 @@ from hh.deploy.conf.deploy_whitelist import (
     MEDIA_SERVER_SOURCE,
     MAINTENANCE_APP_SOURCE,
 )
-from hh.deploy.users.install import _install_config_path
 
 @register_action('deploy')
 @register_command('deploy')
@@ -78,6 +76,17 @@ def deploy() -> bool:
     cache_permissions_set = False
     logs_permissions_set = False
 
+    # Pre-deployment validation hooks - each module validates its own config
+    if not is_error():
+        try:
+            log("Running pre-deployment validation hooks")
+            results = run_hooks('deploy_pre_validate')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Pre-deployment validation hooks failed: {e}")
+            report_error("backend", f"Pre-deployment validation hooks failed: {e}")
+
     # Pre-deployment validation hooks
     if not is_error():
         try:
@@ -89,115 +98,35 @@ def deploy() -> bool:
             warn(f"Pre-deployment validation hooks failed: {e}")
             report_error("backend", f"Pre-deployment validation hooks failed: {e}")
 
-    # Detect project context
-    current_path = Path.cwd()
-    while current_path != current_path.parent:
-        hh_dir = current_path / 'hh'
-        if hh_dir.exists() and hh_dir.is_dir():
-            project_name = current_path.name
-            break
-        current_path = current_path.parent
-    else:
-        project_name = Path.cwd().name
-        current_path = Path.cwd()
+    # Access pre-validated configuration from hooks
+    from .deploy_hooks import pre_validated_config
+    if pre_validated_config is None:
+        warn("Pre-validation not completed - configuration not available")
+        report_error("action", "Pre-validation not completed - configuration not available")
+        trace_out()
+        return False
 
-    # Load whitelists with extension support
+    # Extract validated config values
+    project_name = pre_validated_config['project_name']
+    current_path = pre_validated_config['current_path']
+    source = pre_validated_config['source']
+    start_port = pre_validated_config['start_port']
+    domain = pre_validated_config['domain']
+    ssl_enabled = pre_validated_config['ssl_enabled']
+    ssl_cert_dir_letsencrypt = pre_validated_config['ssl_cert_dir_letsencrypt']
+    ssl_cert_dir_self_signed = pre_validated_config['ssl_cert_dir_self_signed']
+    local_allow_block = pre_validated_config['local_allow_block']
+    nginx_sites_available = pre_validated_config['nginx_sites_available']
+    nginx_sites_enabled = pre_validated_config['nginx_sites_enabled']
+    certificate_path = pre_validated_config['certificate_path']
+    is_local = pre_validated_config['is_local']
+
+    # Load whitelists with extension support (moved from pre-validation for backward compatibility)
     CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
-    JS_WHITELIST = load_whitelist_with_extensions('js_whitelist', 'JS_WHITELIST')
-    JS_PAGE_CLASSES_WHITELIST = load_whitelist_with_extensions('js_page_classes_whitelist', 'JS_PAGE_CLASSES_WHITELIST')
-    CSS_WHITELIST = load_whitelist_with_extensions('css_whitelist', 'CSS_WHITELIST')
-    MISC_WHITELIST = load_whitelist_with_extensions('misc_whitelist', 'MISC_WHITELIST')
     HH_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'HH_DEPLOY_WHITELIST')
     EXT_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'EXT_DEPLOY_WHITELIST')
     HH_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'HH_EXTRA_DEPLOY_FILES')
     EXT_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXT_EXTRA_DEPLOY_FILES')
-
-    # Config loading hooks
-    if not is_error():
-        try:
-            log("Running config loading hooks")
-            results = run_hooks('deploy_load_config')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Config loading hooks failed: {e}")
-            report_error("backend", f"Config loading hooks failed: {e}")
-
-    # Load deployment configuration from install config
-    cfg_path = _install_config_path(project_name)
-    if not cfg_path.exists():
-        warn(f"Install config not found: {cfg_path}")
-        report_error("action", f"Install config not found: {cfg_path}")
-        trace_out()
-        return False
-    
-    parser = configparser.ConfigParser()
-    parser.read(cfg_path)
-    if "install" not in parser:
-        warn(f"Missing [install] section in {cfg_path}")
-        report_error("action", f"Missing [install] section in {cfg_path}")
-        trace_out()
-        return False
-    
-    sec = parser["install"]
-    
-    # Get starting port
-    start_port_arg = gateway.get_arg('start_port')
-    if start_port_arg:
-        start_port = int(start_port_arg)
-    else:
-        port_str = sec.get("flask_start_port", "5001").strip()
-        try:
-            start_port = int(port_str)
-        except ValueError:
-            start_port = 5001
-    
-    # Get domain (required for HTTP deployment)
-    domain = sec.get("domain", "").strip()
-    if not domain:
-        warn("Domain not set in install config")
-        report_error("action", "Domain not set in install config")
-        trace_out()
-        return False
-    
-    # Get SSL enabled setting (required in config, defaults to 1)
-    ssl_enabled_str = sec.get("ssl_enabled", "1").strip()
-    try:
-        ssl_enabled = int(ssl_enabled_str) != 0
-    except ValueError:
-        ssl_enabled = True  # Default to enabled if invalid value
-        warn(f"Invalid ssl_enabled value '{ssl_enabled_str}', defaulting to 1 (enabled)")
-    
-    # Get SSL certificate directories
-    ssl_cert_dir_letsencrypt_str = sec.get("ssl_cert_dir_letsencrypt", "/etc/letsencrypt/live").strip()
-    ssl_cert_dir_letsencrypt = Path(ssl_cert_dir_letsencrypt_str)
-    ssl_cert_dir_self_signed_str = sec.get("ssl_cert_dir_self_signed", "/etc/nginx/ssl").strip()
-    ssl_cert_dir_self_signed = Path(ssl_cert_dir_self_signed_str)
-    
-    # Get local allow block (IP pattern for local deployments)
-    local_allow_block = sec.get("local_allow_block", "192.168.1.").strip()
-    
-    # Get NGINX configuration directories
-    nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
-    nginx_sites_available = Path(nginx_sites_available_str)
-    nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
-    nginx_sites_enabled = Path(nginx_sites_enabled_str)
-    
-    # Determine certificate path based on certificate type (will be set later based on create_mode)
-    # For Let's Encrypt: {ssl_cert_dir_letsencrypt}/{domain}/
-    # For self-signed: {ssl_cert_dir_self_signed}/{domain}/
-    certificate_path: Optional[Path] = None
-    
-    # Determine if local deployment
-    is_local = (domain.endswith('.local') or 
-                domain.lower() in ['localhost', '127.0.0.1'] or
-                domain.startswith('127.') or
-                domain.startswith('192.168.') or
-                domain.startswith('10.') or
-                (domain.startswith('172.') and len(domain.split('.')) >= 2 and 
-                 domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
-    
-    source = current_path
     dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
