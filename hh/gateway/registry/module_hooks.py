@@ -272,7 +272,7 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
     if not handlers:
         return trace_out([])
 
-    debug(f"Running {len(handlers)} hooks for '{hook_name}'")
+    log(f"Running {len(handlers)} hooks for '{hook_name}'")
 
     # Handlers already sorted alphabetically by get_hook_handlers()
     hook_list = hooks.get(hook_name, [])
@@ -298,14 +298,14 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
             if result is not None:
                 results.append(result)
 
-            debug(f"Hook '{hook_name}' from module '{module_name}' succeeded")
+            log(f"Hook '{hook_name}' from module '{module_name}' succeeded")
 
         except Exception as e:
             warn(f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
             report_error("deployment", f"Hook '{hook_name}' from module '{module_name}' raised exception: {e}")
             return trace_out([])
 
-    debug(f"All hooks for '{hook_name}' completed successfully")
+    log(f"All hooks for '{hook_name}' completed successfully")
     return trace_out(results)
 
 
