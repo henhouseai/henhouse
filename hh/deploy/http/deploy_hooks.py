@@ -152,6 +152,40 @@ def validate_deployment_config():
     }
 
 
+@register_module_hook('deploy_manifest')
+def add_site_to_manifest():
+    """Add the deployed site to the manifest with appropriate SSL mode."""
+    from hh.gateway.registry.debug import get_log, get_warn
+
+    log = get_log(True)
+    warn = get_warn(True)
+
+    if pre_validated_config is None:
+        warn("Pre-validation not completed - cannot add site to manifest")
+        return {"status": "skipped", "reason": "no_config"}
+
+    project_name = pre_validated_config['project_name']
+    domain = pre_validated_config['domain']
+    ssl_enabled = pre_validated_config.get('ssl_enabled', True)
+
+    # Determine deployment mode based on SSL configuration
+    deployment_mode = "https" if ssl_enabled else "http"
+
+    try:
+        from hh.gateway.gateway import get_gateway
+        gateway = get_gateway()
+        if gateway and hasattr(gateway, 'manifest'):
+            gateway.manifest.add_site(project_name, domain, deployment_mode)
+            log(f"Added site to manifest: {project_name} ({domain}) - mode: {deployment_mode}")
+            return {"status": "completed", "project_name": project_name, "domain": domain, "deployment_mode": deployment_mode}
+        else:
+            warn("Gateway manifest not available")
+            return {"status": "error", "reason": "no_manifest"}
+    except Exception as e:
+        warn(f"Failed to add site to manifest: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
 @register_module_hook('deploy_render')
 def render_deployment_summary():
     """Render the main deployment summary table."""

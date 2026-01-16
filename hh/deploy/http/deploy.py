@@ -6,7 +6,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.error.error_store import report_error, is_error
-from hh.deploy.http.deploy_helpers import _manifest_add_site, should_ignore_context_path
+from hh.deploy.http.deploy_helpers import should_ignore_context_path
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import break_section
 
@@ -67,14 +67,9 @@ def deploy() -> bool:
 
     # Extract validated config values
     project_name = pre_validated_config['project_name']
-    source = pre_validated_config['source']
-    start_port = pre_validated_config['start_port']
-    domain = pre_validated_config['domain']
-    is_local = pre_validated_config['is_local']
 
 
     dest = Path("/srv") / project_name
-    log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
     # Git preservation hooks
     if not is_error():
@@ -298,7 +293,6 @@ def deploy() -> bool:
             report_error("backend", f"Daemon restart hooks failed: {e}")
 
     # Deploy NGINX and SSL via module hooks
-    deployment_mode = "https"
     if not is_error():
         try:
             log("Running NGINX and SSL deployment hooks")
@@ -310,9 +304,6 @@ def deploy() -> bool:
             report_error("backend", f"NGINX and SSL deployment hooks failed: {e}")
 
     if not is_error():
-        log("Deployment completed successfully")
-
-        # Manifest update hooks
         try:
             log("Running manifest update hooks")
             results = run_hooks('deploy_manifest_update')
@@ -324,10 +315,15 @@ def deploy() -> bool:
 
     if not is_error():
         try:
-            _manifest_add_site(project_name, domain, deployment_mode)
-        except Exception as e:
-            warn(f"Failed to record site in manifest: {e}")
-        
+            log("Adding site to manifest")
+            results = run_hooks('deploy_manifest')
+            if results:
+                hook_results.extend(results)
+        except Exception as e:  # noqa: BLE001
+            warn(f"Manifest addition failed: {e}")
+            report_error("backend", f"Manifest addition failed: {e}")
+
+    if not is_error():
         result_data = {
             "project_name": project_name,
             "hook_results": hook_results,
