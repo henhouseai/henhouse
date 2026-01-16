@@ -6,7 +6,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error, is_error
-from hh.deploy.http.deploy_helpers import _manifest_add_site
+from hh.deploy.http.deploy_helpers import _manifest_add_site, should_ignore_context_path
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import break_section
 
@@ -47,7 +47,9 @@ def deploy() -> bool:
     hook_results: List[Dict[str, Any]] = []
 
     # Initialize legacy permission variables for backward compatibility
+    ownership_set = False
     cache_permissions_set = False
+    logs_permissions_set = False
     cache_cleaned: Dict[str, int] = {}  # Will be populated from hook results
 
     # Pre-deployment validation hooks - each module validates its own config
@@ -84,6 +86,15 @@ def deploy() -> bool:
     certificate_path = pre_validated_config['certificate_path']
     is_local = pre_validated_config['is_local']
 
+    # Load whitelists with extension support
+    from hh.deploy.deploy_utils import load_tuple_whitelist_with_extensions
+    CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
+    DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
+    CLIENT_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'CLIENT_WHITELIST')
+    APP_WHITELIST = load_tuple_whitelist_with_extensions('deploy_whitelist', 'APP_WHITELIST')
+
+    HH_EXTRA_DEPLOY_FILES = CLIENT_WHITELIST  # All client files now in one list
+    EXT_EXTRA_DEPLOY_FILES: List[str] = []  # No longer separate EXT list
     dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
@@ -130,6 +141,28 @@ def deploy() -> bool:
         except Exception as e:  # noqa: BLE001
             warn(f"Directory sterilization hooks failed: {e}")
             report_error("backend", f"Directory sterilization hooks failed: {e}")
+
+    # Sterilize deployment directory (remove everything except preserved git)
+    if not is_error():
+        try:
+            if dest.exists():
+                # Remove all contents
+                for item in dest.iterdir():
+                    try:
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            item.unlink()
+                        log(f"Removed: {item}")
+                    except Exception as e:
+                        warn(f"Failed to remove {item}: {e}")
+                log(f"Sterilized deployment directory: {dest}")
+            else:
+                dest.mkdir(parents=True, exist_ok=True)
+                log(f"Created deployment directory: {dest}")
+        except Exception as e:
+            warn(f"Failed to sterilize deployment directory: {e}")
+            report_error("backend", f"Failed to sterilize deployment directory: {e}")
 
     # Git restoration operations
     if not is_error():
@@ -219,27 +252,58 @@ def deploy() -> bool:
     flask_restart_info: Dict[str, Any] = {}
     maintenance_restart_info: Dict[str, Any] = {}
 
-    # Deploy client files via hooks
+    # Deploy extra top-level files (config-driven)
     if not is_error():
         try:
-            log("Running client file deployment hooks")
-            results = run_hooks('deploy_client_files')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Client file deployment hooks failed: {e}")
-            report_error("backend", f"Client file deployment hooks failed: {e}")
+            for rel_path in HH_EXTRA_DEPLOY_FILES:
+                src = source / rel_path
+                if src.exists():
+                    dst = dest / src.name
+                    shutil.copy2(src, dst)
+                    log(f"Deployed HH extra file: {rel_path}")
+                else:
+                    log(f"HH extra deploy file not found: {rel_path}")
+            for rel_path in EXT_EXTRA_DEPLOY_FILES:
+                src = source / rel_path
+                if src.exists():
+                    dst = dest / src.name
+                    shutil.copy2(src, dst)
+                    log(f"Deployed EXT extra file: {rel_path}")
+                else:
+                    log(f"EXT extra deploy file not found: {rel_path}")
+        except Exception as e:
+            warn(f"Failed to deploy extra files: {e}")
+            report_error("backend", f"Failed to deploy extra files: {e}")
 
-    # Deploy context folders and files via hooks
+    # Deploy context folders and files
     if not is_error():
+        context_deployed = []
         try:
-            log("Running context deployment hooks")
-            results = run_hooks('deploy_context')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Context deployment hooks failed: {e}")
-            report_error("backend", f"Context deployment hooks failed: {e}")
+            for item_str in CONTEXT_WHITELIST:
+                source_item = source / item_str
+                if source_item.exists():
+                    dest_item = dest / 'context' / item_str
+                    if source_item.is_dir():
+                        # Handle directories
+                        if dest_item.exists():
+                            shutil.rmtree(dest_item)
+                        shutil.copytree(source_item, dest_item, ignore=should_ignore_context_path)
+                        context_deployed.append(item_str)
+                        log(f"Deployed context folder: {item_str} -> context/{item_str}")
+                    elif source_item.is_file():
+                        # Handle files
+                        dest_item.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source_item, dest_item)
+                        context_deployed.append(item_str)
+                        log(f"Deployed context file: {item_str} -> context/{item_str}")
+                    else:
+                        log(f"Context item is neither file nor directory: {item_str}")
+                else:
+                    log(f"Context item not found: {item_str}")
+            log(f"Context deployment complete: {len(context_deployed)} items")
+        except Exception as e:
+            warn(f"Failed to deploy context folders: {e}")
+            report_error("backend", f"Failed to deploy context folders: {e}")
 
     # Site preparation hooks
     if not is_error():
@@ -253,6 +317,12 @@ def deploy() -> bool:
             report_error("backend", f"Site preparation hooks failed: {e}")
 
     # Site deployment hooks (JS, CSS, misc - run in alphabetical order)
+    site_deployed: List[str] = []
+    js_count = 0
+    css_count = 0
+    misc_count = 0
+    flask_restart_info = {}
+    maintenance_restart_info = {}
     if not is_error():
         try:
             log("Running site deployment hooks")
@@ -321,6 +391,7 @@ def deploy() -> bool:
 
     # Deploy NGINX and SSL via module hooks
     deployment_mode = "https"
+    flask_deployed: List[str] = []
     nginx_deployed = False
     certificate_created = False
     nginx_status_data: Dict[str, Any] = {}
@@ -364,8 +435,20 @@ def deploy() -> bool:
             "is_local": is_local,
             "ssl_enabled": ssl_enabled,
             "deployment_mode": deployment_mode,
+            "code_deployed": True,
+            "deployment_cleaned": True,  # Module deploy directories cleaned
             "cache_cleaned": cache_cleaned,
+            "flask_deployed": flask_deployed,
+            "context_deployed": context_deployed,
+            "site_deployed": site_deployed,
+            "js_count": js_count,
+            "css_count": css_count,
+            "misc_count": misc_count,
+            "ownership_set": ownership_set,
             "cache_permissions_set": cache_permissions_set,
+            "logs_permissions_set": logs_permissions_set,
+            "flask_restart": flask_restart_info,
+            "maintenance_restart": maintenance_restart_info,
             "hook_results": hook_results,
             "nginx_deployed": nginx_deployed,
             "certificate_created": certificate_created,
