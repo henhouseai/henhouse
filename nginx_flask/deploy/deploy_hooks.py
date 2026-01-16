@@ -275,10 +275,10 @@ def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
                     start_port = 5001
 
         # Load app sources from whitelist (custom loading for tuples)
-        from hh.deploy.deploy_utils import _load_list_from_file, detect_project_context
+        from hh.deploy.deploy_utils import _load_list_from_file
         from typing import List
-        project_name_check, project_root = detect_project_context()
-        hh_conf = project_root / "hh" / "deploy" / "conf"
+        # current_path is already set from detect_project_context() at function start
+        hh_conf = current_path / "hh" / "deploy" / "conf"
         base_app_file = hh_conf / "deploy_whitelist.py"
         app_whitelist: List[tuple] = _load_list_from_file(base_app_file, 'APP_WHITELIST') or []
 
