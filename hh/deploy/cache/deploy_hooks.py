@@ -59,13 +59,31 @@ def validate_cache_config():
 def render_cache_operations():
     """Render cache-specific deployment operations."""
     from hh.render.render import TableData, FieldConfig
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
 
-    if not pre_validated_cache_config:
-        return {"render_block": "<div>Cache config not available</div>"}
+    # Access final deployment results directly
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
 
     table_data = TableData()
-    table_data.add_row('cache_cleaned', value=f"{len(pre_validated_cache_config.get('cache_directories', []))} __pycache__ dirs")
-    table_data.add_row('cache_permissions', value='No')
+
+    # Cache cleaning details
+    cache_cleaned = source_data.get('cache_cleaned', {})
+    if isinstance(cache_cleaned, dict):
+        if cache_cleaned.get('pycache_dirs', 0) > 0:
+            table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pycache_dirs']} __pycache__ dirs")
+        if cache_cleaned.get('pyc_files', 0) > 0:
+            table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pyc_files']} .pyc files")
+        if cache_cleaned.get('cache_files', 0) > 0:
+            table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_files']} cache files")
+        if cache_cleaned.get('cache_dirs', 0) > 0:
+            table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_dirs']} .cache dirs")
+
+    # Cache permissions
+    cache_permissions_set = source_data.get('cache_permissions_set', False)
+    table_data.add_row('cache_permissions', value='Yes' if cache_permissions_set else 'No')
 
     field_config = FieldConfig()
     field_config.add_simple(['cache_cleaned', 'cache_permissions'])

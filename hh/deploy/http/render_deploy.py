@@ -369,12 +369,8 @@ def render_deploy_hookified() -> bool:
         trace_out()
         return False
 
-    json_data = gateway.response.get_action_response()
-    debug(f"JSON data: {json_data}")
     lines = []
     lines.append(render_header_block('l_deploy_header'))
-    source_data = get_data(json_data) if json_data else {}
-
     log(f"Processing hookified deploy data")
 
     # Call deploy_render hooks from all modules

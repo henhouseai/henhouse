@@ -147,16 +147,70 @@ def validate_deployment_config():
 def render_deployment_summary():
     """Render the main deployment summary table."""
     from hh.render.render import TableData, FieldConfig, render_block
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
 
-    # Get pre-validated config
-    if pre_validated_config is None:
-        return {"render_block": "<div>Pre-validation not completed</div>"}
+    # Access final deployment results directly
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
 
     table_data = TableData()
-    table_data.add_row('project_info', value=pre_validated_config['project_name'])
+
+    # Project info
+    project_name = source_data.get('project_name', 'Unknown')
+    table_data.add_row('project_info', value=project_name)
+
+    # Code deployment status
+    code_deployed = source_data.get('code_deployed', False)
+    table_data.add_row('code_deployed', value='Yes' if code_deployed else 'No')
+
+    # Deployment cleaning status
+    deployment_cleaned = source_data.get('deployment_cleaned', False)
+    table_data.add_row('deployment_cleaned', value='Yes' if deployment_cleaned else 'No')
+
+    # Context deployed files
+    context_deployed = source_data.get('context_deployed', [])
+    for context_file in context_deployed:
+        table_data.add_row('context_deployed', value=context_file)
+
+    # Ownership permissions
+    ownership_set = source_data.get('ownership_set', False)
+    if ownership_set:
+        # Find ownership info from hook results
+        hook_results = source_data.get('hook_results', [])
+        for result in hook_results:
+            if result.get('component') == 'base' and result.get('ownership'):
+                ownership_value = result['ownership']
+                table_data.add_row('ownership_set', value=ownership_value)
+                break
+
+    # Logs permissions
+    logs_permissions_set = source_data.get('logs_permissions_set', False)
+    if logs_permissions_set:
+        table_data.add_row('logs_permissions_set', value='Yes')
+
+    # Maintenance restart status
+    hook_results = source_data.get('hook_results', [])
+    for result in hook_results:
+        if (result.get('module') == 'maintenance' and
+            result.get('action') == 'restart' and
+            result.get('maintenance_restart')):
+            maint_data = result['maintenance_restart']
+            for daemon_type, daemon_info in maint_data.items():
+                if isinstance(daemon_info, dict):
+                    status = daemon_info.get('status', 'unknown')
+                    log_file = daemon_info.get('log_file', '')
+                    user = daemon_info.get('user', '')
+                    display = f"{daemon_type}: {status}"
+                    if user:
+                        display += f" ({user})"
+                    table_data.add_row('maintenance_restart', value=display)
 
     field_config = FieldConfig()
-    field_config.add_simple(['project_info'])
+    field_config.add_simple(['project_info', 'code_deployed', 'deployment_cleaned',
+                           'context_deployed', 'ownership_set', 'logs_permissions_set',
+                           'maintenance_restart'])
 
     return {
         "table_data": table_data,

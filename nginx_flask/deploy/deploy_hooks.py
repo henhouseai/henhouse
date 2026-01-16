@@ -55,20 +55,64 @@ def validate_nginx_flask_config():
 def render_nginx_flask_summary():
     """Render NGINX/Flask summary pieces for main deployment table."""
     from hh.render.render import TableData, FieldConfig
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
+
+    # Access final deployment results directly
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
 
     table_data = TableData()
 
-    # Add whitelist counts using legacy field names
-    js_count = len(pre_validated_whitelists.get('JS_WHITELIST', []))
-    css_count = len(pre_validated_whitelists.get('CSS_WHITELIST', []))
-    misc_count = len(pre_validated_whitelists.get('MISC_WHITELIST', []))
+    # Get site deployment counts from hook results
+    hook_results = source_data.get('hook_results', [])
+    js_count = 0
+    css_count = 0
+    misc_count = 0
 
-    table_data.add_row('js_count', value=str(js_count))
-    table_data.add_row('css_count', value=str(css_count))
-    table_data.add_row('misc_count', value=str(misc_count))
+    for result in hook_results:
+        if result.get('component') == 'site_js' and result.get('js_count'):
+            js_count = result['js_count']
+        elif result.get('component') == 'site_css' and result.get('count'):
+            css_count = result['count']
+        elif result.get('component') == 'site_misc' and result.get('count'):
+            misc_count = result['count']
+
+    # Flask deployment
+    for result in hook_results:
+        if (result.get('module') == 'nginx_flask' and
+            result.get('action') == 'deploy_apps' and
+            result.get('flask_deployed')):
+            flask_apps = result['flask_deployed']
+            for app in flask_apps:
+                table_data.add_row('flask_deployed', value=app)
+
+    # Flask restart status
+    for result in hook_results:
+        if (result.get('module') == 'nginx_flask' and
+            result.get('action') == 'restart' and
+            result.get('flask_restart')):
+            flask_data = result['flask_restart']
+            daemons = flask_data.get('daemons', [])
+            for daemon in daemons:
+                tier = daemon.get('tier', 'unknown')
+                status = daemon.get('status', 'unknown')
+                port = daemon.get('port', 'unknown')
+                user = daemon.get('user', 'unknown')
+                display = f"{tier}: {status}"
+                table_data.add_row('flask_restart', value=display)
+
+    # Site file counts
+    if js_count > 0:
+        table_data.add_row('js_count', value=f"{js_count} files")
+    if css_count > 0:
+        table_data.add_row('css_count', value=f"{css_count} files")
+    if misc_count > 0:
+        table_data.add_row('misc_count', value=f"{misc_count} files")
 
     field_config = FieldConfig()
-    field_config.add_simple(['js_count', 'css_count', 'misc_count'])
+    field_config.add_simple(['flask_deployed', 'flask_restart', 'js_count', 'css_count', 'misc_count'])
 
     return {
         "table_data": table_data,
@@ -80,19 +124,22 @@ def render_nginx_flask_summary():
 def render_nginx_domain_table():
     """Render the NGINX domain information as a separate full table."""
     from hh.render.render import TableData, FieldConfig, render_block
-    from hh.deploy.http.deploy_hooks import pre_validated_config
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
 
-    # Get domain info from the main deployment config
-    if not pre_validated_config:
-        return {"render_block": "<div>No domain configuration available</div>"}
+    # Access final deployment results directly
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
 
-    domain = pre_validated_config.get('domain', '')
-    ssl_enabled = pre_validated_config.get('ssl_enabled', False)
+    domain = source_data.get('domain', '')
+    ssl_enabled = source_data.get('ssl_enabled', False)
+    is_local = source_data.get('is_local', False)
 
     if not domain:
         return {"render_block": "<div>No domain configured</div>"}
 
-    # Build domain table similar to legacy output
+    # Build domain table
     table_data = TableData()
     table_data.add_row('domain_header', value=domain)
 
@@ -100,20 +147,47 @@ def render_nginx_domain_table():
     port = '443' if ssl_enabled else '80'
     table_data.add_row('port', value=port)
 
-    # Certificate path (placeholder for now - would come from actual deployment)
-    cert_path = pre_validated_config.get('certificate_path')
-    if cert_path:
-        cert_status = str(cert_path)
-        # In real deployment, would add "(created)" if certificate_created
+    # Certificate path and creation status
+    certificate_path = source_data.get('certificate_path')
+    certificate_created = source_data.get('certificate_created', False)
+    if certificate_path:
+        cert_status = str(certificate_path)
+        if certificate_created:
+            cert_status += " (created)"
         table_data.add_row('certificate_path', value=cert_status)
 
-    # NGINX deployment status (placeholders for now)
-    table_data.add_row('nginx_deployed', value='Yes')  # Would check actual deployment
-    table_data.add_row('nginx_active', value='Yes (nginx service running)')  # Would check actual status
+    # Server IP binding
+    server_ip = source_data.get('server_ip')
+    if server_ip and isinstance(server_ip, str):
+        table_data.add_row('bind_ips', value=server_ip)
+
+    # Client IP access control (local deployments only)
+    local_allow_block = source_data.get('local_allow_block')
+    if is_local and local_allow_block:
+        table_data.add_row('client_ip_access', value=local_allow_block)
+
+    # NGINX deployment status from hook results
+    hook_results = source_data.get('hook_results', [])
+    nginx_deployed = False
+    nginx_active = False
+    nginx_enabled_sites = []
+
+    for result in hook_results:
+        if (result.get('module') == 'nginx_flask' and
+            result.get('action') == 'deploy_nginx_ssl'):
+            nginx_deployed = result.get('nginx_deployed', False)
+            nginx_active = result.get('nginx_active', False)
+            nginx_enabled_sites = result.get('nginx_enabled_sites', [])
+            break
+
+    # NGINX status
+    table_data.add_row('nginx_deployed', value='Yes' if nginx_deployed else 'No')
+    nginx_status = 'Yes (nginx service running)' if nginx_active else 'No'
+    table_data.add_row('nginx_active', value=nginx_status)
 
     field_config = FieldConfig()
     field_config.add_header('domain_header')
-    field_config.add_simple(['port', 'certificate_path', 'nginx_deployed', 'nginx_active'])
+    field_config.add_simple(['port', 'certificate_path', 'bind_ips', 'client_ip_access', 'nginx_deployed', 'nginx_active'])
 
     # Return as full render_block instead of table pieces
     domain_table_html = render_block(table_data, field_config, block_type='domain')
