@@ -87,22 +87,11 @@ def deploy() -> bool:
             warn(f"Pre-deployment validation hooks failed: {e}")
             report_error("backend", f"Pre-deployment validation hooks failed: {e}")
 
-    # Pre-deployment validation hooks
-    if not is_error():
-        try:
-            log("Running pre-deployment validation hooks")
-            results = run_hooks('deploy_pre_validation')
-            if results:
-                hook_results.extend(results)
-        except Exception as e:  # noqa: BLE001
-            warn(f"Pre-deployment validation hooks failed: {e}")
-            report_error("backend", f"Pre-deployment validation hooks failed: {e}")
-
     # Access pre-validated configuration from hooks
     from .deploy_hooks import pre_validated_config
     if pre_validated_config is None:
         warn("Pre-validation not completed - configuration not available")
-        report_error("action", "Pre-validation not completed - configuration not available")
+        report_error("backend", "Pre-validation not completed - configuration not available")
         trace_out()
         return False
 
@@ -144,16 +133,13 @@ def deploy() -> bool:
     # Stop running daemons prior to deployment
     if not is_error():
         try:
-            log("Stopping daemons via module hooks")
+            log("Running daemon stop hooks")
             results = run_hooks('deploy_stop_daemons')
-            if not results:
-                warn("Daemon stop hooks failed or returned no results")
-                report_error("backend", "Failed to stop daemons before deployment")
-            else:
+            if results:
                 hook_results.extend(results)
         except Exception as e:  # noqa: BLE001
-            warn(f"Failed to stop daemons before deployment: {e}")
-            report_error("backend", f"Failed to stop daemons before deployment: {e}")
+            warn(f"Daemon stop hooks failed: {e}")
+            report_error("backend", f"Daemon stop hooks failed: {e}")
 
     # Git preservation operations
     if not is_error():
@@ -502,23 +488,15 @@ def deploy() -> bool:
             report_error("backend", f"Failed to clean cache files: {e}")
 
     # Deploy Flask apps via module hooks
-    flask_deployed = []
     if not is_error():
         try:
-            log("Deploying Flask apps via module hooks")
+            log("Running Flask app deployment hooks")
             results = run_hooks('deploy_flask_apps')
-            if not results:
-                warn("Flask app deployment hooks failed or returned no results")
-                report_error("backend", "Failed to deploy Flask apps")
-            else:
+            if results:
                 hook_results.extend(results)
-                # Extract flask_deployed for backwards compatibility
-                for hook_result in results:
-                    if "flask_deployed" in hook_result:
-                        flask_deployed = hook_result["flask_deployed"]
-        except Exception as e:
-            warn(f"Failed to deploy Flask apps: {e}")
-            report_error("backend", f"Failed to deploy Flask apps: {e}")
+        except Exception as e:  # noqa: BLE001
+            warn(f"Flask app deployment hooks failed: {e}")
+            report_error("backend", f"Flask app deployment hooks failed: {e}")
 
     # Deploy maintenance worker script
     if not is_error():
@@ -622,29 +600,18 @@ def deploy() -> bool:
             report_error("backend", f"Site preparation hooks failed: {e}")
 
     # Site deployment hooks (JS, CSS, misc - run in alphabetical order)
-    site_deployed = []
+    site_deployed: List[str] = []
     js_count = 0
     css_count = 0
     misc_count = 0
+    flask_restart_info = {}
+    maintenance_restart_info = {}
     if not is_error():
         try:
             log("Running site deployment hooks")
             results = run_hooks('deploy_site')
             if results:
                 hook_results.extend(results)
-                # Extract legacy info for backwards compatibility
-                for hook_result in results:
-                    if "js_files" in hook_result:
-                        site_deployed.extend(hook_result["js_files"])
-                        js_count += hook_result.get("js_count", 0)
-                    if "registry_files" in hook_result:
-                        site_deployed.extend(hook_result["registry_files"])
-                    if "files" in hook_result and hook_result.get("component") == "site_css":
-                        site_deployed.extend(hook_result["files"])
-                        css_count += hook_result.get("count", 0)
-                    if "files" in hook_result and hook_result.get("component") == "site_misc":
-                        site_deployed.extend(hook_result["files"])
-                        misc_count += hook_result.get("count", 0)
         except Exception as e:  # noqa: BLE001
             warn(f"Site deployment hooks failed: {e}")
             report_error("backend", f"Site deployment hooks failed: {e}")
@@ -697,57 +664,30 @@ def deploy() -> bool:
     # Restart daemons after permissions/logs are in place
     if not is_error():
         try:
-            log("Restarting daemons via module hooks")
+            log("Running daemon restart hooks")
             results = run_hooks('deploy_restart_daemons')
-            if not results:
-                warn("Daemon restart hooks failed or returned no results")
-                report_error("backend", "Failed to restart daemons after deployment")
-            else:
+            if results:
                 hook_results.extend(results)
-                # Extract legacy info for backwards compatibility
-                for hook_result in results:
-                    if "flask_restart" in hook_result:
-                        flask_restart_info = hook_result["flask_restart"]
-                    if "maintenance_restart" in hook_result:
-                        maintenance_restart_info = hook_result["maintenance_restart"]
         except Exception as e:  # noqa: BLE001
-            warn(f"Failed to restart daemons after deployment: {e}")
-            report_error("backend", f"Failed to restart daemons after deployment: {e}")
+            warn(f"Daemon restart hooks failed: {e}")
+            report_error("backend", f"Daemon restart hooks failed: {e}")
 
     # Deploy NGINX and SSL via module hooks
+    deployment_mode = "https"
+    flask_deployed: List[str] = []
     nginx_deployed = False
     certificate_created = False
-    certificate_path = None
+    nginx_status_data: Dict[str, Any] = {}
     server_ip = ""
-    deployment_mode = "https"
-    nginx_status_data = {}
     if not is_error():
         try:
-            log("Deploying NGINX and SSL via module hooks")
+            log("Running NGINX and SSL deployment hooks")
             results = run_hooks('deploy_nginx_and_ssl')
-            if not results:
-                warn("NGINX/SSL deployment hooks failed or returned no results")
-                report_error("action", "Failed to deploy NGINX/SSL")
-            else:
+            if results:
                 hook_results.extend(results)
-                # Extract values for backwards compatibility
-                for hook_result in results:
-                    if "nginx_deployed" in hook_result:
-                        nginx_deployed = hook_result["nginx_deployed"]
-                    if "certificate_created" in hook_result:
-                        certificate_created = hook_result["certificate_created"]
-                    if "certificate_path" in hook_result:
-                        certificate_path = hook_result["certificate_path"]
-                    if "deployment_mode" in hook_result:
-                        deployment_mode = hook_result["deployment_mode"]
-                    if "nginx_active" in hook_result:
-                        nginx_status_data = {
-                            'is_active': hook_result.get("nginx_active", False),
-                            'enabled_sites': hook_result.get("nginx_enabled_sites", [])
-                        }
-        except Exception as e:
-            warn(f"Failed to deploy NGINX/SSL: {e}")
-            report_error("action", f"Failed to deploy NGINX/SSL: {e}")
+        except Exception as e:  # noqa: BLE001
+            warn(f"NGINX and SSL deployment hooks failed: {e}")
+            report_error("backend", f"NGINX and SSL deployment hooks failed: {e}")
 
     # Final result
     deployment_result: bool = not is_error()

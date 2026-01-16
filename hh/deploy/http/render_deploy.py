@@ -305,7 +305,6 @@ def render_deploy_section(source_data: Dict[str, Union[str, int, bool]], lines: 
                 break_section(lines)
     trace_out()
 
-@register_parser('deploy')
 def deploy() -> bool:
     trace_in()
     gateway = get_gateway()
@@ -345,6 +344,7 @@ def deploy() -> bool:
     return True
 
 
+@register_parser('deploy')
 def render_deploy_hookified() -> bool:
     """
     Hookified deployment renderer - processes deploy_render hooks from modules.
