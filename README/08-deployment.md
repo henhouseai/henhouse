@@ -155,10 +155,10 @@ Copies the entire `ext/` folder to `/srv/{project_name}/ext/` (if the folder exi
 #### Step 5: Clean Extension Deploy Folder (if ext/ was deployed)
 
 **If ext/ folder was deployed**: The `ext/deploy/` folder is cleaned while preserving whitelisted items:
-- Whitelisted items from `EXT_DEPLOY_WHITELIST` are temporarily moved out
-- Entire `ext/deploy/` directory is removed
-- `ext/deploy/` directory is recreated and whitelisted items are restored
-- Base whitelist: `['conf']` (can be extended in `ext/deploy/conf/deploy_whitelist.py`)
+- Whitelisted items from `DEPLOY_WHITELIST` are temporarily moved out
+- Entire `*/deploy/` directories are cleaned while preserving whitelisted items
+- Deploy directories are recreated and whitelisted items are restored
+- Each module defines its own deploy whitelist in `*/deploy/conf/deploy_whitelist.py`
 
 #### Step 6: Clean Deploy Folder (Preserve Whitelisted Items)
 

@@ -1,28 +1,13 @@
-"""
-Deployment cleanup whitelist configuration.
-Files listed here will be added to the base whitelists.
-"""
-from __future__ import annotations
+# ext module deployment configuration - extensions to base whitelists
 from typing import List
 
-# Files and folders to preserve in hh/deploy during deployment cleanup (additions to base HH_DEPLOY_WHITELIST)
-HH_DEPLOY_WHITELIST: List[str] = [
-    # Example: 'custom-folder',
-]
+# Files and folders to preserve during deployment cleanup (extensions to base DEPLOY_WHITELIST)
+DEPLOY_WHITELIST: List[str] = []
 
-# Files and folders to preserve in ext/deploy during deployment cleanup (additions to base EXT_DEPLOY_WHITELIST)
-EXT_DEPLOY_WHITELIST: List[str] = [
-    # Example: 'custom-folder',
-]
+# Client files deployed to /srv/{project} (extensions to base CLIENT_WHITELIST)
+CLIENT_WHITELIST: List[str] = []
 
-# Top-level project files to deploy into /srv/{project} (additions to base HH_EXTRA_DEPLOY_FILES)
-HH_EXTRA_DEPLOY_FILES: List[str] = [
-    # Example: 'hh/deploy/custom/client.py',
-]
-
-# Top-level project files to deploy into /srv/{project} (additions to base EXT_EXTRA_DEPLOY_FILES)
-EXT_EXTRA_DEPLOY_FILES: List[str] = [
-    # Example: 'ext/deploy/custom/client.py',
-]
+# App source templates with (app_name, source_path) tuples (extensions to base APP_WHITELIST)
+APP_WHITELIST: List[tuple] = []
 
 

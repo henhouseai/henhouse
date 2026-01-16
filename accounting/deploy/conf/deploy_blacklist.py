@@ -1,29 +1,14 @@
-"""
-Deployment cleanup blacklist configuration.
-Items listed here will be removed from the base whitelists.
-Items should match exactly as they appear in hh/deploy/conf/deploy_whitelist.py
-"""
-from __future__ import annotations
+# accounting module deployment blacklist configuration
+# Items listed here will be removed from the corresponding base whitelists
 from typing import List
 
-# Files and folders to remove from base HH_DEPLOY_WHITELIST
-HH_DEPLOY_WHITELIST: List[str] = [
-    # Example: 'cache',
-]
+# Files and folders to remove from base DEPLOY_WHITELIST
+DEPLOY_WHITELIST: List[str] = []
 
-# Files and folders to remove from base EXT_DEPLOY_WHITELIST
-EXT_DEPLOY_WHITELIST: List[str] = [
-    # Example: 'custom-folder',
-]
+# Client files to remove from base CLIENT_WHITELIST
+CLIENT_WHITELIST: List[str] = []
 
-# Files to remove from base HH_EXTRA_DEPLOY_FILES
-HH_EXTRA_DEPLOY_FILES: List[str] = [
-    # Example: 'hh/deploy/flask/http_client.py',
-]
-
-# Files to remove from base EXT_EXTRA_DEPLOY_FILES
-EXT_EXTRA_DEPLOY_FILES: List[str] = [
-    # Example: 'ext/deploy/custom/client.py',
-]
+# App sources to remove from base APP_WHITELIST (by exact tuple match)
+APP_WHITELIST: List[tuple] = []
 
 
