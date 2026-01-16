@@ -7,25 +7,30 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 from hh.deploy.deploy_utils import detect_project_context, load_whitelist_with_extensions
-from hh.gateway.registry.debug import get_log, get_warn
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
+from hh.gateway.registry.module_hooks import register_module_hook
 
+trace_in = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
+debug = lambda message: None
 warn = lambda message: None
 
-def _init_debug():
-    global log, warn
-    from hh.gateway.registry.debug import get_log, get_warn
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
     log = get_log(True)
+    debug = get_debug(True)
     warn = get_warn(True)
 
-try:
-    _init_debug()
-except:
-    pass
 
-
-def deploy_client_files_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_client_files')
+def deploy_client_files() -> Dict[str, Any]:
     """Deploy client files from CLIENT_WHITELIST to deployment directory."""
+    trace_in()
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -50,9 +55,9 @@ def deploy_client_files_helper() -> Dict[str, Any]:
 
     log(f"nginx_flask clients: Client file deployment complete - {len(deployed_files)} files")
 
-    return {
+    return trace_out({
         "status": "completed",
         "component": "client_files",
         "files_deployed": len(deployed_files),
         "files": deployed_files
-    }
+    })

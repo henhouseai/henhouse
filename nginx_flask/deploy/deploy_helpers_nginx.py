@@ -8,19 +8,22 @@ import shutil
 from pathlib import Path
 from typing import Tuple, Optional, List, Dict, Any
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_warn, register_debug_init
+from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.error.error_store import report_error
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
 log = lambda message: None
+debug = lambda message: None
 warn = lambda message: None
 
 @register_debug_init
 def _initialize_debug():
-    global trace_in, trace_out, log, warn
+    global trace_in, trace_out, log, debug, warn
     trace_in = get_trace_in(True)
     trace_out = get_trace_out(True)
     log = get_log(True)
+    debug = get_debug(True)
     warn = get_warn(True)
 
 try:
@@ -805,7 +808,8 @@ def check_nginx_status() -> Dict[str, Any]:
         return {'is_active': False, 'enabled_sites': []}
 
 
-def deploy_nginx_and_ssl_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_nginx_and_ssl')
+def deploy_nginx_and_ssl() -> Dict[str, Any]:
     """Deploy NGINX configuration and SSL certificates."""
     trace_in()
     from hh.deploy.deploy_utils import detect_project_context

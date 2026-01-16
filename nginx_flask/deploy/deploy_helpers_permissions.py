@@ -1,5 +1,5 @@
 """
-Permissions helper functions for nginx_flask module.
+Permissions hooks for nginx_flask module.
 
 These functions handle special permission setup for Flask logs and site files.
 """
@@ -8,26 +8,31 @@ from pathlib import Path
 from typing import Dict, Any
 from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from hh.gateway.registry.debug import get_log, get_warn
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, register_debug_init
 from hh.gateway.error.error_store import report_error
+from hh.gateway.registry.module_hooks import register_module_hook
 
+trace_in = lambda message=None: None
+trace_out = lambda arg=None: arg
 log = lambda message: None
+debug = lambda message: None
 warn = lambda message: None
 
-def _init_debug():
-    global log, warn
-    from hh.gateway.registry.debug import get_log, get_warn
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
     log = get_log(True)
+    debug = get_debug(True)
     warn = get_warn(True)
 
-try:
-    _init_debug()
-except:
-    pass
 
-
-def set_flask_logs_permissions_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_permissions_special')
+def set_flask_logs_permissions() -> Dict[str, Any]:
     """Set special permissions for Flask daemon logs directory."""
+    trace_in()
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -60,17 +65,20 @@ def set_flask_logs_permissions_helper() -> Dict[str, Any]:
     log(f"nginx_flask permissions: Created fresh logs directory with group write: {logs_dir}")
     log(f"nginx_flask permissions: Set logs directory ownership: {project_highest_user}:{deploy_group_name}")
 
-    return {
+    return trace_out({
         "status": "completed",
         "component": "flask_logs",
         "permissions": "2775",
         "ownership": f"{project_highest_user}:{deploy_group_name}",
         "directory": str(logs_dir)
-    }
+    })
 
 
-def set_site_permissions_helper() -> Dict[str, Any]:
+@register_module_hook('deploy_permissions_special')
+def set_site_permissions() -> Dict[str, Any]:
     """Set special permissions for site files (HTML, JS, CSS, etc.)."""
+    trace_in()
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -82,7 +90,7 @@ def set_site_permissions_helper() -> Dict[str, Any]:
 
     if not site_dir.exists():
         log("nginx_flask permissions: Site directory does not exist, skipping site permissions")
-        return {"status": "skipped", "component": "site", "reason": "no_site_dir"}
+        return trace_out({"status": "skipped", "component": "site", "reason": "no_site_dir"})
 
     # Ensure web-accessible files have proper permissions for nginx
     # Site files should be readable by web server (644 for files, 755 for dirs)
@@ -95,10 +103,10 @@ def set_site_permissions_helper() -> Dict[str, Any]:
 
     log(f"nginx_flask permissions: Set site directory permissions: 755/644 for {site_dir}")
 
-    return {
+    return trace_out({
         "status": "completed",
         "component": "site",
         "permissions": "755/644",
         "directory": str(site_dir),
         "note": "web_accessible_permissions"
-    }
+    })
