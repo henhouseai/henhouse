@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.registry.debug import get_log, get_warn, register_debug_init
+from hh.render.render import TableData, FieldConfig, render_block
 from hh.deploy.users.install import _install_config_path
 
 log = lambda message: None
@@ -154,7 +155,6 @@ def validate_deployment_config():
 @register_module_hook('deploy_render')
 def render_deployment_summary():
     """Render the main deployment summary table."""
-    from hh.render.render import TableData, FieldConfig, render_block
     from hh.gateway.gateway import get_gateway
     from hh.gateway.response.json_standard import get_data
 
