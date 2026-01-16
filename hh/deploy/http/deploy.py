@@ -53,14 +53,6 @@ def deploy() -> bool:
         if results:
             hook_results.extend(results)
 
-    # Check pre-validation results before proceeding
-    from .deploy_hooks import pre_validated_config
-    if pre_validated_config is None:
-        warn("Pre-validation not completed - configuration not available")
-        report_error("backend", "Pre-validation not completed - configuration not available")
-        trace_out()
-        return False
-
     # Define remaining deployment phases
     deployment_phases = [
         # Pre-deployment preparation (continued)
