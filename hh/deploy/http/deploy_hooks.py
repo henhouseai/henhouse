@@ -153,14 +153,10 @@ def render_deployment_summary():
         return {"render_block": "<div>Pre-validation not completed</div>"}
 
     table_data = TableData()
-    table_data.add_row('project_name', value=pre_validated_config['project_name'])
-    table_data.add_row('source_path', value=str(pre_validated_config['source']))
-    table_data.add_row('domain', value=pre_validated_config['domain'])
-    table_data.add_row('ssl_enabled', value='Yes' if pre_validated_config['ssl_enabled'] else 'No')
-    table_data.add_row('is_local', value='Yes' if pre_validated_config['is_local'] else 'No')
+    table_data.add_row('project_info', value=pre_validated_config['project_name'])
 
     field_config = FieldConfig()
-    field_config.add_simple(['project_name', 'source_path', 'domain', 'ssl_enabled', 'is_local'])
+    field_config.add_simple(['project_info'])
 
     return {
         "table_data": table_data,

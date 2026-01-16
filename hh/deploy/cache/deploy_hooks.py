@@ -64,12 +64,11 @@ def render_cache_operations():
         return {"render_block": "<div>Cache config not available</div>"}
 
     table_data = TableData()
-    table_data.add_row('cache_cleanup', value='Python cache directory cleanup')
-    table_data.add_row('permissions_set', value='Base permissions applied')
-    table_data.add_row('cache_dirs_processed', value=str(len(pre_validated_cache_config.get('cache_directories', []))))
+    table_data.add_row('cache_cleaned', value=f"{len(pre_validated_cache_config.get('cache_directories', []))} __pycache__ dirs")
+    table_data.add_row('cache_permissions', value='No')
 
     field_config = FieldConfig()
-    field_config.add_simple(['cache_cleanup', 'permissions_set', 'cache_dirs_processed'])
+    field_config.add_simple(['cache_cleaned', 'cache_permissions'])
 
     return {
         "table_data": table_data,

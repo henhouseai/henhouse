@@ -49,25 +49,6 @@ def validate_maintenance_config():
         raise ValueError(f"Failed to validate maintenance config: {e}")
 
 
-@register_module_hook('deploy_render')
-def render_maintenance_operations():
-    """Render maintenance-specific deployment operations."""
-    from hh.render.render import TableData, FieldConfig
-
-    if not pre_validated_maintenance_config:
-        return {"render_block": "<div>Maintenance config not available</div>"}
-
-    table_data = TableData()
-    table_data.add_row('daemon_control', value='Maintenance daemon start/stop')
-    table_data.add_row('project_name', value=pre_validated_maintenance_config.get('project_name', 'Unknown'))
-
-    field_config = FieldConfig()
-    field_config.add_simple(['daemon_control', 'project_name'])
-
-    return {
-        "table_data": table_data,
-        "field_config": field_config
-    }
 
 @register_module_hook('deploy_stop_daemons')
 def stop_maintenance_daemon() -> Union[Dict[str, Any], bool]:

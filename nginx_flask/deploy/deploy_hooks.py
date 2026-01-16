@@ -57,22 +57,18 @@ def render_nginx_flask_summary():
     from hh.render.render import TableData, FieldConfig
 
     table_data = TableData()
-    table_data.add_row('site_deployment', value='JavaScript, CSS, and misc file deployment')
-    table_data.add_row('nginx_config', value='NGINX configuration and SSL setup')
-    table_data.add_row('flask_daemons', value='Flask application daemon management')
 
-    # Add whitelist counts if available
+    # Add whitelist counts using legacy field names
     js_count = len(pre_validated_whitelists.get('JS_WHITELIST', []))
     css_count = len(pre_validated_whitelists.get('CSS_WHITELIST', []))
     misc_count = len(pre_validated_whitelists.get('MISC_WHITELIST', []))
 
-    table_data.add_row('js_whitelist_count', value=str(js_count))
-    table_data.add_row('css_whitelist_count', value=str(css_count))
-    table_data.add_row('misc_whitelist_count', value=str(misc_count))
+    table_data.add_row('js_count', value=str(js_count))
+    table_data.add_row('css_count', value=str(css_count))
+    table_data.add_row('misc_count', value=str(misc_count))
 
     field_config = FieldConfig()
-    field_config.add_simple(['site_deployment', 'nginx_config', 'flask_daemons',
-                           'js_whitelist_count', 'css_whitelist_count', 'misc_whitelist_count'])
+    field_config.add_simple(['js_count', 'css_count', 'misc_count'])
 
     return {
         "table_data": table_data,

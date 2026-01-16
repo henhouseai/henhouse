@@ -51,25 +51,6 @@ def validate_project_config():
         raise ValueError(f"Failed to validate project config: {e}")
 
 
-@register_module_hook('deploy_render')
-def render_project_operations():
-    """Render project-specific deployment operations."""
-    from hh.render.render import TableData, FieldConfig
-
-    if not pre_validated_git_config:
-        return {"render_block": "<div>Project config not available</div>"}
-
-    table_data = TableData()
-    table_data.add_row('git_operations', value='Git directory preservation and restoration')
-    table_data.add_row('project_name', value=pre_validated_git_config.get('project_name', 'Unknown'))
-
-    field_config = FieldConfig()
-    field_config.add_simple(['git_operations', 'project_name'])
-
-    return {
-        "table_data": table_data,
-        "field_config": field_config
-    }
 
 @register_module_hook('deploy_permissions_special')
 def set_git_permissions() -> dict:
