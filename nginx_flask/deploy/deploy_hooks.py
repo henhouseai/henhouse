@@ -12,6 +12,8 @@ from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.registry.debug import get_log, get_warn
 from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
+from nginx_flask.deploy.nginx_helpers import get_server_ip, create_nginx_ssl_config_local, create_nginx_config_local, install_nginx_ssl_config, install_nginx_config, create_local_decoy, check_nginx_status
+
 
 log = lambda message: None
 warn = lambda message: None
@@ -834,17 +836,7 @@ def deploy_nginx_and_ssl() -> Union[Dict[str, Any], bool]:
         local_allow_block = ""
         if is_local:
             local_allow_block = f"{'.'.join(domain.split('.')[:-1])}.0/24"
-
-        from hh.deploy.http.deploy import (
-            get_server_ip,
-            create_nginx_ssl_config_local,
-            create_nginx_config_local,
-            install_nginx_ssl_config,
-            install_nginx_config,
-            create_local_decoy,
-            check_nginx_status
-        )
-
+                    
         nginx_deployed = False
         certificate_created = False
         server_ip = get_server_ip()
