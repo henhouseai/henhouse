@@ -56,7 +56,7 @@ def prepare_site_directory() -> Dict[str, Any]:
 
 
 @register_module_hook('deploy_site')
-def deploy_site_css(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
+def deploy_site_css() -> Dict[str, Any]:
     """Deploy CSS files to the site directory."""
     trace_in()
 
@@ -73,6 +73,7 @@ def deploy_site_css(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str,
     css_dest.mkdir(exist_ok=True)
 
     # Get CSS whitelist (pre-validated)
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
     CSS_WHITELIST = pre_validated_whitelists.get('CSS_WHITELIST', [])
     if not CSS_WHITELIST:
         raise ValueError("CSS_WHITELIST not pre-validated")
@@ -104,7 +105,7 @@ def deploy_site_css(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str,
 
 
 @register_module_hook('deploy_site')
-def deploy_site_js(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
+def deploy_site_js() -> Dict[str, Any]:
     """Deploy JavaScript files and generate registry."""
     trace_in()
 
@@ -121,6 +122,7 @@ def deploy_site_js(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, 
     js_dest.mkdir(exist_ok=True)
 
     # Get JS whitelists (pre-validated)
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
     JS_WHITELIST = pre_validated_whitelists.get('JS_WHITELIST', [])
     JS_PAGE_CLASSES_WHITELIST = pre_validated_whitelists.get('JS_PAGE_CLASSES_WHITELIST', [])
     if not JS_WHITELIST or not JS_PAGE_CLASSES_WHITELIST:
@@ -279,7 +281,7 @@ def deploy_site_js(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, 
 
 
 @register_module_hook('deploy_site')
-def deploy_site_misc(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str, Any]:
+def deploy_site_misc() -> Dict[str, Any]:
     """Deploy miscellaneous files to the site directory."""
     trace_in()
 
@@ -294,6 +296,7 @@ def deploy_site_misc(pre_validated_whitelists: Dict[str, List[str]]) -> Dict[str
     site_dest = dest / 'site'
 
     # Get misc whitelist (pre-validated)
+    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
     MISC_WHITELIST = pre_validated_whitelists.get('MISC_WHITELIST', [])
     if not MISC_WHITELIST:
         raise ValueError("MISC_WHITELIST not pre-validated")
