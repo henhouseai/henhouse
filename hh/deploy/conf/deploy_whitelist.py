@@ -1,39 +1,20 @@
-# Deployment cleanup whitelist configuration
+# Deployment whitelist configuration - base definitions extended by modules
 from typing import List
 
-# Files and folders to preserve in hh/deploy during deployment cleanup
-# These items are temporarily moved out, deploy directory is cleaned, then restored
-HH_DEPLOY_WHITELIST: List[str] = [
-    'cache',      # Cache cleanup registry and utilities
-    'conf',       # Configuration whitelists (CSS/JS includes)
-    'maint',      # Maintenance helpers shared with deployment scripts
-    'deploy_utils.py'    # General deployment utilities (used by cache and other modules)
+# Files and folders to preserve during deployment cleanup
+# Full root-level paths that get aggregated across all modules
+DEPLOY_WHITELIST: List[str] = [
+    'hh/deploy/cache',
+    'hh/deploy/conf',
+    'hh/deploy/maint',
+    'hh/deploy/deploy_utils.py'
 ]
 
-# Files and folders to preserve in ext/deploy during deployment cleanup
-# These items are temporarily moved out, deploy directory is cleaned, then restored
-EXT_DEPLOY_WHITELIST: List[str] = [
-	'conf',
-    # Base whitelist for ext/deploy (can be extended in ext/deploy/conf/deploy_whitelist.py)
-]
+# Client files to deploy to /srv/{project} (HTTP clients, maintenance clients, etc.)
+# Modules add their own client file paths
+CLIENT_WHITELIST: List[str] = []
 
-# Flask app source file (deployed with tier-specific modifications)
-FLASK_APP_SOURCE: str = 'hh/deploy/flask/app.py'
-MEDIA_SERVER_SOURCE: str = 'hh/deploy/flask/media_server.py'
-MAINTENANCE_APP_SOURCE: str = 'hh/deploy/maintenance/worker.py'
-
-# Top-level project files to deploy into /srv/{project} (HH-specific)
-# This lets us manage subprocess entrypoints (etc.) declaratively
-HH_EXTRA_DEPLOY_FILES: List[str] = [
-    'hh/deploy/flask/http_client.py',
-    'hh/deploy/flask/mcp_client.py',
-    'hh/deploy/flask/api_client.py',
-    'hh/deploy/flask/download_client.py',
-    'hh/deploy/maint/maintenance_client.py',
-]
-
-# Top-level project files to deploy into /srv/{project} (EXT-specific)
-EXT_EXTRA_DEPLOY_FILES: List[str] = [
-    # Base whitelist for ext extra deploy files (can be extended in ext/deploy/conf/deploy_whitelist.py)
-]
+# App source templates with (app_name, source_path) tuples
+# Modules add their own app source definitions
+APP_WHITELIST: List[tuple] = []
 

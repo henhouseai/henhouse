@@ -274,7 +274,14 @@ def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
                 except ValueError:
                     start_port = 5001
 
-        from hh.deploy.conf.deploy_whitelist import FLASK_APP_SOURCE, MEDIA_SERVER_SOURCE
+        # Load app sources from whitelist (custom loading for tuples)
+        from hh.deploy.deploy_utils import _load_list_from_file, detect_project_context
+        from typing import List
+        project_name_check, project_root = detect_project_context()
+        hh_conf = project_root / "hh" / "deploy" / "conf"
+        base_app_file = hh_conf / "deploy_whitelist.py"
+        app_whitelist: List[tuple] = _load_list_from_file(base_app_file, 'APP_WHITELIST') or []
+
         from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
         source = current_path
@@ -282,46 +289,61 @@ def deploy_flask_apps() -> Union[Dict[str, Any], bool]:
         flask_deployed = []
 
         # Deploy Flask tier apps
-        app_source = source / FLASK_APP_SOURCE
-        if app_source.exists():
-            for i, tier in enumerate(HENHOUSE_TIERS):
-                app_name = f'{project_name}_{tier}.py'
-                app_dest = dest / app_name
+        flask_source_path = None
+        for app_tuple in app_whitelist:
+            app_name, source_path = app_tuple
+            if app_name == 'flask':
+                flask_source_path = source_path
+                break
 
-                # Read the app.py content
-                with open(app_source, 'r') as f:
-                    content = f.read()
+        if flask_source_path:
+            app_source = source / flask_source_path
+            if app_source.exists():
+                for i, tier in enumerate(HENHOUSE_TIERS):
+                    app_name = f'{project_name}_{tier}.py'
+                    app_dest = dest / app_name
 
-                # Replace the port with the tier-specific port
-                port = start_port + i
-                content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
+                    # Read the app.py content
+                    with open(app_source, 'r') as f:
+                        content = f.read()
 
-                # Replace the log file path with tier-specific path
-                log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
-                content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
+                    # Replace the port with the tier-specific port
+                    port = start_port + i
+                    content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {port}')
 
-                # Write the modified content
-                with open(app_dest, 'w') as f:
-                    f.write(content)
+                    # Replace the log file path with tier-specific path
+                    log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
+                    content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
+                    # Write the modified content
+                    with open(app_dest, 'w') as f:
+                        f.write(content)
 
-                flask_deployed.append(app_name)
-                log(f"nginx_flask hook: Deployed Flask app: {app_name} (port {port})")
-            log(f"nginx_flask hook: Flask deployment complete: {len(flask_deployed)} instances")
-        else:
-            log("nginx_flask hook: Flask app.py not found, skipping Flask deployment")
+                    flask_deployed.append(app_name)
+                    log(f"nginx_flask hook: Deployed Flask app: {app_name} (port {port})")
+                log(f"nginx_flask hook: Flask deployment complete: {len(flask_deployed)} instances")
+            else:
+                log("nginx_flask hook: Flask app.py not found, skipping Flask deployment")
 
         # Deploy media server Flask app
-        media_source = source / MEDIA_SERVER_SOURCE
+        media_source_path = None
+        for app_tuple in app_whitelist:
+            app_name, source_path = app_tuple
+            if app_name == 'media':
+                media_source_path = source_path
+                break
+
         media_deployed = False
-        if media_source.exists():
-            media_dest = dest / f'{project_name}_media.py'
+        if media_source_path:
+            media_source = source / media_source_path
+            if media_source.exists():
+                media_dest = dest / f'{project_name}_media.py'
 
-            # Read the media_server.py content
-            with open(media_source, 'r') as f:
-                content = f.read()
+                # Read the media_server.py content
+                with open(media_source, 'r') as f:
+                    content = f.read()
 
-            # Replace the port with media server port (after all tier apps)
-            media_port = start_port + len(HENHOUSE_TIERS)
+                # Replace the port with media server port (after all tier apps)
+                media_port = start_port + len(HENHOUSE_TIERS)
             content = content.replace('port = int(os.getenv(\'PORT\', 5000))', f'port = {media_port}')
 
             # Replace the log file path with media server path

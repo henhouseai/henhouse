@@ -27,7 +27,6 @@ def _initialize_debug():
 
 from hh.deploy.deploy_utils import load_whitelist_with_extensions
 from hh.gateway.registry.module_hooks import run_hooks
-from hh.deploy.conf.deploy_whitelist import MAINTENANCE_APP_SOURCE
 
 @register_action('deploy')
 @register_command('deploy')
@@ -86,12 +85,27 @@ def deploy() -> bool:
     certificate_path = pre_validated_config['certificate_path']
     is_local = pre_validated_config['is_local']
 
-    # Load whitelists with extension support (moved from pre-validation for backward compatibility)
+    # Load whitelists with extension support
     CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
-    HH_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'HH_DEPLOY_WHITELIST')
-    EXT_DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'EXT_DEPLOY_WHITELIST')
-    HH_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'HH_EXTRA_DEPLOY_FILES')
-    EXT_EXTRA_DEPLOY_FILES = load_whitelist_with_extensions('deploy_whitelist', 'EXT_EXTRA_DEPLOY_FILES')
+    DEPLOY_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'DEPLOY_WHITELIST')
+    CLIENT_WHITELIST = load_whitelist_with_extensions('deploy_whitelist', 'CLIENT_WHITELIST')
+
+    # Load APP_WHITELIST as tuples (custom loading since load_whitelist_with_extensions expects strings)
+    from hh.deploy.deploy_utils import _load_list_from_file, detect_project_context
+    from typing import List
+    project_name, project_root = detect_project_context()
+    hh_conf = project_root / "hh" / "deploy" / "conf"
+    base_app_file = hh_conf / "deploy_whitelist.py"
+    APP_WHITELIST: List[tuple] = _load_list_from_file(base_app_file, 'APP_WHITELIST') or []
+
+    # Filter deploy whitelist by location for cleanup operations
+    # HH_DEPLOY_WHITELIST: items to preserve in hh/deploy/ directory
+    HH_DEPLOY_WHITELIST = [item for item in DEPLOY_WHITELIST if item.startswith('hh/deploy/')]
+    # EXT_DEPLOY_WHITELIST: items to preserve in ext/deploy/ directory
+    EXT_DEPLOY_WHITELIST = [item for item in DEPLOY_WHITELIST if item.startswith('ext/deploy/')]
+
+    HH_EXTRA_DEPLOY_FILES = CLIENT_WHITELIST  # All client files now in one list
+    EXT_EXTRA_DEPLOY_FILES: List[str] = []  # No longer separate EXT list
     dest = Path("/srv") / project_name
     log(f"Deploying from {source} to {dest} (starting port: {start_port}, domain: {domain}, local: {is_local})")
 
@@ -233,8 +247,11 @@ def deploy() -> bool:
         try:
             if ext_deploy_dir.exists():
                 # Temporarily move whitelisted items out
-                for item_name in EXT_DEPLOY_WHITELIST:
-                    item_path = ext_deploy_dir / item_name
+                for full_item_path in EXT_DEPLOY_WHITELIST:
+                    # Extract relative path from full path (remove 'ext/deploy/' prefix)
+                    if full_item_path.startswith('ext/deploy/'):
+                        item_name = full_item_path[11:]  # Remove 'ext/deploy/' prefix
+                        item_path = ext_deploy_dir / item_name
                     if item_path.exists():
                         temp_path = dest / f".{project_name}_ext_{item_name.replace('/', '_').replace('.', '_')}_tmp"
                         
@@ -377,8 +394,11 @@ def deploy() -> bool:
         deployment_cleaned = False
         try:
             # Temporarily move whitelisted items out
-            for item_name in HH_DEPLOY_WHITELIST:
-                item_path = deploy_dir / item_name
+            for full_item_path in HH_DEPLOY_WHITELIST:
+                # Extract relative path from full path (remove 'hh/deploy/' prefix)
+                if full_item_path.startswith('hh/deploy/'):
+                    item_name = full_item_path[11:]  # Remove 'hh/deploy/' prefix
+                    item_path = deploy_dir / item_name
                 if item_path.exists():
                     temp_path = dest / f".{project_name}_{item_name.replace('/', '_').replace('.', '_')}_tmp"
                     
@@ -477,16 +497,27 @@ def deploy() -> bool:
     # Deploy maintenance worker script
     if not is_error():
         try:
-            maint_source = source / MAINTENANCE_APP_SOURCE
-            if maint_source.exists():
-                maint_dest = dest / f'{project_name}_maintenance.py'
-                content = maint_source.read_text()
-                content = content.replace('__PROJECT_NAME__', project_name)
-                with open(maint_dest, 'w') as f:
-                    f.write(content)
-                log(f"Deployed maintenance worker: {maint_dest}")
+            # Find maintenance app source from APP_WHITELIST
+            maint_source_path = None
+            for app_tuple in APP_WHITELIST:
+                app_name, source_path = app_tuple
+                if app_name == 'maintenance':
+                    maint_source_path = source_path
+                    break
+
+            if maint_source_path:
+                maint_source = source / maint_source_path
+                if maint_source.exists():
+                    maint_dest = dest / f'{project_name}_maintenance.py'
+                    content = maint_source.read_text()
+                    content = content.replace('__PROJECT_NAME__', project_name)
+                    with open(maint_dest, 'w') as f:
+                        f.write(content)
+                    log(f"Deployed maintenance worker: {maint_dest}")
+                else:
+                    log("Maintenance worker template not found, skipping deployment")
             else:
-                log("Maintenance worker template not found, skipping deployment")
+                log("Maintenance app source not found in APP_WHITELIST, skipping deployment")
         except Exception as e:
             warn(f"Failed to deploy maintenance worker: {e}")
             report_error("backend", f"Failed to deploy maintenance worker: {e}")
