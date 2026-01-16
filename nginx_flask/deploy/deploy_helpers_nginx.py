@@ -145,8 +145,8 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_bl
             pass  # If config can't be loaded, use defaults
         
         # Import helpers
-        from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
-        from hh.deploy.http.nginx_config_helpers import (
+        from .http.nginx_whitelist import generate_nginx_static_locations
+        from .http.nginx_config_helpers import (
             get_security_headers_ssl, get_block_hidden_files,
             get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
             get_server_configs, detect_flask_ports, generate_http_redirect_block,
@@ -237,7 +237,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
                                       local_allow_block: str = "192.168.1.0/24,10.0.0.0/8",
                                       guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate an HTTPS server block with client IP access control for local deployments."""
-    from hh.deploy.http.nginx_config_helpers import (
+    from .http.nginx_config_helpers import (
         get_security_headers_ssl, get_block_hidden_files,
         get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
         get_client_ip_access_control
@@ -248,7 +248,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     
     # Detect media port if not provided
     if media_port is None:
-        from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+        from .http.nginx_config_helpers import detect_flask_ports
         ports = detect_flask_ports(project_name)
         media_port = ports.get('media', 5005)
     
@@ -285,7 +285,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     lines.extend(get_block_hidden_files(webroot_dir))
     
     # Add authentication for guest/admin/panel subdomains
-    from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+    from .http.nginx_config_helpers import detect_flask_ports
     ports = detect_flask_ports(project_name)
     tier = None
     for t, p in ports.items():
@@ -324,8 +324,8 @@ def create_nginx_config_local(domain: str, project_name: str, local_allow_block:
             pass  # If config can't be loaded, use defaults
         
         # Import helpers
-        from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
-        from hh.deploy.http.nginx_config_helpers import (
+        from .http.nginx_whitelist import generate_nginx_static_locations
+        from .http.nginx_config_helpers import (
             get_security_headers, get_block_hidden_files,
             get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
             get_server_configs, detect_flask_ports
@@ -398,7 +398,7 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
                                       local_allow_block: str = "192.168.1.0/24,10.0.0.0/8",
                                       guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate an HTTP server block with client IP access control for local deployments."""
-    from hh.deploy.http.nginx_config_helpers import (
+    from .http.nginx_config_helpers import (
         get_security_headers, get_block_hidden_files,
         get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
         get_client_ip_access_control
@@ -409,7 +409,7 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
     
     # Detect media port if not provided
     if media_port is None:
-        from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+        from .http.nginx_config_helpers import detect_flask_ports
         ports = detect_flask_ports(project_name)
         media_port = ports.get('media', 5005)
     
@@ -438,7 +438,7 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
     lines.extend(get_block_hidden_files(webroot_dir))
     
     # Add authentication for admin/panel subdomains
-    from hh.deploy.http.nginx_config_helpers import detect_flask_ports
+    from .http.nginx_config_helpers import detect_flask_ports
     ports = detect_flask_ports(project_name)
     tier = None
     for t, p in ports.items():
@@ -481,9 +481,9 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
             pass  # If config can't be loaded, use defaults
         
         # Import helpers
-        from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
-        from hh.deploy.http.nginx_config_helpers import (
-            generate_https_server_block, detect_flask_ports, 
+        from .http.nginx_whitelist import generate_nginx_static_locations
+        from .http.nginx_config_helpers import (
+            generate_https_server_block, detect_flask_ports,
             generate_http_redirect_block, get_server_configs
         )
         
@@ -648,8 +648,8 @@ def create_nginx_config(domain: str, project_name: str) -> str:
             pass  # If config can't be loaded, use default
         
         # Import helpers
-        from hh.deploy.http.nginx_whitelist import generate_nginx_static_locations
-        from hh.deploy.http.nginx_config_helpers import generate_server_block, get_server_configs, detect_flask_ports
+        from .http.nginx_whitelist import generate_nginx_static_locations
+        from .http.nginx_config_helpers import generate_server_block, get_server_configs, detect_flask_ports
         
         # Get static locations and summary
         whitelist_result = generate_nginx_static_locations(project_name)

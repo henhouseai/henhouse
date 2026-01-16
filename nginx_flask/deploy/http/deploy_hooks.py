@@ -162,7 +162,7 @@ def validate_deployment_config():
 @register_module_hook('deploy_manifest')
 def add_site_to_manifest():
     """Add the deployed site to the manifest with appropriate SSL mode."""
-    from hh.deploy.http.deploy_helpers import _manifest_add_site
+    from .deploy_helpers import _manifest_add_site
 
     if pre_validated_config is None:
         warn("Pre-validation not completed - cannot add site to manifest")
