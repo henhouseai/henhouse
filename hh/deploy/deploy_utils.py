@@ -487,7 +487,7 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
         log(f"Loaded module blacklist: {blacklisted_modules}")
 
     # Exclusion rules (always excluded, in addition to blacklist)
-    always_excluded = {'hh', 'ext', '.git', 'git', '__pycache__', 'venv', '.venv', 'node_modules'}
+    always_excluded = {'.git', 'git', '__pycache__', 'venv', '.venv', 'node_modules'}
 
     modules: List[ModuleInfo] = []
 
@@ -633,7 +633,7 @@ def get_all_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
         return []
 
     # Exclusion rules (only the hard-coded ones, no MODULE_BLACKLIST)
-    always_excluded = {'hh', 'ext', '.git', 'git', '__pycache__', 'venv', '.venv', 'node_modules'}
+    always_excluded = {'.git', 'git', '__pycache__', 'venv', '.venv', 'node_modules'}
 
     modules: List[ModuleInfo] = []
 
