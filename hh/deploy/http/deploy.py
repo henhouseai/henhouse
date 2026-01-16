@@ -47,7 +47,7 @@ def deploy() -> bool:
     hook_results: List[Dict[str, Any]] = []
 
     # Import deploy_hooks to register the pre-validate hook
-    from .deploy_hooks import pre_validated_config
+    from . import deploy_hooks
 
     # Pre-deployment validation hooks - each module validates its own config
     if not is_error():
@@ -61,20 +61,20 @@ def deploy() -> bool:
             report_error("backend", f"Pre-deployment validation hooks failed: {e}")
 
     # Check pre-validated configuration from hooks
-    if pre_validated_config is None:
+    if deploy_hooks.pre_validated_config is None:
         warn("Pre-validation not completed - configuration not available")
         report_error("backend", "Pre-validation not completed - configuration not available")
         trace_out()
         return False
 
     # Extract validated config values
-    project_name = pre_validated_config['project_name']
-    current_path = pre_validated_config['current_path']
-    source = pre_validated_config['source']
-    start_port = pre_validated_config['start_port']
-    domain = pre_validated_config['domain']
-    ssl_enabled = pre_validated_config['ssl_enabled']
-    is_local = pre_validated_config['is_local']
+    project_name = deploy_hooks.pre_validated_config['project_name']
+    current_path = deploy_hooks.pre_validated_config['current_path']
+    source = deploy_hooks.pre_validated_config['source']
+    start_port = deploy_hooks.pre_validated_config['start_port']
+    domain = deploy_hooks.pre_validated_config['domain']
+    ssl_enabled = deploy_hooks.pre_validated_config['ssl_enabled']
+    is_local = deploy_hooks.pre_validated_config['is_local']
 
     # Load whitelists with extension support
     from hh.deploy.deploy_utils import load_tuple_whitelist_with_extensions
