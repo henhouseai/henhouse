@@ -270,6 +270,7 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
     handlers = get_hook_handlers(hook_name)
 
     if not handlers:
+        warn(f"No hooks registered for '{hook_name}' - hook called but no implementations found")
         return trace_out([])
 
     log(f"Running {len(handlers)} hooks for '{hook_name}'")
