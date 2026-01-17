@@ -30,7 +30,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_stop_daemons')
+@register_module_hook('deploy_05_stop_daemons')
 def stop_flask_daemons() -> Dict[str, Any]:
     """Stop Flask tier daemons before deployment."""
     trace_in()
@@ -46,7 +46,7 @@ def stop_flask_daemons() -> Dict[str, Any]:
     return trace_out({"module": "nginx_flask", "action": "stop", "status": "stopped"})
 
 
-@register_module_hook('deploy_restart_daemons')
+@register_module_hook('deploy_85_restart_daemons')
 def restart_flask_daemons() -> Dict[str, Any]:
     """Restart Flask tier daemons after deployment."""
     trace_in()
@@ -77,7 +77,7 @@ def restart_flask_daemons() -> Dict[str, Any]:
     return trace_out({"module": "nginx_flask", "action": "restart", "flask_restart": flask_restart_info})
 
 
-@register_module_hook('deploy_flask_apps')
+@register_module_hook('deploy_45_flask_apps')
 def deploy_flask_apps() -> Dict[str, Any]:
     """Deploy Flask tier applications and media server."""
     trace_in()

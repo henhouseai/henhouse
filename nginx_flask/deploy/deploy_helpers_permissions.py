@@ -28,7 +28,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_permissions_special')
+@register_module_hook('deploy_80_permissions_special')
 def set_flask_logs_permissions() -> Dict[str, Any]:
     """Set special permissions for Flask daemon logs directory."""
     trace_in()
@@ -74,7 +74,7 @@ def set_flask_logs_permissions() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_permissions_special')
+@register_module_hook('deploy_80_permissions_special')
 def set_site_permissions() -> Dict[str, Any]:
     """Set special permissions for site files (HTML, JS, CSS, etc.)."""
     trace_in()

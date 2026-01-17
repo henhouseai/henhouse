@@ -28,7 +28,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_site_prepare')
+@register_module_hook('deploy_65_site_prepare')
 def prepare_site_directory() -> Dict[str, Any]:
     """Prepare the site directory by clearing and recreating it."""
     trace_in()
@@ -57,7 +57,7 @@ def prepare_site_directory() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_site')
+@register_module_hook('deploy_70_site')
 def deploy_site_css() -> Dict[str, Any]:
     """Deploy CSS files to the site directory."""
     trace_in()
@@ -108,7 +108,7 @@ def deploy_site_css() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_site')
+@register_module_hook('deploy_70_site')
 def deploy_site_js() -> Dict[str, Any]:
     """Deploy JavaScript files and generate registry."""
     trace_in()
@@ -286,7 +286,7 @@ def deploy_site_js() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_site')
+@register_module_hook('deploy_70_site')
 def deploy_site_misc() -> Dict[str, Any]:
     """Deploy miscellaneous files to the site directory."""
     trace_in()

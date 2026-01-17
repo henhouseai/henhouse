@@ -26,7 +26,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_client_files')
+@register_module_hook('deploy_55_client_files')
 def deploy_client_files() -> Dict[str, Any]:
     """Deploy client files from CLIENT_WHITELIST to deployment directory."""
     trace_in()

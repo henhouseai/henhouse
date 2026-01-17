@@ -26,7 +26,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_sterilize_directory')
+@register_module_hook('deploy_15_sterilize_directory')
 def sterilize_deployment_directory() -> Dict[str, Any]:
     """Sterilize deployment directory by removing all contents except preserved items."""
     trace_in()

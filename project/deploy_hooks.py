@@ -27,35 +27,7 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-# Pre-validated configuration storage for project module
-pre_validated_git_config: dict = {}
-
-@register_module_hook('deploy_pre_validate')
-def validate_project_config():
-    """Pre-validate project-specific configuration."""
-    global pre_validated_git_config
-
-    log("Validating project deployment configuration")
-
-    # For now, just store basic project context - git operations validate their own paths
-    try:
-        project_name, current_path = detect_project_context()
-        if not project_name:
-            raise ValueError("Could not detect project context")
-
-        pre_validated_git_config = {
-            'project_name': project_name,
-            'current_path': current_path
-        }
-
-        log(f"Pre-validated project config for: {project_name}")
-    except Exception as e:
-        warn(f"Failed to validate project config: {e}")
-        raise ValueError(f"Failed to validate project config: {e}")
-
-
-
-@register_module_hook('deploy_permissions_special')
+@register_module_hook('deploy_80_permissions_special')
 def set_git_permissions() -> dict:
     """Set special permissions for git directory."""
     try:
@@ -96,7 +68,7 @@ def set_git_permissions() -> dict:
         return {"status": "error", "component": "git", "error": str(e)}
 
 
-@register_module_hook('deploy_git_preserve_ops')
+@register_module_hook('deploy_10_git_preserve_ops')
 def preserve_git_directory() -> dict:
     """Preserve git directory by moving it to a temporary location."""
     import shutil
@@ -140,7 +112,7 @@ def preserve_git_directory() -> dict:
         return {"status": "error", "component": "git_preserve", "error": str(e)}
 
 
-@register_module_hook('deploy_git_restore_ops')
+@register_module_hook('deploy_20_git_restore_ops')
 def restore_git_directory() -> dict:
     """Restore git directory from temporary location."""
     import shutil
@@ -179,7 +151,7 @@ def restore_git_directory() -> dict:
         return {"status": "error", "component": "git_restore", "error": str(e)}
 
 
-@register_module_hook('deploy_modules')
+@register_module_hook('deploy_25_modules')
 def deploy_discovered_modules() -> dict:
     """Deploy all discovered modules to destination."""
     import shutil
@@ -228,7 +200,7 @@ def deploy_discovered_modules() -> dict:
         return {"status": "error", "component": "modules", "error": str(e)}
 
 
-@register_module_hook('deploy_framework_cleanup')
+@register_module_hook('deploy_30_framework_cleanup')
 def cleanup_module_deploy_directories() -> dict:
     """Clean module deploy directories but preserve whitelisted items."""
     import shutil

@@ -49,40 +49,40 @@ def deploy() -> bool:
     # Run pre-validation first
     if not is_error():
         log("Running pre-deployment validation hooks")
-        results = run_hooks('deploy_pre_validate')
+        results = run_hooks('deploy_00_pre_validate')
         if results:
             hook_results.extend(results)
 
     # Define remaining deployment phases
     deployment_phases = [
         # Pre-deployment preparation (continued)
-        ('deploy_stop_daemons', 'daemon stop'),
-        ('deploy_git_preserve_ops', 'git preservation operations'),
-        ('deploy_sterilize_directory', 'directory sterilization'),
-        ('deploy_git_restore_ops', 'git restoration operations'),
+        ('deploy_05_stop_daemons', 'daemon stop'),
+        ('deploy_10_git_preserve_ops', 'git preservation operations'),
+        ('deploy_15_sterilize_directory', 'directory sterilization'),
+        ('deploy_20_git_restore_ops', 'git restoration operations'),
 
         # Core deployment
-        ('deploy_modules', 'module deployment'),
-        ('deploy_framework_cleanup', 'framework cleanup'),
-        ('deploy_cache_cleanup', 'cache cleanup'),
-        ('deploy_cache_cleanup', 'cache cleanup'),  # Duplicate for thorough cleanup
-        ('deploy_flask_apps', 'Flask app deployment'),
-        ('deploy_flask_apps', 'maintenance worker deployment'),  # Uses same hook but different description
+        ('deploy_25_modules', 'module deployment'),
+        ('deploy_30_framework_cleanup', 'framework cleanup'),
+        ('deploy_35_cache_cleanup', 'cache cleanup'),
+        ('deploy_40_cache_cleanup', 'cache cleanup'),  # Duplicate for thorough cleanup
+        ('deploy_45_flask_apps', 'Flask app deployment'),
+        ('deploy_50_flask_apps', 'maintenance worker deployment'),  # Uses same hook but different description
 
         # Site deployment
-        ('deploy_client_files', 'client file deployment'),
-        ('deploy_context', 'context deployment'),
-        ('deploy_site_prepare', 'site preparation'),
-        ('deploy_site', 'site deployment'),
+        ('deploy_55_client_files', 'client file deployment'),
+        ('deploy_60_context', 'context deployment'),
+        ('deploy_65_site_prepare', 'site preparation'),
+        ('deploy_70_site', 'site deployment'),
 
         # Permissions and services
-        ('deploy_permissions_base', 'base permissions setup'),
-        ('deploy_permissions_special', 'special permissions setup'),
-        ('deploy_restart_daemons', 'daemon restart'),
+        ('deploy_75_permissions_base', 'base permissions setup'),
+        ('deploy_80_permissions_special', 'special permissions setup'),
+        ('deploy_85_restart_daemons', 'daemon restart'),
 
         # Final deployment steps
-        ('deploy_nginx_and_ssl', 'NGINX and SSL deployment'),
-        ('deploy_manifest', 'site manifest addition'),
+        ('deploy_90_nginx_and_ssl', 'NGINX and SSL deployment'),
+        ('deploy_95_manifest', 'site manifest addition'),
     ]
 
     # Execute remaining deployment phases
@@ -149,7 +149,7 @@ def render_deploy_hookified() -> bool:
 
     # Call deploy_render hooks from all modules
     from hh.gateway.registry.module_hooks import run_hooks
-    render_instructions = run_hooks('deploy_render')
+    render_instructions = run_hooks('deploy_99_render')
 
     # Separate pieces for summary table vs full tables
     summary_table_data = TableData()

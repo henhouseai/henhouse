@@ -53,7 +53,7 @@ def should_ignore_context_path(directory: str, contents: List[str]) -> List[str]
     return ignored
 
 
-@register_module_hook('deploy_context')
+@register_module_hook('deploy_60_context')
 def deploy_context() -> Dict[str, Any]:
     """Deploy context folders and files to deployment directory."""
     trace_in()
