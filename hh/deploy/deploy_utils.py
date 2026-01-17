@@ -228,22 +228,19 @@ def load_dict_whitelist_with_extensions(
     var_name: str
 ) -> List[Dict[str, Any]]:
     """
-    Load a whitelist of dictionaries from hh/deploy/conf/ with support for ext/deploy/conf/ and module blacklists/extensions.
+    Load a whitelist of dictionaries from all active modules in alphabetical order, then apply blacklists.
 
-    Same processing order as load_whitelist_with_extensions, but for lists of dictionaries.
     Processing includes:
-    1. Load base whitelist from hh/deploy/conf/{base_name}.py
-    2. Apply blacklist from ext/deploy/conf/{base_name}_blacklist.py
-    3. Apply extension from ext/deploy/conf/{base_name}.py
-    4. Apply extensions from all module/deploy/conf/{base_name}.py files
+    1. Load configurations from all active modules (sorted alphabetically by module name)
+    2. Apply blacklist from ext/deploy/conf/{base_name}_blacklist.py to remove items
     Blacklist matching is done by comparing the entire dictionary structure.
 
     Args:
-        base_name: Base filename without .py extension (e.g., 'application_actions')
-        var_name: Variable name to load (e.g., 'APPLICATION_ACTIONS')
+        base_name: Base filename without .py extension (e.g., 'site_links')
+        var_name: Variable name to load (e.g., 'SITE_LINKS')
 
     Returns:
-        Final combined list of dictionaries
+        Final combined list of dictionaries after blacklist filtering
     """
 
     def _hashable(val: Any):
@@ -256,57 +253,73 @@ def load_dict_whitelist_with_extensions(
     trace_in()
     log(f"Loading dict whitelist: {base_name}.{var_name}")
     debug(f"Starting load for {base_name}.{var_name}")
-    
+
     # Detect project context
     project_name, project_root = detect_project_context()
     debug(f"Project: {project_name}, root: {project_root}")
-    
-    # Determine paths
-    hh_conf = project_root / "hh" / "deploy" / "conf"
-    ext_conf = project_root / "ext" / "deploy" / "conf"
-    debug(f"HH conf path: {hh_conf}")
-    debug(f"EXT conf path: {ext_conf}")
-    
-    # Step 1: Load base whitelist
-    base_file = hh_conf / f"{base_name}.py"
-    debug(f"Loading base file: {base_file}")
-    loaded_result = _load_list_from_file(base_file, var_name)
-    
+
+    # Get all active modules and sort alphabetically
+    modules = get_active_modules()
+    modules_sorted = sorted(modules, key=lambda m: m.name.lower())
+    debug(f"Processing {len(modules_sorted)} modules in alphabetical order: {[m.name for m in modules_sorted]}")
+
     result: List[Dict[str, Any]] = []
-    if loaded_result is None:
-        warn(f"Base whitelist {base_name}.{var_name} not found in {base_file}")
-        debug(f"Base whitelist NOT FOUND at {base_file}")
-    else:
-        # Make a copy to avoid modifying the original
-        if not isinstance(loaded_result, list):
-            warn(f"Base whitelist {base_name}.{var_name} is not a list, got {type(loaded_result)}")
-            debug(f"Base whitelist wrong type: {type(loaded_result)}")
+
+    # Step 1: Load all module configurations in alphabetical order
+    for module in modules_sorted:
+        module_conf = project_root / module.path / "deploy" / "conf"
+        module_file = module_conf / f"{base_name}.py"
+        module_list = _load_list_from_file(module_file, var_name)
+
+        if module_list is not None and isinstance(module_list, list):
+            debug(f"Module {module.name}: loaded {len(module_list)} items")
+            for item in module_list:
+                # Check for duplicates within this loading phase
+                item_key = _hashable(item)
+                existing_keys = {_hashable(r) for r in result}
+                if item_key not in existing_keys:
+                    result.append(item)
+                    debug(f"Added item from {module.name}: {item}")
+                else:
+                    # Find which module this was originally from for warning
+                    original_module = None
+                    for existing_item in result:
+                        if _hashable(existing_item) == item_key:
+                            # Find the module that added this item
+                            for m in modules_sorted:
+                                if m.name < module.name:  # Only check modules that came before alphabetically
+                                    m_conf = project_root / m.path / "deploy" / "conf"
+                                    m_file = m_conf / f"{base_name}.py"
+                                    m_list = _load_list_from_file(m_file, var_name)
+                                    if m_list and item in m_list:
+                                        original_module = m.name
+                                        break
+                            break
+                    if original_module:
+                        warn(f"Duplicate item in {module.name} (already in {original_module}): {item}")
+                        debug(f"Duplicate skipped from {module.name}: {item}")
+
+            log(f"Loaded {len(module_list)} items from {module.name} module")
         else:
-            result = list(loaded_result)
-            log(f"Loaded base whitelist: {len(result)} items")
-            debug(f"Base whitelist loaded: {len(result)} items")
-            for idx, item in enumerate(result):
-                debug(f"Base item {idx}: {item}")
-    
-    # Track blacklisted items (for warning purposes)
-    # For dicts, we'll compare by converting to a normalized form (sorted tuple of items)
-    blacklisted_items: set[tuple[tuple[str, Any], ...]] = set()
-    
-    # Step 2: Load and apply blacklist
+            debug(f"Module {module.name}: no {base_name}.{var_name} found")
+
+    log(f"Aggregate whitelist before blacklist: {len(result)} items")
+
+    # Step 2: Apply blacklist to remove items
+    ext_conf = project_root / "ext" / "deploy" / "conf"
     blacklist_file = ext_conf / f"{base_name}_blacklist.py"
     debug(f"Checking blacklist file: {blacklist_file}")
-    # Use same variable name - the file name already indicates it's a blacklist
-    blacklist_var_name = var_name
-    
-    blacklist = _load_list_from_file(blacklist_file, blacklist_var_name)
+
+    blacklist = _load_list_from_file(blacklist_file, var_name)
     if blacklist is None:
         debug(f"Blacklist file not found or empty: {blacklist_file}")
     elif len(blacklist) == 0:
         debug(f"Blacklist file exists but is empty: {blacklist_file}")
-    if blacklist is not None and len(blacklist) > 0:
+    elif len(blacklist) > 0:
         debug(f"Blacklist loaded: {len(blacklist)} items")
         for idx, item in enumerate(blacklist):
             debug(f"Blacklist item {idx}: {item}")
+
         # Check if blacklist contains strings (group names) or dicts (full dict matching)
         if isinstance(blacklist[0], str):
             # Blacklist contains strings - match by 'group' key for site_links, application_actions, etc.
@@ -314,7 +327,6 @@ def load_dict_whitelist_with_extensions(
             blacklisted_groups = set(blacklist)
             debug(f"Blacklisted groups: {blacklisted_groups}")
             original_count = len(result)
-            debug(f"Before blacklist: {original_count} items")
             result = [
                 item for item in result
                 if isinstance(item, dict) and item.get('group') not in blacklisted_groups
@@ -322,86 +334,19 @@ def load_dict_whitelist_with_extensions(
             removed_count = original_count - len(result)
             log(f"Applied blacklist (by group name): removed {removed_count} items, {len(result)} remaining")
             debug(f"After blacklist: {len(result)} items, removed {removed_count}")
-            for idx, item in enumerate(result):
-                debug(f"Remaining item {idx}: {item}")
         else:
             # Blacklist contains dicts - match by full dictionary structure
             debug(f"Blacklist contains dicts (full dict matching)")
-            blacklisted_dicts = {tuple(sorted(d.items())) if isinstance(d, dict) else d for d in blacklist}
-            blacklisted_items = blacklisted_dicts
+            blacklisted_dicts = {_hashable(d) if isinstance(d, dict) else d for d in blacklist}
             debug(f"Blacklisted dicts: {len(blacklisted_dicts)} items")
             original_count = len(result)
-            debug(f"Before blacklist: {original_count} items")
-            
-            # Remove blacklisted items from result
             result = [
                 item for item in result
-                if (tuple(sorted(item.items())) if isinstance(item, dict) else item) not in blacklisted_items
+                if _hashable(item) not in blacklisted_dicts
             ]
             removed_count = original_count - len(result)
             log(f"Applied blacklist (by dict match): removed {removed_count} items, {len(result)} remaining")
             debug(f"After blacklist: {len(result)} items, removed {removed_count}")
-    
-    # Step 3: Load and apply extension
-    ext_file = ext_conf / f"{base_name}.py"
-    debug(f"Checking extension file: {ext_file}")
-    ext_list = _load_list_from_file(ext_file, var_name)
-    
-    if ext_list is None:
-        debug(f"Extension file not found or empty: {ext_file}")
-    elif len(ext_list) == 0:
-        debug(f"Extension file exists but is empty: {ext_file}")
-    if ext_list is not None:
-        debug(f"Extension loaded: {len(ext_list)} items")
-        for idx, item in enumerate(ext_list):
-            debug(f"Extension item {idx}: {item}")
-        # Convert result items to comparable form for duplicate checking
-        result_keys = {_hashable(r) for r in result}
-        debug(f"Before extension: {len(result)} items, result_keys: {len(result_keys)}")
-        
-        added_count = 0
-        for item in ext_list:
-            item_key = _hashable(item)
-            if item_key in result_keys and item_key not in blacklisted_items:
-                warn(f"Duplicate item in extension (not blacklisted): {item} in {ext_file}")
-                debug(f"Duplicate detected (not blacklisted): {item}")
-            if item_key not in result_keys:
-                result.append(item)
-                result_keys.add(item_key)
-                added_count += 1
-                debug(f"Added extension item: {item}")
-        log(f"Applied extension: added {added_count} items, final count: {len(result)}")
-        debug(f"After extension: {len(result)} items, added {added_count}")
-
-    # Step 4: Load and apply module extensions
-    try:
-        modules = get_active_modules()
-        module_count = 0
-        for module in modules:
-            module_conf = project_root / module.path / "deploy" / "conf"
-            module_file = module_conf / f"{base_name}.py"
-            module_list = _load_list_from_file(module_file, var_name)
-
-            if module_list is not None:
-                debug(f"Module {module.name} extension loaded: {len(module_list)} items")
-                # Convert result items to comparable form for duplicate checking
-                result_keys = {_hashable(r) for r in result}
-
-                for item in module_list:
-                    item_key = _hashable(item)
-                    if item_key in result_keys and item_key not in blacklisted_items:
-                        warn(f"Duplicate item in module {module.name} extension (not blacklisted): {item} in {module_file}")
-                        debug(f"Duplicate detected (not blacklisted): {item}")
-                    if item_key not in result_keys:
-                        result.append(item)
-                        result_keys.add(item_key)
-                        module_count += 1
-                        debug(f"Added module {module.name} extension item: {item}")
-        if module_count > 0:
-            log(f"Applied module extensions: added {module_count} items, final count: {len(result)}")
-            debug(f"After module extensions: {len(result)} items, added {module_count}")
-    except Exception as e:
-        warn(f"Error loading module extensions for {base_name}: {e}")
 
     debug(f"Final result: {len(result)} items")
     for idx, item in enumerate(result):
