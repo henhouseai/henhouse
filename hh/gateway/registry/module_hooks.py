@@ -66,6 +66,7 @@ class HookInfo:
     function_module: str  # Python module path (e.g., 'users.deploy.deploy_hooks')
     function_name: str    # Function name (e.g., 'test_hook_log_to_database')
     function: Optional[Callable] = None  # Lazy-loaded callable
+    description: str = ""  # Short description of what the hook does
 
 
 # Global hook registry: hook_name -> List[HookInfo]
@@ -133,7 +134,7 @@ def _discover_module_from_function(func: Callable) -> Optional[tuple[str, str]]:
     return trace_out(None)
 
 
-def register_module_hook(hook_name: str) -> Callable[[Callable], Callable]:
+def register_module_hook(hook_name: str, description: str = "") -> Callable[[Callable], Callable]:
     """
     Decorator to register a function as a module hook.
 
@@ -142,12 +143,13 @@ def register_module_hook(hook_name: str) -> Callable[[Callable], Callable]:
 
     Args:
         hook_name: Name of the hook (e.g., 'deploy_before_schema')
+        description: Short description of what the hook does (optional)
 
     Returns:
         Decorator function
 
     Example:
-        @register_module_hook('deploy_before_schema')
+        @register_module_hook('deploy_before_schema', 'Validate schema before deployment')
         def my_hook(project_name: str):
             print(f"Running hook for {project_name}")
     """
@@ -172,7 +174,8 @@ def register_module_hook(hook_name: str) -> Callable[[Callable], Callable]:
             module_path=module_path,
             function_module=func.__module__,
             function_name=func.__name__,
-            function=wrapper
+            function=wrapper,
+            description=description
         )
 
         # Add to registry
@@ -432,7 +435,8 @@ def _build_hooks_cache() -> Dict[str, Any]:
                 "module_name": hook_info.module_name,
                 "module_path": hook_info.module_path,
                 "function_module": hook_info.function_module,
-                "function_name": hook_info.function_name
+                "function_name": hook_info.function_name,
+                "description": hook_info.description
             })
 
     log(f"Built hooks cache with {len(cache_data['hooks'])} hook names")
@@ -552,7 +556,8 @@ def discover_module_hooks(force_regenerate: bool = False) -> Dict[str, Any]:
                         module_path=hook_dict['module_path'],
                         function_module=hook_dict['function_module'],
                         function_name=hook_dict['function_name'],
-                        function=None  # Lazy-loaded by get_hook_handlers()
+                        function=None,  # Lazy-loaded by get_hook_handlers()
+                        description=hook_dict.get('description', '')  # Added description field
                     )
                     hooks[hook_name].append(hook_info)
 

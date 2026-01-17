@@ -21,7 +21,7 @@ def _initialize_debug():
 # Pre-validated configuration storage for nginx_flask module
 pre_validated_whitelists: Dict[str, List[str]] = {}
 
-@register_module_hook('deploy_00_pre_validate')
+@register_module_hook('deploy_00_pre_validate', 'Load JS/CSS/Misc whitelists')
 def validate_nginx_flask_config():
     """Pre-validate NGINX/Flask specific configuration including whitelists."""
     global pre_validated_whitelists

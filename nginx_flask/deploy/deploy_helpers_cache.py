@@ -32,7 +32,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_80_permissions_special')
+@register_module_hook('deploy_75_permissions_special', 'Set special permissions for cache directories')
 def set_cache_permissions() -> dict:
     """Set special permissions for cache directories."""
     try:
@@ -99,7 +99,7 @@ def set_cache_permissions() -> dict:
         return {"status": "error", "component": "cache", "error": str(e)}
 
 
-@register_module_hook('deploy_75_permissions_base')
+@register_module_hook('deploy_70_permissions_base', 'Set base ownership and permissions for deployment directory')
 def set_base_permissions() -> dict:
     """Set base ownership and permissions for entire deployment directory."""
     try:
@@ -148,7 +148,7 @@ def set_base_permissions() -> dict:
         return {"status": "error", "component": "base", "error": str(e)}
 
 
-@register_module_hook('deploy_35_cache_cleanup')
+@register_module_hook('deploy_35_cache_cleanup', 'Clean cache files from deployment directory')
 def cleanup_deployment_cache_files() -> dict:
     """Clean cache files from deployment directory."""
     try:

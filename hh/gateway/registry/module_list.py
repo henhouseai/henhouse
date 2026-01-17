@@ -69,20 +69,23 @@ def module_list_action() -> bool:
 
         # Get hooks organized by module
         hooks_cache = discover_all_module_hooks()
-        hooks_by_module: Dict[str, List[str]] = {}  # module_name -> [hook_name, ...]
+        hooks_by_module: Dict[str, List[Dict[str, str]]] = {}  # module_name -> [{"name": hook_name, "description": desc}, ...]
         for hook_name, hook_list in hooks_cache.get('hooks', {}).items():
             for hook_entry in hook_list:
                 module_name = hook_entry.get('module_name', '')
                 if module_name not in hooks_by_module:
                     hooks_by_module[module_name] = []
-                hooks_by_module[module_name].append(hook_name)
+                hooks_by_module[module_name].append({
+                    "name": hook_name,
+                    "description": hook_entry.get('description', '')
+                })
         log(f"Found hooks in {len(hooks_by_module)} modules")
 
         # Build module list with status
         modules_data: List[Dict[str, Any]] = []
         for module in sorted(all_modules, key=lambda m: m.name):
             is_enabled = module.name in active_module_names
-            module_hooks = sorted(hooks_by_module.get(module.name, []))
+            module_hooks = sorted(hooks_by_module.get(module.name, []), key=lambda h: h["name"])
             hook_count = len(module_hooks)
             module_info: Dict[str, Any] = {
                 "name": module.name,
@@ -90,7 +93,7 @@ def module_list_action() -> bool:
                 "description": module.description or "",
                 "version": module.version or "",
                 "hook_count": hook_count,
-                "hooks": module_hooks,  # List of hook names
+                "hooks": module_hooks,  # List of {"name": hook_name, "description": desc}
                 "is_enabled": is_enabled,
                 "status": "enabled" if is_enabled else "blacklisted",
             }
@@ -227,11 +230,6 @@ def module_list_parser() -> bool:
             .add_simple_color("module_enabled", "green")
             .add_simple_color("module_blacklisted", "red"))
 
-        if show_path:
-            field_config.add_simple(["name", "path", "description", "version", "hooks"])
-        else:
-            field_config.add_simple(["name", "description", "version", "hooks"])
-
         lines.append(
             render_block(
                 table,
@@ -270,19 +268,22 @@ def module_list_parser() -> bool:
 
                 # Build hooks table for this module
                 hooks_table = TableData()
-                # Header row with module name as explicit label value (overrides field-config)
-                hooks_table.add_row("hook_summary_header", hook_name=safe_str(module_name))
 
-                for hook_name in module_hooks:
-                    hooks_table.add_row("hook_row", hook_name=safe_str(hook_name))
+                # Column headers row
+                hooks_table.add_row("hook_summary_header", hook_name="Hook Name", description="Description")
 
-                # Render hooks table
+                # Hook data rows
+                for hook_info in module_hooks:
+                    hook_name = hook_info.get("name", "unknown")
+                    hook_description = hook_info.get("description", "")
+                    hooks_table.add_row("hook_row", hook_name=safe_str(hook_name), description=safe_str(hook_description))
+
+                # Render hooks table with proper multi-column layout
                 lines.append(
                     render_block(
                         hooks_table,
                         FieldConfig()
-                        .add_simple(["hook_row"])
-                        .add_simple(["hook_summary_header"]),
+                        .add_simple(["hook_summary_header", "hook_row"]),
                         block_type="rows",
                         table_overrides={"margin_l": 4},
                     )

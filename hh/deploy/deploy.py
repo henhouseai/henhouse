@@ -65,24 +65,23 @@ def deploy() -> bool:
         ('deploy_25_modules', 'module deployment'),
         ('deploy_30_framework_cleanup', 'framework cleanup'),
         ('deploy_35_cache_cleanup', 'cache cleanup'),
-        ('deploy_40_cache_cleanup', 'cache cleanup'),  # Duplicate for thorough cleanup
-        ('deploy_45_flask_apps', 'Flask app deployment'),
-        ('deploy_50_flask_apps', 'maintenance worker deployment'),  # Uses same hook but different description
+        ('deploy_40_flask_apps', 'Flask app deployment'),
+        ('deploy_45_flask_apps', 'maintenance worker deployment'),  # Uses same hook but different description
 
         # Site deployment
-        ('deploy_55_client_files', 'client file deployment'),
-        ('deploy_60_context', 'context deployment'),
-        ('deploy_65_site_prepare', 'site preparation'),
-        ('deploy_70_site', 'site deployment'),
+        ('deploy_50_client_files', 'client file deployment'),
+        ('deploy_55_context', 'context deployment'),
+        ('deploy_60_site_prepare', 'site preparation'),
+        ('deploy_65_site', 'site deployment'),
 
         # Permissions and services
-        ('deploy_75_permissions_base', 'base permissions setup'),
-        ('deploy_80_permissions_special', 'special permissions setup'),
-        ('deploy_85_restart_daemons', 'daemon restart'),
+        ('deploy_70_permissions_base', 'base permissions setup'),
+        ('deploy_75_permissions_special', 'special permissions setup'),
+        ('deploy_80_restart_daemons', 'daemon restart'),
 
         # Final deployment steps
-        ('deploy_90_nginx_and_ssl', 'NGINX and SSL deployment'),
-        ('deploy_95_manifest', 'site manifest addition'),
+        ('deploy_85_nginx_and_ssl', 'NGINX and SSL deployment'),
+        ('deploy_90_manifest', 'site manifest addition'),
     ]
 
     # Execute remaining deployment phases
@@ -149,7 +148,7 @@ def render_deploy_hookified() -> bool:
 
     # Call deploy_render hooks from all modules
     from hh.gateway.registry.module_hooks import run_hooks
-    render_instructions = run_hooks('deploy_99_render')
+    render_instructions = run_hooks('deploy_95_render')
 
     # Separate pieces for summary table vs full tables
     summary_table_data = TableData()

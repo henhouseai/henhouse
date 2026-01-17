@@ -30,6 +30,8 @@ from hh.render.config.config_registry import register_label
 @register_label('hook_row',                           'Hook',                         '🔗')
 @register_label('hook_list_header',                   'Hook List:',                   '🔗')
 @register_label('hook_summary_header',                'Hook Summary:',                 '📊')
+@register_label('hook_column_header',                 'Hook Details:',                '📋')
+@register_label('hook_data',                          'Hook Data',                    '🔗')
 @register_label('total_hooks',                        'Total Hooks',                  '🔗')
 def _register_config():
     pass

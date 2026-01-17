@@ -38,7 +38,7 @@ nginx_sites_enabled: Optional[Path] = None
 certificate_path: Optional[Path] = None
 is_local: Optional[bool] = None
 
-@register_module_hook('deploy_00_pre_validate')
+@register_module_hook('deploy_00_pre_validate', 'Pre-validate general deployment configuration')
 def validate_deployment_config():
     """Pre-validate general deployment configuration and store results for later hooks."""
     global pre_validated_config, project_name, current_path, source, start_port, domain
@@ -159,7 +159,7 @@ def validate_deployment_config():
     }
 
 
-@register_module_hook('deploy_95_manifest')
+@register_module_hook('deploy_90_manifest', 'Add deployed site to manifest with SSL mode')
 def add_site_to_manifest():
     """Add the deployed site to the manifest with appropriate SSL mode."""
     from .deploy_helpers import _manifest_add_site
@@ -184,7 +184,7 @@ def add_site_to_manifest():
         return {"status": "error", "reason": str(e)}
 
 
-@register_module_hook('deploy_99_render')
+@register_module_hook('deploy_95_render', 'Render deployment summary')
 def render_deployment_summary():
     """Render the main deployment summary table."""
     from hh.gateway.gateway import get_gateway

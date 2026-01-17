@@ -146,6 +146,10 @@ def list_example() -> bool:
 4. **Error Handling**: Consistent try/catch with proper error responses
 5. **Return Values**: Always return `bool` (True for success, False for failure)
 6. **Response Handling**: Actions use `gateway.response.set_action_response()`; parsers use `gateway.response.add_output()`
+7. **Field Types vs Columns**: Field types control row styling, columns define data structure
+8. **FieldConfig Scope**: FieldConfig configures field type styling only, not column behavior
+9. **Field Type Selection**: Choose field types in action/parser logic based on data
+10. **Multiple Table Schemes**: Different tables can use independent field type schemes
 
 ## Debug and Logging Policy
 
@@ -678,3 +682,238 @@ def render_items_section(source_data, lines):
 - `.add_simple()` applies default styling to field types (no color)
 - `.add_simple_color()` is optional and only used when you want color styling
 - Most field types will use `.add_simple()` without colors
+
+## Advanced Table Patterns
+
+### Example 12: **Field Type-Driven Row Styling (Status Indicators)**
+
+Field types (first parameter in `add_row()`) control individual row styling and status indicators. Each field type can have different colors, icons, and labels.
+
+```python
+def render_status_driven_table(source_data, lines):
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        return trace_out(False)
+
+    items = source_data.get('items', [])
+    table = TableData()
+
+    # Header row - uses a field type for header styling
+    table.add_row('items_header', col_1='Column 1', col_2='Column 2')
+
+    # Data rows - field type determines row styling and status
+    for item in items:
+        status = item.get('status', 'unknown')
+
+        # Choose field type based on data - this controls the entire row styling
+        if status == 'active':
+            field_type = 'item_active'      # Will show with active styling
+        elif status == 'error':
+            field_type = 'item_error'       # Will show with error styling
+        elif status == 'warning':
+            field_type = 'item_warning'     # Will show with warning styling
+        else:
+            field_type = 'item_normal'      # Will show with default styling
+
+        table.add_row(
+            field_type,                          # Controls row styling/status indicator
+            col_1=safe_str(item.get('col_1')),  # Just column data
+            col_2=safe_str(item.get('col_2'))   # Just column data
+        )
+
+    # FieldConfig maps field types to visual styling
+    field_config = (FieldConfig()
+        .add_header('items_header')               # Header field type styling
+        .add_simple(['item_normal'])              # Default styling for item_normal
+        .add_simple_color('item_active', 'green') # Green styling for item_active
+        .add_simple_color('item_error', 'red')    # Red styling for item_error
+        .add_simple_color('item_warning', 'yellow') # Yellow styling for item_warning
+    )
+
+    lines.append(render_block(table, field_config, block_type='rows'))
+    return trace_out(True)
+```
+
+**Key Points:**
+- **Field types** (first `add_row()` parameter) control row-level styling and status indicators
+- **Columns** (remaining `add_row()` parameters) are just data structure
+- `FieldConfig` configures visual styling for field types, not columns
+- `.add_simple()` and `.add_simple_color()` apply to field types only
+
+### Example 13: **Field Types Replace Status Columns**
+
+Field types can convey status information visually, eliminating the need for separate status columns.
+
+```python
+def render_status_via_field_types_only(source_data, lines):
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        return trace_out(False)
+
+    items = source_data.get('items', [])
+    table = TableData()
+
+    # Header - no status column needed since field types show status
+    table.add_row('items_header', name='Name', description='Description', value='Value')
+
+    for item in items:
+        status = item.get('status', 'normal')
+
+        # Field type conveys status - NO separate status column
+        if status == 'success':
+            field_type = 'item_success'     # Green styling indicates success
+        elif status == 'warning':
+            field_type = 'item_warning'     # Yellow styling indicates warning
+        elif status == 'error':
+            field_type = 'item_error'       # Red styling indicates error
+        else:
+            field_type = 'item_normal'      # Default styling
+
+        table.add_row(
+            field_type,                                    # Status shown via styling
+            name=safe_str(item.get('name')),               # Data columns only
+            description=safe_str(item.get('description')), # Data columns only
+            value=safe_str(item.get('value'))              # Data columns only
+        )
+
+    # FieldConfig defines the visual status mapping
+    field_config = (FieldConfig()
+        .add_header('items_header')
+        .add_simple(['item_normal'])                    # Default appearance
+        .add_simple_color('item_success', 'green')     # Success = green
+        .add_simple_color('item_warning', 'yellow')    # Warning = yellow
+        .add_simple_color('item_error', 'red')         # Error = red
+    )
+
+    lines.append(render_block(table, field_config, block_type='rows'))
+    return trace_out(True)
+```
+
+**Key Points:**
+- **Don't mix field type status with status columns** - it's redundant
+- Field types provide visual status indicators instead of data columns
+- Use colors/icons to convey status information
+- Keep data columns for actual data, not status information
+
+**Anti-Pattern (Don't Do This):**
+```python
+# WRONG - redundant status column when field types already show status
+table.add_row(field_type, name=name, status=status_str)  # DON'T DO THIS
+```
+
+**Correct Approach:**
+```python
+# RIGHT - field types convey status, columns contain data
+table.add_row(field_type, name=name, other_data=data)  # Status via styling only
+```
+
+### Example 14: **Multi-Table Output with Different Field Type Schemes**
+
+Multiple tables can use different field type schemes independently.
+
+```python
+def render_multi_table_with_different_schemes(source_data, lines):
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        return trace_out(False)
+
+    # MAIN TABLE - Module status with enabled/blacklisted field types
+    modules = source_data.get('modules', [])
+    main_table = TableData()
+    main_table.add_row('modules_header', name='Module', description='Description')
+
+    for module in modules:
+        field_type = 'module_enabled' if module.get('is_enabled') else 'module_blacklisted'
+        main_table.add_row(field_type,
+                          name=safe_str(module.get('name')),
+                          description=safe_str(module.get('description')))
+
+    main_config = (FieldConfig()
+        .add_header('modules_header')
+        .add_simple_color('module_enabled', 'green')
+        .add_simple_color('module_blacklisted', 'red')
+    )
+
+    lines.append(render_block(main_table, main_config, block_type='main'))
+
+    # SUMMARY TABLE - Statistics with different field types
+    stats = source_data.get('stats', {})
+    summary_table = TableData()
+    summary_table.add_row('stats_header', metric='Metric', value='Value')
+    summary_table.add_row('total_count', metric='Total', value=str(stats.get('total', 0)))
+    summary_table.add_row('enabled_count', metric='Enabled', value=str(stats.get('enabled', 0)))
+    summary_table.add_row('error_count', metric='Errors', value=str(stats.get('errors', 0)))
+
+    summary_config = (FieldConfig()
+        .add_header('stats_header')
+        .add_simple(['total_count', 'enabled_count'])           # Default styling
+        .add_simple_color('error_count', 'red')                 # Red for errors
+    )
+
+    lines.append(render_block(summary_table, summary_config, block_type='summary'))
+
+    break_section(lines)  # Visual separator
+    return trace_out(True)
+```
+
+**Key Points:**
+- Different tables can use completely different field type schemes
+- Each table has its own FieldConfig with field type mappings
+- Field types are scoped to individual tables
+
+### Example 15: **Field Type Inheritance and Defaults**
+
+Field types can have default styling that applies unless overridden.
+
+```python
+def render_field_type_defaults(source_data, lines):
+    trace_in()
+    gateway = get_gateway()
+    if not gateway:
+        warn("No gateway available")
+        return trace_out(False)
+
+    items = source_data.get('items', [])
+    table = TableData()
+
+    table.add_row('items_header', name='Name', status='Status', details='Details')
+
+    for item in items:
+        item_status = item.get('status', 'normal')
+
+        # Most items use default field type
+        if item_status == 'normal':
+            field_type = 'item_normal'      # Gets default styling
+        elif item_status == 'special':
+            field_type = 'item_special'     # Gets special styling
+        else:
+            field_type = 'item_normal'      # Falls back to default
+
+        table.add_row(
+            field_type,
+            name=safe_str(item.get('name')),
+            status=safe_str(item_status),
+            details=safe_str(item.get('details'))
+        )
+
+    # FieldConfig with defaults and overrides
+    field_config = (FieldConfig()
+        .add_header('items_header')
+        .add_simple(['item_normal'])                    # Default styling for most items
+        .add_simple_color('item_special', 'blue')      # Override for special items
+    )
+
+    lines.append(render_block(table, field_config, block_type='rows'))
+    return trace_out(True)
+```
+
+**Key Points:**
+- `.add_simple()` provides default styling for field types
+- `.add_simple_color()` overrides with specific colors
+- Field types not mentioned in FieldConfig may not render properly

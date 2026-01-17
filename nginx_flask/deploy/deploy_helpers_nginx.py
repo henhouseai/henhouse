@@ -808,7 +808,7 @@ def check_nginx_status() -> Dict[str, Any]:
         return {'is_active': False, 'enabled_sites': []}
 
 
-@register_module_hook('deploy_90_nginx_and_ssl')
+@register_module_hook('deploy_85_nginx_and_ssl', 'Deploy NGINX configuration and SSL certificates')
 def deploy_nginx_and_ssl() -> Dict[str, Any]:
     """Deploy NGINX configuration and SSL certificates."""
     trace_in()

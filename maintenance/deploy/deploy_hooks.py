@@ -28,7 +28,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_05_stop_daemons')
+@register_module_hook('deploy_05_stop_daemons', 'Stop maintenance worker daemon before deployment')
 def stop_maintenance_daemon() -> Union[Dict[str, Any], bool]:
     """Stop maintenance worker daemon before deployment."""
     try:
@@ -47,7 +47,7 @@ def stop_maintenance_daemon() -> Union[Dict[str, Any], bool]:
         return False
 
 
-@register_module_hook('deploy_85_restart_daemons')
+@register_module_hook('deploy_80_restart_daemons', 'Restart maintenance worker daemon after deployment')
 def restart_maintenance_daemon() -> Union[Dict[str, Any], bool]:
     """Restart maintenance worker daemon after deployment."""
     try:
@@ -66,7 +66,7 @@ def restart_maintenance_daemon() -> Union[Dict[str, Any], bool]:
         return False
 
 
-@register_module_hook('deploy_80_permissions_special')
+@register_module_hook('deploy_75_permissions_special', 'Set permissions for maintenance worker logs')
 def set_maintenance_logs_permissions() -> Dict[str, Any]:
     """Set special permissions for maintenance worker logs."""
     try:
@@ -107,7 +107,7 @@ def set_maintenance_logs_permissions() -> Dict[str, Any]:
         return {"status": "error", "component": "maintenance_logs", "error": str(e)}
 
 
-@register_module_hook('deploy_50_flask_apps')
+@register_module_hook('deploy_45_flask_apps', 'Deploy maintenance worker scripts')
 def deploy_maintenance_workers() -> Union[Dict[str, Any], bool]:
     """Deploy maintenance worker scripts."""
     try:

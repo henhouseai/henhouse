@@ -24,7 +24,7 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_99_render')
+@register_module_hook('deploy_95_render', 'Render deployment summary')
 def render_nginx_flask_summary() -> Dict[str, Any]:
     """Render NGINX/Flask summary pieces for main deployment table."""
     trace_in()
@@ -91,7 +91,7 @@ def render_nginx_flask_summary() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_99_render')
+@register_module_hook('deploy_95_render', 'Render domain table')
 def render_nginx_domain_table() -> Dict[str, Any]:
     """Render the NGINX domain information as a separate full table."""
     trace_in()
@@ -187,7 +187,7 @@ def render_nginx_domain_table() -> Dict[str, Any]:
 
 	
 
-@register_module_hook('deploy_99_render')
+@register_module_hook('deploy_95_render', 'Render cache operations')
 def render_cache_operations():
     """Render cache-specific deployment operations."""
     from hh.render.render import TableData, FieldConfig
