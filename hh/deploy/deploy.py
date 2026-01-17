@@ -136,6 +136,7 @@ def render_deploy_hookified() -> bool:
 
     # Get project name from hook results (deploy_pre_validate)
     json_data = gateway.response.get_action_response()
+    debug(json_data)
     source_data = get_data(json_data if json_data is not None else {})
     project_name = 'Unknown'
     hook_results = source_data.get('hook_results', [])
