@@ -47,10 +47,23 @@ def render_context_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('context_detail_header', value='')
+    table_data.add_row('context_detail_header', item='Context Item', operation='Operation', status='Status')
 
     for item in context_items:
-        table_data.add_row('context_item', value=item)
+        table_data.add_row('context_item', item=item, operation='Deployed', status='Success')
+
+    # Add operations info
+    for result in hook_results:
+        component = result.get('component', '')
+        if component == 'directory_sterilization' and result.get('items_removed'):
+            items_removed = result['items_removed']
+            table_data.add_row('context_item', item='Directory Cleanup', operation='Sterilized', status=f"{items_removed} items removed")
+        elif component == 'framework_cleanup' and result.get('modules_count'):
+            modules_count = result['modules_count']
+            table_data.add_row('context_item', item='Framework', operation='Cleaned', status=f"{modules_count} modules")
+        elif component == 'site_prepare' and result.get('action'):
+            action = result['action']
+            table_data.add_row('context_item', item='Site Directory', operation='Prepared', status=action)
 
     field_config = FieldConfig()
     field_config.add_header('context_detail_header')
@@ -146,9 +159,9 @@ def render_site_files_detail_table() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_95_render', 'Contribute SRV permissions to summary')
-def render_srv_permissions_contribution() -> Dict[str, Any]:
-    """Contribute SRV-related permissions to deployment summary table."""
+@register_module_hook('deploy_95_render', 'Render Permissions detail table')
+def render_permissions_detail_table() -> Dict[str, Any]:
+    """Render Permissions details as a separate full table."""
     trace_in()
 
     gateway = get_gateway()
@@ -156,105 +169,47 @@ def render_srv_permissions_contribution() -> Dict[str, Any]:
     source_data = get_data(json_data) if json_data else {}
     hook_results = source_data.get('hook_results', [])
 
-    # Find SRV-related permission data
-    srv_perms = []
+    table_data = TableData()
+    table_data.add_row('perms_header', component='Component', directory='Directory', permissions='Permissions')
+
+    # Collect all permission-related results
     for result in hook_results:
         component = result.get('component', '')
+
         if component == 'base' and result.get('ownership'):
             ownership = result['ownership']
             permissions = result.get('permissions', '')
-            srv_perms.append(f"Base: {permissions} ({ownership})")
+            table_data.add_row('perm_row', component='Base', directory='System Files', permissions=f"{permissions} ({ownership})")
+
+        elif component == 'flask_logs' and result.get('permissions'):
+            directory = result.get('directory', '')
+            permissions = result['permissions']
+            table_data.add_row('perm_row', component='Flask Logs', directory=directory, permissions=permissions)
+
+        elif component == 'git' and result.get('permissions'):
+            ownership = result.get('ownership', '')
+            permissions = result['permissions']
+            table_data.add_row('perm_row', component='Git', directory='Repository', permissions=f"{permissions} ({ownership})")
+
+        elif component == 'site' and result.get('permissions'):
+            directory = result.get('directory', '')
+            permissions = result['permissions']
+            table_data.add_row('perm_row', component='Site', directory=directory, permissions=permissions)
+
         elif component == 'cache' and result.get('permissions'):
             dirs_count = result.get('render_cache_dirs_count', 0)
             permissions = result['permissions']
-            srv_perms.append(f"Cache: {permissions} ({dirs_count} directories)")
-        elif component == 'maintenance_logs' and result.get('permissions'):
-            permissions = result.get('permissions', 'shared')
-            srv_perms.append(f"Maintenance Logs: {permissions}")
+            table_data.add_row('perm_row', component='Cache', directory=f"{dirs_count} directories", permissions=permissions)
 
-    if not srv_perms:
-        return trace_out({})
-
-    table_data = TableData()
-    for perm in srv_perms:
-        table_data.add_row('srv_permissions', value=perm)
+        elif component == 'maintenance_logs':
+            note = result.get('note', 'shared')
+            table_data.add_row('perm_row', component='Maintenance Logs', directory='', permissions=note)
 
     field_config = FieldConfig()
-    field_config.add_simple(['srv_permissions'])
+    field_config.add_header('perms_header')
+    field_config.add_simple(['perm_row'])
 
+    perms_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='permissions')
     return trace_out({
-        "table_data": table_data,
-        "field_config": field_config
-    })
-
-
-@register_module_hook('deploy_95_render', 'Contribute SRV operations to summary')
-def render_srv_operations_contribution() -> Dict[str, Any]:
-    """Contribute SRV-related operations to deployment summary table."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    # Find SRV-related operation data
-    srv_ops = []
-    for result in hook_results:
-        component = result.get('component', '')
-        if component == 'directory_sterilization' and result.get('items_removed'):
-            items_removed = result['items_removed']
-            srv_ops.append(f"Directory sterilized: {items_removed} items removed")
-        elif component == 'framework_cleanup' and result.get('modules_count'):
-            modules_count = result['modules_count']
-            srv_ops.append(f"Framework cleaned: {modules_count} modules")
-        elif component == 'site_prepare' and result.get('action'):
-            action = result['action']
-            srv_ops.append(f"Site directory: {action}")
-
-    if not srv_ops:
-        return trace_out({})
-
-    table_data = TableData()
-    for op in srv_ops:
-        table_data.add_row('srv_operations', value=op)
-
-    field_config = FieldConfig()
-    field_config.add_simple(['srv_operations'])
-
-    return trace_out({
-        "table_data": table_data,
-        "field_config": field_config
-    })
-
-
-@register_module_hook('deploy_95_render', 'Contribute module deployment status')
-def render_module_deployment_contribution() -> Dict[str, Any]:
-    """Contribute module deployment status to summary."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    # Find modules deployed data
-    modules_deployed = []
-    for result in hook_results:
-        if result.get('action') == 'deploy_modules' and result.get('modules_deployed'):
-            modules_deployed = result['modules_deployed']
-            break
-
-    if not modules_deployed:
-        return trace_out({})
-
-    table_data = TableData()
-    table_data.add_row('modules_deployed', value=f"{len(modules_deployed)} modules deployed")
-
-    field_config = FieldConfig()
-    field_config.add_simple(['modules_deployed'])
-
-    return trace_out({
-        "table_data": table_data,
-        "field_config": field_config
+        "render_block": perms_table_html
     })

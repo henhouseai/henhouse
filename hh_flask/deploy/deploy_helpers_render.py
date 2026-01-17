@@ -53,9 +53,7 @@ def render_flask_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('flask_detail_header', value='')
-
-    field_names = []
+    table_data.add_row('flask_detail_header', daemon='Daemon', status='Status', permissions='Permissions')
 
     # Show each daemon from restart data
     daemons = flask_restart_data.get('daemons', []) if flask_restart_data else []
@@ -64,67 +62,25 @@ def render_flask_detail_table() -> Dict[str, Any]:
         status = daemon.get('status', 'unknown')
         port = daemon.get('port', '?')
         user = daemon.get('user', '')
-        value = f"{status} (port {port})"
-        if user:
-            value += f" as {user}"
-        field_type = f'daemon_{tier}'
-        table_data.add_row(field_type, value=value)
-        field_names.append(field_type)
+        permissions = '755'  # Default Flask permissions
+        table_data.add_row('flask_daemon', daemon=tier, status=f"{status} (port {port})", permissions=permissions)
 
     # Show deployed apps if no restart data
     if not daemons and flask_deployed:
         for app in flask_deployed:
-            table_data.add_row('deployed_app', value=app)
-            field_names.append('deployed_app')
+            table_data.add_row('flask_daemon', daemon=app, status='Deployed', permissions='755')
         if media_deployed:
-            table_data.add_row('media_server', value='deployed')
-            field_names.append('media_server')
+            table_data.add_row('flask_daemon', daemon='Media Server', status='Deployed', permissions='755')
 
-    if not field_names:
+    if not daemons and not flask_deployed:
         return trace_out({})
 
     field_config = FieldConfig()
     field_config.add_header('flask_detail_header')
-    # Use unique field names (dedup while preserving order)
-    unique_fields = list(dict.fromkeys(field_names))
-    field_config.add_simple(unique_fields)
+    field_config.add_simple(['flask_daemon'])
 
     # Return as full render_block
     flask_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='flask_daemons')
     return trace_out({
         "render_block": flask_table_html
-    })
-
-
-@register_module_hook('deploy_95_render', 'Contribute Flask permissions to summary')
-def render_flask_permissions_contribution() -> Dict[str, Any]:
-    """Contribute Flask-related permissions to deployment summary table."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    # Find Flask-related permission data
-    flask_perms = []
-    for result in hook_results:
-        if result.get('component') == 'flask_logs' and result.get('permissions'):
-            directory = result.get('directory', '')
-            permissions = result['permissions']
-            flask_perms.append(f"Logs: {permissions}")
-
-    if not flask_perms:
-        return trace_out({})
-
-    table_data = TableData()
-    for perm in flask_perms:
-        table_data.add_row('flask_permissions', value=perm)
-
-    field_config = FieldConfig()
-    field_config.add_simple(['flask_permissions'])
-
-    return trace_out({
-        "table_data": table_data,
-        "field_config": field_config
     })

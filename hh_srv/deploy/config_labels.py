@@ -17,12 +17,10 @@ from hh.render.config.config_registry import register_label
 @register_label('client_detail_header',                'Client Files Deployed',           '📋')
 @register_label('client_file',                         'File:',                           '📄')
 
-# Summary contribution labels
-@register_label('flask_permissions',                   'Flask:',                          '🌐')
-@register_label('nginx_permissions',                   'NGINX:',                          '🌐')
-@register_label('srv_permissions',                     'System:',                         '💻')
-@register_label('srv_operations',                      'System Operations:',             '⚙️')
-@register_label('modules_deployed',                    'Modules Deployed:',              '📦')
+
+# Permissions detail table labels
+@register_label('perms_header',                        'Permissions Set',                 '🔒')
+@register_label('perm_row',                            '',                                '🔑')
 
 # Modules detail table labels
 @register_label('modules_detail_header',               'Modules Deployed',                '📦')
