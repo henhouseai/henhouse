@@ -125,3 +125,37 @@ def render_nginx_domain_table() -> Dict[str, Any]:
     return trace_out({
         "render_block": domain_table_html
     })
+
+
+@register_module_hook('deploy_95_render', 'Contribute NGINX permissions to summary')
+def render_nginx_permissions_contribution() -> Dict[str, Any]:
+    """Contribute NGINX-related permissions to deployment summary table."""
+    trace_in()
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    # Find NGINX-related permission data
+    nginx_perms = []
+    for result in hook_results:
+        if result.get('component') == 'site' and result.get('permissions'):
+            directory = result.get('directory', '')
+            permissions = result['permissions']
+            nginx_perms.append(f"Site: {permissions}")
+
+    if not nginx_perms:
+        return trace_out({})
+
+    table_data = TableData()
+    for perm in nginx_perms:
+        table_data.add_row('nginx_permissions', value=perm)
+
+    field_config = FieldConfig()
+    field_config.add_simple(['nginx_permissions'])
+
+    return trace_out({
+        "table_data": table_data,
+        "field_config": field_config
+    })

@@ -2,12 +2,10 @@ from hh.render.config.config_registry import register_label
 
 # Summary table labels
 @register_label('project_header',                      'Deployment Status',               '🚀')
-@register_label('modules_deployed',                    'Modules Deployed:',               '📦')
 @register_label('context_deployed',                    'Context Items:',                  '📂')
 @register_label('site_files',                          'Site Files:',                     '🌐')
 @register_label('cache_cleaned',                       'Cache Cleaned:',                  '🧹')
 @register_label('flask_summary',                       'Flask:',                          '🌐')
-@register_label('maintenance_summary',                 'Maintenance:',                    '🧰')
 @register_label('nginx_summary',                       'NGINX:',                          '🌐')
 @register_label('nginx_reloaded',                      'NGINX Reloaded:',                 '🔄')
 
@@ -19,22 +17,12 @@ from hh.render.config.config_registry import register_label
 @register_label('client_detail_header',                'Client Files Deployed',           '📋')
 @register_label('client_file',                         'File:',                           '📄')
 
-# Permissions detail table labels
-@register_label('perms_header',                        'Permissions Set',                 '🔒')
-@register_label('perm_base',                           'Base:',                           '📁')
-@register_label('perm_flask_logs',                     'Flask Logs:',                     '📝')
-@register_label('perm_git',                            'Git:',                            '📦')
-@register_label('perm_site',                           'Site:',                           '🌐')
-@register_label('perm_cache',                          'Cache:',                          '💾')
-@register_label('perm_maint_logs',                     'Maintenance Logs:',               '📝')
-
-# Operations detail table labels
-@register_label('ops_header',                          'Deployment Operations',           '⚙️')
-@register_label('op_git_preserve',                     'Git Preserved:',                  '📦')
-@register_label('op_sterilize',                        'Directory Sterilized:',           '🧹')
-@register_label('op_git_restore',                      'Git Restored:',                   '📦')
-@register_label('op_framework_cleanup',                'Framework Cleaned:',              '🧹')
-@register_label('op_site_prepare',                     'Site Directory:',                 '📁')
+# Summary contribution labels
+@register_label('flask_permissions',                   'Flask:',                          '🌐')
+@register_label('nginx_permissions',                   'NGINX:',                          '🌐')
+@register_label('srv_permissions',                     'System:',                         '💻')
+@register_label('srv_operations',                      'System Operations:',             '⚙️')
+@register_label('modules_deployed',                    'Modules Deployed:',              '📦')
 
 # Modules detail table labels
 @register_label('modules_detail_header',               'Modules Deployed',                '📦')

@@ -94,3 +94,37 @@ def render_flask_detail_table() -> Dict[str, Any]:
     return trace_out({
         "render_block": flask_table_html
     })
+
+
+@register_module_hook('deploy_95_render', 'Contribute Flask permissions to summary')
+def render_flask_permissions_contribution() -> Dict[str, Any]:
+    """Contribute Flask-related permissions to deployment summary table."""
+    trace_in()
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    # Find Flask-related permission data
+    flask_perms = []
+    for result in hook_results:
+        if result.get('component') == 'flask_logs' and result.get('permissions'):
+            directory = result.get('directory', '')
+            permissions = result['permissions']
+            flask_perms.append(f"Logs: {permissions}")
+
+    if not flask_perms:
+        return trace_out({})
+
+    table_data = TableData()
+    for perm in flask_perms:
+        table_data.add_row('flask_permissions', value=perm)
+
+    field_config = FieldConfig()
+    field_config.add_simple(['flask_permissions'])
+
+    return trace_out({
+        "table_data": table_data,
+        "field_config": field_config
+    })

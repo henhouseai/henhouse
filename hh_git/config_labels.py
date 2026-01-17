@@ -18,6 +18,8 @@ from hh.render.config.config_registry import register_label
 @register_label("dirs_cleaned", "Directories Cleaned", "🗑️")
 @register_label("ts_config_generated", "Config Generated", "✅")
 @register_label("ts_config_path", "Config Path", "📁")
+@register_label('git_permissions',                     'Git:',                           '📦')
+@register_label('git_operations',                      'Git Operations:',                '⚙️')
 def _register_config():
     pass
 

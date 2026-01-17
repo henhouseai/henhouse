@@ -26,9 +26,9 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_95_render', 'Render Maintenance daemon detail table')
-def render_maintenance_detail_table() -> Dict[str, Any]:
-    """Render Maintenance daemon details as a separate full table."""
+@register_module_hook('deploy_95_render', 'Contribute Maintenance status to summary')
+def render_maintenance_summary_contribution() -> Dict[str, Any]:
+    """Contribute maintenance daemon status to deployment summary table."""
     trace_in()
 
     gateway = get_gateway()
@@ -51,43 +51,24 @@ def render_maintenance_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('maint_header', value='')
 
-    field_names = []
-
-    # Show each daemon from restart data
+    # Count total daemons and determine status
     if maint_restart_data:
-        for daemon_name, daemon_info in maint_restart_data.items():
-            if isinstance(daemon_info, dict) and daemon_info:
-                status = daemon_info.get('status', 'unknown')
-                user = daemon_info.get('user', '')
-                log_file = daemon_info.get('log_file', '')
-                deployed = daemon_info.get('deployed', False)
-
-                parts = [status]
-                if user:
-                    parts.append(f"as {user}")
-                if deployed:
-                    parts.append("(deployed)")
-
-                table_data.add_row(f'maint_{daemon_name}', value=' '.join(parts))
-                field_names.append(f'maint_{daemon_name}')
-
-    # Show deployed workers if no restart data
-    if not field_names and workers_deployed:
-        for worker in workers_deployed:
-            table_data.add_row('deployed_worker', value=worker)
-            field_names.append('deployed_worker')
-
-    if not field_names:
-        return trace_out({})
+        daemon_count = len([k for k, v in maint_restart_data.items() if isinstance(v, dict) and v])
+        if daemon_count > 0:
+            main_status = maint_restart_data.get('main', {}).get('status', 'unknown')
+            table_data.add_row('maintenance_summary', value=f"{daemon_count} daemon ({main_status})")
+        else:
+            table_data.add_row('maintenance_summary', value="No active maintenance daemons")
+    elif workers_deployed:
+        table_data.add_row('maintenance_summary', value=f"{len(workers_deployed)} worker(s) deployed")
+    else:
+        table_data.add_row('maintenance_summary', value="No maintenance processes")
 
     field_config = FieldConfig()
-    field_config.add_header('maint_header')
-    field_config.add_simple(field_names)
+    field_config.add_simple(['maintenance_summary'])
 
-    # Return as full render_block
-    maint_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='maintenance_daemons')
     return trace_out({
-        "render_block": maint_table_html
+        "table_data": table_data,
+        "field_config": field_config
     })
