@@ -13,11 +13,11 @@ from hh.render.config.config_registry import register_label
 
 # Context detail table labels
 @register_label('context_detail_header',               'Context Items Deployed',          '📂')
-@register_label('context_item',                        '',                                '📄')
+@register_label('context_item',                        'Item:',                           '📄')
 
 # Client files detail table labels
 @register_label('client_detail_header',                'Client Files Deployed',           '📋')
-@register_label('client_file',                         '',                                '📄')
+@register_label('client_file',                         'File:',                           '📄')
 
 # Permissions detail table labels
 @register_label('perms_header',                        'Permissions Set',                 '🔒')
@@ -38,7 +38,7 @@ from hh.render.config.config_registry import register_label
 
 # Modules detail table labels
 @register_label('modules_detail_header',               'Modules Deployed',                '📦')
-@register_label('module_item',                         '',                                '📦')
+@register_label('module_item',                         'Module:',                         '📦')
 
 # Site files detail table labels
 @register_label('site_detail_header',                  'Site Files Deployed',             '🌐')

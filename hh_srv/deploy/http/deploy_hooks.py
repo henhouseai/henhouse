@@ -258,8 +258,7 @@ def render_deployment_summary():
             break
 
     field_config = FieldConfig()
-    field_config.add_header('project_header')
-    field_config.add_simple(['modules_deployed', 'context_deployed', 'site_files',
+    field_config.add_simple(['project_header', 'modules_deployed', 'context_deployed', 'site_files',
                             'cache_cleaned', 'flask_summary', 'maintenance_summary', 'nginx_summary'])
 
     return {

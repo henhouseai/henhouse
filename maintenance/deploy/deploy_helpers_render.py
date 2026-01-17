@@ -51,7 +51,7 @@ def render_maintenance_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('maint_header', value='Maintenance Daemons')
+    table_data.add_row('maint_header', value='')
 
     field_names = []
 
