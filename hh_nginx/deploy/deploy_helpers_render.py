@@ -121,7 +121,7 @@ def render_nginx_domain_table() -> Dict[str, Any]:
     field_config.add_simple(['port', 'certificate_path', 'bind_ips', 'client_ip_access', 'nginx_deployed', 'nginx_active'])
 
     # Return as full render_block instead of table pieces
-    domain_table_html = render_block(table_data, field_config, block_type='domain')
+    domain_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='domain')
     return trace_out({
         "render_block": domain_table_html
     })

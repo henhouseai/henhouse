@@ -90,7 +90,7 @@ def render_flask_detail_table() -> Dict[str, Any]:
     field_config.add_simple(unique_fields)
 
     # Return as full render_block
-    flask_table_html = render_block(table_data, field_config, block_type='flask_daemons')
+    flask_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='flask_daemons')
     return trace_out({
         "render_block": flask_table_html
     })
