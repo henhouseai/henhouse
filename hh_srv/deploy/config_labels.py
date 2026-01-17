@@ -21,24 +21,15 @@ from hh.render.config.config_registry import register_label
 
 # Permissions detail table labels
 @register_label('perms_header',                        'Permissions Set',                 '🔒')
-@register_label('perm_base',                           'Base:',                           '📁')
-@register_label('perm_flask_logs',                     'Flask Logs:',                     '📝')
-@register_label('perm_git',                            'Git:',                            '📦')
-@register_label('perm_site',                           'Site:',                           '🌐')
-@register_label('perm_cache',                          'Cache:',                          '💾')
-@register_label('perm_maint_logs',                     'Maintenance Logs:',               '📝')
+@register_label('perm_row',                            '',                                '🔑')
 
 # Operations detail table labels
 @register_label('ops_header',                          'Deployment Operations',           '⚙️')
-@register_label('op_git_preserve',                     'Git Preserved:',                  '📦')
-@register_label('op_sterilize',                        'Directory Sterilized:',           '🧹')
-@register_label('op_git_restore',                      'Git Restored:',                   '📦')
-@register_label('op_framework_cleanup',                'Framework Cleaned:',              '🧹')
-@register_label('op_site_prepare',                     'Site Directory:',                 '📁')
+@register_label('op_row',                              '',                                '⚙️')
 
 # Modules detail table labels
 @register_label('modules_detail_header',               'Modules Deployed',                '📦')
-@register_label('module_item',                         'Module:',                         '📦')
+@register_label('module_row',                          '',                                '📦')
 
 # Site files detail table labels
 @register_label('site_detail_header',                  'Site Files Deployed',             '🌐')
