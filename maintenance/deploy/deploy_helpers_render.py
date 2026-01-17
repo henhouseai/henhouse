@@ -51,9 +51,7 @@ def render_maintenance_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('maint_header', value='')
-
-    field_names = []
+    table_data.add_row('maint_header', daemon='Daemon', status='Status', user='User', deployed='Deployed')
 
     # Show each daemon from restart data
     if maint_restart_data:
@@ -62,29 +60,26 @@ def render_maintenance_detail_table() -> Dict[str, Any]:
                 status = daemon_info.get('status', 'unknown')
                 user = daemon_info.get('user', '')
                 log_file = daemon_info.get('log_file', '')
-                deployed = daemon_info.get('deployed', False)
+                deployed = 'Yes' if daemon_info.get('deployed', False) else 'No'
 
-                parts = [status]
-                if user:
-                    parts.append(f"as {user}")
-                if deployed:
-                    parts.append("(deployed)")
-
-                table_data.add_row(f'maint_{daemon_name}', value=' '.join(parts))
-                field_names.append(f'maint_{daemon_name}')
+                table_data.add_row('maint_row',
+                                 daemon=daemon_name,
+                                 status=status,
+                                 user=user,
+                                 deployed=deployed)
 
     # Show deployed workers if no restart data
-    if not field_names and workers_deployed:
+    if not maint_restart_data and workers_deployed:
         for worker in workers_deployed:
-            table_data.add_row('deployed_worker', value=worker)
-            field_names.append('deployed_worker')
-
-    if not field_names:
-        return trace_out({})
+            table_data.add_row('maint_row',
+                             daemon='Worker',
+                             status='Deployed',
+                             user='',
+                             deployed=worker)
 
     field_config = FieldConfig()
     field_config.add_header('maint_header')
-    field_config.add_simple(field_names)
+    field_config.add_simple(['maint_row'])
 
     # Return as full render_block
     maint_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='maintenance_daemons')
