@@ -84,31 +84,9 @@ def stop_maintenance_daemon() -> Dict[str, Any]:
         return trace_out({"status": "error", "component": "maint_stop", "error": str(e)})
 
 
-@register_module_hook('remove_95_render', 'Render Flask removal status')
+# NOTE: Flask/Maintenance removal status is now rendered by hh_srv summary.
+# This hook disabled to avoid duplication. Remove decorator to re-enable.
+# @register_module_hook('remove_95_render', 'Render Flask removal status')
 def render_flask_removal() -> Dict[str, Any]:
-    """Render Flask daemon stop status."""
-    from hh.gateway.gateway import get_gateway
-    from hh.gateway.response.json_standard import get_data
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    table_data = TableData()
-
-    # Flask stopped
-    flask_stopped = any(result.get('flask_stopped') for result in hook_results)
-    table_data.add_row('flask_stopped', value='Yes' if flask_stopped else 'No')
-
-    # Maintenance stopped
-    maintenance_stopped = any(result.get('maintenance_stopped') for result in hook_results)
-    table_data.add_row('maintenance_stopped', value='Yes' if maintenance_stopped else 'No')
-
-    field_config = FieldConfig()
-    field_config.add_simple(['flask_stopped', 'maintenance_stopped'])
-
-    return {
-        "table_data": table_data,
-        "field_config": field_config
-    }
+    """Render Flask daemon stop status. (Disabled - rendered by hh_srv summary)"""
+    return {}

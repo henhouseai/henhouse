@@ -202,49 +202,9 @@ def cleanup_nginx_decoy() -> Dict[str, Any]:
         return trace_out({"status": "error", "component": "nginx_decoy", "error": str(e)})
 
 
-@register_module_hook('remove_95_render', 'Render NGINX removal status')
+# NOTE: NGINX removal status is now rendered by hh_srv summary.
+# This hook disabled to avoid duplication. Remove decorator to re-enable.
+# @register_module_hook('remove_95_render', 'Render NGINX removal status')
 def render_nginx_removal() -> Dict[str, Any]:
-    """Render NGINX removal status."""
-    from hh.gateway.gateway import get_gateway
-    from hh.gateway.response.json_standard import get_data
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    table_data = TableData()
-
-    # Domains removed
-    domains_removed = []
-    domains_failed = []
-    for result in hook_results:
-        if result.get('domains_removed'):
-            domains_removed.extend(result['domains_removed'])
-        if result.get('domains_failed'):
-            domains_failed.extend(result['domains_failed'])
-
-    if domains_removed:
-        table_data.add_row('domains_removed', value=', '.join(domains_removed))
-    if domains_failed:
-        table_data.add_row('domains_failed', value=', '.join(domains_failed))
-
-    # NGINX reloaded
-    nginx_reloaded = any(result.get('nginx_reloaded') for result in hook_results)
-    table_data.add_row('nginx_reloaded', value='Yes' if nginx_reloaded else 'No')
-
-    # Decoy status
-    for result in hook_results:
-        if result.get('component') == 'nginx_decoy':
-            if result.get('decoy_removed'):
-                table_data.add_row('decoy_status', value='Removed')
-            elif result.get('reason') == 'local_deployments_remain':
-                table_data.add_row('decoy_status', value='Preserved (local sites remain)')
-
-    field_config = FieldConfig()
-    field_config.add_simple(['domains_removed', 'domains_failed', 'nginx_reloaded', 'decoy_status'])
-
-    return {
-        "table_data": table_data,
-        "field_config": field_config
-    }
+    """Render NGINX removal status. (Disabled - rendered by hh_srv summary)"""
+    return {}

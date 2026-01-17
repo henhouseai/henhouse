@@ -205,7 +205,7 @@ def clear_manifest_sites() -> Dict[str, Any]:
 
 @register_module_hook('remove_95_render', 'Render removal summary')
 def render_removal_summary() -> Dict[str, Any]:
-    """Render the main removal summary table."""
+    """Render the main removal summary table - ONE row per category max."""
     from hh.gateway.gateway import get_gateway
     from hh.gateway.response.json_standard import get_data
 
@@ -216,15 +216,43 @@ def render_removal_summary() -> Dict[str, Any]:
 
     table_data = TableData()
 
-    # Project info
+    # Project header
     project_name = 'Unknown'
-    deployment_path = 'Unknown'
     for result in hook_results:
         if result.get('project_name'):
             project_name = result['project_name']
+            break
+    table_data.add_row('project_header', value=project_name)
+
+    # Flask stopped
+    flask_stopped = any(result.get('flask_stopped') for result in hook_results)
+    if flask_stopped:
+        table_data.add_row('flask_stopped', value='Yes')
+
+    # Maintenance stopped
+    maint_stopped = any(result.get('maintenance_stopped') for result in hook_results)
+    if maint_stopped:
+        table_data.add_row('maintenance_stopped', value='Yes')
+
+    # Domains removed - consolidated
+    domains_removed = []
+    for result in hook_results:
+        if result.get('domains_removed'):
+            domains_removed.extend(result['domains_removed'])
+    if domains_removed:
+        table_data.add_row('domains_removed', value=', '.join(domains_removed))
+
+    # NGINX reloaded
+    nginx_reloaded = any(result.get('nginx_reloaded') for result in hook_results)
+    if nginx_reloaded:
+        table_data.add_row('nginx_reloaded', value='Yes')
+
+    # Deployment path
+    deployment_path = 'Unknown'
+    for result in hook_results:
         if result.get('deployment_path'):
             deployment_path = result['deployment_path']
-
+            break
     table_data.add_row('deployment_path', value=deployment_path)
 
     # Files removed
@@ -236,7 +264,9 @@ def render_removal_summary() -> Dict[str, Any]:
     table_data.add_row('manifest_cleared', value='Yes' if manifest_cleared else 'No')
 
     field_config = FieldConfig()
-    field_config.add_simple(['deployment_path', 'files_removed', 'manifest_cleared'])
+    field_config.add_header('project_header')
+    field_config.add_simple(['flask_stopped', 'maintenance_stopped', 'domains_removed',
+                            'nginx_reloaded', 'deployment_path', 'files_removed', 'manifest_cleared'])
 
     return {
         "table_data": table_data,

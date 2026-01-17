@@ -160,11 +160,10 @@ def add_site_to_manifest():
 
 @register_module_hook('deploy_95_render', 'Render deployment summary')
 def render_deployment_summary():
-    """Render the main deployment summary table."""
+    """Render the main deployment summary table - ONE row per category max."""
     from hh.gateway.gateway import get_gateway
     from hh.gateway.response.json_standard import get_data
 
-    # Access final deployment results directly
     gateway = get_gateway()
     json_data = gateway.response.get_action_response()
     source_data = get_data(json_data) if json_data else {}
@@ -172,105 +171,96 @@ def render_deployment_summary():
 
     table_data = TableData()
 
-    # Project info - read from hook results (deploy_pre_validate)
+    # Project header
     project_name = 'Unknown'
     for result in hook_results:
         if result.get('project_name'):
             project_name = result['project_name']
             break
-    table_data.add_row('project_info', value=project_name)
+    table_data.add_row('project_header', value=project_name)
 
-    # Code deployment status - derived from hook results (deploy_modules)
-    code_deployed = any(result.get('action') == 'deploy_modules' and result.get('status') == 'completed'
-                       for result in hook_results)
-    table_data.add_row('code_deployed', value='Yes' if code_deployed else 'No')
-
-    # Deployment cleaning status - derived from hook results (deploy_framework_cleanup)
-    deployment_cleaned = any(result.get('component') == 'framework_cleanup' and result.get('status') == 'completed'
-                            for result in hook_results)
-    table_data.add_row('deployment_cleaned', value='Yes' if deployment_cleaned else 'No')
-
-    # Context deployed files - from hook results (deploy_context)
+    # Modules deployed - consolidated count
     for result in hook_results:
-        if result.get('component') == 'context_deployment' and result.get('items'):
-            for item in result['items']:
-                table_data.add_row('context_deployed', value=item)
-
-    # Ownership permissions - from hook results (base permissions)
-    for result in hook_results:
-        if result.get('component') == 'base' and result.get('ownership'):
-            ownership_value = result['ownership']
-            table_data.add_row('ownership_set', value=ownership_value)
+        if result.get('action') == 'deploy_modules' and result.get('modules_count'):
+            table_data.add_row('modules_deployed', value=f"{result['modules_count']} modules")
             break
 
-    # Logs permissions - from hook results (flask_logs, maintenance_logs)
-    logs_permissions_set = any(result.get('component') in ['flask_logs', 'maintenance_logs']
-                              for result in hook_results)
-    if logs_permissions_set:
-        table_data.add_row('logs_permissions_set', value='Yes')
+    # Context deployed - consolidated count
+    for result in hook_results:
+        if result.get('component') == 'context_deployment' and result.get('total_items'):
+            table_data.add_row('context_deployed', value=f"{result['total_items']} items")
+            break
 
-    # Cache cleaning - from hook results (deploy_cache_cleanup)
+    # Site files - consolidated (js + css + misc)
+    js_count = css_count = misc_count = 0
+    for result in hook_results:
+        if result.get('component') == 'site_js':
+            js_count = result.get('js_count', 0)
+        elif result.get('component') == 'site_css':
+            css_count = result.get('count', 0)
+        elif result.get('component') == 'site_misc':
+            misc_count = result.get('count', 0)
+    total_site = js_count + css_count + misc_count
+    if total_site > 0:
+        table_data.add_row('site_files', value=f"{total_site} files ({js_count} js, {css_count} css, {misc_count} misc)")
+
+    # Cache cleaned - consolidated
     for result in hook_results:
         if result.get('component') == 'cache_cleanup' and result.get('cache_cleaned'):
-            cache_cleaned = result['cache_cleaned']
-            if isinstance(cache_cleaned, dict):
-                if cache_cleaned.get('pycache_dirs', 0) > 0:
-                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pycache_dirs']} __pycache__ dirs")
-                if cache_cleaned.get('pyc_files', 0) > 0:
-                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['pyc_files']} .pyc files")
-                if cache_cleaned.get('cache_files', 0) > 0:
-                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_files']} cache files")
-                if cache_cleaned.get('cache_dirs', 0) > 0:
-                    table_data.add_row('cache_cleaned', value=f"{cache_cleaned['cache_dirs']} .cache dirs")
+            cc = result['cache_cleaned']
+            if isinstance(cc, dict):
+                parts = []
+                if cc.get('pycache_dirs', 0) > 0:
+                    parts.append(f"{cc['pycache_dirs']} dirs")
+                if cc.get('cache_files', 0) > 0:
+                    parts.append(f"{cc['cache_files']} files")
+                if parts:
+                    table_data.add_row('cache_cleaned', value=', '.join(parts))
             break
 
-    # Flask deployment - from hook results (deploy_flask_apps)
+    # Flask summary - consolidated (detail in Flask module table)
     for result in hook_results:
-        if result.get('action') == 'deploy_apps' and result.get('flask_deployed'):
-            flask_apps = result['flask_deployed']
-            for app in flask_apps:
-                table_data.add_row('flask_deployed', value=app)
+        if result.get('module') == 'hh_flask' and result.get('action') == 'restart':
+            flask_data = result.get('flask_restart', {})
+            summary = flask_data.get('summary', {})
+            total = summary.get('total', 0)
+            started = summary.get('started', 0)
+            failed = summary.get('failed', 0)
+            if total > 0:
+                table_data.add_row('flask_summary', value=f"{total} daemons ({started} started, {failed} failed)")
+            break
 
-    # Site deployment - from hook results (site deployment hooks)
-    js_count = 0
-    css_count = 0
-    misc_count = 0
+    # Maintenance summary - consolidated (detail in Maintenance module table)
     for result in hook_results:
-        if result.get('component') == 'site_js' and result.get('js_count'):
-            js_count = result['js_count']
-        elif result.get('component') == 'site_css' and result.get('count'):
-            css_count = result['count']
-        elif result.get('component') == 'site_misc' and result.get('count'):
-            misc_count = result['count']
+        if result.get('module') == 'maintenance' and result.get('action') == 'restart':
+            maint_data = result.get('maintenance_restart', {})
+            daemon_count = len([k for k, v in maint_data.items() if isinstance(v, dict) and v])
+            if daemon_count > 0:
+                main_status = maint_data.get('main', {}).get('status', 'unknown')
+                table_data.add_row('maintenance_summary', value=f"{daemon_count} daemon ({main_status})")
+            break
 
-    if js_count > 0:
-        table_data.add_row('js_count', value=f"{js_count} files")
-    if css_count > 0:
-        table_data.add_row('css_count', value=f"{css_count} files")
-    if misc_count > 0:
-        table_data.add_row('misc_count', value=f"{misc_count} files")
-
-    # Maintenance restart status - from hook results (deploy_restart_daemons)
+    # NGINX summary - consolidated (detail in NGINX module table)
     for result in hook_results:
-        if (result.get('module') == 'maintenance' and
-            result.get('action') == 'restart' and
-            result.get('maintenance_restart')):
-            maint_data = result['maintenance_restart']
-            for daemon_type, daemon_info in maint_data.items():
-                if isinstance(daemon_info, dict):
-                    status = daemon_info.get('status', 'unknown')
-                    log_file = daemon_info.get('log_file', '')
-                    user = daemon_info.get('user', '')
-                    display = f"{daemon_type}: {status}"
-                    if user:
-                        display += f" ({user})"
-                    table_data.add_row('maintenance_restart', value=display)
+        if result.get('module') == 'hh_nginx' and result.get('action') == 'restart_nginx':
+            nginx_active = result.get('nginx_active', False)
+            # Get domain from pre_validate
+            domain = 'unknown'
+            ssl_enabled = False
+            for r in hook_results:
+                if r.get('domain'):
+                    domain = r['domain']
+                    ssl_enabled = r.get('ssl_enabled', False)
+                    break
+            port = '443' if ssl_enabled else '80'
+            status = 'Active' if nginx_active else 'Inactive'
+            table_data.add_row('nginx_summary', value=f"{status} ({domain}:{port})")
+            break
 
     field_config = FieldConfig()
-    field_config.add_simple(['project_info', 'code_deployed', 'deployment_cleaned',
-                           'context_deployed', 'ownership_set', 'logs_permissions_set',
-                           'cache_cleaned', 'flask_deployed', 'js_count', 'css_count', 'misc_count',
-                           'maintenance_restart'])
+    field_config.add_header('project_header')
+    field_config.add_simple(['modules_deployed', 'context_deployed', 'site_files',
+                            'cache_cleaned', 'flask_summary', 'maintenance_summary', 'nginx_summary'])
 
     return {
         "table_data": table_data,
