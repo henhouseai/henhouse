@@ -147,7 +147,7 @@ def render_remove_hookified() -> bool:
         summary_field_config.configs.extend(project_config.configs)
 
         summary_field_config.add_header('remove_summary')
-        summary_block = render_block(summary_table_data, summary_field_config, block_type='remove_summary')
+        summary_block = render_block(summary_table_data, summary_field_config, table_overrides={'margin_l': 4}, block_type='remove_summary')
         lines.append(summary_block)
         break_section(lines)
 

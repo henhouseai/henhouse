@@ -171,14 +171,6 @@ def render_deployment_summary():
 
     table_data = TableData()
 
-    # Project header
-    project_name = 'Unknown'
-    for result in hook_results:
-        if result.get('project_name'):
-            project_name = result['project_name']
-            break
-    table_data.add_row('project_header', value=project_name)
-
     # Modules deployed - consolidated count
     for result in hook_results:
         if result.get('action') == 'deploy_modules' and result.get('modules_count'):
@@ -258,7 +250,7 @@ def render_deployment_summary():
             break
 
     field_config = FieldConfig()
-    field_config.add_simple(['project_header', 'modules_deployed', 'context_deployed', 'site_files',
+    field_config.add_simple(['modules_deployed', 'context_deployed', 'site_files',
                             'cache_cleaned', 'flask_summary', 'maintenance_summary', 'nginx_summary'])
 
     return {

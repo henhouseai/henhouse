@@ -56,7 +56,7 @@ def render_context_detail_table() -> Dict[str, Any]:
     field_config.add_header('context_detail_header')
     field_config.add_simple(['context_item'])
 
-    context_table_html = render_block(table_data, field_config, block_type='context_items')
+    context_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='context_items')
     return trace_out({
         "render_block": context_table_html
     })
@@ -92,7 +92,7 @@ def render_client_files_detail_table() -> Dict[str, Any]:
     field_config.add_header('client_detail_header')
     field_config.add_simple(['client_file'])
 
-    client_table_html = render_block(table_data, field_config, block_type='client_files')
+    client_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='client_files')
     return trace_out({
         "render_block": client_table_html
     })
@@ -149,7 +149,7 @@ def render_permissions_detail_table() -> Dict[str, Any]:
     field_config.add_header('perms_header')
     field_config.add_simple(field_names)
 
-    perms_table_html = render_block(table_data, field_config, block_type='permissions')
+    perms_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='permissions')
     return trace_out({
         "render_block": perms_table_html
     })
@@ -202,7 +202,7 @@ def render_operations_detail_table() -> Dict[str, Any]:
     field_config.add_header('ops_header')
     field_config.add_simple(field_names)
 
-    ops_table_html = render_block(table_data, field_config, block_type='operations')
+    ops_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='operations')
     return trace_out({
         "render_block": ops_table_html
     })
@@ -238,7 +238,7 @@ def render_modules_detail_table() -> Dict[str, Any]:
     field_config.add_header('modules_detail_header')
     field_config.add_simple(['module_item'])
 
-    modules_table_html = render_block(table_data, field_config, block_type='modules_deployed')
+    modules_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='modules_deployed')
     return trace_out({
         "render_block": modules_table_html
     })
@@ -284,7 +284,7 @@ def render_site_files_detail_table() -> Dict[str, Any]:
     field_config.add_header('site_detail_header')
     field_config.add_simple(field_names)
 
-    site_table_html = render_block(table_data, field_config, block_type='site_files')
+    site_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='site_files')
     return trace_out({
         "render_block": site_table_html
     })

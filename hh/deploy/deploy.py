@@ -187,7 +187,7 @@ def render_deploy_hookified() -> bool:
 
         # Add summary header since we have content (hooks only provide simple fields)
         summary_field_config.add_header('deploy_summary')
-        summary_block = render_block(summary_table_data, summary_field_config, block_type='deploy_summary')
+        summary_block = render_block(summary_table_data, summary_field_config, table_overrides={'margin_l': 4}, block_type='deploy_summary')
         lines.append(summary_block)
         break_section(lines)
 

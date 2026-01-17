@@ -87,7 +87,7 @@ def render_maintenance_detail_table() -> Dict[str, Any]:
     field_config.add_simple(field_names)
 
     # Return as full render_block
-    maint_table_html = render_block(table_data, field_config, block_type='maintenance_daemons')
+    maint_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='maintenance_daemons')
     return trace_out({
         "render_block": maint_table_html
     })
