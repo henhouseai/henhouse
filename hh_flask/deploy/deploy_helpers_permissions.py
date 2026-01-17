@@ -1,7 +1,7 @@
 """
-Permissions hooks for nginx_flask module.
+Flask permissions hooks.
 
-These functions handle special permission setup for Flask logs and site files.
+These functions handle special permission setup for Flask logs.
 """
 import subprocess
 from pathlib import Path
@@ -46,7 +46,7 @@ def set_flask_logs_permissions() -> Dict[str, Any]:
     # Clear existing logs directory and recreate
     if logs_dir.exists():
         shutil.rmtree(logs_dir)
-        log(f"nginx_flask permissions: Cleared existing logs directory: {logs_dir}")
+        log(f"hh_flask permissions: Cleared existing logs directory: {logs_dir}")
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     # Set group write permissions for logs (2775)
@@ -62,8 +62,8 @@ def set_flask_logs_permissions() -> Dict[str, Any]:
     deploy_group_name = f"{project_name}_deploy"
     subprocess.run(['chown', f'{project_highest_uid}:{deploy_group_name}', str(logs_dir)], check=True)
 
-    log(f"nginx_flask permissions: Created fresh logs directory with group write: {logs_dir}")
-    log(f"nginx_flask permissions: Set logs directory ownership: {project_highest_user}:{deploy_group_name}")
+    log(f"hh_flask permissions: Created fresh logs directory with group write: {logs_dir}")
+    log(f"hh_flask permissions: Set logs directory ownership: {project_highest_user}:{deploy_group_name}")
 
     return trace_out({
         "status": "completed",
@@ -71,42 +71,4 @@ def set_flask_logs_permissions() -> Dict[str, Any]:
         "permissions": "2775",
         "ownership": f"{project_highest_user}:{deploy_group_name}",
         "directory": str(logs_dir)
-    })
-
-
-@register_module_hook('deploy_75_permissions_special', 'Set site file permissions')
-def set_site_permissions() -> Dict[str, Any]:
-    """Set special permissions for site files (HTML, JS, CSS, etc.)."""
-    trace_in()
-
-    project_name, current_path = detect_project_context()
-    if not project_name:
-        raise ValueError("Could not detect project name")
-
-    from hh.gateway.gateway import get_gateway
-    gateway = get_gateway()
-    dest = Path("/srv") / project_name
-    site_dir = dest / 'site'
-
-    if not site_dir.exists():
-        log("nginx_flask permissions: Site directory does not exist, skipping site permissions")
-        return trace_out({"status": "skipped", "component": "site", "reason": "no_site_dir"})
-
-    # Ensure web-accessible files have proper permissions for nginx
-    # Site files should be readable by web server (644 for files, 755 for dirs)
-
-    # Set directory permissions (755 - readable/executable by all, writable by owner)
-    subprocess.run(['find', str(site_dir), '-type', 'd', '-exec', 'chmod', '755', '{}', ';'], check=True)
-
-    # Set file permissions (644 - readable by all, writable by owner)
-    subprocess.run(['find', str(site_dir), '-type', 'f', '-exec', 'chmod', '644', '{}', ';'], check=True)
-
-    log(f"nginx_flask permissions: Set site directory permissions: 755/644 for {site_dir}")
-
-    return trace_out({
-        "status": "completed",
-        "component": "site",
-        "permissions": "755/644",
-        "directory": str(site_dir),
-        "note": "web_accessible_permissions"
     })

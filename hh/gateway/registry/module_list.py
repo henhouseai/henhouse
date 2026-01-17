@@ -266,26 +266,50 @@ def module_list_parser() -> bool:
                 module_name = module_info.get("name", "unknown")
                 module_hooks = module_info.get("hooks", [])
 
-                # Build hooks table for this module
-                hooks_table = TableData()
-
-                # Column headers row
-                hooks_table.add_row("hook_summary_header", hook_name="Hook Name", description="Description")
-
-                # Hook data rows
+                # Group hooks by prefix (everything before first underscore)
+                hooks_by_prefix: Dict[str, List[Dict[str, str]]] = {}
                 for hook_info in module_hooks:
                     hook_name = hook_info.get("name", "unknown")
-                    hook_description = hook_info.get("description", "")
-                    hooks_table.add_row("hook_row", hook_name=safe_str(hook_name), description=safe_str(hook_description))
+                    prefix = hook_name.split('_', 1)[0] if '_' in hook_name else hook_name
+                    if prefix not in hooks_by_prefix:
+                        hooks_by_prefix[prefix] = []
+                    hooks_by_prefix[prefix].append(hook_info)
 
-                # Render hooks table with proper multi-column layout
+                # Sort prefixes and build hooks table
+                sorted_prefixes = sorted(hooks_by_prefix.keys())
+                hooks_table = TableData()
+                separator_rows = []
+
+                # Column headers row
+                hooks_table.add_row("hook_summary_header", label=module_name, hook_name="Hook Name", description="Description")
+
+                # Add hook data rows, grouped by prefix with separators
+                current_row = 1  # Start after header row
+                for prefix_idx, prefix in enumerate(sorted_prefixes):
+                    prefix_hooks = sorted(hooks_by_prefix[prefix], key=lambda h: h.get("name", ""))
+
+                    for hook_info in prefix_hooks:
+                        hook_name = hook_info.get("name", "unknown")
+                        hook_description = hook_info.get("description", "")
+                        hooks_table.add_row("hook_row", hook_name=safe_str(hook_name), description=safe_str(hook_description))
+                        current_row += 1
+
+                    # Add separator after each prefix group (except the last one)
+                    if prefix_idx < len(sorted_prefixes) - 1:
+                        separator_rows.append(current_row - 1)  # Separator after last hook of this prefix
+
+                # Render hooks table with separators
+                table_overrides: Dict[str, Any] = {"margin_l": 4}
+                if separator_rows:
+                    table_overrides["separator_after_rows"] = separator_rows
+
                 lines.append(
                     render_block(
                         hooks_table,
                         FieldConfig()
                         .add_simple(["hook_summary_header", "hook_row"]),
                         block_type="rows",
-                        table_overrides={"margin_l": 4},
+                        table_overrides=table_overrides,
                     )
                 )
 

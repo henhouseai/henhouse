@@ -1,9 +1,7 @@
 """
-General deployment helper functions.
+General deployment helper functions for hh_srv module.
 
-These functions are used by the main deployment process but are not specific
-to any particular module or component. They handle general deployment tasks
-like manifest management, cleanup operations, and deployment utilities.
+Manifest management and deployment utilities.
 """
 
 import os
@@ -13,9 +11,8 @@ import subprocess
 import configparser
 import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_warn, register_debug_init
-from hh.gateway.error.error_store import report_error
 from hh.gateway.gateway import get_gateway
 from hh.deploy.deploy_utils import load_whitelist_with_extensions
 from hh.deploy.conf.context_blacklist import CONTEXT_BLACKLIST
@@ -40,15 +37,16 @@ except:
     pass
 
 
-
-
 def _iso_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
 
 def _install_config_path(project_name: str) -> Path:
     return Path(f"/root/.{project_name}-install.cnf")
 
+
 def _manifest_add_site(project_name: str, domain: str, mode: str) -> None:
+    """Add deployed site to manifest with SSL mode."""
     cfg_path = _install_config_path(project_name)
     if not cfg_path.exists():
         return
@@ -63,8 +61,8 @@ def _manifest_add_site(project_name: str, domain: str, mode: str) -> None:
     os.chmod(cfg_path, 0o600)
 
 
-
 def cleanup_old_deployment() -> None:
+    """Remove old deployment files and gateway scripts."""
     # Get project name dynamically
     current_path = Path.cwd()
     while current_path != current_path.parent:
@@ -75,9 +73,9 @@ def cleanup_old_deployment() -> None:
         current_path = current_path.parent
     else:
         project_name = Path.cwd().name
-    
+
     users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
-    
+
     dest = Path(f'/srv/{project_name}')
     if dest.exists():
         log(f"Removing old deployment: {dest}")
@@ -94,17 +92,15 @@ def cleanup_old_deployment() -> None:
             hh_script.unlink()
 
 
-
-
 def deploy_context_folders(source: Path, dest: Path) -> None:
     """Deploy context folders and files for agent visibility."""
     trace_in()
     try:
         log("Deploying context folders and files")
-        
+
         # Load context whitelist with extension support
         CONTEXT_WHITELIST = load_whitelist_with_extensions('context_whitelist', 'CONTEXT_WHITELIST')
-        
+
         # Deploy whitelisted context items (folders and files) with blacklist filtering
         for item in CONTEXT_WHITELIST:
             source_item = source / item
@@ -125,7 +121,7 @@ def deploy_context_folders(source: Path, dest: Path) -> None:
                     log(f"Context item is neither file nor directory: {item}")
             else:
                 log(f"Context item not found: {item}")
-        
+
         log("Context deployment complete")
     except Exception as e:
         warn(f"Context deployment failed: {str(e)}")
@@ -133,45 +129,48 @@ def deploy_context_folders(source: Path, dest: Path) -> None:
     finally:
         trace_out()
 
+
 def should_ignore_context_path(directory: str, files: List[str]) -> List[str]:
     """Determine which files/folders to ignore for context deployment."""
     ignored = []
-    
+
     for item in files:
         item_path = Path(directory) / item
-        
+
         # Check if any part of the path matches blacklist
         for blacklist_pattern in CONTEXT_BLACKLIST:
             if matches_blacklist_pattern(item_path, blacklist_pattern):
                 ignored.append(item)
                 break
-    
+
     return ignored
+
 
 def matches_blacklist_pattern(path: Path, pattern: str) -> bool:
     """Check if a path matches a blacklist pattern."""
     # Convert pattern to Path for comparison
     pattern_path = Path(pattern)
-    
+
     # Check if any part of the path matches
     for part in path.parts:
         if part == pattern_path.name or part == pattern_path.stem:
             return True
-    
+
     # Check if the full path contains the pattern
     if pattern in str(path):
         return True
-    
+
     # Check for wildcard patterns
     if '*' in pattern:
         import fnmatch
         if fnmatch.fnmatch(str(path), pattern):
             return True
-    
+
     return False
 
+
 def setup_deployment_ownership_and_permissions(project_name: str) -> None:
-    """Set ownership and permissions for deployed code (copied from init.py)."""
+    """Set ownership and permissions for deployed code."""
     trace_in()
     try:
         gateway = get_gateway()
@@ -179,7 +178,7 @@ def setup_deployment_ownership_and_permissions(project_name: str) -> None:
             warn("Gateway or ProcessManager not available")
             trace_out()
             return
-        
+
         # Set ownership of deployment directory to project highest level user with deploy group AFTER deployment
         srv_project = Path("/srv") / project_name
         if srv_project.exists():
@@ -193,11 +192,11 @@ def setup_deployment_ownership_and_permissions(project_name: str) -> None:
                 project_highest_uid = user_info["uid"]
                 deploy_group_name = f"{project_name}_deploy"
                 subprocess.run(['chown', '-R', f'{project_highest_uid}:{deploy_group_name}', str(srv_project)], check=True)
-                
+
                 # Set secure permissions: directories 750, files 640
                 subprocess.run(['find', str(srv_project), '-type', 'd', '-exec', 'chmod', '750', '{}', ';'], check=True)
                 subprocess.run(['find', str(srv_project), '-type', 'f', '-exec', 'chmod', '640', '{}', ';'], check=True)
-                
+
                 # Fix git directory permissions: owner can write, group can read and write
                 git_dir = srv_project / 'git'
                 if git_dir.exists():
@@ -205,7 +204,7 @@ def setup_deployment_ownership_and_permissions(project_name: str) -> None:
                     subprocess.run(['find', str(git_dir), '-type', 'd', '-exec', 'chmod', '770', '{}', ';'], check=True)
                     subprocess.run(['find', str(git_dir), '-type', 'f', '-exec', 'chmod', '660', '{}', ';'], check=True)
                     log(f"Set git directory permissions: {project_highest_user}:{project_name} (owner:rw, group:rw)")
-                
+
                 log(f"Set ownership and permissions: {project_highest_user}:{deploy_group_name} (owner:rw, group:r)")
             except Exception as e:
                 warn(f"Failed to set ownership and permissions: {str(e)}")

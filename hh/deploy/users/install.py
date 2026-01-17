@@ -626,7 +626,7 @@ def install() -> bool:
         setup_video_directory(project_name)
         
         # Set ownership and permissions for the created directory structure
-        from nginx_flask.deploy.http.deploy_helpers import setup_deployment_ownership_and_permissions
+        from hh_srv.deploy.http.deploy_helpers import setup_deployment_ownership_and_permissions
         setup_deployment_ownership_and_permissions(project_name)
         
         

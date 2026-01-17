@@ -1,5 +1,5 @@
 """
-Flask deployment hooks for nginx_flask module.
+Flask deployment hooks.
 
 These functions handle Flask tier daemon and application deployment operations.
 """
@@ -39,11 +39,11 @@ def stop_flask_daemons() -> Dict[str, Any]:
     if not project_name:
         raise ValueError("Could not detect project name")
 
-    log(f"nginx_flask: Stopping Flask daemons for {project_name}")
+    log(f"hh_flask: Stopping Flask daemons for {project_name}")
     run_flask_stop(project_name)
-    log(f"nginx_flask: Flask daemons stopped")
+    log(f"hh_flask: Flask daemons stopped")
 
-    return trace_out({"module": "nginx_flask", "action": "stop", "status": "stopped"})
+    return trace_out({"module": "hh_flask", "action": "stop", "status": "stopped"})
 
 
 @register_module_hook('deploy_80_restart_daemons', 'Restart Flask tier daemons after deployment')
@@ -70,11 +70,11 @@ def restart_flask_daemons() -> Dict[str, Any]:
             except ValueError:
                 start_port = 5001
 
-    log(f"nginx_flask: Starting Flask daemons for {project_name}")
+    log(f"hh_flask: Starting Flask daemons for {project_name}")
     flask_restart_info = run_flask_start(project_name, start_port)
-    log(f"nginx_flask: Flask restart summary: {flask_restart_info.get('summary')}")
+    log(f"hh_flask: Flask restart summary: {flask_restart_info.get('summary')}")
 
-    return trace_out({"module": "nginx_flask", "action": "restart", "flask_restart": flask_restart_info})
+    return trace_out({"module": "hh_flask", "action": "restart", "flask_restart": flask_restart_info})
 
 
 @register_module_hook('deploy_40_flask_apps', 'Deploy Flask tier applications and media server')
@@ -136,16 +136,16 @@ def deploy_flask_apps() -> Dict[str, Any]:
                 # Replace the log file path with tier-specific path
                 log_file = f'/srv/{project_name}/logs/flask_{project_name}_{tier}.log'
                 content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-                
+
                 # Write the modified content
                 with open(app_dest, 'w') as f:
                     f.write(content)
 
                 flask_deployed.append(app_name)
-                log(f"nginx_flask: Deployed Flask app: {app_name} (port {port})")
-            log(f"nginx_flask: Flask deployment complete: {len(flask_deployed)} instances")
+                log(f"hh_flask: Deployed Flask app: {app_name} (port {port})")
+            log(f"hh_flask: Flask deployment complete: {len(flask_deployed)} instances")
         else:
-            log("nginx_flask: Flask app.py not found, skipping Flask deployment")
+            log("hh_flask: Flask app.py not found, skipping Flask deployment")
 
     # Deploy media server Flask app
     media_source_path = None
@@ -173,20 +173,20 @@ def deploy_flask_apps() -> Dict[str, Any]:
             # Replace the log file path with media server path
             log_file = f'/srv/{project_name}/logs/flask_{project_name}_media.log'
             content = content.replace('LOG_FILE = os.getenv(\'LOG_FILE\',', f'LOG_FILE = \'{log_file}\'  # LOG_FILE = os.getenv(\'LOG_FILE\',')
-            
+
             # Write the modified content
             with open(media_dest, 'w') as f:
                 f.write(content)
 
             media_deployed = True
-            log(f"nginx_flask: Deployed Media Server Flask app: {project_name}_media.py (port {media_port})")
+            log(f"hh_flask: Deployed Media Server Flask app: {project_name}_media.py (port {media_port})")
         else:
-            log("nginx_flask: Media server media_server.py not found, skipping media server deployment")
+            log("hh_flask: Media server media_server.py not found, skipping media server deployment")
     else:
-        log("nginx_flask: Media server source path not found in APP_WHITELIST")
+        log("hh_flask: Media server source path not found in APP_WHITELIST")
 
     return trace_out({
-        "module": "nginx_flask",
+        "module": "hh_flask",
         "action": "deploy_apps",
         "flask_deployed": flask_deployed,
         "media_deployed": media_deployed

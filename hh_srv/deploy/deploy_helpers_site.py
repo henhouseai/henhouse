@@ -1,5 +1,5 @@
 """
-Site deployment hooks for nginx_flask module.
+Site deployment hooks for hh_srv module.
 
 These functions handle site directory setup and deployment of CSS, JS, and misc files.
 """
@@ -45,9 +45,9 @@ def prepare_site_directory() -> Dict[str, Any]:
     # Clear existing site directory and recreate
     if site_dest.exists():
         shutil.rmtree(site_dest)
-        log(f"nginx_flask site prepare: Cleared existing site directory: {site_dest}")
+        log(f"hh_srv site prepare: Cleared existing site directory: {site_dest}")
     site_dest.mkdir(parents=True, exist_ok=True)
-    log(f"nginx_flask site prepare: Created fresh site directory: {site_dest}")
+    log(f"hh_srv site prepare: Created fresh site directory: {site_dest}")
 
     return trace_out({
         "status": "completed",
@@ -75,7 +75,7 @@ def deploy_site_css() -> Dict[str, Any]:
     css_dest.mkdir(exist_ok=True)
 
     # Import the pre-validated whitelists from the main deploy_hooks module
-    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
+    from hh_srv.deploy.deploy_hooks import pre_validated_whitelists
 
     # Get CSS whitelist (pre-validated)
     CSS_WHITELIST = pre_validated_whitelists.get('CSS_WHITELIST', [])
@@ -94,9 +94,9 @@ def deploy_site_css() -> Dict[str, Any]:
             shutil.copy2(source_css, dest_css)
             css_deployed.append(f"css/{source_css.name}")
             css_count += 1
-            log(f"nginx_flask site css: Deployed CSS file: {css_file} -> site/css/{source_css.name}")
+            log(f"hh_srv site css: Deployed CSS file: {css_file} -> site/css/{source_css.name}")
         else:
-            log(f"nginx_flask site css: CSS file not found: {css_file}")
+            log(f"hh_srv site css: CSS file not found: {css_file}")
 
     return trace_out({
         "status": "completed",
@@ -112,7 +112,7 @@ def deploy_site_css() -> Dict[str, Any]:
 def deploy_site_js() -> Dict[str, Any]:
     """Deploy JavaScript files and generate registry."""
     trace_in()
-    """Deploy JavaScript files and generate registry."""
+
     project_name, current_path = detect_project_context()
     if not project_name:
         raise ValueError("Could not detect project name")
@@ -126,7 +126,7 @@ def deploy_site_js() -> Dict[str, Any]:
     js_dest.mkdir(exist_ok=True)
 
     # Import the pre-validated whitelists from the main deploy_hooks module
-    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
+    from hh_srv.deploy.deploy_hooks import pre_validated_whitelists
 
     # Get JS whitelists (pre-validated)
     JS_WHITELIST = pre_validated_whitelists.get('JS_WHITELIST', [])
@@ -152,7 +152,7 @@ def deploy_site_js() -> Dict[str, Any]:
                     shutil.copy2(js_file, dest_js)
                     js_deployed.append(f"js/{relative_path.as_posix()}")
                     js_count += 1
-                    log(f"nginx_flask site js: Deployed JS file from folder: {js_file} -> site/js/{relative_path.as_posix()}")
+                    log(f"hh_srv site js: Deployed JS file from folder: {js_file} -> site/js/{relative_path.as_posix()}")
             else:
                 # Deploy single JS file
                 dest_js = js_dest / source_item.name
@@ -161,14 +161,14 @@ def deploy_site_js() -> Dict[str, Any]:
                 shutil.copy2(source_item, dest_js)
                 js_deployed.append(f"js/{source_item.name}")
                 js_count += 1
-                log(f"nginx_flask site js: Deployed JS file: {js_item} -> site/js/{source_item.name}")
+                log(f"hh_srv site js: Deployed JS file: {js_item} -> site/js/{source_item.name}")
         else:
-            log(f"nginx_flask site js: JS file/folder not found: {js_item}")
+            log(f"hh_srv site js: JS file/folder not found: {js_item}")
 
     # Generate page-classes-registry.js
     registry_deployed = []
     try:
-        log("nginx_flask site js: Generating page-classes-registry.js")
+        log("hh_srv site js: Generating page-classes-registry.js")
 
         def kebab_to_pascal(kebab: str) -> str:
             parts = kebab.split('-')
@@ -185,11 +185,11 @@ def deploy_site_js() -> Dict[str, Any]:
 
         ext_dir_exists = ext_page_classes_dir.exists() and ext_page_classes_dir.is_dir()
         if not ext_dir_exists:
-            log("nginx_flask site js: Extension page-classes directory not found (this is normal if ext/ folder doesn't exist)")
+            log("hh_srv site js: Extension page-classes directory not found (this is normal if ext/ folder doesn't exist)")
 
         # Get active modules
         modules = get_active_modules()
-        log(f"nginx_flask site js: Found {len(modules)} active modules for page-classes discovery")
+        log(f"hh_srv site js: Found {len(modules)} active modules for page-classes discovery")
 
         for filename in JS_PAGE_CLASSES_WHITELIST:
             file_found = False
@@ -201,7 +201,7 @@ def deploy_site_js() -> Dict[str, Any]:
                 relative_path_str = str(relative_path).replace('\\', '/')
                 if relative_path_str not in page_class_files:
                     page_class_files.append(relative_path_str)
-                    log(f"nginx_flask site js: Found page class file in hh/: {relative_path_str}")
+                    log(f"hh_srv site js: Found page class file in hh/: {relative_path_str}")
                     file_found = True
 
             # Check ext/
@@ -212,7 +212,7 @@ def deploy_site_js() -> Dict[str, Any]:
                     relative_path_str = str(relative_path).replace('\\', '/')
                     if relative_path_str not in page_class_files:
                         page_class_files.append(relative_path_str)
-                        log(f"nginx_flask site js: Found page class file in ext/: {relative_path_str}")
+                        log(f"hh_srv site js: Found page class file in ext/: {relative_path_str}")
                         file_found = True
 
             # Check modules
@@ -225,12 +225,12 @@ def deploy_site_js() -> Dict[str, Any]:
                         relative_path_str = '/'.join(relative_parts)
                         if relative_path_str not in page_class_files:
                             page_class_files.append(relative_path_str)
-                            log(f"nginx_flask site js: Found page class file in module {module.name}: {relative_path_str}")
+                            log(f"hh_srv site js: Found page class file in module {module.name}: {relative_path_str}")
                             file_found = True
                             break
 
             if not file_found:
-                log(f"nginx_flask site js: Page class file not found (whitelisted but missing): {filename}")
+                log(f"hh_srv site js: Page class file not found (whitelisted but missing): {filename}")
 
         # Generate registry
         if page_class_files:
@@ -267,12 +267,12 @@ def deploy_site_js() -> Dict[str, Any]:
             registry_content = '\n'.join(registry_lines) + '\n'
             registry_file.write_text(registry_content, encoding='utf-8')
             registry_deployed.append("js/hh/deploy/site/ts/page-classes-registry.js")
-            log(f"nginx_flask site js: Generated page-classes-registry.js with {len(page_class_files)} page classes")
+            log(f"hh_srv site js: Generated page-classes-registry.js with {len(page_class_files)} page classes")
         else:
-            log("nginx_flask site js: No page class files found in whitelist, skipping registry generation")
+            log("hh_srv site js: No page class files found in whitelist, skipping registry generation")
 
     except Exception as e:
-        warn(f"nginx_flask site js: Failed to generate page-classes-registry.js: {e}")
+        warn(f"hh_srv site js: Failed to generate page-classes-registry.js: {e}")
 
     return trace_out({
         "status": "completed",
@@ -302,7 +302,7 @@ def deploy_site_misc() -> Dict[str, Any]:
     site_dest = dest / 'site'
 
     # Import the pre-validated whitelists from the main deploy_hooks module
-    from nginx_flask.deploy.deploy_hooks import pre_validated_whitelists
+    from hh_srv.deploy.deploy_hooks import pre_validated_whitelists
 
     # Get misc whitelist (pre-validated)
     MISC_WHITELIST = pre_validated_whitelists.get('MISC_WHITELIST', [])
@@ -323,7 +323,7 @@ def deploy_site_misc() -> Dict[str, Any]:
                 shutil.copytree(source_misc, dest_misc)
                 misc_deployed.append(misc_file)
                 misc_count += 1
-                log(f"nginx_flask site misc: Deployed misc directory: {misc_file} -> site/{source_misc.name}")
+                log(f"hh_srv site misc: Deployed misc directory: {misc_file} -> site/{source_misc.name}")
             else:
                 # Deploy single file
                 dest_misc = site_dest / source_misc.name
@@ -332,9 +332,9 @@ def deploy_site_misc() -> Dict[str, Any]:
                 shutil.copy2(source_misc, dest_misc)
                 misc_deployed.append(misc_file)
                 misc_count += 1
-                log(f"nginx_flask site misc: Deployed misc file: {misc_file} -> site/{source_misc.name}")
+                log(f"hh_srv site misc: Deployed misc file: {misc_file} -> site/{source_misc.name}")
         else:
-            log(f"nginx_flask site misc: Misc file not found: {misc_file}")
+            log(f"hh_srv site misc: Misc file not found: {misc_file}")
 
     return trace_out({
         "status": "completed",

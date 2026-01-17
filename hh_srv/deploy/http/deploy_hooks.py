@@ -1,3 +1,9 @@
+"""
+HTTP deployment hooks for hh_srv module.
+
+Pre-validation, manifest management, and deployment summary rendering.
+"""
+
 import configparser
 from pathlib import Path
 from typing import Optional
@@ -30,20 +36,14 @@ source: Optional[Path] = None
 start_port: Optional[int] = None
 domain: Optional[str] = None
 ssl_enabled: Optional[bool] = None
-ssl_cert_dir_letsencrypt: Optional[Path] = None
-ssl_cert_dir_self_signed: Optional[Path] = None
-local_allow_block: Optional[str] = None
-nginx_sites_available: Optional[Path] = None
-nginx_sites_enabled: Optional[Path] = None
-certificate_path: Optional[Path] = None
 is_local: Optional[bool] = None
+
 
 @register_module_hook('deploy_00_pre_validate', 'Pre-validate general deployment configuration')
 def validate_deployment_config():
     """Pre-validate general deployment configuration and store results for later hooks."""
     global pre_validated_config, project_name, current_path, source, start_port, domain
-    global ssl_enabled, ssl_cert_dir_letsencrypt, ssl_cert_dir_self_signed, local_allow_block
-    global nginx_sites_available, nginx_sites_enabled, certificate_path, is_local
+    global ssl_enabled, is_local
 
     log("Validating general deployment configuration")
 
@@ -102,26 +102,6 @@ def validate_deployment_config():
         ssl_enabled = True  # Default to enabled if invalid value
         warn(f"Invalid ssl_enabled value '{ssl_enabled_str}', defaulting to 1 (enabled)")
 
-    # Get SSL certificate directories
-    ssl_cert_dir_letsencrypt_str = sec.get("ssl_cert_dir_letsencrypt", "/etc/letsencrypt/live").strip()
-    ssl_cert_dir_letsencrypt = Path(ssl_cert_dir_letsencrypt_str)
-    ssl_cert_dir_self_signed_str = sec.get("ssl_cert_dir_self_signed", "/etc/nginx/ssl").strip()
-    ssl_cert_dir_self_signed = Path(ssl_cert_dir_self_signed_str)
-
-    # Get local allow block (IP pattern for local deployments)
-    local_allow_block = sec.get("local_allow_block", "192.168.1.").strip()
-
-    # Get NGINX configuration directories
-    nginx_sites_available_str = sec.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
-    nginx_sites_available = Path(nginx_sites_available_str)
-    nginx_sites_enabled_str = sec.get("nginx_sites_enabled", "/etc/nginx/sites-enabled").strip()
-    nginx_sites_enabled = Path(nginx_sites_enabled_str)
-
-    # Determine certificate path based on certificate type (will be set later based on create_mode)
-    # For Let's Encrypt: {ssl_cert_dir_letsencrypt}/{domain}/
-    # For self-signed: {ssl_cert_dir_self_signed}/{domain}/
-    certificate_path = None
-
     # Determine if local deployment
     is_local = (domain.endswith('.local') or
                 domain.lower() in ['localhost', '127.0.0.1'] or
@@ -139,12 +119,6 @@ def validate_deployment_config():
         'start_port': start_port,
         'domain': domain,
         'ssl_enabled': ssl_enabled,
-        'ssl_cert_dir_letsencrypt': ssl_cert_dir_letsencrypt,
-        'ssl_cert_dir_self_signed': ssl_cert_dir_self_signed,
-        'local_allow_block': local_allow_block,
-        'nginx_sites_available': nginx_sites_available,
-        'nginx_sites_enabled': nginx_sites_enabled,
-        'certificate_path': certificate_path,
         'is_local': is_local
     }
 

@@ -1,0 +1,250 @@
+"""
+NGINX removal hooks for nginx_flask module (hh_nginx category).
+
+Handles NGINX config removal, reload, and decoy cleanup.
+"""
+import subprocess
+from pathlib import Path
+from typing import Dict, Any, List
+from hh.gateway.registry.module_hooks import register_module_hook
+from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init
+from hh.gateway.error.error_store import report_error
+from hh.render.render import TableData, FieldConfig
+
+trace_in = lambda message=None: None
+trace_out = lambda arg=None: arg
+log = lambda message: None
+debug = lambda message: None
+warn = lambda message: None
+
+@register_debug_init
+def _initialize_debug():
+    global trace_in, trace_out, log, debug, warn
+    trace_in = get_trace_in(True)
+    trace_out = get_trace_out(True)
+    log = get_log(True)
+    debug = get_debug(True)
+    warn = get_warn(True)
+
+
+def _get_pre_validated_config():
+    """Get pre-validated config from srv hooks."""
+    from hh_srv.deploy.remove_hooks import pre_validated_config
+    return pre_validated_config
+
+
+def _remove_nginx_config(domain: str, nginx_sites_available: Path, nginx_sites_enabled: Path) -> bool:
+    """Remove Nginx configuration for a domain."""
+    try:
+        # Remove symlink from sites-enabled
+        enabled_file = nginx_sites_enabled / domain
+        if enabled_file.exists():
+            enabled_file.unlink()
+            log(f"Removed symlink: {enabled_file}")
+
+        # Remove config file from sites-available
+        config_file = nginx_sites_available / domain
+        if config_file.exists():
+            config_file.unlink()
+            log(f"Removed config: {config_file}")
+
+        return True
+
+    except Exception as e:
+        warn(f"Failed to remove NGINX config for {domain}: {e}")
+        return False
+
+
+@register_module_hook('remove_05_nginx_configs', 'Remove NGINX configurations')
+def remove_nginx_configs() -> Dict[str, Any]:
+    """Remove NGINX configurations for all deployed domains."""
+    trace_in()
+
+    config = _get_pre_validated_config()
+    if config is None:
+        warn("Pre-validation not completed")
+        return trace_out({"status": "skipped", "reason": "no_config"})
+
+    deployed_domains = config['deployed_domains']
+    nginx_sites_available = config['nginx_sites_available']
+    nginx_sites_enabled = config['nginx_sites_enabled']
+
+    nginx_removed: List[str] = []
+    nginx_failed: List[str] = []
+
+    for domain in deployed_domains:
+        if _remove_nginx_config(domain, nginx_sites_available, nginx_sites_enabled):
+            nginx_removed.append(domain)
+            log(f"Removed NGINX config for domain: {domain}")
+        else:
+            nginx_failed.append(domain)
+            warn(f"Failed to remove NGINX config for domain: {domain}")
+
+    return trace_out({
+        "status": "completed",
+        "component": "nginx_configs",
+        "domains_removed": nginx_removed,
+        "domains_failed": nginx_failed,
+        "removed_count": len(nginx_removed)
+    })
+
+
+@register_module_hook('remove_10_nginx_reload', 'Reload NGINX')
+def reload_nginx() -> Dict[str, Any]:
+    """Test and reload NGINX after config removal."""
+    trace_in()
+
+    try:
+        # Test NGINX config
+        test_result = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
+        if test_result.returncode != 0:
+            warn(f"NGINX configuration test failed: {test_result.stderr}")
+            report_error("action", f"NGINX configuration test failed: {test_result.stderr}")
+            return trace_out({
+                "status": "error",
+                "component": "nginx_reload",
+                "error": "config_test_failed",
+                "stderr": test_result.stderr
+            })
+
+        log("NGINX configuration test passed")
+
+        # Reload NGINX
+        reload_result = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
+        if reload_result.returncode != 0:
+            # Try restart instead
+            restart_result = subprocess.run(['systemctl', 'restart', 'nginx'], capture_output=True, text=True)
+            if restart_result.returncode != 0:
+                warn(f"Failed to reload/restart NGINX: {restart_result.stderr}")
+                report_error("action", f"Failed to reload/restart NGINX: {restart_result.stderr}")
+                return trace_out({
+                    "status": "error",
+                    "component": "nginx_reload",
+                    "error": "reload_failed"
+                })
+            log("NGINX restarted successfully")
+        else:
+            log("NGINX reloaded successfully")
+
+        return trace_out({
+            "status": "completed",
+            "component": "nginx_reload",
+            "nginx_reloaded": True
+        })
+
+    except Exception as e:
+        warn(f"Failed to test/reload NGINX: {e}")
+        report_error("action", f"Failed to test/reload NGINX: {e}")
+        return trace_out({"status": "error", "component": "nginx_reload", "error": str(e)})
+
+
+@register_module_hook('remove_15_nginx_decoy', 'Clean up NGINX decoy')
+def cleanup_nginx_decoy() -> Dict[str, Any]:
+    """Clean up decoy server if no local deployments remain."""
+    trace_in()
+
+    config = _get_pre_validated_config()
+    if config is None:
+        warn("Pre-validation not completed")
+        return trace_out({"status": "skipped", "reason": "no_config"})
+
+    nginx_sites_available = config['nginx_sites_available']
+    nginx_sites_enabled = config['nginx_sites_enabled']
+
+    try:
+        # Check if any local deployments remain (files ending in .local)
+        remaining_local = []
+        if nginx_sites_available.exists():
+            for site_file in nginx_sites_available.iterdir():
+                if site_file.is_file() and site_file.name.endswith('.local'):
+                    remaining_local.append(site_file.name)
+
+        # If local deployments remain, preserve decoy
+        if remaining_local:
+            log(f"Decoy preserved - {len(remaining_local)} local deployments remain")
+            return trace_out({
+                "status": "completed",
+                "component": "nginx_decoy",
+                "decoy_removed": False,
+                "reason": "local_deployments_remain",
+                "remaining_local": remaining_local
+            })
+
+        # Remove decoy
+        decoy_available = nginx_sites_available / "decoy"
+        decoy_enabled = nginx_sites_enabled / "decoy"
+        decoy_removed = False
+
+        if decoy_enabled.exists():
+            decoy_enabled.unlink()
+            log("Removed decoy symlink from sites-enabled")
+            decoy_removed = True
+
+        if decoy_available.exists():
+            decoy_available.unlink()
+            log("Removed decoy config from sites-available")
+            decoy_removed = True
+
+        if decoy_removed:
+            log("Cleaned up decoy server - no local deployments remain")
+            # Reload NGINX after decoy removal
+            subprocess.run(['nginx', '-t'], capture_output=True, text=True)
+            subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
+
+        return trace_out({
+            "status": "completed",
+            "component": "nginx_decoy",
+            "decoy_removed": decoy_removed
+        })
+
+    except Exception as e:
+        warn(f"Failed to clean up decoy server: {e}")
+        return trace_out({"status": "error", "component": "nginx_decoy", "error": str(e)})
+
+
+@register_module_hook('remove_95_render', 'Render NGINX removal status')
+def render_nginx_removal() -> Dict[str, Any]:
+    """Render NGINX removal status."""
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    table_data = TableData()
+
+    # Domains removed
+    domains_removed = []
+    domains_failed = []
+    for result in hook_results:
+        if result.get('domains_removed'):
+            domains_removed.extend(result['domains_removed'])
+        if result.get('domains_failed'):
+            domains_failed.extend(result['domains_failed'])
+
+    if domains_removed:
+        table_data.add_row('domains_removed', value=', '.join(domains_removed))
+    if domains_failed:
+        table_data.add_row('domains_failed', value=', '.join(domains_failed))
+
+    # NGINX reloaded
+    nginx_reloaded = any(result.get('nginx_reloaded') for result in hook_results)
+    table_data.add_row('nginx_reloaded', value='Yes' if nginx_reloaded else 'No')
+
+    # Decoy status
+    for result in hook_results:
+        if result.get('component') == 'nginx_decoy':
+            if result.get('decoy_removed'):
+                table_data.add_row('decoy_status', value='Removed')
+            elif result.get('reason') == 'local_deployments_remain':
+                table_data.add_row('decoy_status', value='Preserved (local sites remain)')
+
+    field_config = FieldConfig()
+    field_config.add_simple(['domains_removed', 'domains_failed', 'nginx_reloaded', 'decoy_status'])
+
+    return {
+        "table_data": table_data,
+        "field_config": field_config
+    }

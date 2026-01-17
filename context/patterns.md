@@ -495,7 +495,7 @@ Powerful generalized system for formatting CLI table output with rich control ov
 **render_list_example.py** 
 
 ```python
-from typing import List, TypedDict
+from typing import List, TypedDict, Dict, Any
 from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.json.json_standard import get_data
@@ -618,7 +618,7 @@ If you see warnings about duplicate registrations:
 This example extends Example 10 to show how field types can be selected dynamically based on data values. The field type (first parameter to `add_row()`) is an identifier that maps to styling rules in FieldConfig. Most field types use default styling via `.add_simple()`, and colors are optional.
 
 ```python
-from typing import List, TypedDict
+from typing import List, TypedDict, Dict, Any
 from hh.gateway import get_gateway, trace_in, trace_out, log, debug, warn
 from hh.render.render import render_header_block, render_block, FieldConfig, TableData
 from hh.json.json_standard import get_data
@@ -811,38 +811,55 @@ table.add_row(field_type, name=name, status=status_str)  # DON'T DO THIS
 table.add_row(field_type, name=name, other_data=data)  # Status via styling only
 ```
 
-### Example 14: **Multi-Table Output with Different Field Type Schemes**
+### Example 14: **Multi-Table Output with Section Breaks**
 
-Multiple tables can use different field type schemes independently.
+Multiple tables can use section breaks to group related items within each table.
 
 ```python
-def render_multi_table_with_different_schemes(source_data, lines):
+def render_multi_table_with_section_breaks(source_data, lines):
     trace_in()
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
         return trace_out(False)
 
-    # MAIN TABLE - Module status with enabled/blacklisted field types
-    modules = source_data.get('modules', [])
+    # MAIN TABLE - Commands grouped by module with section breaks
+    commands = source_data.get('commands', [])
     main_table = TableData()
-    main_table.add_row('modules_header', name='Module', description='Description')
+    main_table.add_row('commands_header', name='Command', module='Module')
 
-    for module in modules:
-        field_type = 'module_enabled' if module.get('is_enabled') else 'module_blacklisted'
-        main_table.add_row(field_type,
-                          name=safe_str(module.get('name')),
-                          description=safe_str(module.get('description')))
+    # Group commands by module and add section breaks
+    separator_rows = []
+    current_row = 1
+    modules = sorted(set(cmd.get('module_path', '').split('.')[0] for cmd in commands if cmd.get('module_path')))
+
+    for module_idx, module in enumerate(modules):
+        module_commands = [cmd for cmd in commands if cmd.get('module_path', '').startswith(module + '.')]
+
+        for cmd in module_commands:
+            field_type = 'cmd_loaded' if cmd.get('is_loaded') else 'cmd_failed'
+            main_table.add_row(field_type,
+                              name=safe_str(cmd.get('name')),
+                              module=safe_str(cmd.get('module_path')))
+            current_row += 1
+
+        # Section break after each module group (except last)
+        if module_idx < len(modules) - 1:
+            separator_rows.append(current_row - 1)
 
     main_config = (FieldConfig()
-        .add_header('modules_header')
-        .add_simple_color('module_enabled', 'green')
-        .add_simple_color('module_blacklisted', 'red')
+        .add_header('commands_header')
+        .add_simple_color('cmd_loaded', 'green')
+        .add_simple_color('cmd_failed', 'red')
     )
 
-    lines.append(render_block(main_table, main_config, block_type='main'))
+    table_overrides: Dict[str, Any] = {'margin_l': 4}
+    if separator_rows:
+        table_overrides['separator_after_rows'] = separator_rows
 
-    # SUMMARY TABLE - Statistics with different field types
+    lines.append(render_block(main_table, main_config, block_type='commands', table_overrides=table_overrides))
+
+    # SUMMARY TABLE - Simple stats (no section breaks needed)
     stats = source_data.get('stats', {})
     summary_table = TableData()
     summary_table.add_row('stats_header', metric='Metric', value='Value')
@@ -852,68 +869,86 @@ def render_multi_table_with_different_schemes(source_data, lines):
 
     summary_config = (FieldConfig()
         .add_header('stats_header')
-        .add_simple(['total_count', 'enabled_count'])           # Default styling
-        .add_simple_color('error_count', 'red')                 # Red for errors
+        .add_simple(['total_count', 'enabled_count'])
+        .add_simple_color('error_count', 'red')
     )
 
     lines.append(render_block(summary_table, summary_config, block_type='summary'))
 
-    break_section(lines)  # Visual separator
+    break_section(lines)  # Visual separator between tables
     return trace_out(True)
 ```
 
 **Key Points:**
-- Different tables can use completely different field type schemes
-- Each table has its own FieldConfig with field type mappings
-- Field types are scoped to individual tables
+- **Section breaks within tables**: Use `table_overrides['separator_after_rows']` to insert dividers between logical groups
+- **Multiple tables**: Each table can have its own section break logic
+- **Data analysis**: Calculate separator positions by analyzing data groupings
+- Section breaks make large tables more readable by grouping related items
 
-### Example 15: **Field Type Inheritance and Defaults**
+### Example 15: **Multi-Column Tables with Label Override and Section Breaks**
 
-Field types can have default styling that applies unless overridden.
+Tables can override header labels for context and insert section breaks between logical groups.
 
 ```python
-def render_field_type_defaults(source_data, lines):
+def render_multi_column_with_sections(source_data, lines):
     trace_in()
     gateway = get_gateway()
     if not gateway:
         warn("No gateway available")
         return trace_out(False)
 
-    items = source_data.get('items', [])
+    hooks = source_data.get('hooks', [])
     table = TableData()
 
-    table.add_row('items_header', name='Name', status='Status', details='Details')
-
-    for item in items:
-        item_status = item.get('status', 'normal')
-
-        # Most items use default field type
-        if item_status == 'normal':
-            field_type = 'item_normal'      # Gets default styling
-        elif item_status == 'special':
-            field_type = 'item_special'     # Gets special styling
-        else:
-            field_type = 'item_normal'      # Falls back to default
-
-        table.add_row(
-            field_type,
-            name=safe_str(item.get('name')),
-            status=safe_str(item_status),
-            details=safe_str(item.get('details'))
-        )
-
-    # FieldConfig with defaults and overrides
-    field_config = (FieldConfig()
-        .add_header('items_header')
-        .add_simple(['item_normal'])                    # Default styling for most items
-        .add_simple_color('item_special', 'blue')      # Override for special items
+    # Header with label override - shows module context in left column
+    table.add_row(
+        'hooks_header',
+        label='my_module',                        # Override label to show module name
+        hook_name='Hook Name',                    # Column header
+        description='Description',                # Column header
+        prefix='Type'                            # Column header
     )
 
-    lines.append(render_block(table, field_config, block_type='rows'))
+    # Group hooks by prefix and add section breaks
+    separator_rows = []
+    current_row = 1  # Start after header
+    prefixes = sorted(set(h['name'].split('_', 1)[0] for h in hooks))
+
+    for prefix_idx, prefix in enumerate(prefixes):
+        prefix_hooks = [h for h in hooks if h['name'].startswith(prefix + '_')]
+
+        for hook in prefix_hooks:
+            hook_name = hook.get('name', 'unknown')
+            hook_description = hook.get('description', '')
+            table.add_row(
+                'hook_row',
+                hook_name=safe_str(hook_name),           # Column data
+                description=safe_str(hook_description),  # Column data
+                prefix=safe_str(prefix)                  # Column data
+            )
+            current_row += 1
+
+        # Add section break after each prefix group (except last)
+        if prefix_idx < len(prefixes) - 1:
+            separator_rows.append(current_row - 1)
+
+    # FieldConfig for field types
+    field_config = (FieldConfig()
+        .add_header('hooks_header')
+        .add_simple(['hook_row'])
+    )
+
+    # Table overrides for section breaks
+    table_overrides: Dict[str, Any] = {'margin_l': 4}
+    if separator_rows:
+        table_overrides['separator_after_rows'] = separator_rows
+
+    lines.append(render_block(table, field_config, block_type='hooks', table_overrides=table_overrides))
     return trace_out(True)
 ```
 
 **Key Points:**
-- `.add_simple()` provides default styling for field types
-- `.add_simple_color()` overrides with specific colors
-- Field types not mentioned in FieldConfig may not render properly
+- **Label override**: Use `label='custom_text'` in `add_row()` to override the default field type label
+- **Section breaks**: Analyze data to identify group boundaries, pass `separator_after_rows` in `table_overrides`
+- **Multi-column headers**: Each `add_row()` parameter becomes a column with custom headers
+- Section breaks visually group related items within a single table

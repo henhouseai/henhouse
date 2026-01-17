@@ -1,7 +1,7 @@
 from typing import List
 
 DEPLOY_WHITELIST: List[str] = [
-    'nginx_flask/deploy/conf',
+    'hh_flask/deploy/conf',
 ]
 
 CLIENT_WHITELIST: List[str] = [
