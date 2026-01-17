@@ -53,7 +53,9 @@ def render_flask_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('flask_header', value='Flask Daemons')
+    table_data.add_row('flask_detail_header', value='')
+
+    field_names = []
 
     # Show each daemon from restart data
     daemons = flask_restart_data.get('daemons', []) if flask_restart_data else []
@@ -65,21 +67,27 @@ def render_flask_detail_table() -> Dict[str, Any]:
         value = f"{status} (port {port})"
         if user:
             value += f" as {user}"
-        table_data.add_row(f'daemon_{tier}', value=value)
+        field_type = f'daemon_{tier}'
+        table_data.add_row(field_type, value=value)
+        field_names.append(field_type)
 
     # Show deployed apps if no restart data
     if not daemons and flask_deployed:
         for app in flask_deployed:
             table_data.add_row('deployed_app', value=app)
+            field_names.append('deployed_app')
         if media_deployed:
             table_data.add_row('media_server', value='deployed')
+            field_names.append('media_server')
+
+    if not field_names:
+        return trace_out({})
 
     field_config = FieldConfig()
-    field_config.add_header('flask_header')
-    field_names = [f'daemon_{d.get("tier", "unknown")}' for d in daemons]
-    if not field_names:
-        field_names = ['deployed_app', 'media_server']
-    field_config.add_simple(field_names)
+    field_config.add_header('flask_detail_header')
+    # Use unique field names (dedup while preserving order)
+    unique_fields = list(dict.fromkeys(field_names))
+    field_config.add_simple(unique_fields)
 
     # Return as full render_block
     flask_table_html = render_block(table_data, field_config, block_type='flask_daemons')

@@ -47,17 +47,14 @@ def render_context_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('context_header', value='Context Items Deployed')
+    table_data.add_row('context_detail_header', value='')
 
-    field_names = []
-    for i, item in enumerate(context_items):
-        field_name = f'context_item_{i}'
-        table_data.add_row(field_name, value=item)
-        field_names.append(field_name)
+    for item in context_items:
+        table_data.add_row('context_item', value=item)
 
     field_config = FieldConfig()
-    field_config.add_header('context_header')
-    field_config.add_simple(field_names)
+    field_config.add_header('context_detail_header')
+    field_config.add_simple(['context_item'])
 
     context_table_html = render_block(table_data, field_config, block_type='context_items')
     return trace_out({
@@ -86,17 +83,14 @@ def render_client_files_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('client_header', value='Client Files Deployed')
+    table_data.add_row('client_detail_header', value='')
 
-    field_names = []
-    for i, f in enumerate(client_files):
-        field_name = f'client_file_{i}'
-        table_data.add_row(field_name, value=f)
-        field_names.append(field_name)
+    for f in client_files:
+        table_data.add_row('client_file', value=f)
 
     field_config = FieldConfig()
-    field_config.add_header('client_header')
-    field_config.add_simple(field_names)
+    field_config.add_header('client_detail_header')
+    field_config.add_simple(['client_file'])
 
     client_table_html = render_block(table_data, field_config, block_type='client_files')
     return trace_out({
@@ -235,17 +229,14 @@ def render_modules_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('modules_header', value='Modules Deployed')
+    table_data.add_row('modules_detail_header', value='')
 
-    field_names = []
-    for i, module in enumerate(modules_deployed):
-        field_name = f'module_{i}'
-        table_data.add_row(field_name, value=module)
-        field_names.append(field_name)
+    for module in modules_deployed:
+        table_data.add_row('module_item', value=module)
 
     field_config = FieldConfig()
-    field_config.add_header('modules_header')
-    field_config.add_simple(field_names)
+    field_config.add_header('modules_detail_header')
+    field_config.add_simple(['module_item'])
 
     modules_table_html = render_block(table_data, field_config, block_type='modules_deployed')
     return trace_out({
@@ -264,7 +255,7 @@ def render_site_files_detail_table() -> Dict[str, Any]:
     hook_results = source_data.get('hook_results', [])
 
     table_data = TableData()
-    table_data.add_row('site_header', value='Site Files Deployed')
+    table_data.add_row('site_detail_header', value='')
 
     field_names = []
 
@@ -273,26 +264,24 @@ def render_site_files_detail_table() -> Dict[str, Any]:
 
         if component == 'site_js' and result.get('js_count'):
             count = result['js_count']
-            table_data.add_row('site_js', value=f"JavaScript: {count} files")
+            table_data.add_row('site_js', value=f"{count} files")
             field_names.append('site_js')
 
         elif component == 'site_css' and result.get('count'):
             count = result['count']
-            files = result.get('files', [])
-            table_data.add_row('site_css', value=f"CSS: {count} files")
+            table_data.add_row('site_css', value=f"{count} files")
             field_names.append('site_css')
 
         elif component == 'site_misc' and result.get('count'):
             count = result['count']
-            files = result.get('files', [])
-            table_data.add_row('site_misc', value=f"Miscellaneous: {count} files")
+            table_data.add_row('site_misc', value=f"{count} files")
             field_names.append('site_misc')
 
     if not field_names:
         return trace_out({})
 
     field_config = FieldConfig()
-    field_config.add_header('site_header')
+    field_config.add_header('site_detail_header')
     field_config.add_simple(field_names)
 
     site_table_html = render_block(table_data, field_config, block_type='site_files')
