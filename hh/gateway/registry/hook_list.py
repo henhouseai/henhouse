@@ -124,7 +124,7 @@ def hook_list_parser() -> bool:
         if total_hooks == 0:
             lines.append("No module hooks registered.")
         else:
-            # Build hooks table
+            # Build hooks table with section breaks between deploy/remove groups
             table = TableData()
 
             # Header row
@@ -135,49 +135,50 @@ def hook_list_parser() -> bool:
                 count="Count",
             )
 
-            for hook_info in hooks:
-                hook_name = hook_info.get("hook_name", "unknown")
-                modules = hook_info.get("modules", [])
-                module_count = hook_info.get("module_count", 0)
+            # Group hooks by prefix (deploy_* vs remove_*) and add section breaks
+            separator_rows = []
+            current_row = 1  # Start after header
+            prefixes = sorted(set(h['hook_name'].split('_', 1)[0] for h in hooks if '_' in h['hook_name']))
 
-                # Format modules as comma-separated list
-                modules_str = ", ".join(modules) if modules else "-"
+            for prefix_idx, prefix in enumerate(prefixes):
+                prefix_hooks = [h for h in hooks if h['hook_name'].startswith(prefix + '_')]
 
-                table.add_row(
-                    "hook_row",
-                    hook_name=safe_str(hook_name),
-                    modules=safe_str(modules_str),
-                    count=str(module_count),
-                )
+                for hook_info in prefix_hooks:
+                    hook_name = hook_info.get("hook_name", "unknown")
+                    modules = hook_info.get("modules", [])
+                    module_count = hook_info.get("module_count", 0)
 
-            # Field config
+                    # Format modules as comma-separated list
+                    modules_str = ", ".join(modules) if modules else "-"
+
+                    table.add_row(
+                        "hook_row",
+                        hook_name=safe_str(hook_name),
+                        modules=safe_str(modules_str),
+                        count=str(module_count),
+                    )
+                    current_row += 1
+
+                # Add section break after each prefix group (except last)
+                if prefix_idx < len(prefixes) - 1:
+                    separator_rows.append(current_row - 1)
+
+            # Field config - only configure field types, not columns
             field_config = (FieldConfig()
                 .add_header("hook_list_header")
-                .add_simple(["hook_row"])
-                .add_simple(["hook_name", "modules", "count"]))
+                .add_simple(["hook_row"]))
+
+            # Table overrides with section breaks and type annotation
+            table_overrides: Dict[str, Any] = {"margin_l": 4}
+            if separator_rows:
+                table_overrides["separator_after_rows"] = separator_rows
 
             lines.append(
                 render_block(
                     table,
                     field_config,
                     block_type="rows",
-                    table_overrides={"margin_l": 4},
-                )
-            )
-
-            # Summary
-            summary = TableData()
-            summary.add_row("hook_summary_header", info="")
-            summary.add_row("total_hooks", info=str(total_hooks))
-
-            lines.append(
-                render_block(
-                    summary,
-                    FieldConfig()
-                    .add_header("hook_summary_header")
-                    .add_simple(["total_hooks"]),
-                    block_type="maintenance",
-                    table_overrides={"margin_l": 4},
+                    table_overrides=table_overrides,
                 )
             )
 

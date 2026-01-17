@@ -80,7 +80,9 @@ def deploy() -> bool:
         ('deploy_80_restart_daemons', 'daemon restart'),
 
         # Final deployment steps
-        ('deploy_85_nginx_and_ssl', 'NGINX and SSL deployment'),
+        ('deploy_85_nginx_config', 'NGINX configuration generation'),
+        ('deploy_86_ssl_certificates', 'SSL certificate creation'),
+        ('deploy_87_nginx_restart', 'NGINX restart and verification'),
         ('deploy_90_manifest', 'site manifest addition'),
     ]
 
