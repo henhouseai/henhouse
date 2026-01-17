@@ -109,7 +109,7 @@ def render_permissions_detail_table() -> Dict[str, Any]:
     hook_results = source_data.get('hook_results', [])
 
     table_data = TableData()
-    table_data.add_row('perms_header', value='')
+    table_data.add_row('perms_header', directory='Directory', permissions='Permissions')
 
     field_names = []
 
@@ -118,28 +118,38 @@ def render_permissions_detail_table() -> Dict[str, Any]:
         component = result.get('component', '')
 
         if component == 'base' and result.get('ownership'):
-            table_data.add_row('perm_base', value=f"{result['ownership']} ({result.get('permissions', '')})")
+            ownership = result['ownership']
+            permissions = result.get('permissions', '')
+            table_data.add_row('perm_base', directory=f"System Files ({ownership})", permissions=permissions)
             field_names.append('perm_base')
 
         elif component == 'flask_logs' and result.get('permissions'):
-            table_data.add_row('perm_flask_logs', value=f"{result['permissions']} ({result.get('directory', '')})")
+            directory = result.get('directory', '')
+            permissions = result['permissions']
+            table_data.add_row('perm_flask_logs', directory=directory, permissions=permissions)
             field_names.append('perm_flask_logs')
 
         elif component == 'git' and result.get('permissions'):
-            table_data.add_row('perm_git', value=f"{result['permissions']} ({result.get('ownership', '')})")
+            ownership = result.get('ownership', '')
+            permissions = result['permissions']
+            table_data.add_row('perm_git', directory=f"Repository ({ownership})", permissions=permissions)
             field_names.append('perm_git')
 
         elif component == 'site' and result.get('permissions'):
-            table_data.add_row('perm_site', value=f"{result['permissions']} ({result.get('directory', '')})")
+            directory = result.get('directory', '')
+            permissions = result['permissions']
+            table_data.add_row('perm_site', directory=directory, permissions=permissions)
             field_names.append('perm_site')
 
         elif component == 'cache' and result.get('permissions'):
             dirs_count = result.get('render_cache_dirs_count', 0)
-            table_data.add_row('perm_cache', value=f"{result['permissions']} ({dirs_count} directories)")
+            permissions = result['permissions']
+            table_data.add_row('perm_cache', directory=f"{dirs_count} directories", permissions=permissions)
             field_names.append('perm_cache')
 
         elif component == 'maintenance_logs':
-            table_data.add_row('perm_maint_logs', value=result.get('note', 'shared'))
+            note = result.get('note', 'shared')
+            table_data.add_row('perm_maint_logs', directory='', permissions=note)
             field_names.append('perm_maint_logs')
 
     if not field_names:
