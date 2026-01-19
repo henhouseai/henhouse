@@ -379,7 +379,7 @@ def show_page(page: 'Page') -> Dict[str, Any]:
         log(f"Page {page.id}: cache miss or stale entry; rebuilding show_page payload")
 
     # Check if page is stale based on timestamps alone - flag for refresh regardless of derived data
-    if page.cache_built_at and page.last_modified and page.cache_built_at < page.last_modified:
+    if (page.cache_built_at is None) or (page.cache_built_at and page.last_modified and page.cache_built_at < page.last_modified):
         log(f"Page {page.id}: timestamps indicate stale cache (cache_built_at={page.cache_built_at}, last_modified={page.last_modified}), flagging for refresh")
         page._flag_cache_refresh()
 
