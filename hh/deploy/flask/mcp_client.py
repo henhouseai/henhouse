@@ -32,13 +32,13 @@ def handle_initialize(params: dict, request_id) -> dict:
         "tools": {
             "listChanged": True
         },
-        "prompts": {
-            "listChanged": True
-        },
-        "resources": {
-            "subscribe": True,
-            "listChanged": True
-        },
+        # "prompts": {
+        #     "listChanged": True
+        # },
+        # "resources": {
+        #     "subscribe": True,
+        #     "listChanged": True
+        # },
         "logging": {}
     }
     

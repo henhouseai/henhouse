@@ -2,16 +2,14 @@ from hh.render.config.config_registry import register_label
 
 # Summary table labels
 @register_label('project_header',                      'Deployment Status',               '🚀')
-@register_label('context_deployed',                    'Context Items:',                  '📂')
 @register_label('site_files',                          'Site Files:',                     '🌐')
 @register_label('cache_cleaned',                       'Cache Cleaned:',                  '🧹')
-@register_label('flask_summary',                       'Flask:',                          '🌐')
-@register_label('nginx_summary',                       'NGINX:',                          '🌐')
 @register_label('nginx_reloaded',                      'NGINX Reloaded:',                 '🔄')
 
-# Context detail table labels
-@register_label('context_detail_header',               'Context Items Deployed',          '📂')
-@register_label('context_item',                        'Item:',                           '📄')
+# SRV module deployment render labels
+@register_label('srv_summary',                         'Server:',                         '🌐')
+@register_label('srv_detail_header',                   'Server Infrastructure',           '⚙️')
+@register_label('srv_detail_row',                      '',                                '⚙️')
 
 # Client files detail table labels
 @register_label('client_detail_header',                'Client Files Deployed',           '📋')

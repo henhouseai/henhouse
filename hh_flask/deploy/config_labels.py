@@ -1,5 +1,9 @@
 from hh.render.config.config_registry import register_label
 
+# Flask module deployment render labels
+@register_label('flask_summary',                       'Flask:',                          '🌐')
+@register_label('flask_daemon',                        '',                                '⚙️')
+
 # Flask daemon detail table labels
 @register_label('flask_detail_header',                 'Flask Daemons',                   '🌐')
 @register_label('daemon_guest',                        'guest:',                          '👤')

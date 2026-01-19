@@ -1,5 +1,9 @@
 from hh.render.config.config_registry import register_label
 
+# NGINX module deployment render labels
+@register_label('nginx_summary',                      'NGINX:',                         '🌐')
+@register_label('domain_setting',                     '',                               '⚙️')
+
 # NGINX-specific HTTP deployment labels
 @register_label('http_deploy_header',                 'HTTP Deployment Status',         '🌐')
 @register_label('http_deploy_ssl_header',             'HTTP SSL Deployment Status',    '🔒')
