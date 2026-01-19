@@ -3,13 +3,11 @@ from hh.render.config.config_registry import register_label
 # Flask module deployment render labels
 @register_label('flask_summary',                       'Flask:',                          '🌐')
 
-# Flask daemon detail table labels
+# Flask daemon detail table labels (state-based)
 @register_label('flask_detail_header',                 'Flask Daemons',                   '🌐')
-@register_label('daemon_guest',                        'Guest',                           '👤')
-@register_label('daemon_verified',                     'Verified',                        '✅')
-@register_label('daemon_admin',                        'Admin',                           '👑')
-@register_label('daemon_root',                         'Root',                            '🔑')
-@register_label('daemon_media',                        'Media',                           '🎬')
+@register_label('daemon_started',                      'Started',                         '✅')
+@register_label('daemon_stopped',                      'Stopped',                         '🛑')
+@register_label('daemon_restarted',                    'Restarted',                       '🔄')
 
 # Flask removal labels
 @register_label('flask_stopped',                       'Flask Stopped',                   '🛑')

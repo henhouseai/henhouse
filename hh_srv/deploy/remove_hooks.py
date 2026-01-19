@@ -217,7 +217,6 @@ def render_srv_removal() -> Dict[str, Any]:
     table_data = TableData()
 
     # Get srv-specific data
-    deployment_path = 'Unknown'
     files_removed = False
     manifest_cleared = False
     removed_count = 0
@@ -228,9 +227,6 @@ def render_srv_removal() -> Dict[str, Any]:
             removed_count = result.get('removed_count', 0)
         elif result.get('component') == 'clear_manifest':
             manifest_cleared = result.get('manifest_cleared', False)
-        elif result.get('deployment_path'):
-            # Get deployment path from pre-validate hook
-            deployment_path = result.get('deployment_path', 'Unknown')
 
     # Summary row
     summary_parts = []

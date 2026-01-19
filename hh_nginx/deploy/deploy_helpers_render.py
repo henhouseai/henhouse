@@ -93,11 +93,11 @@ def render_nginx_domain_table() -> Dict[str, Any]:
 
     # Build domain table
     table_data = TableData()
-    table_data.add_row('domain_header', value='Value', permissions='Permissions')
+    table_data.add_row('domain_header', value=domain, permissions='Permissions')
 
     # Port (443 for SSL, 80 for HTTP-only)
     port = '443' if ssl_enabled else '80'
-    table_data.add_row('nginx_port', value=port, permissions='N/A')
+    table_data.add_row('nginx_port', value=port, permissions='')
 
     # Certificate path and creation status - read from nginx deployment hook results
     certificate_path = None
@@ -133,7 +133,7 @@ def render_nginx_domain_table() -> Dict[str, Any]:
         table_data.add_row('nginx_server_ip', value=server_ip, permissions='644')
 
     if is_local and local_allow_block:
-        table_data.add_row('nginx_local_access', value=local_allow_block, permissions='N/A')
+        table_data.add_row('nginx_local_access', value=local_allow_block, permissions='')
 
     # NGINX deployment status from hook results
     nginx_deployed = False
@@ -156,7 +156,7 @@ def render_nginx_domain_table() -> Dict[str, Any]:
     # NGINX status
     table_data.add_row('nginx_deployed_status', value='Yes' if nginx_deployed else 'No', permissions='755')
     nginx_status = 'Yes (nginx service running)' if nginx_active else 'No'
-    table_data.add_row('nginx_active_status', value=nginx_status, permissions='N/A')
+    table_data.add_row('nginx_active_status', value=nginx_status, permissions='')
 
     field_config = FieldConfig()
     field_config.add_header('domain_header')

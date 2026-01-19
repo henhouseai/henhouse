@@ -18,9 +18,11 @@
 
 ## **MCP Backend**
 
-- API for external tools and automation
-- Programmatic access to all system functions
-- Used by other applications and scripts
+- JSON-RPC 2.0 API backend providing programmatic access to all system functions
+- Serves as the unified API layer for the entire system - there is no separate API backend
+- HTTP backend routes all operations through the MCP backend for consistency
+- Tier-based security with tool whitelisting and permission management
+- Used by external clients and internal web interface for all operations
 
 ## **Maintenance Backend**
 
@@ -55,6 +57,37 @@ Henhouse uses a two-folder architecture to separate framework code from project-
 - Database schema extensions via `ext/deploy/db/schema_ext.sql` executed after main schema
 - Site assets can be extended via `ext/deploy/site/` with whitelist extensions
 
+**Module System Architecture**:
+Henhouse implements a modular architecture using hook-based integration and manifest-driven discovery:
+
+### **Module Manifests**
+Each module contains a `__module__.py` file defining metadata:
+```python
+MODULE = {
+    'name': 'hh_nginx',
+    'description': 'NGINX configuration and SSL management',
+    'version': '1.0.0',
+    'dependencies': ['hh_srv']
+}
+```
+
+### **Hook-Based Integration**
+Modules integrate via `@register_module_hook()` decorators:
+```python
+@register_module_hook('deploy_85_nginx_config')
+def deploy_nginx_config():
+    # NGINX-specific deployment logic
+    return {"status": "success", "config_written": True}
+```
+
+Hooks execute alphabetically by module name with result aggregation in deployment.
+
+### **Configuration Extension**
+Extension modules in `ext/` extend framework configurations:
+- `ext/deploy/conf/` extends `hh/deploy/conf/` whitelists
+- `load_whitelist_with_extensions()` merges configurations
+- Module blacklisting via `MODULE_BLACKLIST`
+
 **Deployment**:
 - Both `hh/` and `ext/` folders are deployed to `/srv/{project_name}/`
 - `hh/deploy/` and `ext/deploy/` are cleaned after deployment, preserving only whitelisted items
@@ -72,11 +105,13 @@ Henhouse uses a two-folder architecture to separate framework code from project-
 
 **Implementation Status:**
 
-- All core systems (Gateway, Page, Registry, Render, Debug, MCP, HTTP, Maintenance, Parser) are fully implemented and operational
-- Deployment system is fully operational with comprehensive infrastructure for multi-tier web application deployment
-- History database architecture exists (connection support, hooks) but is not yet actively used
-- Transaction/Batch system has database tables and page classes partially implemented; execution engine pending
-- Tier 2 verification system, daemon manager, and aggregator system are planned for future development
+- All core systems (Gateway, Page, Registry, Render, Debug, MCP, HTTP, Maintenance) are fully implemented and operational
+- Deployment system is fully operational with modular hook-based architecture supporting multi-tier web application deployment
+- History database architecture exists with connection support (implementation not yet active)
+- Transaction/Batch system has database tables (`mcp_requests`, `mcp_action_requests`) and page classes implemented; execution engine implementation pending
+- Parser backend is fully operational
+- Tier 2 verification system is planned for future development
+- Daemon manager and aggregator systems are planned for future development
 
 ### **System Architecture Map**
 
@@ -95,8 +130,9 @@ The following diagram shows the core system relationships and dependencies:
 #### **Page System**: hierarchical content management
 
 - *Page Registry*: hot cache for in-memory instances
-- *Page Class Registry*: dynamic subclass loading
+- *Page Class Registry*: dynamic subclass loading based on database `class` field with `@register_page_class` decorators
 - *Comprehensive functionality*: validation, hierarchy, content, images, files, display, ajax, cache, maintenance
+- *Validation Functions*: five functions control page behavior (`allow_null_names()`, `allow_duplicate_names()`, `auto_link_name()`, `allow_class_inside()`, `allow_inside_of()`)
 - *TextProcessor*: markup parsing for page content
 - *Cache System*: two-tier caching (hot cache + cache database)
 
@@ -267,11 +303,11 @@ The Page system provides hierarchical content management with pages, images, fil
 - Comprehensive functionality organized into focused areas (validation, hierarchy, content, images, files, display, ajax, cache, maintenance)
 - Parent-child relationships with automatic breadcrumb generation
 - Extensible infrastructure: Base Page class designed for inheritance with derived classes
-- Five validation functions control page behavior and hierarchy constraints (allow_null_names, allow_duplicate_names, auto_link_name, allow_class_inside, allow_inside_of)
+- Five validation functions control page behavior and hierarchy constraints (`allow_null_names()`, `allow_duplicate_names()`, `auto_link_name()`, `allow_class_inside()`, `allow_inside_of()`)
 - Extension points include class hooks, display hooks, hierarchy hooks for customizing behavior
 - Supports abstract intermediate classes (e.g., WorkPage) and concrete derived classes (e.g., WorkDocket, SourceCodeFile)
 - Automatically extracts metadata JSON fields as object attributes
-- Page class registry automatically loads appropriate subclass based on database 'class' field
+- Page class registry automatically loads appropriate subclass based on database `class` field using `@register_page_class` decorators
 
 #### **Text Processing**
 

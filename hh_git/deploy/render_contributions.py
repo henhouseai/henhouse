@@ -91,7 +91,7 @@ def render_git_detail_table() -> Dict[str, Any]:
     hook_results = source_data.get('hook_results', [])
 
     table_data = TableData()
-    table_data.add_row('git_detail_header', target='Target', result='Result')
+    table_data.add_row('git_detail_header', value='Value')
 
     has_content = False
 
@@ -100,20 +100,20 @@ def render_git_detail_table() -> Dict[str, Any]:
         component = result.get('component', '')
         if component == 'git_preserve' and result.get('preserved'):
             git_dir = result.get('git_dir', '')
-            table_data.add_row('git_preserve', target='Repository', result=f"preserved: {git_dir}")
+            table_data.add_row('git_preserve', value=git_dir)
             has_content = True
         elif component == 'git_restore' and result.get('restored'):
             git_dir = result.get('git_dir', '')
-            table_data.add_row('git_restore', target='Repository', result=f"restored: {git_dir}")
+            table_data.add_row('git_restore', value=git_dir)
             has_content = True
         elif component == 'git' and result.get('permissions'):
             ownership = result.get('ownership', '')
             permissions = result['permissions']
-            table_data.add_row('git_permissions_set', target='Repository', result=f"{permissions} ({ownership})")
+            table_data.add_row('git_permissions_set', value=f"{permissions} ({ownership})")
             has_content = True
         elif component == 'framework_cleanup' and result.get('modules_count'):
             modules_count = result['modules_count']
-            table_data.add_row('framework_cleanup', target='Python Modules', result=f"{modules_count} modules cleaned")
+            table_data.add_row('framework_cleanup', value=f"{modules_count} modules cleaned")
             has_content = True
 
     if not has_content:

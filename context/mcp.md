@@ -1,8 +1,8 @@
 
 
-# Henhouse MCP System Architecture
+# Henhouse MCP/API System Architecture
 
-This document covers the Henhouse-specific implementation of the MCP (Model Context Protocol) integration system. It explains how MCP integrates with the Gateway architecture and how to navigate and modify the codebase.
+This document covers the Henhouse implementation of separate MCP and API backends with dedicated whitelists. It explains how MCP (for agents) and API (for web UI) integrate with the Gateway architecture and how to navigate and modify the codebase.
 
 ## Table of Contents
 
@@ -14,12 +14,13 @@ This document covers the Henhouse-specific implementation of the MCP (Model Cont
 
 ## Agent Quick Reference
 
-- **MCP Backend**: Registered as backend type in Gateway alongside `parser`, `http`, `maintenance` (not `action` - actions are not backends)
-- **Tool Whitelist**: Decorator-based system with tier-specific caches - tools registered via `@register_mcp_tool` decorators in module-specific `tools.py` files
-- **Response Format**: `success_payload()` creates `{"content": [{"type": "text", "text": {...dict...}}]}`, ResponseMCP serializes `content[0]["text"]` dict to JSON string in JSON-RPC 2.0 format
+- **MCP Backend**: Agent API backend with minimal responses - registered as backend type alongside `parser`, `http`, `maintenance`, `api`
+- **API Backend**: Web UI API backend with fuller responses - separate from MCP with dedicated whitelists
+- **Tool Whitelist**: Three-field system (`mcp_tiers`, `api_tiers`, `app_action_tiers`) with 12 separate whitelist files
+- **Response Format**: MCP returns minimal JSON-RPC 2.0, API returns fuller responses with state data
 - **Config File**: `~/.{project_name}.cnf` (same format/location as database config)
-- **HTTP Endpoint**: `https://{host}/mcp` (host from config file, typically `https://panel.{domain}/mcp`)
-- **Redeployment**: Whitelist changes auto-discovered on cache miss; cache files in `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
+- **HTTP Endpoints**: `/mcp` (agents) and `/api` (web UI) on same host
+- **Redeployment**: Whitelist changes auto-discovered on cache miss; separate cache files for MCP, API, and app actions
 
 ## Agent Training Notes
 
@@ -46,36 +47,32 @@ This document covers the Henhouse-specific implementation of the MCP (Model Cont
 
 ## 1. System Overview
 
-The MCP system integrates with Gateway as a backend type. Tool execution flows through the standard Gateway dispatch mechanism, with MCP-specific response formatting. The HTTP backend uses the MCP backend for all API operations - there is no separate API backend. This unified approach treats MCP protocol as a standardized API format, with the HTTP interface making MCP requests via Fetch API. This design enables all CRUD operations to route through the same interface, whether performed by humans (via web UI) or agents (via MCP protocol), allowing for future collaboration scenarios where both can work simultaneously.
+Henhouse implements **separate MCP and API backends** with dedicated whitelists to distinguish between agent calls and web UI API calls. This separation allows for different response optimization strategies and security models.
 
 ### Architecture Flow
 
+**MCP Backend** (Agents - Minimal Responses):
 ```
-MCP Client (stdio/HTTP)
-    ↓
-mcp_wrapper.py [if using stdio - bridges to HTTP]
-    ↓
-HTTP POST to panel.{domain}/mcp
-    ↓
-hh/deploy/flask/mcp_client.py
-    ↓
-Gateway.dispatch(argv, "mcp")
-    ↓
-Action Handler (standard Gateway action)
-    ↓
-MCP Backend Handler (auto-generated wrapper from hh/gateway/registry/mcp.py)
-    ↓
-ResponseMCP.get_output() (hh/gateway/response/response_mcp.py)
-    ↓
-JSON-RPC 2.0 Response
+Agent → mcp_wrapper.py → /mcp endpoint → MCPWhitelist → Gateway.dispatch(backend="mcp") → ResponseMCP
+```
+
+**API Backend** (Web UI - Fuller Responses):
+```
+TypeScript Fetch → /api endpoint → APIWhitelist → Gateway.dispatch(backend="api") → ResponseAPI
+```
+
+**App Actions** (Web UI Buttons):
+```
+Page Load → get_app_actions() → AppActionWhitelist → available_actions in get_page response
 ```
 
 ### Key Integration Points
 
-- **Backend Type**: MCP registered in `hh/gateway/registry/backend.py` as one of four backend types
-- **Registry Discovery**: Auto-generated wrappers discovered through standard registry system
-- **Response Formatting**: Extends base `Response` class, formats specifically for MCP
-- **Error Handling**: Gateway errors formatted as JSON-RPC errors through ResponseMCP
+- **Backend Types**: MCP and API registered separately in `hh/gateway/registry/backend.py` as distinct backend types
+- **Registry Discovery**: Auto-generated wrappers discovered through standard registry system for both backends
+- **Response Formatting**: ResponseMCP (minimal) and ResponseAPI (full) extend base `Response` class
+- **Error Handling**: Gateway errors formatted appropriately for each backend type
+- **Security**: Separate whitelists allow different permissions for agents vs. human users
 
 ---
 
