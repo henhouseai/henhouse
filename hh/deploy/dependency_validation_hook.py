@@ -22,13 +22,12 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_00_pre_validate', 'Validate module dependencies', priority=5)
+@register_module_hook('deploy_00_pre_validate', 'Validate module dependencies')
 def validate_dependencies() -> Dict[str, Any]:
     """
     Validate that all enabled modules have their dependencies met.
 
-    This hook runs early (priority=5) to catch dependency issues before
-    any deployment work begins.
+    This hook runs early to catch dependency issues before any deployment work begins.
     """
     trace_in()
     log("Validating module dependencies")
