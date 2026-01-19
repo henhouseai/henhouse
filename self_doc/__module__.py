@@ -1,4 +1,13 @@
-# self_doc module manifest
+"""
+self_doc Module - Self-Documentation System
+
+Scope:
+- Context folder and file deployment to deployment directory
+- Documentation structure management
+
+This module deploys context documentation files (patterns.md, overview.md, etc.)
+to the deployment directory, making documentation available on the deployed server.
+"""
 
 MODULE = {
     'name': 'self_doc',

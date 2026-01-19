@@ -69,7 +69,7 @@ def render_git_summary_contribution() -> Dict[str, Any]:
     summary = ", ".join(summary_parts)
 
     table_data = TableData()
-    table_data.add_row('git_summary', value=f"Git: {summary}")
+    table_data.add_row('git_summary', value=summary)
 
     field_config = FieldConfig()
     field_config.add_simple(['git_summary'])
@@ -91,7 +91,7 @@ def render_git_detail_table() -> Dict[str, Any]:
     hook_results = source_data.get('hook_results', [])
 
     table_data = TableData()
-    table_data.add_row('git_detail_header', operation='Operation', target='Target', result='Result')
+    table_data.add_row('git_detail_header', target='Target', result='Result')
 
     has_content = False
 
@@ -100,20 +100,20 @@ def render_git_detail_table() -> Dict[str, Any]:
         component = result.get('component', '')
         if component == 'git_preserve' and result.get('preserved'):
             git_dir = result.get('git_dir', '')
-            table_data.add_row('git_detail_row', operation='Git Preserve', target='Repository', result=f"preserved: {git_dir}")
+            table_data.add_row('git_preserve', target='Repository', result=f"preserved: {git_dir}")
             has_content = True
         elif component == 'git_restore' and result.get('restored'):
             git_dir = result.get('git_dir', '')
-            table_data.add_row('git_detail_row', operation='Git Restore', target='Repository', result=f"restored: {git_dir}")
+            table_data.add_row('git_restore', target='Repository', result=f"restored: {git_dir}")
             has_content = True
         elif component == 'git' and result.get('permissions'):
             ownership = result.get('ownership', '')
             permissions = result['permissions']
-            table_data.add_row('git_detail_row', operation='Git Permissions', target='Repository', result=f"{permissions} ({ownership})")
+            table_data.add_row('git_permissions_set', target='Repository', result=f"{permissions} ({ownership})")
             has_content = True
         elif component == 'framework_cleanup' and result.get('modules_count'):
             modules_count = result['modules_count']
-            table_data.add_row('git_detail_row', operation='Framework Cleanup', target='Python Modules', result=f"{modules_count} modules cleaned")
+            table_data.add_row('framework_cleanup', target='Python Modules', result=f"{modules_count} modules cleaned")
             has_content = True
 
     if not has_content:
@@ -121,7 +121,7 @@ def render_git_detail_table() -> Dict[str, Any]:
 
     field_config = FieldConfig()
     field_config.add_header('git_detail_header')
-    field_config.add_simple(['git_detail_row'])
+    field_config.add_simple(['git_preserve', 'git_restore', 'git_permissions_set', 'framework_cleanup'])
 
     git_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='git_operations')
     return trace_out({

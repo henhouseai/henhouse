@@ -51,7 +51,7 @@ def render_context_summary_contribution() -> Dict[str, Any]:
     # Create summary line
     table_data = TableData()
     summary = f"{files_deployed} files, {dirs_deployed} directories"
-    table_data.add_row('context_summary', value=f"Context: {summary}")
+    table_data.add_row('context_summary', value=summary)
 
     field_config = FieldConfig()
     field_config.add_simple(['context_summary'])

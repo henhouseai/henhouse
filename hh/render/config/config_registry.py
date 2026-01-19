@@ -42,6 +42,18 @@ _label_registry: Dict[str, Optional[tuple[str, str]]] = {}
 _last_scan_time: float = 0.0
 SCAN_THROTTLE_SECONDS = 3600.0
 
+def check_registration_complete(name: str) -> bool:
+    """
+    Check if at least one of icon or label exists for this name.
+    Used to determine if warnings should be shown for missing registrations.
+    """
+    # Check icon (exact name match)
+    has_icon = _icon_registry.get(name) is not None
+    # Check label (with or without l_ prefix)
+    label_key = name if name.startswith('l_') else f'l_{name}'
+    has_label = _label_registry.get(label_key) is not None
+    return has_icon or has_label
+
 def _read_cache_file_with_retry(cache_file: Path) -> Optional[Dict[str, Any]]:
     """Read cache file with retry logic if file is empty (another process is writing)"""
     try:
@@ -322,7 +334,11 @@ def get_label(name: str) -> Optional[str]:
             trace_out()
             return label_value
     
-    # 5. Not found - return None (will fall back to old method)
+    # 5. Not found - check if this is a truly missing registration before warning
+    # For labels, we need to check the base name (without l_ prefix)
+    base_name = name[2:] if name.startswith('l_') else name
+    if not check_registration_complete(base_name):
+        warn(f"Nothing registered for '{base_name}' - no icon or label found in registry after full rebuild")
     log(f"Label '{name}' not found after full rebuild")
     trace_out()
     return None
@@ -377,7 +393,9 @@ def get_icon(name: str) -> Optional[str]:
             trace_out()
             return icon_value
     
-    # 5. Not found - return None (will fall back to old method)
+    # 5. Not found - check if this is a truly missing registration before warning
+    if not check_registration_complete(name):
+        warn(f"Nothing registered for '{name}' - no icon or label found in registry after full rebuild")
     log(f"Icon '{name}' not found after full rebuild")
     trace_out()
     return None

@@ -2,7 +2,12 @@ from hh.render.config.config_registry import register_label
 
 # NGINX module deployment render labels
 @register_label('nginx_summary',                      'NGINX:',                         '🌐')
-@register_label('domain_setting',                     '',                               '⚙️')
+@register_label('nginx_port',                         'Port',                           '🔌')
+@register_label('nginx_certificate',                  'Certificate',                    '🔑')
+@register_label('nginx_server_ip',                    'Server IP',                      '🌍')
+@register_label('nginx_local_access',                 'Local Access',                   '🏠')
+@register_label('nginx_deployed_status',              'NGINX Deployed',                 '📦')
+@register_label('nginx_active_status',                'NGINX Active',                   '✅')
 
 # NGINX-specific HTTP deployment labels
 @register_label('http_deploy_header',                 'HTTP Deployment Status',         '🌐')
@@ -37,6 +42,10 @@ from hh.render.config.config_registry import register_label
 @register_label('available_henhouse',                 'Available Henhouse:',            '📦')
 @register_label('active_other',                       'Active Other:',                  '🌍')
 @register_label('available_other',                    'Available Other:',               '📁')
+
+# NGINX removal labels
+@register_label('domains_removed',                     'Domains Removed',                '🌐')
+@register_label('nginx_reloaded',                      'NGINX Reloaded',                 '🔄')
 def _register_config():
     pass
 

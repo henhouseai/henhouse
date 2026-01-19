@@ -27,10 +27,29 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-def _get_pre_validated_config():
-    """Get pre-validated config from srv hooks."""
-    from hh_srv.deploy.remove_hooks import pre_validated_config
-    return pre_validated_config
+def _get_pre_validated_config_from_hooks():
+    """Get pre-validated config from hook results."""
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    # Find the pre-validation result
+    for result in hook_results:
+        if result.get('project_name') and result.get('deployment_path'):
+            # Reconstruct config from pre-validate hook result
+            from pathlib import Path
+            return {
+                'project_name': result['project_name'],
+                'dest': Path(result['deployment_path']),
+                'deployed_domains': result.get('domains', []),
+                'nginx_sites_available': Path('/etc/nginx/sites-available'),
+                'nginx_sites_enabled': Path('/etc/nginx/sites-enabled'),
+            }
+    return None
 
 
 def _remove_nginx_config(domain: str, nginx_sites_available: Path, nginx_sites_enabled: Path) -> bool:
@@ -60,7 +79,7 @@ def remove_nginx_configs() -> Dict[str, Any]:
     """Remove NGINX configurations for all deployed domains."""
     trace_in()
 
-    config = _get_pre_validated_config()
+    config = _get_pre_validated_config_from_hooks()
     if config is None:
         warn("Pre-validation not completed")
         return trace_out({"status": "skipped", "reason": "no_config"})
@@ -143,7 +162,7 @@ def cleanup_nginx_decoy() -> Dict[str, Any]:
     """Clean up decoy server if no local deployments remain."""
     trace_in()
 
-    config = _get_pre_validated_config()
+    config = _get_pre_validated_config_from_hooks()
     if config is None:
         warn("Pre-validation not completed")
         return trace_out({"status": "skipped", "reason": "no_config"})
@@ -202,9 +221,42 @@ def cleanup_nginx_decoy() -> Dict[str, Any]:
         return trace_out({"status": "error", "component": "nginx_decoy", "error": str(e)})
 
 
-# NOTE: NGINX removal status is now rendered by hh_srv summary.
-# This hook disabled to avoid duplication. Remove decorator to re-enable.
-# @register_module_hook('remove_95_render', 'Render NGINX removal status')
+@register_module_hook('remove_95_render', 'Render NGINX removal status')
 def render_nginx_removal() -> Dict[str, Any]:
-    """Render NGINX removal status. (Disabled - rendered by hh_srv summary)"""
-    return {}
+    """Render NGINX module's removal status (configs removed, reload status)."""
+    from hh.gateway.gateway import get_gateway
+    from hh.gateway.response.json_standard import get_data
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    table_data = TableData()
+
+    # Get nginx-specific data
+    domains_removed = []
+    nginx_reloaded = False
+
+    for result in hook_results:
+        if result.get('component') == 'nginx_configs':
+            domains_removed = result.get('domains_removed', [])
+        elif result.get('component') == 'nginx_reload':
+            nginx_reloaded = result.get('nginx_reloaded', False)
+
+    # Summary row
+    summary_parts = []
+    if domains_removed:
+        summary_parts.append(f"{len(domains_removed)} domains removed")
+    if nginx_reloaded:
+        summary_parts.append("reloaded")
+    summary = ', '.join(summary_parts) if summary_parts else 'No operations'
+    table_data.add_row('nginx_summary', value=summary)
+
+    field_config = FieldConfig()
+    field_config.add_simple(['nginx_summary'])
+
+    return {
+        "table_data": table_data,
+        "field_config": field_config
+    }

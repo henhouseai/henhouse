@@ -22,7 +22,10 @@ from hh.render.config.config_registry import register_label
 @register_label('git_operations',                      'Git Operations:',                '⚙️')
 @register_label('git_summary',                         'Git:',                           '📦')
 @register_label('git_detail_header',                   'Git Operations',                 '⚙️')
-@register_label('git_detail_row',                      '',                               '⚙️')
+@register_label('git_preserve',                        'Git Preserve',                   '💾')
+@register_label('git_restore',                         'Git Restore',                    '🔄')
+@register_label('git_permissions_set',                 'Git Permissions',                '🔒')
+@register_label('framework_cleanup',                   'Framework Cleanup',              '🧹')
 def _register_config():
     pass
 

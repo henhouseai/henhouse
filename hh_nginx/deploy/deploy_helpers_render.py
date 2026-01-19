@@ -55,7 +55,7 @@ def render_nginx_summary_contribution() -> Dict[str, Any]:
     summary = f"{protocol}://{domain} ({status})"
 
     table_data = TableData()
-    table_data.add_row('nginx_summary', value=f"NGINX: {summary}")
+    table_data.add_row('nginx_summary', value=summary)
 
     field_config = FieldConfig()
     field_config.add_simple(['nginx_summary'])
@@ -93,11 +93,11 @@ def render_nginx_domain_table() -> Dict[str, Any]:
 
     # Build domain table
     table_data = TableData()
-    table_data.add_row('domain_header', setting='Setting', value='Value', permissions='Permissions')
+    table_data.add_row('domain_header', value='Value', permissions='Permissions')
 
     # Port (443 for SSL, 80 for HTTP-only)
     port = '443' if ssl_enabled else '80'
-    table_data.add_row('domain_setting', setting='Port', value=port, permissions='N/A')
+    table_data.add_row('nginx_port', value=port, permissions='N/A')
 
     # Certificate path and creation status - read from nginx deployment hook results
     certificate_path = None
@@ -115,7 +115,7 @@ def render_nginx_domain_table() -> Dict[str, Any]:
         cert_status = str(certificate_path)
         if certificate_created:
             cert_status += " (created)"
-        table_data.add_row('domain_setting', setting='Certificate', value=cert_status, permissions='600')
+        table_data.add_row('nginx_certificate', value=cert_status, permissions='600')
 
     # Server IP binding and local access control - read from nginx config hook results
     server_ip = None
@@ -130,10 +130,10 @@ def render_nginx_domain_table() -> Dict[str, Any]:
                 break
 
     if server_ip and isinstance(server_ip, str):
-        table_data.add_row('domain_setting', setting='Server IP', value=server_ip, permissions='644')
+        table_data.add_row('nginx_server_ip', value=server_ip, permissions='644')
 
     if is_local and local_allow_block:
-        table_data.add_row('domain_setting', setting='Local Access', value=local_allow_block, permissions='N/A')
+        table_data.add_row('nginx_local_access', value=local_allow_block, permissions='N/A')
 
     # NGINX deployment status from hook results
     nginx_deployed = False
@@ -154,13 +154,13 @@ def render_nginx_domain_table() -> Dict[str, Any]:
                 break
 
     # NGINX status
-    table_data.add_row('domain_setting', setting='NGINX Deployed', value='Yes' if nginx_deployed else 'No', permissions='755')
+    table_data.add_row('nginx_deployed_status', value='Yes' if nginx_deployed else 'No', permissions='755')
     nginx_status = 'Yes (nginx service running)' if nginx_active else 'No'
-    table_data.add_row('domain_setting', setting='NGINX Active', value=nginx_status, permissions='N/A')
+    table_data.add_row('nginx_active_status', value=nginx_status, permissions='N/A')
 
     field_config = FieldConfig()
     field_config.add_header('domain_header')
-    field_config.add_simple(['domain_setting'])
+    field_config.add_simple(['nginx_port', 'nginx_certificate', 'nginx_server_ip', 'nginx_local_access', 'nginx_deployed_status', 'nginx_active_status'])
 
     # Return as full render_block instead of table pieces
     domain_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='domain')

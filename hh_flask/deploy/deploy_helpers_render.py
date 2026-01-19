@@ -62,7 +62,7 @@ def render_flask_summary_contribution() -> Dict[str, Any]:
         summary = "no activity"
 
     table_data = TableData()
-    table_data.add_row('flask_summary', value=f"Flask: {summary}")
+    table_data.add_row('flask_summary', value=summary)
 
     field_config = FieldConfig()
     field_config.add_simple(['flask_summary'])
@@ -100,7 +100,7 @@ def render_flask_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('flask_detail_header', daemon='Daemon', status='Status', permissions='Permissions')
+    table_data.add_row('flask_detail_header', status='Status', permissions='Permissions')
 
     # Show each daemon from restart data
     daemons = flask_restart_data.get('daemons', []) if flask_restart_data else []
@@ -108,23 +108,33 @@ def render_flask_detail_table() -> Dict[str, Any]:
         tier = daemon.get('tier', 'unknown')
         status = daemon.get('status', 'unknown')
         port = daemon.get('port', '?')
-        user = daemon.get('user', '')
         permissions = '755'  # Default Flask permissions
-        table_data.add_row('flask_daemon', daemon=tier, status=f"{status} (port {port})", permissions=permissions)
 
-    # Show deployed apps if no restart data
+        # Map tier to field type
+        tier_field_map = {
+            'guest': 'daemon_guest',
+            'verified': 'daemon_verified',
+            'admin': 'daemon_admin',
+            'root': 'daemon_root',
+            'media': 'daemon_media'
+        }
+        field_type = tier_field_map.get(tier, 'daemon_guest')
+
+        table_data.add_row(field_type, status=f"{status} (port {port})", permissions=permissions)
+
+    # Show deployed apps if no restart data (fallback - shouldn't normally happen)
     if not daemons and flask_deployed:
         for app in flask_deployed:
-            table_data.add_row('flask_daemon', daemon=app, status='Deployed', permissions='755')
+            table_data.add_row('daemon_guest', status='Deployed', permissions='755')
         if media_deployed:
-            table_data.add_row('flask_daemon', daemon='Media Server', status='Deployed', permissions='755')
+            table_data.add_row('daemon_media', status='Deployed', permissions='755')
 
     if not daemons and not flask_deployed:
         return trace_out({})
 
     field_config = FieldConfig()
     field_config.add_header('flask_detail_header')
-    field_config.add_simple(['flask_daemon'])
+    field_config.add_simple(['daemon_guest', 'daemon_verified', 'daemon_admin', 'daemon_root', 'daemon_media'])
 
     # Return as full render_block
     flask_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='flask_daemons')

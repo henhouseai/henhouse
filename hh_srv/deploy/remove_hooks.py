@@ -203,9 +203,9 @@ def clear_manifest_sites() -> Dict[str, Any]:
         return trace_out({"status": "error", "component": "clear_manifest", "error": str(e)})
 
 
-@register_module_hook('remove_95_render', 'Render removal summary')
-def render_removal_summary() -> Dict[str, Any]:
-    """Render the main removal summary table - ONE row per category max."""
+@register_module_hook('remove_95_render', 'Render server removal status')
+def render_srv_removal() -> Dict[str, Any]:
+    """Render srv module's removal status (files, manifest)."""
     from hh.gateway.gateway import get_gateway
     from hh.gateway.response.json_standard import get_data
 
@@ -216,57 +216,33 @@ def render_removal_summary() -> Dict[str, Any]:
 
     table_data = TableData()
 
-    # Project header
-    project_name = 'Unknown'
-    for result in hook_results:
-        if result.get('project_name'):
-            project_name = result['project_name']
-            break
-    table_data.add_row('project_header', value=project_name)
-
-    # Flask stopped
-    flask_stopped = any(result.get('flask_stopped') for result in hook_results)
-    if flask_stopped:
-        table_data.add_row('flask_stopped', value='Yes')
-
-    # Maintenance stopped
-    maint_stopped = any(result.get('maintenance_stopped') for result in hook_results)
-    if maint_stopped:
-        table_data.add_row('maintenance_stopped', value='Yes')
-
-    # Domains removed - consolidated
-    domains_removed = []
-    for result in hook_results:
-        if result.get('domains_removed'):
-            domains_removed.extend(result['domains_removed'])
-    if domains_removed:
-        table_data.add_row('domains_removed', value=', '.join(domains_removed))
-
-    # NGINX reloaded
-    nginx_reloaded = any(result.get('nginx_reloaded') for result in hook_results)
-    if nginx_reloaded:
-        table_data.add_row('nginx_reloaded', value='Yes')
-
-    # Deployment path
+    # Get srv-specific data
     deployment_path = 'Unknown'
+    files_removed = False
+    manifest_cleared = False
+    removed_count = 0
+
     for result in hook_results:
-        if result.get('deployment_path'):
-            deployment_path = result['deployment_path']
-            break
-    table_data.add_row('deployment_path', value=deployment_path)
+        if result.get('component') == 'remove_files':
+            files_removed = result.get('files_removed', False)
+            removed_count = result.get('removed_count', 0)
+        elif result.get('component') == 'clear_manifest':
+            manifest_cleared = result.get('manifest_cleared', False)
+        elif result.get('deployment_path'):
+            # Get deployment path from pre-validate hook
+            deployment_path = result.get('deployment_path', 'Unknown')
 
-    # Files removed
-    files_removed = any(result.get('files_removed') for result in hook_results)
-    table_data.add_row('files_removed', value='Yes' if files_removed else 'No')
-
-    # Manifest cleared
-    manifest_cleared = any(result.get('manifest_cleared') for result in hook_results)
-    table_data.add_row('manifest_cleared', value='Yes' if manifest_cleared else 'No')
+    # Summary row
+    summary_parts = []
+    if files_removed:
+        summary_parts.append(f"{removed_count} files removed")
+    if manifest_cleared:
+        summary_parts.append("manifest cleared")
+    summary = ', '.join(summary_parts) if summary_parts else 'No operations'
+    table_data.add_row('srv_removal_summary', value=summary)
 
     field_config = FieldConfig()
-    field_config.add_header('project_header')
-    field_config.add_simple(['flask_stopped', 'maintenance_stopped', 'domains_removed',
-                            'nginx_reloaded', 'deployment_path', 'files_removed', 'manifest_cleared'])
+    field_config.add_simple(['srv_removal_summary'])
 
     return {
         "table_data": table_data,
