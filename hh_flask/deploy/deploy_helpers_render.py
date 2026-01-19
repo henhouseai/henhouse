@@ -100,14 +100,23 @@ def render_flask_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('flask_detail_header', daemon='Daemon', permissions='Permissions')
+    table_data.add_row('flask_detail_header', tier='Tier', port='Port', path='Path', permissions='Permissions')
 
     # Show each daemon from restart data
     daemons = flask_restart_data.get('daemons', []) if flask_restart_data else []
+
+    # Get project name for fallback path construction
+    project_name = 'unknown'
+    for result in hook_results:
+        if result.get('project_name'):
+            project_name = result['project_name']
+            break
+
     for daemon in daemons:
         tier = daemon.get('tier', 'unknown')
         status = daemon.get('status', 'unknown')
         port = daemon.get('port', '?')
+        app_path = daemon.get('app_path', f"/srv/{project_name}/{project_name}_{tier}.py")
         permissions = '755'  # Default Flask permissions
 
         # Map status to field type (state-based)
@@ -120,15 +129,15 @@ def render_flask_detail_table() -> Dict[str, Any]:
         else:
             field_type = 'daemon_started'  # Default
 
-        # Tier name goes in value column
-        table_data.add_row(field_type, daemon=f"{tier} (port {port})", permissions=permissions)
+        # Separate columns for tier, port, path
+        table_data.add_row(field_type, tier=tier, port=str(port), path=app_path, permissions=permissions)
 
     # Show deployed apps if no restart data (fallback - shouldn't normally happen)
     if not daemons and flask_deployed:
         for app in flask_deployed:
-            table_data.add_row('daemon_started', daemon='app (deployed)', permissions='755')
+            table_data.add_row('daemon_started', tier='app', port='?', path='deployed', permissions='755')
         if media_deployed:
-            table_data.add_row('daemon_started', daemon='media (deployed)', permissions='755')
+            table_data.add_row('daemon_started', tier='media', port='?', path='deployed', permissions='755')
 
     if not daemons and not flask_deployed:
         return trace_out({})

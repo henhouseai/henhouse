@@ -166,7 +166,7 @@ def start_flask_daemon(project_name: str, tier: str, port: int) -> Dict[str, Any
         
         if check_processes:
             result_status = 'restarted' if killed_any else 'started'
-            start_result = {'tier': tier, 'status': result_status, 'port': port, 'user': user}
+            start_result = {'tier': tier, 'status': result_status, 'port': port, 'user': user, 'app_path': app_path}
             log(f"Started Flask daemon for {tier} tier on port {port}")
         else:
             start_result = {'tier': tier, 'status': 'failed', 'error': 'Process not found running'}
@@ -242,7 +242,7 @@ def start_media_server(project_name: str, port: int) -> Dict[str, Any]:
         
         if check_processes:
             result_status = 'restarted' if killed_any else 'started'
-            start_result = {'tier': 'media', 'status': result_status, 'port': port, 'user': user}
+            start_result = {'tier': 'media', 'status': result_status, 'port': port, 'user': user, 'app_path': app_path}
             log(f"Started Media Server Flask daemon on port {port}")
         else:
             start_result = {'tier': 'media', 'status': 'failed', 'error': 'Process not found running'}

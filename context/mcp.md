@@ -81,7 +81,7 @@ Page Load → get_app_actions() → AppActionWhitelist → available_actions in 
 ### MCP Client Entry Point
 **File**: `hh/deploy/flask/mcp_client.py`
 
-Handles MCP protocol methods and routes to Gateway:
+Handles MCP protocol methods for agent calls:
 - Implements MCP protocol methods: `initialize`, `tools/list`, `prompts/list`, `resources/list`, `tools/call`, `notifications/initialized`
 - Protocol version: `"2024-11-05"` (MCP_PROTOCOL_VERSION constant)
 - Server info: Returns `{"name": "Henhouse MCP Server", "version": "1.0.0"}` in initialize response
@@ -90,8 +90,18 @@ Handles MCP protocol methods and routes to Gateway:
 - For `tools/call`: Validates tool name and arguments via `MCPWhitelist.validate_tool(tier, tool_name, args)`
 - Builds `argv` array: `[tool_name, --arg1, value1, ...]` (also accepts query string params from sys.argv[1:])
 - Sets `request_id` via `gateway.response.set_request_id()` before dispatch
-- Calls `gateway.dispatch(argv, "mcp")`
-- Parses response as JSON-RPC or wraps plain text in MCP format
+- Calls `gateway.dispatch(argv, "mcp")` - dispatches to MCP backend
+- Returns minimal JSON-RPC 2.0 responses to conserve agent context
+
+### API Client Entry Point
+**File**: `hh/deploy/flask/api_client.py`
+
+Handles API calls from TypeScript web UI:
+- Processes Fetch API requests from web UI components
+- Validates against `api-whitelist-{tier}.json` files
+- No MCP protocol methods (`tools/list`, etc.) - just tool execution
+- Returns fuller responses with state data for web UI consumption
+- Builds `argv` array and calls `gateway.dispatch(argv, "api")` - dispatches to API backend
 
 ### MCP Wrapper Script
 **File**: `mcp_wrapper.py` (project root)
@@ -131,29 +141,39 @@ Bridges stdio MCP to HTTP endpoint:
 - Runs in infinite loop handling multiple requests until EOF
 - Handles 204 No Content responses (for notifications)
 
-### MCP Registry
-**File**: `hh/gateway/registry/mcp.py`
+### Tool Whitelist Registry
+**File**: `hh/gateway/registry/tool_whitelist.py`
 
-Auto-generates backend handler wrappers:
-- Loads tier-specific whitelists from `MCPWhitelist._load_tier_whitelist(tier)` for all tiers in HENHOUSE_TIERS
-- Collects all unique tool names across all tier whitelists
-- Uses `exec()` to generate wrapper functions with `@register_mcp('tool_name')` decorators
-- Wrapper template (`_mcp_wrapper_template`) verifies `gateway.response.has_action_response()` exists
-- Wrappers return `True` on success, `False` on failure (reports error via `report_error("backend", ...)`)
-- Functions registered in global `mcps` dictionary (via `register_mcp` decorator) for registry discovery
-- Tool names converted to valid Python function names (hyphens replaced with underscores)
+Manages three-field tool registration system:
+- `@register_tool()` decorator with `mcp_tiers`, `api_tiers`, `app_action_tiers` parameters
+- Global registry `_global_tool_registry` populated by decorators at import time
+- Generates 12 separate whitelist files during cold cache regeneration:
+  - 4 MCP whitelists (`mcp-whitelist-1.json` through `mcp-whitelist-4.json`)
+  - 4 API whitelists (`api-whitelist-1.json` through `api-whitelist-4.json`)
+  - 4 App Action whitelists (`app-action-whitelist-1.json` through `app-action-whitelist-4.json`)
+- Lazy loading with cache rebuild on miss by scanning all `tools.py` files
+- Supports role-based access control for MCP tools via `role_whitelist` parameter
 
 ### MCP Response Handler
 **File**: `hh/gateway/response/response_mcp.py`
 
-Formats Gateway responses as JSON-RPC 2.0:
+Formats Gateway responses as minimal JSON-RPC 2.0 for agents:
 - Extends base `Response` class
 - Stores `request_id` via `set_request_id()` method
+- Returns minimal responses to conserve agent context windows
 - `get_output()` handles two cases:
-  - **Error case**: If `error_output` exists with "errors" key, formats as JSON-RPC error response with error code -32603, includes debug output in error data if available
-  - **Success case**: Takes `action_response["content"][0]["text"]` (dict), serializes to JSON string, wraps in JSON-RPC 2.0 result format
+  - **Error case**: JSON-RPC error response with error code -32603, includes debug output in error data
+  - **Success case**: Serializes `action_response["content"][0]["text"]` to JSON string, wraps in JSON-RPC 2.0 result format
 - Includes debug output in `content` array if `debug_output` has entries
-- Post-processes to stringify `content[0]["text"]` field if it's a dict (for MCP format compatibility)
+
+### API Response Handler
+**File**: `hh/gateway/response/response_api.py`
+
+Formats Gateway responses with fuller data for web UI:
+- Extends base `Response` class
+- Returns comprehensive responses with state data for web UI consumption
+- Does not use JSON-RPC 2.0 format (direct JSON responses)
+- Includes complete action results and metadata needed by TypeScript components
 
 ### MCP Tools Whitelist System
 **Core File**: `hh/gateway/registry/mcp_whitelist.py`
@@ -171,39 +191,35 @@ Decorator-based lazy-loading whitelist system:
 
 ### Application Actions System
 
-Application actions are a custom add-on layer built on top of the MCP whitelist system, designed for the TypeScript/HTTP interfaces. They use tier levels 5-8 (mapped from user tier levels 1-4: 1→5, 2→6, 3→7, 4→8).
+Application actions provide clickable action links in the web UI. They read from dedicated `app-action-whitelist-{tier}.json` files instead of mixing with MCP whitelists.
 
 **Three Types of Tool Registration**:
-1. **MCP-only tools** (tiers 1-4): Available as MCP tools for agents/external clients, not shown in web UI
-2. **App-action-only tools** (tiers 5-8 only): Available as clickable links in web UI, not available as MCP tools (typically aggregate operations that modify multiple things at once)
-3. **Dual-purpose tools** (tiers 1-4 AND 5-8, e.g., `[3, 4, 7, 8]`): Available as both MCP tools AND app actions - can be called via MCP protocol or clicked in web UI
+1. **MCP-only tools** (`mcp_tiers=[1,2,3,4]`): Available as MCP tools for agents/external clients, not shown in web UI
+2. **API-only tools** (`api_tiers=[1,2,3,4]`): Available to web UI via `/api` endpoint, not as MCP tools
+3. **App-action-only tools** (`app_action_tiers=[3,4]`): Available as clickable links in web UI, separate from MCP/API
+4. **Dual-purpose tools** (`mcp_tiers=[3,4], api_tiers=[3,4], app_action_tiers=[3,4]`): Available everywhere
 
-**Common Tier Patterns**:
-- **`[3, 4, 7, 8]` (dual-purpose, admin/root only)**: Common pattern for CRUD operations that require restricted access. These tools are available to admin (tier 3) and root (tier 4) users via MCP, and also appear as app actions in the web UI for the same user tiers. Examples include `modify_name`, `modify_text`, `add_page`, `delete_page` - operations that mutate data and shouldn't be accessible to guest or verified users.
-- **`[7, 8]` (app-action-only, admin/root only)**: Common pattern for aggregate operations that modify multiple things at once through a single UI interaction. These have no direct MCP counterpart because they're designed specifically for the web interface workflow, but they are built from individual MCP tools. The TypeScript client includes optimization logic (traveling salesman-like) to minimize MCP calls by selecting the best combination of setters to mutate required data with minimum API calls. Examples include `combo`, `copy_images_app`, `move_images_app` - complex operations that combine multiple steps into one user action.
+**Common Patterns**:
+- **`mcp_tiers=[3,4], api_tiers=[3,4], app_action_tiers=[3,4]`**: CRUD operations available everywhere (admin/root only)
+- **`app_action_tiers=[3,4]`**: Complex aggregate operations that appear as single buttons in web UI but are built from multiple API calls
+- **`mcp_tiers=[1,2,3,4]`**: Read operations available to all agent tiers
 
 **App Action Access**:
-- Accessed via `MCPWhitelist.get_app_actions(user_tier_level)` - maps user tier level (1-4) to app action tier level (5-8)
+- Accessed via `get_app_actions(user_tier_level)` which maps user tiers (1-4) to app action tiers
 - Returns actions with `id`, `tool_name`, `description`, `label`, `group`, `requires_fields`
-- Included in `get_page` response `available_actions` field when backend is "mcp" (for TypeScript client)
-- Also used by HTTP backend for server-rendered action links
-- Tools with tier levels 5-8 are filtered out of MCP whitelists (not shown in `tools/list`)
+- Included in `get_page` response `available_actions` field for TypeScript client
+- Used by HTTP backend for server-rendered action links
 
 **Decorator Parameters**:
-- `tool_name`: Name of the MCP tool
-- `description`: Tool description
-- `inputSchema`: JSON Schema for tool arguments
-- `tiers`: List of tier levels. Can include:
-  - `[1, 2, 3, 4]` for MCP tools (1=guest, 2=verified, 3=admin, 4=root)
-  - `[5, 6, 7, 8]` for app actions only (mapped from user tiers 1-4)
-  - `[3, 4, 7, 8]` for dual-purpose tools (admin/root only - both MCP and app action)
-  - `[7, 8]` for app-action-only tools (admin/root only - no MCP counterpart)
-  - Default: `None` (all MCP tiers `[1, 2, 3, 4]`)
-- `requires_approval`: Whether tool requires approval queue (for future transaction system)
-- `crud_type`: Operation type ('create', 'read', 'update', 'delete', 'mixed')
-- `display_color`: Optional color for approval interface (for future transaction system)
-- `app_action_group`: Optional group name for app actions (tiers 5-8) - used for organizing actions in web UI
-- `app_action_label`: Optional label for app actions (defaults to tool_name) - displayed in web UI
+- `tool_name`: Name of the tool
+- `description`: Tool description (required for MCP tools)
+- `inputSchema`: JSON Schema for tool arguments (required for MCP tools)
+- `mcp_tiers`: List of MCP tier levels (1-4) for agent access via `/mcp`
+- `api_tiers`: List of API tier levels (1-4) for web UI access via `/api`
+- `app_action_tiers`: List of app action tier levels (1-4) for web UI buttons
+- `role_whitelist`: List of MCP role names for additional agent restrictions
+- `app_action_group`: Group name for organizing actions in web UI
+- `app_action_label`: Display label for app actions (defaults to tool_name)
 
 ---
 
@@ -211,21 +227,31 @@ Application actions are a custom add-on layer built on top of the MCP whitelist 
 
 ### Backend Registration
 
-MCP is registered as a backend type in `hh/gateway/registry/backend.py`:
-- Backend type: `"mcp"`
-- Decorator: `@register_mcp`
-- Dictionary: `mcps`
+MCP and API are registered as separate backend types in `hh/gateway/registry/backend.py`:
+- Backend types: `"mcp"` and `"api"`
+- Decorators: `@register_mcp` and `@register_api`
+- Dictionaries: `mcps` and `apis`
 
-### Command Execution Flow
+### MCP Command Execution Flow
 
 1. **MCP Client** receives tool call via `tools/call` method, gets tier from `USER_TIER` env var (defaults to 'guest')
 2. **Validation**: Validates tool exists and arguments match schema via `MCPWhitelist.validate_tool(tier, tool_name, args)`
-3. **Argument Conversion**: MCP arguments `{"key": "value"}` → `["tool_name", "--key", "value"]` format (also accepts query params from sys.argv[1:])
+3. **Argument Conversion**: MCP arguments `{"key": "value"}` → `["tool_name", "--key", "value"]` format
 4. **Request ID**: Sets request ID via `gateway.response.set_request_id(request_id)` before dispatch
-5. **Gateway Dispatch**: `gateway.dispatch(argv, "mcp")`
-6. **Action Handler**: Standard Gateway action executes, sets `action_response` via `gateway.response.set_action_response(success_payload(data))`
-7. **MCP Backend Handler**: Auto-generated wrapper verifies `gateway.response.has_action_response()` exists
-8. **ResponseMCP**: Formats `action_response` as JSON-RPC 2.0, includes debug output if available
+5. **Gateway Dispatch**: `gateway.dispatch(argv, "mcp")` - routes to MCP backend
+6. **Action Handler**: Standard Gateway action executes, sets `action_response`
+7. **MCP Backend Handler**: Auto-generated wrapper verifies response exists
+8. **ResponseMCP**: Formats minimal JSON-RPC 2.0 response for agents
+
+### API Command Execution Flow
+
+1. **TypeScript Client** makes Fetch API call to `/api` endpoint
+2. **Validation**: Validates tool exists for user tier via `APIWhitelist.validate_tool(tier, tool_name, args)`
+3. **Argument Conversion**: API arguments `{"key": "value"}` → `["tool_name", "--key", "value"]` format
+4. **Gateway Dispatch**: `gateway.dispatch(argv, "api")` - routes to API backend
+5. **Action Handler**: Standard Gateway action executes, sets `action_response`
+6. **API Backend Handler**: Auto-generated wrapper verifies response exists
+7. **ResponseAPI**: Formats fuller JSON response with state data for web UI
 
 ### Response Data Structure
 
@@ -293,62 +319,78 @@ Both `mcp_wrapper.py` and database connection use same detection:
 
 ### Adding a Tool to Whitelist
 
-1. **Create or Edit Registration File**: Add `@register_mcp_tool` decorator to appropriate `tools.py` file:
+1. **Create or Edit Registration File**: Add `@register_tool` decorator to appropriate `tools.py` file:
    - `hh/gateway/registry/tools.py` - For registry lister tools
    - `hh/page/tools.py` - For page-related tools
-   - `hh/agents/tools.py` - For agent-related tools
-   - `hh/mcp_request/tools.py` - For MCP request tools
-   - `hh/mcp_action_request/tools.py` - For MCP action request tools
    - `hh/image/tools.py` - For image-related tools
    - `hh/work/tools.py` - For work-related tools
    - `hh/source_code_file/tools.py` - For source code file tools
    - Or create new `tools.py` in appropriate module folder (will be auto-discovered by scanner)
 
-2. **Register Tool**: Use `@register_mcp_tool` decorator on a placeholder function. See `hh/gateway/registry/mcp_whitelist.py` - `register_mcp_tool()` function for the decorator definition, and see existing `tools.py` files (e.g., `hh/page/tools.py`, `hh/gateway/registry/tools.py`) for registration examples.
+2. **Register Tool**: Use `@register_tool` decorator with appropriate tier parameters:
+
+```python
+@register_tool(
+    tool_name='modify_name',
+    description='Modify the name of a page',
+    inputSchema={
+        'type': 'object',
+        'properties': {
+            'page_id': {'type': 'integer'},
+            'name': {'type': 'string'}
+        },
+        'required': ['page_id', 'name']
+    },
+    mcp_tiers=[3, 4],          # Admin/root via MCP
+    api_tiers=[3, 4],          # Admin/root via API
+    app_action_tiers=[3, 4],   # Admin/root as app action
+    crud_type='update'
+)
+```
 
 3. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
 
-4. **Cache Rebuild**: 
-   - Cache files auto-rebuild on cache miss (when tool is requested but not in cache for any tier)
-   - Rebuild process: Scans all `tools.py` files, imports modules, rebuilds ALL tier whitelists at once
-   - Or manually clear cache to force rebuild: Delete `hh/gateway/registry/cache/mcp-whitelist-*.json` files
+4. **Cache Rebuild**:
+   - Cache files auto-rebuild on cache miss (when tool is requested but not in cache)
+   - Rebuild process: Scans all `tools.py` files, imports modules, rebuilds ALL whitelist files at once (12 total)
+   - Or manually clear cache to force rebuild: Delete `hh/gateway/registry/cache/*-whitelist-*.json` files
    - No Flask server restart needed (cache files are checked on each request, in-memory cache persists)
-   - MCP registry auto-generates wrapper on next import (no code changes needed, uses exec() to create functions)
 
 ### Tool Requirements
 
-For a tool to work through MCP:
-- Must be registered with `@register_mcp_tool` decorator in an `tools.py` file
-- Must be available for the requesting tier (tier levels: 1=guest, 2=verified, 3=admin, 4=root)
+For a tool to work through MCP or API:
+- Must be registered with `@register_tool` decorator in a `tools.py` file
+- Must specify appropriate tier permissions (`mcp_tiers`, `api_tiers`, `app_action_tiers`)
 - Must have action handler registered with `@register_action` and `@register_command`
-- Must use `success_payload()` for response data (creates proper structure)
+- MCP tools must include `description` and `inputSchema` parameters
 - Should follow standard Gateway patterns (error handling, tracing)
 
 ### How `tools.py` modules get imported (and when the registry is populated)
 
-- There are two import paths:
-  - **Whitelist rebuild path**: On cache miss/force rebuild, `mcp_whitelist._scan_for_mcp_tools()` finds every file with `@register_mcp_tool` under both `hh/` and `ext/`, then `_import_modules()` imports them. Each decorator call populates `_global_tool_registry`. MCP-tier tools (1-4) are written into tier caches; app-action-only tools (5-8) stay only in the in-memory registry.
-  - **Page-load path**: When a page is loaded (HTTP or MCP backend), `hh/page/page_registry.py::_load_tools_for_page_class` walks the page class MRO and `importlib.import_module("{base}.tools")` for each class. That import also runs decorators and fills `_global_tool_registry`. This is how app actions get into memory for `get_page`/`show_page` responses, even though they are not stored in the tier caches.
-- `get_app_actions(user_tier_level)` reads `_global_tool_registry` (not the tier caches) and filters for app-action tier levels (5-8, mapped from user tier +4). Page classes attach these to `available_actions` for MCP responses.
+- **Whitelist rebuild path**: On cache miss/force rebuild, `tool_whitelist._scan_for_mcp_tools()` finds every file with `@register_tool` under both `hh/` and `ext/`, then imports them. Each decorator call populates `_global_tool_registry`. Tools are then distributed into 12 separate whitelist files (4 MCP, 4 API, 4 app action).
+- **Page-load path**: When a page is loaded, `hh/page/page_registry.py::_load_tools_for_page_class` walks the page class MRO and imports tools modules. This populates `_global_tool_registry` for app action access.
+- `get_app_actions(user_tier_level)` reads from dedicated app-action whitelist files and filters for appropriate user tiers.
 
 ### Schema Validation
 
-The `inputSchema` in whitelist is used by `MCPWhitelist.validate_tool()` for validation:
-- Validates tool exists for the requesting tier (calls `get_tool()` which may trigger rebuild)
+The `inputSchema` parameter is used for MCP tool validation:
+- MCP tools require `inputSchema` and validate arguments against it
+- API tools can omit `inputSchema` (less strict validation)
+- Validates tool exists for the requesting tier and backend type
 - Validates required fields are present (checks `schema.get('required', [])`)
-- Validates field types (string, integer, boolean, array, object) with automatic type coercion:
-  - String numbers coerced to integers for integer fields
-  - Negative numbers handled correctly
-- Allows extra fields (fields not in schema are ignored, Gateway handles additional validation)
+- Validates field types with automatic type coercion
+- Allows extra fields (Gateway handles additional validation)
 - Returns tuple `(bool, str)` - `(False, error_message)` on failure, `(True, "")` on success
 
 ### Testing Changes
 
 After adding to whitelist and redeploying:
-1. Tool should appear in `tools/list` response
-2. Argument validation should work per schema
-3. Tool execution should route through Gateway normally
-4. Response should be properly formatted as JSON-RPC 2.0
+1. **MCP tools**: Should appear in `tools/list` response at `/mcp` endpoint
+2. **API tools**: Should be callable via `/api` endpoint
+3. **App actions**: Should appear in `available_actions` field of `get_page` responses
+4. Argument validation should work per schema (MCP) or be more permissive (API)
+5. Tool execution should route through Gateway normally
+6. Responses should be formatted appropriately (JSON-RPC 2.0 for MCP, direct JSON for API)
 
 ---
 
@@ -371,11 +413,11 @@ After adding to whitelist and redeploying:
 - ResponseMCP includes debug output in `content` array if available
 
 ### With HTTP Backend
-- HTTP backend uses MCP backend for all API operations - no separate API backend exists
-- TypeScript client makes Fetch API calls that route through MCP protocol
-- Server-rendered HTTP pages can include app action links that trigger MCP tool calls
-- App actions retrieved via `MCPWhitelist.get_app_actions()` are included in `get_page` responses for TypeScript client consumption
-- Unified interface: All CRUD work goes through the same MCP interface whether humans (via TypeScript client) or agents (via MCP protocol) are performing the work, enabling future collaboration where both can work simultaneously
+- HTTP backend uses API backend for programmatic operations via `/api` endpoint
+- TypeScript client makes Fetch API calls that route through API backend (not MCP)
+- Server-rendered HTTP pages include app action links from app-action whitelists
+- App actions retrieved via `get_app_actions()` are included in `get_page` responses
+- Separation allows different response formats: fuller responses for web UI, minimal for agents
 
 ### With Database Connection
 - Shares same config file format and location
@@ -405,4 +447,4 @@ This process illustrates how MCP tools can be chained together, with later opera
 
 ---
 
-This document focuses on Henhouse-specific MCP implementation details. For general MCP protocol information, see MCP specification. For Gateway, Registry, and Response system details, see respective documentation files.
+This document focuses on Henhouse-specific MCP and API implementation details. For general MCP protocol information, see MCP specification. For Gateway, Registry, and Response system details, see respective documentation files.
