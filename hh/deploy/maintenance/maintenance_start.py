@@ -192,6 +192,7 @@ def start_maintenance_process(project_name: str) -> Dict[str, Any]:
                 'status': result_status,
                 'log_file': str(log_file),
                 'deployed': is_deployed,
+                'worker_path': str(worker_path),
             }
             if user:
                 start_result['user'] = user
@@ -314,6 +315,7 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
                 'status': result_status,
                 'log_file': str(log_file),
                 'deployed': is_deployed,
+                'worker_path': str(worker_path),
             }
             if user:
                 start_result['user'] = user

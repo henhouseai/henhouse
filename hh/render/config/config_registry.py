@@ -49,8 +49,8 @@ def check_registration_complete(name: str) -> bool:
     """
     # Check icon (exact name match)
     has_icon = _icon_registry.get(name) is not None
-    # Check label (with or without l_ prefix)
-    label_key = name if name.startswith('l_') else f'l_{name}'
+    # Check label (strip l_ prefix to match storage format)
+    label_key = name[2:] if name.startswith('l_') else name
     has_label = _label_registry.get(label_key) is not None
     return has_icon or has_label
 
@@ -125,57 +125,46 @@ def _import_modules(module_paths: List[str]) -> Dict[str, Dict[str, str | None]]
 def discover_config_registrations(force_regenerate: bool = False) -> Dict[str, Dict[str, Any]]:
     """Discover all icon and label registrations and build cache"""
     trace_in()
-    import time
-    
-    global _last_scan_time
-    
+
     cache_file = CACHE_DIR / "config-registry.json"
-    current_time = time.time()
-    
-    # Always check throttle first, even if force_regenerate is True
-    if cache_file.exists():
+
+    # Check if cold cache file exists and we're not forcing regeneration
+    if cache_file.exists() and not force_regenerate:
         cache_data = _read_cache_file_with_retry(cache_file)
         if cache_data is not None:
-            # Check if we've scanned recently (throttle to prevent repeated scans)
-            last_scan_str = cache_data.get('last_scan', '0')
-            try:
-                last_scan_timestamp = float(last_scan_str)
-            except (ValueError, TypeError):
-                last_scan_timestamp = 0
-            
-            time_since_scan = current_time - last_scan_timestamp
-            
-            # Also check in-memory throttle
-            time_since_memory_scan = current_time - _last_scan_time
-            
-            # If we've scanned recently, honor throttle and use cache (ignore force_regenerate)
-            if time_since_scan < SCAN_THROTTLE_SECONDS or time_since_memory_scan < SCAN_THROTTLE_SECONDS:
-                log(f"Throttling: using cached config registry (scanned {time_since_scan:.1f}s ago, throttle: {SCAN_THROTTLE_SECONDS}s, force_regenerate={force_regenerate} ignored)")
-                trace_out()
-                return cache_data
-            
-            # Cache exists and is old enough - check if we should use it or regenerate
-            if not force_regenerate:
-                log(f"Found config registry cache with {len(cache_data.get('icons', {}))} icons and {len(cache_data.get('labels', {}))} labels (last scan: {time_since_scan:.1f}s ago)")
-                trace_out()
-                return cache_data
-            else:
-                log(f"Force regenerate requested, but cache exists (last scan: {time_since_scan:.1f}s ago) - proceeding with scan")
-    
-    log("Discovering config registrations...")
+            # Load cold cache into hot cache
+            for icon_name, icon_info in cache_data.get('icons', {}).items():
+                if isinstance(icon_info, dict):
+                    icon_value = icon_info.get('value')
+                    icon_module = icon_info.get('module', 'unknown')
+                    if icon_value:
+                        _icon_registry[icon_name] = (icon_value, icon_module)
+
+            for label_name, label_info in cache_data.get('labels', {}).items():
+                if isinstance(label_info, dict):
+                    label_value = label_info.get('value')
+                    label_module = label_info.get('module', 'unknown')
+                    if label_value:
+                        _label_registry[label_name] = (label_value, label_module)
+
+            log(f"Loaded config registry from cache: {len(cache_data.get('icons', {}))} icons and {len(cache_data.get('labels', {}))} labels")
+            trace_out()
+            return cache_data
+
+    # Cold cache missing or force regenerate - run discovery
+    log("Discovering config registrations via filesystem scan...")
     # Clear hot cache registries before importing (prevents duplicates if modules re-execute)
     _icon_registry.clear()
     _label_registry.clear()
     # Scan for @register_label decorators
     config_files = _scan_for_config_registrations()
     import_results = _import_modules(config_files)
-    
+
     # Build cache data
     # Note: _icon_registry and _label_registry are populated during module imports above
     cache_data = {
         "icons": {},
-        "labels": {},
-        "last_scan": str(Path(__file__).stat().st_mtime)
+        "labels": {}
     }
     
     # Track seen registrations to detect duplicates during discovery
@@ -214,11 +203,8 @@ def discover_config_registrations(force_regenerate: bool = False) -> Dict[str, D
                 "module": label_module
             }
             log(f"Found label: {label_name} = {label_value} from {label_module}")
-    
-    # Write cache with current timestamp
-    cache_data['last_scan'] = str(current_time)
-    _last_scan_time = current_time
-    
+
+    # Write cache file
     try:
         with open(cache_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
@@ -321,25 +307,21 @@ def get_label(name: str) -> Optional[str]:
             trace_out()
             return label_value
     
-    # 3. Not known - rebuild cold cache
-    log(f"Label '{name}' not found, rebuilding cache...")
-    discover_config_registrations(force_regenerate=True)
-    
-    # 4. Check hot cache again
+    # 3. Check hot cache again after loading from cold cache
     if k in _label_registry:
         label_data = _label_registry[k]
         if label_data is not None:
             label_value, _ = label_data
-            log(f"Found label '{name}' after rebuild")
+            log(f"Found label '{name}' after loading cache")
             trace_out()
             return label_value
-    
-    # 5. Not found - check if this is a truly missing registration before warning
+
+    # 4. Not found - check if this is a truly missing registration before warning
     # For labels, we need to check the base name (without l_ prefix)
     base_name = name[2:] if name.startswith('l_') else name
     if not check_registration_complete(base_name):
-        warn(f"Nothing registered for '{base_name}' - no icon or label found in registry after full rebuild")
-    log(f"Label '{name}' not found after full rebuild")
+        warn(f"Nothing registered for '{base_name}' - no icon or label found in registry after loading cache")
+    log(f"Label '{name}' not found")
     trace_out()
     return None
 
@@ -380,23 +362,19 @@ def get_icon(name: str) -> Optional[str]:
             trace_out()
             return icon_value
     
-    # 3. Not known - rebuild cold cache
-    log(f"Icon '{name}' not found, rebuilding cache...")
-    discover_config_registrations(force_regenerate=True)
-    
-    # 4. Check hot cache again
+    # 3. Check hot cache again after loading from cold cache
     if k in _icon_registry:
         icon_data = _icon_registry[k]
         if icon_data is not None:
             icon_value, _ = icon_data
-            log(f"Found icon '{name}' after rebuild")
+            log(f"Found icon '{name}' after loading cache")
             trace_out()
             return icon_value
-    
-    # 5. Not found - check if this is a truly missing registration before warning
+
+    # 4. Not found - check if this is a truly missing registration before warning
     if not check_registration_complete(name):
-        warn(f"Nothing registered for '{name}' - no icon or label found in registry after full rebuild")
-    log(f"Icon '{name}' not found after full rebuild")
+        warn(f"Nothing registered for '{name}' - no icon or label found in registry after loading cache")
+    log(f"Icon '{name}' not found")
     trace_out()
     return None
 

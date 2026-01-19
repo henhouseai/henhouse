@@ -97,6 +97,8 @@ def validate_deployment_config():
     pass
 ```
 
+**Critical Constraint**: Hooks are invoked by `run_hooks()` with **NO PARAMETERS**. This architectural constraint is why pre-validate hooks must store configuration in module-scoped globals - there is no mechanism to pass config as function parameters. Each module loads and stores its own configuration in its own global scope, which subsequent hooks in the same module can access.
+
 ### Hook Execution Flow
 Hooks execute in alphabetical order by module name (`hh/gateway/registry/module_hooks.py:run_hooks()`):
 
@@ -183,6 +185,8 @@ def remove_nginx_configs():
     # ... remove configs
 ```
 
+**Why Globals Are Correct**: Module-scoped globals are the CORRECT pattern for sharing state between hooks within a single module during one execution. Pre-validate hooks set globals that subsequent operational hooks in the same module read. This is not cross-cutting because it's contained within module boundaries. Globals become cross-cutting ONLY when imported across modules (e.g., `from other_module import their_config`). Within a module, globals are the intended mechanism for config sharing since hooks receive no parameters.
+
 ### Hook Result Pattern
 Hooks communicate status through return values, not shared state:
 
@@ -199,12 +203,28 @@ def remove_nginx_configs():
 # hh_nginx/deploy/remove_hooks.py:render_nginx_removal()
 @register_module_hook('remove_95_render')
 def render_nginx_status():
-    # Read from hook_results, not global state
+    # Read from hook_results for RENDERING only
     hook_results = gateway.response.get_action_response()
     nginx_data = [r for r in hook_results if r.get('component') == 'nginx_configs']
     # Render nginx-specific status
 }
 ```
+
+**Critical: Hook Results Are Output Only**
+
+Hook results are **OUTPUT ONLY** for rendering and status display. **NEVER** use `hook_results` as a communication bus to pass operational configuration between modules or between operational hooks.
+
+**Correct Uses of hook_results:**
+- ✅ Render hooks (deploy_95_render, remove_95_render) reading results for display
+- ✅ Render hooks reading common metadata like `project_name` for path formatting
+- ✅ Status aggregation and error reporting
+
+**Incorrect Uses of hook_results:**
+- ❌ Operational hooks reading other modules' results for config data
+- ❌ Using hook_results to pass config from pre-validate to later operational hooks
+- ❌ Treating hook_results as a shared state bus
+
+**Rule**: Operational hooks should ONLY read from their module's own globals. Render hooks may read from hook_results for display purposes.
 
 ### Hook Result Aggregation in Deployment
 In the deployment system (`hh/deploy/deploy.py`), hook results are systematically collected:
@@ -241,6 +261,49 @@ Each module maintains its own `config_labels.py` files in folders sibling to the
 ```
 
 The config registry system automatically discovers labels (`hh/render/config/config_registry.py:discover_config_registrations()`) and caches them from all active modules.
+
+### Field Config Best Practices
+
+**State-Based vs Entity-Based Field Types**
+
+Field types should represent **state/status**, not entities:
+
+```python
+# ❌ WRONG: Entity-based field types (hardcoded tier names)
+@register_label('daemon_guest', 'Guest', '👤')
+@register_label('daemon_verified', 'Verified', '✅')
+# Problem: Tiers are dynamic, hardcoding violates flexibility
+
+# ✅ RIGHT: State-based field types
+@register_label('daemon_started', 'Started', '✅')
+@register_label('daemon_stopped', 'Stopped', '🛑')
+@register_label('daemon_restarted', 'Restarted', '🔄')
+# Entity names go in value columns, field types show state
+```
+
+**Label Text Guidelines**
+
+Field config labels automatically become the first column. Values should NOT duplicate what the label already provides:
+
+```python
+# ❌ WRONG: Duplicate data in label and value
+table_data.add_row('flask_summary', value='Flask: 5 daemons started')
+# Label already says "Flask:", value repeats it
+
+# ✅ RIGHT: Label provides context, value provides data
+table_data.add_row('flask_summary', value='5 daemons started')
+# Label registered as: @register_label('flask_summary', 'Flask:', '🌐')
+```
+
+**Table Column Structure**
+
+Choose column count based on data orthogonality:
+
+- **2 columns**: Operation + Result (e.g., Git operations: "Preserve" | "/srv/path/git")
+- **3 columns**: State + Entity + Metadata (e.g., Maintenance: "Started" | "main" | "/path/worker.py")
+- **4 columns**: State + Multiple Attributes (e.g., Flask: "Started" | "guest" | "5001" | "/path/app.py")
+
+Avoid redundant columns - if the field type label already describes the target (e.g., "Git Preserve"), don't add a "Target" column saying "Repository".
 
 ## Refactoring Legacy Monoliths
 
