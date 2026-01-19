@@ -47,23 +47,10 @@ def render_context_detail_table() -> Dict[str, Any]:
         return trace_out({})
 
     table_data = TableData()
-    table_data.add_row('context_detail_header', item='Context Item', operation='Operation', status='Status')
+    table_data.add_row('context_detail_header', value='')
 
     for item in context_items:
-        table_data.add_row('context_item', item=item, operation='Deployed', status='Success')
-
-    # Add operations info
-    for result in hook_results:
-        component = result.get('component', '')
-        if component == 'directory_sterilization' and result.get('items_removed'):
-            items_removed = result['items_removed']
-            table_data.add_row('context_item', item='Directory Cleanup', operation='Sterilized', status=f"{items_removed} items removed")
-        elif component == 'framework_cleanup' and result.get('modules_count'):
-            modules_count = result['modules_count']
-            table_data.add_row('context_item', item='Framework', operation='Cleaned', status=f"{modules_count} modules")
-        elif component == 'site_prepare' and result.get('action'):
-            action = result['action']
-            table_data.add_row('context_item', item='Site Directory', operation='Prepared', status=action)
+        table_data.add_row('context_item', value=item)
 
     field_config = FieldConfig()
     field_config.add_header('context_detail_header')
@@ -72,6 +59,83 @@ def render_context_detail_table() -> Dict[str, Any]:
     context_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='context_items')
     return trace_out({
         "render_block": context_table_html
+    })
+
+
+@register_module_hook('deploy_95_render', 'Render Operations detail table')
+def render_operations_detail_table() -> Dict[str, Any]:
+    """Render Operations details as a separate full table."""
+    trace_in()
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    table_data = TableData()
+    table_data.add_row('ops_header', operation='Operation', target='Target', result='Result')
+
+    # Add operations info
+    for result in hook_results:
+        component = result.get('component', '')
+        if component == 'directory_sterilization' and result.get('items_removed'):
+            items_removed = result['items_removed']
+            table_data.add_row('ops_row', operation='Directory Sterilization', target='Deployment Directory', result=f"{items_removed} items removed")
+        elif component == 'framework_cleanup' and result.get('modules_count'):
+            modules_count = result['modules_count']
+            table_data.add_row('ops_row', operation='Framework Cleanup', target='Python Modules', result=f"{modules_count} modules cleaned")
+        elif component == 'site_prepare' and result.get('action'):
+            action = result['action']
+            table_data.add_row('ops_row', operation='Site Directory Prepare', target='Site Directory', result=action)
+
+    if table_data.num_rows() <= 1:  # Only header row
+        return trace_out({})
+
+    field_config = FieldConfig()
+    field_config.add_header('ops_header')
+    field_config.add_simple(['ops_row'])
+
+    ops_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='operations')
+    return trace_out({
+        "render_block": ops_table_html
+    })
+
+
+@register_module_hook('deploy_95_render', 'Render Permissions detail table')
+def render_permissions_detail_table() -> Dict[str, Any]:
+    """Render Permissions details as a separate full table."""
+    trace_in()
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    table_data = TableData()
+    table_data.add_row('perms_header', component='Component', directory='Directory', permissions='Permissions')
+
+    # Add permissions info for hh_srv components
+    for result in hook_results:
+        component = result.get('component', '')
+        if component == 'base' and result.get('ownership'):
+            ownership = result['ownership']
+            permissions = result.get('permissions', '')
+            table_data.add_row('perm_row', component='Base', directory='System Files', permissions=f"{permissions} ({ownership})")
+        elif component == 'cache' and result.get('permissions'):
+            dirs_count = result.get('render_cache_dirs_count', 0)
+            permissions = result['permissions']
+            table_data.add_row('perm_row', component='Cache', directory=f"{dirs_count} directories", permissions=permissions)
+
+    if table_data.num_rows() <= 1:  # Only header row
+        return trace_out({})
+
+    field_config = FieldConfig()
+    field_config.add_header('perms_header')
+    field_config.add_simple(['perm_row'])
+
+    perms_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='permissions')
+    return trace_out({
+        "render_block": perms_table_html
     })
 
 
@@ -159,57 +223,3 @@ def render_site_files_detail_table() -> Dict[str, Any]:
     })
 
 
-@register_module_hook('deploy_95_render', 'Render Permissions detail table')
-def render_permissions_detail_table() -> Dict[str, Any]:
-    """Render Permissions details as a separate full table."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    table_data = TableData()
-    table_data.add_row('perms_header', component='Component', directory='Directory', permissions='Permissions')
-
-    # Collect all permission-related results
-    for result in hook_results:
-        component = result.get('component', '')
-
-        if component == 'base' and result.get('ownership'):
-            ownership = result['ownership']
-            permissions = result.get('permissions', '')
-            table_data.add_row('perm_row', component='Base', directory='System Files', permissions=f"{permissions} ({ownership})")
-
-        elif component == 'flask_logs' and result.get('permissions'):
-            directory = result.get('directory', '')
-            permissions = result['permissions']
-            table_data.add_row('perm_row', component='Flask Logs', directory=directory, permissions=permissions)
-
-        elif component == 'git' and result.get('permissions'):
-            ownership = result.get('ownership', '')
-            permissions = result['permissions']
-            table_data.add_row('perm_row', component='Git', directory='Repository', permissions=f"{permissions} ({ownership})")
-
-        elif component == 'site' and result.get('permissions'):
-            directory = result.get('directory', '')
-            permissions = result['permissions']
-            table_data.add_row('perm_row', component='Site', directory=directory, permissions=permissions)
-
-        elif component == 'cache' and result.get('permissions'):
-            dirs_count = result.get('render_cache_dirs_count', 0)
-            permissions = result['permissions']
-            table_data.add_row('perm_row', component='Cache', directory=f"{dirs_count} directories", permissions=permissions)
-
-        elif component == 'maintenance_logs':
-            note = result.get('note', 'shared')
-            table_data.add_row('perm_row', component='Maintenance Logs', directory='', permissions=note)
-
-    field_config = FieldConfig()
-    field_config.add_header('perms_header')
-    field_config.add_simple(['perm_row'])
-
-    perms_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='permissions')
-    return trace_out({
-        "render_block": perms_table_html
-    })

@@ -18,6 +18,11 @@ from hh.render.config.config_registry import register_label
 @register_label('client_file',                         'File:',                           '📄')
 
 
+
+# Operations detail table labels
+@register_label('ops_header',                          'Deployment Operations',           '⚙️')
+@register_label('ops_row',                             '',                                '⚙️')
+
 # Permissions detail table labels
 @register_label('perms_header',                        'Permissions Set',                 '🔒')
 @register_label('perm_row',                            '',                                '🔑')
