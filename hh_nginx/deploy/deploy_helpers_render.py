@@ -24,6 +24,48 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
+@register_module_hook('deploy_95_render', 'Contribute NGINX summary')
+def render_nginx_summary_contribution() -> Dict[str, Any]:
+    """Contribute NGINX summary to deployment summary table (1 line)."""
+    trace_in()
+
+    gateway = get_gateway()
+    json_data = gateway.response.get_action_response()
+    source_data = get_data(json_data) if json_data else {}
+    hook_results = source_data.get('hook_results', [])
+
+    # Collect nginx activity
+    domain = None
+    ssl_enabled = False
+    nginx_active = False
+
+    for result in hook_results:
+        if result.get('domain'):
+            domain = result['domain']
+            ssl_enabled = result.get('ssl_enabled', False)
+        if result.get('nginx_active'):
+            nginx_active = True
+
+    if not domain:
+        return trace_out({})
+
+    # Build summary line
+    protocol = "https" if ssl_enabled else "http"
+    status = "active" if nginx_active else "deployed"
+    summary = f"{protocol}://{domain} ({status})"
+
+    table_data = TableData()
+    table_data.add_row('nginx_summary', value=f"NGINX: {summary}")
+
+    field_config = FieldConfig()
+    field_config.add_simple(['nginx_summary'])
+
+    return trace_out({
+        "table_data": table_data,
+        "field_config": field_config
+    })
+
+
 @register_module_hook('deploy_95_render', 'Render domain table')
 def render_nginx_domain_table() -> Dict[str, Any]:
     """Render the NGINX domain information as a separate full table."""

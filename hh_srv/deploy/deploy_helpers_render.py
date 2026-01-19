@@ -1,7 +1,7 @@
 """
 SRV deployment render hooks for hh_srv module.
 
-Detail tables showing context items, client files, permissions, and operations.
+Provides summary contribution and detail table for server infrastructure deployment.
 """
 from typing import Dict, Any
 from hh.render.render import TableData, FieldConfig, render_block
@@ -26,9 +26,9 @@ def _initialize_debug():
     warn = get_warn(True)
 
 
-@register_module_hook('deploy_95_render', 'Render Context detail table')
-def render_context_detail_table() -> Dict[str, Any]:
-    """Render Context deployment details as a separate full table."""
+@register_module_hook('deploy_95_render', 'Contribute SRV summary')
+def render_srv_summary_contribution() -> Dict[str, Any]:
+    """Contribute SRV infrastructure summary to deployment summary table (1 line)."""
     trace_in()
 
     gateway = get_gateway()
@@ -36,35 +36,65 @@ def render_context_detail_table() -> Dict[str, Any]:
     source_data = get_data(json_data) if json_data else {}
     hook_results = source_data.get('hook_results', [])
 
-    # Find context deployment data
-    context_items = []
-    for result in hook_results:
-        if result.get('component') == 'context_deployment' and result.get('items'):
-            context_items = result['items']
-            break
+    # Collect srv-related activity
+    client_files_count = 0
+    site_js_count = 0
+    site_css_count = 0
+    site_misc_count = 0
+    directory_sterilized = False
+    site_prepared = False
+    permissions_set = False
 
-    if not context_items:
+    for result in hook_results:
+        component = result.get('component', '')
+        if component == 'client_files' and result.get('files'):
+            client_files_count = len(result['files'])
+        elif component == 'site_js' and result.get('js_count'):
+            site_js_count = result['js_count']
+        elif component == 'site_css' and result.get('count'):
+            site_css_count = result['count']
+        elif component == 'site_misc' and result.get('count'):
+            site_misc_count = result['count']
+        elif component == 'directory_sterilization':
+            directory_sterilized = True
+        elif component == 'site_prepare':
+            site_prepared = True
+        elif component in ('base', 'cache') and result.get('permissions'):
+            permissions_set = True
+
+    # If nothing happened, don't add a row
+    total_site_files = site_js_count + site_css_count + site_misc_count
+    if not (client_files_count > 0 or total_site_files > 0 or directory_sterilized or permissions_set):
         return trace_out({})
 
-    table_data = TableData()
-    table_data.add_row('context_detail_header', value='')
+    # Build summary line
+    summary_parts = []
+    if directory_sterilized or site_prepared:
+        summary_parts.append("directory prepared")
+    if client_files_count > 0:
+        summary_parts.append(f"{client_files_count} client files")
+    if total_site_files > 0:
+        summary_parts.append(f"{total_site_files} site files")
+    if permissions_set:
+        summary_parts.append("permissions set")
 
-    for item in context_items:
-        table_data.add_row('context_item', value=item)
+    summary = ", ".join(summary_parts)
+
+    table_data = TableData()
+    table_data.add_row('srv_summary', value=f"Server: {summary}")
 
     field_config = FieldConfig()
-    field_config.add_header('context_detail_header')
-    field_config.add_simple(['context_item'])
+    field_config.add_simple(['srv_summary'])
 
-    context_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='context_items')
     return trace_out({
-        "render_block": context_table_html
+        "table_data": table_data,
+        "field_config": field_config
     })
 
 
-@register_module_hook('deploy_95_render', 'Render Operations detail table')
-def render_operations_detail_table() -> Dict[str, Any]:
-    """Render Operations details as a separate full table."""
+@register_module_hook('deploy_95_render', 'Render SRV detail table')
+def render_srv_detail_table() -> Dict[str, Any]:
+    """Render SRV infrastructure details as a separate full table."""
     trace_in()
 
     gateway = get_gateway()
@@ -73,153 +103,66 @@ def render_operations_detail_table() -> Dict[str, Any]:
     hook_results = source_data.get('hook_results', [])
 
     table_data = TableData()
-    table_data.add_row('ops_header', operation='Operation', target='Target', result='Result')
+    table_data.add_row('srv_detail_header', operation='Operation', target='Target', result='Result')
 
-    # Add operations info
+    has_content = False
+
+    # Add operations
     for result in hook_results:
         component = result.get('component', '')
         if component == 'directory_sterilization' and result.get('items_removed'):
             items_removed = result['items_removed']
-            table_data.add_row('ops_row', operation='Directory Sterilization', target='Deployment Directory', result=f"{items_removed} items removed")
-        elif component == 'framework_cleanup' and result.get('modules_count'):
-            modules_count = result['modules_count']
-            table_data.add_row('ops_row', operation='Framework Cleanup', target='Python Modules', result=f"{modules_count} modules cleaned")
+            table_data.add_row('srv_detail_row', operation='Directory Sterilization', target='Deployment Directory', result=f"{items_removed} items removed")
+            has_content = True
         elif component == 'site_prepare' and result.get('action'):
             action = result['action']
-            table_data.add_row('ops_row', operation='Site Directory Prepare', target='Site Directory', result=action)
+            table_data.add_row('srv_detail_row', operation='Site Directory Prepare', target='Site Directory', result=action)
+            has_content = True
 
-    if table_data.num_rows() <= 1:  # Only header row
-        return trace_out({})
-
-    field_config = FieldConfig()
-    field_config.add_header('ops_header')
-    field_config.add_simple(['ops_row'])
-
-    ops_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='operations')
-    return trace_out({
-        "render_block": ops_table_html
-    })
-
-
-@register_module_hook('deploy_95_render', 'Render Permissions detail table')
-def render_permissions_detail_table() -> Dict[str, Any]:
-    """Render Permissions details as a separate full table."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    table_data = TableData()
-    table_data.add_row('perms_header', component='Component', directory='Directory', permissions='Permissions')
-
-    # Add permissions info for hh_srv components
+    # Add permissions
     for result in hook_results:
         component = result.get('component', '')
         if component == 'base' and result.get('ownership'):
             ownership = result['ownership']
             permissions = result.get('permissions', '')
-            table_data.add_row('perm_row', component='Base', directory='System Files', permissions=f"{permissions} ({ownership})")
+            table_data.add_row('srv_detail_row', operation='Base Permissions', target='System Files', result=f"{permissions} ({ownership})")
+            has_content = True
         elif component == 'cache' and result.get('permissions'):
             dirs_count = result.get('render_cache_dirs_count', 0)
             permissions = result['permissions']
-            table_data.add_row('perm_row', component='Cache', directory=f"{dirs_count} directories", permissions=permissions)
+            table_data.add_row('srv_detail_row', operation='Cache Permissions', target=f"{dirs_count} directories", result=permissions)
+            has_content = True
 
-    if table_data.num_rows() <= 1:  # Only header row
-        return trace_out({})
-
-    field_config = FieldConfig()
-    field_config.add_header('perms_header')
-    field_config.add_simple(['perm_row'])
-
-    perms_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='permissions')
-    return trace_out({
-        "render_block": perms_table_html
-    })
-
-
-@register_module_hook('deploy_95_render', 'Render Client Files detail table')
-def render_client_files_detail_table() -> Dict[str, Any]:
-    """Render Client files deployment details as a separate full table."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    # Find client files data
-    client_files = []
-    for result in hook_results:
-        if result.get('component') == 'client_files' and result.get('files'):
-            client_files = result['files']
-            break
-
-    if not client_files:
-        return trace_out({})
-
-    table_data = TableData()
-    table_data.add_row('client_detail_header', value='')
-
-    for f in client_files:
-        table_data.add_row('client_file', value=f)
-
-    field_config = FieldConfig()
-    field_config.add_header('client_detail_header')
-    field_config.add_simple(['client_file'])
-
-    client_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='client_files')
-    return trace_out({
-        "render_block": client_table_html
-    })
-
-
-
-
-@register_module_hook('deploy_95_render', 'Render Site Files detail table')
-def render_site_files_detail_table() -> Dict[str, Any]:
-    """Render Site files (JS, CSS, Misc) details as a separate full table."""
-    trace_in()
-
-    gateway = get_gateway()
-    json_data = gateway.response.get_action_response()
-    source_data = get_data(json_data) if json_data else {}
-    hook_results = source_data.get('hook_results', [])
-
-    table_data = TableData()
-    table_data.add_row('site_detail_header', value='')
-
-    field_names = []
-
+    # Add file deployment
     for result in hook_results:
         component = result.get('component', '')
-
-        if component == 'site_js' and result.get('js_count'):
-            count = result['js_count']
-            table_data.add_row('site_js', value=f"{count} files")
-            field_names.append('site_js')
-
+        if component == 'client_files' and result.get('files'):
+            files_count = len(result['files'])
+            table_data.add_row('srv_detail_row', operation='Client Files', target='Deployment', result=f"{files_count} files deployed")
+            has_content = True
+        elif component == 'site_js' and result.get('js_count'):
+            js_count = result['js_count']
+            table_data.add_row('srv_detail_row', operation='Site JavaScript', target='Site', result=f"{js_count} files")
+            has_content = True
         elif component == 'site_css' and result.get('count'):
-            count = result['count']
-            table_data.add_row('site_css', value=f"{count} files")
-            field_names.append('site_css')
-
+            css_count = result['count']
+            table_data.add_row('srv_detail_row', operation='Site CSS', target='Site', result=f"{css_count} files")
+            has_content = True
         elif component == 'site_misc' and result.get('count'):
-            count = result['count']
-            table_data.add_row('site_misc', value=f"{count} files")
-            field_names.append('site_misc')
+            misc_count = result['count']
+            table_data.add_row('srv_detail_row', operation='Site Misc', target='Site', result=f"{misc_count} files")
+            has_content = True
 
-    if not field_names:
+    if not has_content:
         return trace_out({})
 
     field_config = FieldConfig()
-    field_config.add_header('site_detail_header')
-    field_config.add_simple(field_names)
+    field_config.add_header('srv_detail_header')
+    field_config.add_simple(['srv_detail_row'])
 
-    site_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='site_files')
+    srv_table_html = render_block(table_data, field_config, table_overrides={'margin_l': 4}, block_type='srv_infrastructure')
     return trace_out({
-        "render_block": site_table_html
+        "render_block": srv_table_html
     })
 
 
