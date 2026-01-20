@@ -122,6 +122,7 @@ def validate_nginx_config() -> Dict[str, Any]:
     # Validate htpasswd passwords
     htaccess_admin = parsed.get("htaccess_admin_password", "").strip()
     htaccess_panel = parsed.get("htaccess_panel_password", "").strip()
+    htaccess_human = parsed.get("htaccess_human_password", "").strip()
 
     try:
         validate_config_value("htaccess_admin_password", htaccess_admin)
@@ -139,11 +140,20 @@ def validate_nginx_config() -> Dict[str, Any]:
         report_error("action", error_msg)
         return trace_out({"status": "error", "error": error_msg})
 
+    try:
+        validate_config_value("htaccess_human_password", htaccess_human)
+    except ValueError as e:
+        error_msg = str(e)
+        warn(f"hh_nginx: {error_msg}")
+        report_error("action", error_msg)
+        return trace_out({"status": "error", "error": error_msg})
+
     nginx_config["domain"] = domain
     nginx_config["ssl_enabled"] = ssl_enabled
     nginx_config["htaccess_guest_password"] = parsed.get("htaccess_guest_password", "").strip()
     nginx_config["htaccess_admin_password"] = htaccess_admin
     nginx_config["htaccess_panel_password"] = htaccess_panel
+    nginx_config["htaccess_human_password"] = htaccess_human
     nginx_config["htpasswd_dir"] = parsed.get("htpasswd_dir", "/var/www").strip()
 
     log(f"hh_nginx: Validated domain={domain}, ssl_enabled={ssl_enabled}")
@@ -155,10 +165,13 @@ def create_htpasswd_files() -> Dict[str, Any]:
     """Create .htpasswd files for HTTP Basic Authentication."""
     trace_in()
     from hh.deploy.deploy_utils import detect_project_context
+    from hh.deploy.user_accounts import detect_project_owner
 
-    project_name, _ = detect_project_context()
+    project_name, project_path = detect_project_context()
     if not project_name:
         return trace_out({"status": "error", "error": "Could not detect project name"})
+
+    project_owner = detect_project_owner(project_path)
 
     # Check if htpasswd command exists
     htpasswd_path = shutil.which('htpasswd')
@@ -172,6 +185,7 @@ def create_htpasswd_files() -> Dict[str, Any]:
     guest_password = nginx_config.get("htaccess_guest_password", "")
     admin_password = nginx_config.get("htaccess_admin_password", "")
     panel_password = nginx_config.get("htaccess_panel_password", "")
+    human_password = nginx_config.get("htaccess_human_password", "")
 
     files_created = []
 
@@ -223,6 +237,20 @@ def create_htpasswd_files() -> Dict[str, Any]:
             if not file_exists:
                 cmd.append('-c')
             cmd.extend([htpasswd_file, root_user, panel_password])
+
+            subprocess.run(cmd, check=True, capture_output=True)
+            files_created.append(htpasswd_file)
+            log(f"hh_nginx: Created {htpasswd_file}")
+
+        # Human user
+        if project_owner and human_password:
+            htpasswd_file = f"{htpasswd_dir}/.htpasswd_human"
+
+            file_exists = Path(htpasswd_file).exists()
+            cmd = ['htpasswd', '-b']
+            if not file_exists:
+                cmd.append('-c')
+            cmd.extend([htpasswd_file, project_owner, human_password])
 
             subprocess.run(cmd, check=True, capture_output=True)
             files_created.append(htpasswd_file)

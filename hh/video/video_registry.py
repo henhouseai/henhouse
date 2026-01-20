@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+from hh.gateway.registry.media_registry import register_media_type
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -61,6 +62,7 @@ def get_video(video_id: int) -> Optional["Video"]:
     return video_instance if not is_error() else None
 
 
+@register_media_type('video')
 def refresh_stale_video_caches() -> None:
     """Refresh cache database for all video in hot cache that have _cache_needs_refresh flag set.
     Called by gateway during commit process, after file operations but before database commit."""

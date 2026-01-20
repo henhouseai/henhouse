@@ -45,7 +45,7 @@ def refresh_cached_page(page: 'Page') -> bool:
         trace_out()
         return True
 
-    # Ensure all 5 fields are populated by calling their internal mixin methods
+    # Ensure all derived fields are populated by calling their internal mixin methods
     # The getters check if field is populated first, and only hydrate if empty
     # The getters set the attributes themselves, so we just call them
     # This ensures we always have fully hydrated data to cache
@@ -59,18 +59,34 @@ def refresh_cached_page(page: 'Page') -> bool:
     if not page.children_by_class:
         page._get_children_by_class()
 
-    if not page.images:
-        page.get_images_data()
+    # Dynamically populate and cache all registered media types
+    from hh.gateway.registry.media_registry import get_registered_media_types
+    from hh.page.media_config import get_media_config
 
-    if not page.files:
-        page.get_files_data()
+    media_config = get_media_config()
+    registered_media = get_registered_media_types()
+    media_summary = {}
+
+    for media_type, config in media_config.items():
+        # Only process if media module is registered
+        if media_type in registered_media:
+            attribute = config['attribute']
+            getter = config['getter']
+
+            # Ensure data is populated
+            if not getattr(page, attribute, None):
+                getter(page)
+
+            # Add to media_summary
+            data = getattr(page, attribute, None)
+            if data:  # Only include if there's actual data
+                media_summary[media_type] = data
 
     # Serialize all data
     display_name_str = page.display_name
     prepared_json = page._dump_json(page.prepared_text) if page.prepared_text is not None else None
     children_json = page._dump_json(page.children_by_class) if page.children_by_class else None
-    images_json = page._dump_json(page.images) if page.images else None
-    files_json = page._dump_json(page.files) if page.files else None
+    media_summary_json = page._dump_json(media_summary) if media_summary else None
 
     # Get existing metadata (only the metadata JSON field, not main DB fields)
     # Main DB fields are now stored as first-class columns, not in metadata
@@ -88,8 +104,8 @@ def refresh_cached_page(page: 'Page') -> bool:
         page.gateway.conn.buffer_cache(
             "pages",
             """
-                INSERT INTO pages (id, name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount, display_name, prepared_text, children_summary, image_summary, file_summary, links_out, metadata, cache_built_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO pages (id, name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount, display_name, prepared_text, children_summary, media_summary, links_out, metadata, cache_built_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     name = VALUES(name),
                     link = VALUES(link),
@@ -105,8 +121,7 @@ def refresh_cached_page(page: 'Page') -> bool:
                     display_name = VALUES(display_name),
                     prepared_text = VALUES(prepared_text),
                     children_summary = VALUES(children_summary),
-                    image_summary = VALUES(image_summary),
-                    file_summary = VALUES(file_summary),
+                    media_summary = VALUES(media_summary),
                     links_out = VALUES(links_out),
                     metadata = VALUES(metadata),
                     cache_built_at = VALUES(cache_built_at)
@@ -127,8 +142,7 @@ def refresh_cached_page(page: 'Page') -> bool:
                 display_name_str,
                 prepared_json,
                 children_json,
-                images_json,
-                files_json,
+                media_summary_json,
                 page._dump_json({}),  # links_out - currently not used, store empty dict
                 metadata_json,
                 now,

@@ -53,7 +53,7 @@ def initialize_git_repository() -> Dict[str, Any]:
     """Initialize bare git repository and set up project git."""
     trace_in()
     from hh.deploy.deploy_utils import detect_project_context
-    from hh.deploy.users.user_accounts import detect_project_owner
+    from hh.deploy.user_accounts import detect_project_owner
 
     project_name, project_path = detect_project_context()
     if not project_name or not project_path:

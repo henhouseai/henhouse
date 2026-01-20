@@ -5,21 +5,17 @@ This module contains the global INSTALL_CONFIG that other modules can import and
 """
 
 import os
-import subprocess
 import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.response.json_standard import success_payload
 from hh.gateway.error.error_store import report_error
-from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from hh.deploy.users.access import auto_scan_user_keys, generate_ssh_keys, add_user_key
-from hh.deploy.users.user_accounts import create_user_config_file, update_user_paths, create_user_gateway_scripts, create_user_entry_point_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner
+from hh.deploy.user_accounts import create_user_config_file, create_user_gateway_scripts, create_user_entry_point_scripts, setup_human_user_home, setup_root_user_script, detect_project_owner
 from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.install_helpers_config import get_install_config_path, load_install_config, validate_config_value, validate_entry_point_script_name
-from hh.deploy.install_helpers_manifest import write_manifest_users
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -103,6 +99,14 @@ def contribute_core_template() -> Dict[str, Any]:
         "entry_point_script_name = hen",
         "",
         "# ========================================",
+        "# Human User Credentials",
+        "# ========================================",
+        "# Database password for human user",
+        "password_human_db = CHANGE_ME",
+        "# HTTP Basic Auth password for human user",
+        "htaccess_human_password = CHANGE_ME",
+        "",
+        "# ========================================",
         "# Database Configuration",
         "# ========================================",
         "# Database hosts",
@@ -142,15 +146,6 @@ def contribute_core_template() -> Dict[str, Any]:
         "mysql_server_key_path = /etc/mysql/ssl/server-key.pem",
         "# MySQL configuration file path",
         "mysql_config_path = /etc/mysql/mysql.conf.d/mysqld.cnf",
-        "",
-        "# ========================================",
-        "# Application Passwords",
-        "# ========================================",
-        "# DB user passwords (guest, verified, admin, root)",
-        "password_guest = CHANGE_ME",
-        "password_verified = CHANGE_ME",
-        "password_admin = CHANGE_ME",
-        "password_root = CHANGE_ME",
         "",
     ]
 
@@ -220,12 +215,8 @@ def validate_core_config() -> Dict[str, Any]:
         "cache_host",
         "mysql_root_password_main",
         "mysql_root_password_cache",
-        "password_guest",
-        "password_verified",
-        "password_admin",
-        "password_root",
-        "htaccess_admin_password",
-        "htaccess_panel_password",
+        "password_human_db",
+        "htaccess_human_password",
     ):
         try:
             validate_config_value(key, cfg.get(key, ""))
@@ -291,327 +282,6 @@ def validate_core_config() -> Dict[str, Any]:
     return trace_out({"status": "success"})
 
 
-@register_module_hook('install_10_conflict_check', 'Check for existing users and groups')
-def check_user_group_conflicts() -> Dict[str, Any]:
-    """Check for existing project setup."""
-    trace_in()
-
-    project_name = INSTALL_CONFIG["project_name"]
-    project_path = INSTALL_CONFIG["project_path"]
-    entry_point_script_name = core_config.get("entry_point_script_name", "hen")
-
-    gateway = get_gateway()
-    conflicts = []
-
-    try:
-        # Check for existing project users
-        project_users = [f"{project_name}_{tier}" for tier in HENHOUSE_TIERS]
-        for user in project_users:
-            if gateway and gateway.os and gateway.os.user_exists(user):
-                conflicts.append(f"user {user}")
-                log(f"Found existing user: {user}")
-
-        # Check for existing project groups
-        project_groups = [project_name, f"{project_name}_deploy", f"{project_name}_admin"]
-        for group in project_groups:
-            if gateway and gateway.os and gateway.os.group_exists(group):
-                conflicts.append(f"group {group}")
-                log(f"Found existing group: {group}")
-
-        if conflicts:
-            error_msg = f"Existing setup detected. Please run uninstall first. Found: {', '.join(conflicts)}"
-            warn(error_msg)
-            report_error("action", error_msg)
-            return trace_out({"status": "error", "error": error_msg})
-
-        # Check for script conflicts
-        project_owner = detect_project_owner(project_path)
-
-        script_conflicts = []
-        root_home = Path('/root')
-        root_hen = root_home / 'hen'
-        root_expected_hen = root_home / entry_point_script_name
-
-        if root_hen.exists() and entry_point_script_name == 'hen':
-            script_conflicts.append(f"/root/hen")
-        elif root_expected_hen.exists() and entry_point_script_name != 'hen':
-            script_conflicts.append(f"/root/{entry_point_script_name}")
-
-        if project_owner:
-            human_home = Path(f'/home/{project_owner}')
-            human_hen = human_home / 'hen'
-            human_expected_hen = human_home / entry_point_script_name
-
-            if human_hen.exists() and entry_point_script_name == 'hen':
-                script_conflicts.append(f"/home/{project_owner}/hen")
-            elif human_expected_hen.exists() and entry_point_script_name != 'hen':
-                script_conflicts.append(f"/home/{project_owner}/{entry_point_script_name}")
-
-        if script_conflicts:
-            error_msg = f"Script conflicts detected. Please specify -hen flag with a custom script name. Found conflicts: {', '.join(script_conflicts)}"
-            warn(error_msg)
-            report_error("action", error_msg)
-            return trace_out({"status": "error", "error": error_msg})
-
-        log("hh core: No conflicts found")
-        return trace_out({"status": "success"})
-
-    except Exception as e:
-        error_msg = f"Error checking for conflicts: {str(e)}"
-        warn(error_msg)
-        report_error("action", error_msg)
-        return trace_out({"status": "error", "error": error_msg})
-
-
-@register_module_hook('install_15_groups', 'Create core groups')
-def create_core_groups() -> Dict[str, Any]:
-    """Create core groups that users need to be added to."""
-    trace_in()
-
-    project_name = INSTALL_CONFIG["project_name"]
-
-    try:
-        log(f"hh core: Setting up core groups: {project_name}")
-
-        # Create project group
-        try:
-            subprocess.run(['groupadd', project_name], check=True, capture_output=True)
-            log(f"Created group: {project_name}")
-        except subprocess.CalledProcessError as e:
-            if "already exists" in e.stderr.decode():
-                log(f"Group {project_name} already exists")
-            else:
-                raise
-
-        # Create deploy group
-        deploy_group_name = f"{project_name}_deploy"
-        try:
-            subprocess.run(['groupadd', deploy_group_name], check=True, capture_output=True)
-            log(f"Created group: {deploy_group_name}")
-        except subprocess.CalledProcessError as e:
-            if "already exists" in e.stderr.decode():
-                log(f"Group {deploy_group_name} already exists")
-            else:
-                raise
-
-        # Create admin group
-        admin_group_name = f"{project_name}_admin"
-        try:
-            subprocess.run(['groupadd', admin_group_name], check=True, capture_output=True)
-            log(f"Created group: {admin_group_name}")
-        except subprocess.CalledProcessError as e:
-            if "already exists" in e.stderr.decode():
-                log(f"Group {admin_group_name} already exists")
-            else:
-                raise
-
-        return trace_out({"status": "success"})
-
-    except Exception as e:
-        error_msg = f"Failed to setup core groups: {str(e)}"
-        warn(error_msg)
-        report_error("action", error_msg)
-        return trace_out({"status": "error", "error": error_msg})
-
-
-@register_module_hook('install_20_users', 'Create tier users')
-def create_tier_users() -> Dict[str, Any]:
-    """Create fresh tier users with SSH keys and config files."""
-    trace_in()
-
-    project_name = INSTALL_CONFIG["project_name"]
-    project_path = INSTALL_CONFIG["project_path"]
-
-    passwords = [
-        core_config["password_guest"],
-        core_config["password_verified"],
-        core_config["password_admin"],
-        core_config["password_root"],
-    ]
-    db_host = core_config["db_host"]
-    ssl_ca_path = core_config["ssl_ca_path"]
-    cache_host = core_config["cache_host"]
-    cache_ssl_ca_path = core_config["cache_ssl_ca_path"]
-    ssl_verify_mode = core_config["ssl_verify_mode"]
-    mysql_tls_enabled = core_config["mysql_tls_enabled"]
-
-    gateway = get_gateway()
-
-    # Auto-scan project owner's keys
-    project_owner = detect_project_owner(project_path)
-    if not project_owner:
-        error_msg = "Could not detect project owner"
-        warn(error_msg)
-        report_error("action", error_msg)
-        return trace_out({"status": "error", "error": error_msg})
-
-    auto_scanned_keys: List[str] = []
-    if project_owner:
-        auto_scanned_keys = auto_scan_user_keys(project_owner)
-        log(f"Auto-scanned {len(auto_scanned_keys)} keys from {project_owner}")
-
-    if not auto_scanned_keys:
-        error_msg = "No SSH keys found to copy (authorized_keys empty). Aborting install."
-        warn(error_msg)
-        report_error("action", error_msg)
-        return trace_out({"status": "error", "error": error_msg})
-
-    log("hh core: Creating fresh users")
-    user_data = []
-    admin_tier = 'admin' if 'admin' in HENHOUSE_TIERS else None
-
-    for idx, tier in enumerate(HENHOUSE_TIERS):
-        user = f"{project_name}_{tier}"
-        password = passwords[idx]
-        try:
-            useradd_cmd = ['useradd', '-r', '-s', '/bin/bash', '-m', '-d', f'/home/{user}']
-            if tier == admin_tier:
-                admin_group_name = f"{project_name}_{admin_tier}"
-                useradd_cmd.extend(['-g', admin_group_name])
-            useradd_cmd.append(user)
-            result = subprocess.run(useradd_cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise subprocess.CalledProcessError(result.returncode, ['useradd'], result.stdout, result.stderr)
-
-            # SSH-only: lock password
-            subprocess.run(['passwd', '-l', user], check=True, capture_output=True)
-            gateway.files.chmod(f'/home/{user}', 0o755)
-
-            # All users own their own home directories
-            gateway.files.chown(f'/home/{user}', user)
-
-            ssh_keys = generate_ssh_keys(user, project_name)
-
-            # Add auto-scanned keys
-            if auto_scanned_keys:
-                for key in auto_scanned_keys:
-                    add_user_key(user, key)
-
-            # Create project-specific config file
-            create_user_config_file(
-                user,
-                project_name,
-                password,
-                db_user=user,
-                host=db_host,
-                ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
-                cache_host=cache_host,
-                cache_ssl_ca=cache_ssl_ca_path if mysql_tls_enabled else None,
-                ssl_verify_mode=ssl_verify_mode if mysql_tls_enabled else None,
-                mysql_tls_enabled=mysql_tls_enabled
-            )
-
-            # Add users to appropriate groups
-            deploy_group_name = f"{project_name}_deploy"
-            if user == f"{project_name}_{HENHOUSE_TIERS[-1]}":
-                # Highest tier user gets both groups
-                try:
-                    subprocess.run(['usermod', '-a', '-G', f'{project_name},{deploy_group_name}', user], check=True, capture_output=True)
-                    log(f"Added {user} to groups {project_name} and {deploy_group_name}")
-                except subprocess.CalledProcessError as e:
-                    warn(f"Failed to add {user} to groups: {e.stderr.decode()}")
-            else:
-                # Lower tier users get only deploy group
-                try:
-                    subprocess.run(['usermod', '-a', '-G', deploy_group_name, user], check=True, capture_output=True)
-                    log(f"Added {user} to deploy group {deploy_group_name}")
-                except subprocess.CalledProcessError as e:
-                    warn(f"Failed to add {user} to deploy group: {e.stderr.decode()}")
-
-            user_data.append({
-                "username": user,
-                "status": "created",
-                "ssh_keys": ssh_keys,
-                "home_directory": f"/home/{user}"
-            })
-            log(f"Created user: {user}")
-        except subprocess.CalledProcessError as e:
-            error_msg = e.stderr if e.stderr else str(e)
-            warn(f"Failed to create user {user}: {error_msg}")
-            user_data.append({
-                "username": user,
-                "status": "failed",
-                "error": error_msg
-            })
-        except Exception as e:
-            warn(f"Failed to create user {user}: {str(e)}")
-            user_data.append({
-                "username": user,
-                "status": "failed",
-                "error": str(e)
-            })
-
-    # Store user_data for manifest writing later
-    core_config["user_data"] = user_data
-    core_config["project_owner"] = project_owner
-
-    return trace_out({"status": "success", "users_created": len([u for u in user_data if u.get("status") == "created"])})
-
-
-@register_module_hook('install_25_user_configs', 'User configuration')
-def setup_user_configs() -> Dict[str, Any]:
-    """Placeholder - user config creation happens in install_20."""
-    trace_in()
-    log("hh core: User configs already created in install_20")
-    return trace_out({"status": "success"})
-
-
-@register_module_hook('install_35_project_groups', 'Finalize project group memberships')
-def setup_project_group() -> Dict[str, Any]:
-    """Add users to groups and set ownership."""
-    trace_in()
-
-    project_name = INSTALL_CONFIG["project_name"]
-    project_path = INSTALL_CONFIG["project_path"]
-    project_owner = core_config.get("project_owner")
-
-    try:
-        log(f"hh core: Setting up project groups: {project_name}")
-
-        deploy_group_name = f"{project_name}_deploy"
-        admin_group_name = f"{project_name}_admin"
-
-        # Add current user to all groups
-        current_user = os.getenv('USER', 'root')
-        try:
-            subprocess.run(['usermod', '-a', '-G', f'{project_name},{deploy_group_name},{admin_group_name}', current_user], check=True, capture_output=True)
-            log(f"Added {current_user} to groups {project_name}, {deploy_group_name}, and {admin_group_name}")
-        except subprocess.CalledProcessError as e:
-            warn(f"Failed to add {current_user} to groups: {e.stderr.decode()}")
-
-        # Add project owner to all groups
-        if project_owner and project_owner != current_user:
-            try:
-                subprocess.run(['usermod', '-a', '-G', f'{project_name},{deploy_group_name},{admin_group_name}', project_owner], check=True, capture_output=True)
-                log(f"Added project owner {project_owner} to groups {project_name}, {deploy_group_name}, and {admin_group_name}")
-            except subprocess.CalledProcessError as e:
-                warn(f"Failed to add project owner {project_owner} to groups: {e.stderr.decode()}")
-
-        # Add www-data to deploy and admin groups
-        try:
-            subprocess.run(['usermod', '-a', '-G', f'{deploy_group_name},{admin_group_name}', 'www-data'], check=True, capture_output=True)
-            log(f"Added www-data to groups {deploy_group_name} and {admin_group_name}")
-        except subprocess.CalledProcessError as e:
-            log(f"Failed to add www-data to groups (may not exist yet): {e.stderr.decode()}")
-
-        # Add root tier user to admin group
-        root_tier = HENHOUSE_TIERS[-1]
-        root_user = f"{project_name}_{root_tier}"
-        try:
-            subprocess.run(['usermod', '-a', '-G', admin_group_name, root_user], check=True, capture_output=True)
-            log(f"Added {root_user} to group {admin_group_name}")
-        except subprocess.CalledProcessError as e:
-            warn(f"Failed to add {root_user} to group {admin_group_name}: {e.stderr.decode()}")
-
-        return trace_out({"status": "success"})
-
-    except Exception as e:
-        error_msg = f"Failed to setup project groups: {str(e)}"
-        warn(error_msg)
-        report_error("action", error_msg)
-        return trace_out({"status": "error", "error": error_msg})
-
-
 @register_module_hook('install_45_scripts', 'Create gateway and entry point scripts')
 def setup_gateway_scripts() -> Dict[str, Any]:
     """Create user gateway scripts and entry point scripts."""
@@ -637,16 +307,16 @@ def setup_gateway_scripts() -> Dict[str, Any]:
         return trace_out({"status": "error", "error": error_msg})
 
 
-@register_module_hook('install_50_user_env', 'Set up user environments')
+@register_module_hook('install_50_user_env', 'Set up human and root user environments')
 def setup_user_environments() -> Dict[str, Any]:
-    """Update user paths and set up home directories."""
+    """Set up human user and root user home directories."""
     trace_in()
 
     project_name = INSTALL_CONFIG["project_name"]
     project_path = INSTALL_CONFIG["project_path"]
-    project_owner = core_config.get("project_owner")
+    project_owner = detect_project_owner(project_path)
     entry_point_script_name = core_config.get("entry_point_script_name", "hen")
-    password_root = core_config["password_root"]
+    password_human_db = core_config["password_human_db"]
     db_host = core_config["db_host"]
     ssl_ca_path = core_config["ssl_ca_path"]
     cache_host = core_config["cache_host"]
@@ -655,19 +325,16 @@ def setup_user_environments() -> Dict[str, Any]:
     mysql_tls_enabled = core_config["mysql_tls_enabled"]
 
     try:
-        # Update user paths
-        update_user_paths(project_name)
-
         # Set up human user home directory
         setup_human_user_home(project_name, project_path, entry_point_script_name)
 
-        # Create config file for human user (admin creds)
+        # Create config file for human user with human DB credentials
         if project_owner:
             create_user_config_file(
                 project_owner,
                 project_name,
-                password_root,
-                db_user=f"{project_name}_root",
+                password_human_db,
+                db_user=project_owner,
                 host=db_host,
                 ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
                 cache_host=cache_host,
@@ -679,21 +346,22 @@ def setup_user_environments() -> Dict[str, Any]:
         # Set up root user entry point
         setup_root_user_script(project_name, project_path, entry_point_script_name)
 
-        # Create config file for root user (root creds)
-        create_user_config_file(
-            "root",
-            project_name,
-            password_root,
-            db_user=f"{project_name}_root",
-            host=db_host,
-            ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
-            cache_host=cache_host,
-            cache_ssl_ca=cache_ssl_ca_path if mysql_tls_enabled else None,
-            ssl_verify_mode=ssl_verify_mode if mysql_tls_enabled else None,
-            mysql_tls_enabled=mysql_tls_enabled
-        )
+        # Create config file for root user with human DB credentials (shared)
+        if project_owner:
+            create_user_config_file(
+                "root",
+                project_name,
+                password_human_db,
+                db_user=project_owner,
+                host=db_host,
+                ssl_ca=ssl_ca_path if mysql_tls_enabled else None,
+                cache_host=cache_host,
+                cache_ssl_ca=cache_ssl_ca_path if mysql_tls_enabled else None,
+                ssl_verify_mode=ssl_verify_mode if mysql_tls_enabled else None,
+                mysql_tls_enabled=mysql_tls_enabled
+            )
 
-        log("hh core: User environments configured")
+        log("hh core: Human and root user environments configured")
         return trace_out({"status": "success"})
 
     except Exception as e:
@@ -719,45 +387,6 @@ def clean_caches() -> Dict[str, Any]:
         error_msg = f"Failed to clean caches: {str(e)}"
         warn(error_msg)
         return trace_out({"status": "error", "error": error_msg})
-
-
-@register_module_hook('install_70_manifest', 'Write manifest of created users')
-def write_manifest() -> Dict[str, Any]:
-    """Write manifest of created users to config file."""
-    trace_in()
-
-    project_name = INSTALL_CONFIG["project_name"]
-    cfg_path = INSTALL_CONFIG["config_path"]
-    user_data = core_config.get("user_data", [])
-
-    gateway = get_gateway()
-
-    # Build manifest
-    manifest: Dict[str, Dict[str, Any]] = {}
-    now = _iso_now()
-    for user in user_data:
-        if user.get("status") == "created":
-            uname = user.get("username", "")
-            try:
-                if gateway.os:
-                    info = gateway.os.get_user_by_name(uname)
-                    if info and "uid" in info:
-                        manifest[uname] = {"uid": str(info["uid"]), "installed_at": now, "removed_at": None}
-            except Exception:
-                pass
-
-    if manifest:
-        try:
-            write_manifest_users(cfg_path, manifest)
-            log(f"hh core: Wrote manifest for {len(manifest)} users")
-            return trace_out({"status": "success", "users_in_manifest": len(manifest)})
-        except Exception as e:
-            error_msg = f"Failed to write manifest_users: {e}"
-            warn(error_msg)
-            report_error("action", error_msg)
-            return trace_out({"status": "error", "error": error_msg})
-
-    return trace_out({"status": "success", "users_in_manifest": 0})
 
 
 @register_module_hook('install_95_render', 'Render installation summary')

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, Any, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+from hh.gateway.registry.media_registry import register_media_type
 
 if TYPE_CHECKING:
     from hh.file.file import File
@@ -60,6 +61,7 @@ def get_file(file_id: int) -> Optional["File"]:
     return file_instance if not is_error() else None
 
 
+@register_media_type('file')
 def refresh_stale_file_caches() -> None:
     """Refresh cache database for all files in hot cache that have _cache_needs_refresh flag set.
     Called by gateway during commit process, after file operations but before database commit."""

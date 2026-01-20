@@ -1,0 +1,3 @@
+-- hh_user_tiers module database schema
+-- This module manages system-level tier users (guest, verified, admin, root)
+-- No database tables needed - tier users are created at OS level only

@@ -104,7 +104,7 @@ class Page:
             # Get entire cache row to check staleness (no main DB read needed)
             cache_query = """
                 SELECT id, name, link, text, parent, class, last_modified, username, comments, visibility, displayStyle, viewCount,
-                       display_name, prepared_text, children_summary, image_summary, file_summary, links_out, metadata, cache_built_at
+                       display_name, prepared_text, children_summary, media_summary, links_out, metadata, cache_built_at
                 FROM pages
                 WHERE id = %s
             """
@@ -165,12 +165,30 @@ class Page:
                         if not is_error():
                             self._after_metadata_extraction()
                         
-                        # Load expensive pre-computed data from cache database directly into the 5 derived fields
+                        # Load expensive pre-computed data from cache database directly into derived fields
                         self.display_name = cache_row.get('display_name')
                         self.prepared_text = deserialize_json_blob(cache_row.get('prepared_text'), None)
                         self.children_by_class = deserialize_json_blob(cache_row.get('children_summary'), {})
-                        self.images = deserialize_json_blob(cache_row.get('image_summary'), [])
-                        self.files = deserialize_json_blob(cache_row.get('file_summary'), [])
+
+                        # Dynamically hydrate all registered media types from media_summary
+                        from hh.gateway.registry.media_registry import get_registered_media_types
+                        from hh.page.media_config import get_media_config
+
+                        media_summary = deserialize_json_blob(cache_row.get('media_summary'), {})
+                        media_config = get_media_config()
+                        registered_media = get_registered_media_types()
+
+                        for media_type, config in media_config.items():
+                            attribute = config['attribute']
+
+                            # Only hydrate if media module is registered
+                            if media_type in registered_media:
+                                # Get data from media_summary, default to empty list
+                                media_data = media_summary.get(media_type, [])
+                                setattr(self, attribute, media_data)
+                            else:
+                                # Media module not registered, initialize as empty
+                                setattr(self, attribute, [])
                         self.cache_built_at = cache_built_at
                         self.cache_hydrated = True
                         cache_hydrated = True
@@ -848,7 +866,7 @@ class Page:
         
         # Check each audio to see if it should be deleted (no longer used by any pages)
         if not is_error() and audio_ids:
-            from hh.audio.audio_registry import get_audio
+            from audio.audio_registry import get_audio
             for audio_id in audio_ids:
                 if not is_error():
                     audio = get_audio(audio_id)
@@ -1308,7 +1326,7 @@ class Page:
                 report_error("action", f"Failed to add audio {audio_id} to page group")
         # Process the audio file
         if not is_error() and audio_id:
-            from hh.audio.audio_registry import get_audio
+            from audio.audio_registry import get_audio
             audio = get_audio(audio_id)
             if not audio:
                 warn(f"Audio {audio_id} not found")

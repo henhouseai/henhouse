@@ -30,10 +30,7 @@ from hh.gateway.system.process_manager import ProcessManager
 from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_TYPES
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
-from hh.image.image_registry import refresh_stale_image_caches
-from hh.file.file_registry import refresh_stale_file_caches
-from hh.audio.audio_registry import refresh_stale_audio_caches
-from hh.video.video_registry import refresh_stale_video_caches
+from hh.gateway.registry.media_registry import refresh_all_media_caches
 from hh.page.page_registry import refresh_stale_page_caches
 
 __all__ = [
@@ -41,6 +38,25 @@ __all__ = [
     "init_gateway",
     "Gateway",
 ]
+
+def _load_media_modules() -> None:
+    """Dynamically import media module registries to trigger @register_media_type decorators."""
+    media_modules = [
+        ('audio', 'audio.audio_registry'),
+        ('hh_image', 'hh.image.image_registry'),
+        ('video', 'hh.video.video_registry'),
+        ('file', 'hh.file.file_registry'),
+    ]
+
+    for module_name, import_path in media_modules:
+        try:
+            __import__(import_path)
+        except ImportError:
+            # Module not available, skip silently
+            pass
+
+# Load media modules at import time to trigger registrations
+_load_media_modules()
 
 gateway: Optional[Gateway] = None
 
@@ -511,41 +527,14 @@ class Gateway:
             report_error("file_operation", "File operations failed")
             return trace_out(None)
         
-        # Refresh image caches for any images in hot cache that need updating
+        # Refresh media caches for all registered media types (audio, image, video, file)
         if not is_error():
-            log("Refreshing stale image caches...")
+            log("Refreshing stale media caches...")
             try:
-                refresh_stale_image_caches()
+                refresh_all_media_caches()
             except Exception as e:
-                warn(f"Error refreshing image caches: {e}")
-                report_error("cache_refresh", f"Error refreshing image caches: {e}")
-        
-        # Refresh file caches for any files in hot cache that need updating
-        if not is_error():
-            log("Refreshing stale file caches...")
-            try:
-                refresh_stale_file_caches()
-            except Exception as e:
-                warn(f"Error refreshing file caches: {e}")
-                report_error("cache_refresh", f"Error refreshing file caches: {e}")
-        
-        # Refresh audio caches for any audio in hot cache that need updating
-        if not is_error():
-            log("Refreshing stale audio caches...")
-            try:
-                refresh_stale_audio_caches()
-            except Exception as e:
-                warn(f"Error refreshing audio caches: {e}")
-                report_error("cache_refresh", f"Error refreshing audio caches: {e}")
-        
-        # Refresh video caches for any video in hot cache that need updating
-        if not is_error():
-            log("Refreshing stale video caches...")
-            try:
-                refresh_stale_video_caches()
-            except Exception as e:
-                warn(f"Error refreshing video caches: {e}")
-                report_error("cache_refresh", f"Error refreshing video caches: {e}")
+                warn(f"Error refreshing media caches: {e}")
+                report_error("cache_refresh", f"Error refreshing media caches: {e}")
         
         # Refresh page caches for any pages in hot cache that need updating
         if not is_error():

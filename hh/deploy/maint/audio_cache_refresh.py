@@ -98,7 +98,7 @@ def rebuild_audio(audio_id: int) -> dict[str, Any] | None:
         audio_info = verify[0]
         audio_caption = audio_info.get('caption', 'no caption')
         
-        from hh.audio.audio_registry import get_audio
+        from audio.audio_registry import get_audio
         audio_obj = get_audio(audio_id)
         if not audio_obj:
             error_msg = f"Audio {audio_id} (caption={audio_caption}) could not be loaded"

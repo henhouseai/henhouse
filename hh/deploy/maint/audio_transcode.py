@@ -8,9 +8,9 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.maintenance import register_maintenance_tool
 from hh.gateway.registry.registry import register_action, register_command, register_parser
 from hh.gateway.response.json_standard import success_payload, get_data
-from hh.audio.audio_registry import get_audio
-from hh.audio.audio_quality_tiers import AUDIO_QUALITY_TIERS, AUDIO_STANDARD_EXTENSION, AUDIO_STANDARD_MIME_TYPE
-from hh.audio.audio_utils import transcode_to_aac
+from audio.audio_registry import get_audio
+from audio.audio_quality_tiers import AUDIO_QUALITY_TIERS, AUDIO_STANDARD_EXTENSION, AUDIO_STANDARD_MIME_TYPE
+from audio.audio_utils import transcode_to_aac
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init

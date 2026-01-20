@@ -227,7 +227,7 @@ def get_audio_data(page: 'Page', rebuild: bool = False) -> List[Dict[str, Any]]:
     audio_data = []
     if not is_error():
         try:
-            from hh.audio.audio_registry import get_audio
+            from audio.audio_registry import get_audio
             results = page.gateway.conn.read("""
                 SELECT a.id, ag.audio_rank
                 FROM audio_groups ag
