@@ -10,7 +10,7 @@ from typing import Optional
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.render.render import TableData, FieldConfig, render_block
-from hh.deploy.users.install import _install_config_path
+from hh.deploy.install_helpers_config import get_install_config_path
 
 # Debug initialization
 trace_in = lambda message=None: None
@@ -62,7 +62,7 @@ def validate_deployment_config():
     source = current_path
 
     # Load deployment configuration from install config
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     if not cfg_path.exists():
         warn(f"Install config not found: {cfg_path}")
         raise ValueError(f"Install config not found: {cfg_path}")

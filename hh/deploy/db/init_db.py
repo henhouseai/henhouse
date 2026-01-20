@@ -11,7 +11,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.response.json_standard import success_payload
 from hh.deploy.deploy_utils import detect_project_context, get_active_modules
 from hh_nginx.deploy.deploy_helpers_ssl import ensure_certificate_exists
-from hh.deploy.users.install import _install_config_path
+from hh.deploy.install_helpers_config import get_install_config_path
 
 def _extract_domain_from_host(host: str) -> Optional[str]:
     """
@@ -56,7 +56,7 @@ def _initialize_debug():
 
 def _load_install_config(project_name: str) -> Optional[Dict[str, Union[str, int]]]:
     """Load root install config and return MySQL root passwords."""
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     if not cfg_path.exists():
         warn(f"Root install config not found: {cfg_path}")
         return None

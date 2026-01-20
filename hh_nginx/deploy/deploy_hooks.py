@@ -54,9 +54,9 @@ def deploy_nginx_config() -> Dict[str, Any]:
     gateway = get_gateway()
 
     # Get deployment parameters from install config
-    from hh.deploy.users.install import _install_config_path
+    from hh.deploy.install_helpers_config import get_install_config_path
     import configparser
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     if not cfg_path.exists():
         warn(f"hh_nginx: Install config not found: {cfg_path}")
         trace_out()
@@ -227,9 +227,9 @@ def deploy_ssl_certificates() -> Dict[str, Any]:
     gateway = get_gateway()
 
     # Get deployment parameters from install config
-    from hh.deploy.users.install import _install_config_path
+    from hh.deploy.install_helpers_config import get_install_config_path
     import configparser
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     if not cfg_path.exists():
         # Config not found, but this is OK - might be HTTP-only deployment
         trace_out()
@@ -364,9 +364,9 @@ def restart_nginx() -> Dict[str, Any]:
         return {"status": "error", "error": "Could not detect project name"}
 
     # Get deployment parameters from install config
-    from hh.deploy.users.install import _install_config_path
+    from hh.deploy.install_helpers_config import get_install_config_path
     import configparser
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     if not cfg_path.exists():
         trace_out()
         return {"status": "error", "error": "Install config not found"}

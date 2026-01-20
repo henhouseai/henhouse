@@ -2,7 +2,7 @@
 import configparser
 from typing import List, Optional
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
-from hh.deploy.users.install import _install_config_path
+from hh.deploy.install_helpers_config import get_install_config_path
 
 def get_security_headers() -> List[str]:
     """Return standard security headers for all server blocks."""
@@ -90,8 +90,8 @@ def get_auth_block(project_name: str, tier: str, guest_password: Optional[str] =
     # Load htpasswd_dir from install config if not provided
     if htpasswd_dir is None:
         try:
-            from hh.deploy.users.install import _load_install_config
-            install_config = _load_install_config(project_name)
+            from hh.deploy.install_helpers_config import load_install_config
+            install_config = load_install_config(project_name)
             if install_config:
                 htpasswd_dir = install_config.get("htpasswd_dir", "/var/www").strip()
             else:
@@ -230,7 +230,7 @@ def generate_server_block(server_names: List[str], port: int, static_locations: 
 
 def _load_flask_start_port(project_name: str) -> int:
     """Load flask_start_port from installer manifest. Fails hard if config missing or invalid."""
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     if not cfg_path.exists():
         raise FileNotFoundError(f"Installer manifest not found: {cfg_path}")
     

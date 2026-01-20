@@ -1,6 +1,5 @@
 from hh.render.config.config_registry import register_label
 
-@register_label('install_header',                      'Installation Status',            '🔧')
 @register_label('groups_created',                      'Groups Created:',                '👥')
 @register_label('users_created',                       'Users Created:',                 '👤')
 @register_label('ssh_keys',                            'SSH Keys:',                      '🔑')

@@ -6,7 +6,7 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.response.json_standard import success_payload
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.deploy_utils import detect_project_context
-from hh.deploy.users.install import _install_config_path
+from hh.deploy.install_helpers_config import get_install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -155,7 +155,7 @@ def flask_status() -> bool:
     start_port = 5001  # Default
     try:
         import configparser
-        cfg_path = _install_config_path(project_name)
+        cfg_path = get_install_config_path(project_name)
         if cfg_path.exists():
             parser = configparser.ConfigParser()
             parser.read(cfg_path)

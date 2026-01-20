@@ -181,7 +181,6 @@ def render_install_section(source_data: Dict[str, Union[str, int, bool]], lines:
         break_section(lines)
     trace_out()
 
-@register_parser('install')
 def install() -> bool:
     trace_in()
     gateway = get_gateway()

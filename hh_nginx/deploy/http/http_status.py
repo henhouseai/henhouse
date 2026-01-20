@@ -40,8 +40,8 @@ def scan_nginx_sites(project_name: Optional[str] = None) -> List[SiteInfo]:
     try:
         # Load nginx paths from config if project_name provided
         if project_name:
-            from hh.deploy.users.install import _load_install_config
-            install_config = _load_install_config(project_name)
+            from hh.deploy.install_helpers_config import load_install_config
+            install_config = load_install_config(project_name)
             if install_config:
                 nginx_sites_available_str = install_config.get("nginx_sites_available", "/etc/nginx/sites-available").strip()
                 sites_available_dir = Path(nginx_sites_available_str)

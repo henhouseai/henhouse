@@ -364,8 +364,6 @@ def _assert_config_value(key: str, value: str) -> None:
         raise ValueError(f"{key} must be set to real values (placeholder detected)")
 
 
-@register_action('install')
-@register_command('install')
 def install() -> bool:
     trace_in()
     gateway = get_gateway()

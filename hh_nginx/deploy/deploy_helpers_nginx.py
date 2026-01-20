@@ -138,11 +138,11 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_bl
     """Generate Nginx SSL configuration with client IP access control for local deployments."""
     trace_in()
     try:
-        from hh.deploy.users.install import _load_install_config
+        from hh.deploy.install_helpers_config import load_install_config
         guest_password = None
         webroot_dir = "/var/www/html"
         try:
-            install_config = _load_install_config(project_name)
+            install_config = load_install_config(project_name)
             if install_config:
                 guest_password = install_config.get("htaccess_guest_password", "").strip() or None
                 webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
@@ -279,11 +279,11 @@ def create_nginx_config_local(domain: str, project_name: str, local_allow_block:
     """Generate Nginx HTTP-only configuration with client IP access control for local deployments."""
     trace_in()
     try:
-        from hh.deploy.users.install import _load_install_config
+        from hh.deploy.install_helpers_config import load_install_config
         guest_password = None
         webroot_dir = "/var/www/html"
         try:
-            install_config = _load_install_config(project_name)
+            install_config = load_install_config(project_name)
             if install_config:
                 guest_password = install_config.get("htaccess_guest_password", "").strip() or None
                 webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
@@ -403,11 +403,11 @@ def create_nginx_ssl_config(domain: str, project_name: str, certificate_path: Op
         if not certificate_path:
             certificate_path = f"/etc/letsencrypt/live/{domain}"
 
-        from hh.deploy.users.install import _load_install_config
+        from hh.deploy.install_helpers_config import load_install_config
         guest_password = None
         webroot_dir = "/var/www/html"
         try:
-            install_config = _load_install_config(project_name)
+            install_config = load_install_config(project_name)
             if install_config:
                 guest_password = install_config.get("htaccess_guest_password", "").strip() or None
                 webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
@@ -483,10 +483,10 @@ def create_nginx_config(domain: str, project_name: str) -> str:
     """Generate Nginx configuration for the domain and its subdomains (HTTP only - public deployment)."""
     trace_in()
     try:
-        from hh.deploy.users.install import _load_install_config
+        from hh.deploy.install_helpers_config import load_install_config
         webroot_dir = "/var/www/html"
         try:
-            install_config = _load_install_config(project_name)
+            install_config = load_install_config(project_name)
             if install_config:
                 webroot_dir = install_config.get("webroot_dir", "/var/www/html").strip()
         except Exception:

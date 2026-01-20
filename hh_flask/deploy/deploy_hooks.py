@@ -56,9 +56,9 @@ def restart_flask_daemons() -> Dict[str, Any]:
         raise ValueError("Could not detect project name")
 
     # Get start_port from install config
-    from hh.deploy.users.install import _install_config_path
+    from hh.deploy.install_helpers_config import get_install_config_path
     import configparser
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     start_port = 5001
     if cfg_path.exists():
         parser = configparser.ConfigParser()
@@ -87,9 +87,9 @@ def deploy_flask_apps() -> Dict[str, Any]:
         raise ValueError("Could not detect project name")
 
     # Get start_port from install config
-    from hh.deploy.users.install import _install_config_path
+    from hh.deploy.install_helpers_config import get_install_config_path
     import configparser
-    cfg_path = _install_config_path(project_name)
+    cfg_path = get_install_config_path(project_name)
     start_port = 5001
     if cfg_path.exists():
         parser = configparser.ConfigParser()

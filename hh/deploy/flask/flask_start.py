@@ -11,7 +11,7 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.deploy.flask.flask_stop import remove_logrotate
 from hh.deploy.deploy_utils import detect_project_context
-from hh.deploy.users.install import _install_config_path
+from hh.deploy.install_helpers_config import get_install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -341,7 +341,7 @@ def flask_start() -> bool:
     start_port = 5001  # Default
     try:
         import configparser
-        cfg_path = _install_config_path(project_name)
+        cfg_path = get_install_config_path(project_name)
         if cfg_path.exists():
             parser = configparser.ConfigParser()
             parser.read(cfg_path)

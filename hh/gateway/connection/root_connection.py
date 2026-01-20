@@ -5,7 +5,7 @@ from pathlib import Path
 from hh.gateway.connection.connection import Connection, _load_dsn
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.deploy.users.install import _install_config_path
+from hh.deploy.install_helpers_config import get_install_config_path
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -27,7 +27,7 @@ class RootConnection(Connection):
     """Connection with root credentials for the main database. Cache/history unchanged."""
     
     def _load_install_config(self, project_name: str) -> Optional[Dict[str, Union[str, int]]]:
-        cfg_path = _install_config_path(project_name)
+        cfg_path = get_install_config_path(project_name)
         if not cfg_path.exists():
             warn(f"Root install config not found: {cfg_path}")
             return None

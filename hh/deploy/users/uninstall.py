@@ -738,8 +738,8 @@ def remove_htpasswd_users(project_name: str) -> None:
         # Load htpasswd_dir from install config
         htpasswd_dir = "/var/www"  # Default fallback
         try:
-            from hh.deploy.users.install import _load_install_config
-            install_config = _load_install_config(project_name)
+            from hh.deploy.install_helpers_config import load_install_config
+            install_config = load_install_config(project_name)
             if install_config:
                 htpasswd_dir = install_config.get("htpasswd_dir", "/var/www").strip()
         except Exception:
