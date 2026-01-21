@@ -282,6 +282,133 @@ class Page:
         log(f"Found {len(child_array)} total child pages (including nested) for page {self.id}")
         return trace_out(child_array)
 
+    def check_incoming_links(self, ignore_internal: bool = False) -> dict:
+        """
+        Check for incoming links to this page and its children (recursive).
+
+        Args:
+            ignore_internal: If True, ignore links from pages within this page's tree
+
+        Returns:
+            dict: {
+                'page_id': int,
+                'num_children': int,
+                'num_images': int,
+                'this_page_links': [{'source_id': int, 'link': str, 'resolution_id': int}, ...],
+                'child_page_links': {
+                    child_id: [{'source_id': int, 'link': str, 'resolution_id': int}, ...],
+                    ...
+                },
+                'image_links': {
+                    image_id: [{'source_id': int, 'resolution_id': int}, ...],
+                    ...
+                }
+            }
+        """
+        trace_in()
+        log(f"Checking incoming links for page {self.id} (ignore_internal={ignore_internal})")
+
+        # Build array of all child page IDs (recursive)
+        child_array = {self.id: True}
+        child_ids = self._check_children_recursive()
+        for child_id in child_ids:
+            child_array[child_id] = True
+
+        # Get all page IDs to check for incoming links
+        all_page_ids = list(child_array.keys())
+        log(f"Checking {len(all_page_ids)} pages (this page + {len(child_ids)} children)")
+
+        # Query for incoming page links
+        placeholders = ','.join(['%s'] * len(all_page_ids))
+        page_links_query = f"""
+            SELECT links.id as source_id, links.link, links.resolution_id
+            FROM links
+            JOIN pages ON pages.id = links.id
+            WHERE links.resolution_id IN ({placeholders})
+            ORDER BY links.resolution_id, links.id
+        """
+        page_link_rows = self.gateway.conn.read(page_links_query, tuple(all_page_ids))
+        log(f"Found {len(page_link_rows)} total incoming page links")
+
+        # Group page links by target page
+        this_page_links = []
+        child_page_links: dict[int, list[dict]] = {}
+
+        for row in page_link_rows:
+            source_id = row['source_id']
+
+            # If ignore_internal=True, skip links from within this tree
+            if ignore_internal and source_id in child_array:
+                continue
+
+            link_info = {
+                'source_id': source_id,
+                'link': row['link'],
+                'resolution_id': row['resolution_id']
+            }
+
+            if row['resolution_id'] == self.id:
+                this_page_links.append(link_info)
+            else:
+                if row['resolution_id'] not in child_page_links:
+                    child_page_links[row['resolution_id']] = []
+                child_page_links[row['resolution_id']].append(link_info)
+
+        log(f"After filtering: {len(this_page_links)} links to this page, {len(child_page_links)} children with links")
+
+        # Query for images in this page tree (via image_groups many-to-many table)
+        image_ids_query = f"""
+            SELECT DISTINCT ig.image_id as id
+            FROM image_groups ig
+            WHERE ig.page_id IN ({placeholders})
+        """
+        image_rows = self.gateway.conn.read(image_ids_query, tuple(all_page_ids))
+        image_ids = [row['id'] for row in image_rows]
+        log(f"Found {len(image_ids)} images in page tree")
+
+        # Query for incoming image links
+        image_links: dict[int, list[dict]] = {}
+        if image_ids:
+            img_placeholders = ','.join(['%s'] * len(image_ids))
+            image_links_query = f"""
+                SELECT image_links.id as source_id, image_links.resolution_id
+                FROM image_links
+                JOIN pages ON pages.id = image_links.id
+                WHERE image_links.resolution_id IN ({img_placeholders})
+                ORDER BY image_links.resolution_id, image_links.id
+            """
+            image_link_rows = self.gateway.conn.read(image_links_query, tuple(image_ids))
+            log(f"Found {len(image_link_rows)} total incoming image links")
+
+            for row in image_link_rows:
+                source_id = row['source_id']
+
+                # If ignore_internal=True, skip links from within this tree
+                if ignore_internal and source_id in child_array:
+                    continue
+
+                if row['resolution_id'] not in image_links:
+                    image_links[row['resolution_id']] = []
+                image_links[row['resolution_id']].append({
+                    'source_id': source_id,
+                    'resolution_id': row['resolution_id']
+                })
+
+        result = {
+            'page_id': self.id,
+            'num_children': len(child_ids),
+            'num_images': len(image_ids),
+            'this_page_links': this_page_links,
+            'child_page_links': child_page_links,
+            'image_links': image_links
+        }
+
+        # Calculate total link counts for logging
+        total_child_links = sum(len(v) for v in child_page_links.values())
+        total_image_links = sum(len(v) for v in image_links.values())
+        log(f"Check complete: {len(this_page_links)} this page, {total_child_links} child pages, {total_image_links} images")
+        return trace_out(result)
+
     def _copy_children_recursive(self, parent_id: int, max_depth: Optional[int] = None, current_depth: int = 0, copy_images: bool = False, copy_files: bool = False) -> None:
         trace_in()
         if max_depth is not None and current_depth >= max_depth:

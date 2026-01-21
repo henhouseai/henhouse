@@ -43,157 +43,157 @@ def _initialize_debug():
     debug = get_debug(True)
     warn = get_warn(True)
 
-def check_orphan_pages() -> list[int]:
+def check_orphan_pages() -> list[dict]:
     """Check for pages with missing parent pages."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT child.id
+        SELECT child.id AS source_id, child.parent AS target_id
         FROM pages child
         LEFT JOIN pages parent ON parent.id = child.parent
         WHERE child.parent <> 0 AND parent.id IS NULL
         ORDER BY child.id
         """
     )
-    return [row["id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_link_sources() -> list[int]:
+def check_orphan_link_sources() -> list[dict]:
     """Check for links whose source page is missing."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT l.id
+        SELECT l.id AS source_id, l.resolution_id AS target_id
         FROM links l
         LEFT JOIN pages p ON p.id = l.id
         WHERE p.id IS NULL
         ORDER BY l.id
         """
     )
-    return [row["id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_link_targets() -> list[int]:
+def check_orphan_link_targets() -> list[dict]:
     """Check for links whose target page is missing."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT l.resolution_id
+        SELECT l.id AS source_id, l.resolution_id AS target_id
         FROM links l
         LEFT JOIN pages p ON p.id = l.resolution_id
         WHERE p.id IS NULL
         ORDER BY l.resolution_id
         """
     )
-    return [row["resolution_id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_image_pages() -> list[int]:
+def check_orphan_image_pages() -> list[dict]:
     """Check for image links whose page is missing."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT il.id
+        SELECT il.id AS source_id, il.resolution_id AS target_id
         FROM image_links il
         LEFT JOIN pages p ON p.id = il.id
         WHERE p.id IS NULL
         ORDER BY il.id
         """
     )
-    return [row["id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_image_targets() -> list[int]:
+def check_orphan_image_targets() -> list[dict]:
     """Check for image links whose image is missing."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT il.resolution_id
+        SELECT il.id AS source_id, il.resolution_id AS target_id
         FROM image_links il
         LEFT JOIN images i ON i.id = il.resolution_id
         WHERE i.id IS NULL
         ORDER BY il.resolution_id
         """
     )
-    return [row["resolution_id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_image_group_pages() -> list[int]:
+def check_orphan_image_group_pages() -> list[dict]:
     """Check for image groups pointing to missing pages."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT DISTINCT ig.page_id
+        SELECT DISTINCT ig.page_id AS source_id, ig.image_id AS target_id
         FROM image_groups ig
         LEFT JOIN pages p ON p.id = ig.page_id
         WHERE p.id IS NULL
         ORDER BY ig.page_id
         """
     )
-    return [row["page_id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_image_group_images() -> list[int]:
+def check_orphan_image_group_images() -> list[dict]:
     """Check for image groups pointing to missing images."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT DISTINCT ig.image_id
+        SELECT DISTINCT ig.page_id AS source_id, ig.image_id AS target_id
         FROM image_groups ig
         LEFT JOIN images i ON i.id = ig.image_id
         WHERE i.id IS NULL
         ORDER BY ig.image_id
         """
     )
-    return [row["image_id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_file_group_pages() -> list[int]:
+def check_orphan_file_group_pages() -> list[dict]:
     """Check for file groups pointing to missing pages."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT DISTINCT fg.page_id
+        SELECT DISTINCT fg.page_id AS source_id, fg.file_id AS target_id
         FROM file_groups fg
         LEFT JOIN pages p ON p.id = fg.page_id
         WHERE p.id IS NULL
         ORDER BY fg.page_id
         """
     )
-    return [row["page_id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
-def check_orphan_file_group_files() -> list[int]:
+def check_orphan_file_group_files() -> list[dict]:
     """Check for file groups pointing to missing files."""
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return []
     rows = gateway.conn.read(
         """
-        SELECT DISTINCT fg.file_id
+        SELECT DISTINCT fg.page_id AS source_id, fg.file_id AS target_id
         FROM file_groups fg
         LEFT JOIN files f ON f.id = fg.file_id
         WHERE f.id IS NULL
         ORDER BY fg.file_id
         """
     )
-    return [row["file_id"] for row in rows]
+    return [{"source_id": row["source_id"], "target_id": row["target_id"]} for row in rows]
 
 
 @register_action("orphan_check")
@@ -263,21 +263,22 @@ def orphan_check_parser() -> bool:
         lines = [render_header_block("l_orphan_check_header")]
 
         table = TableData()
-        # Check if all counts are zero to conditionally hide IDs column
+        # Check if all counts are zero to conditionally hide ID columns
         total_count = sum(summary.get(key, 0) for key in counts.keys())
         has_orphans = total_count > 0
-        
+
         # Add header row
         if has_orphans:
             table.add_row(
-                "header",
+                "orphan_check_header",
                 label=f"{total_count} orphan{'s' if total_count != 1 else ''}",
                 count="Count",
-                ids="IDs",
+                source_ids="Source IDs",
+                target_ids="Target IDs",
             )
         else:
             table.add_row(
-                "header",
+                "orphan_check_header",
                 label=f"{total_count} orphan{'s' if total_count != 1 else ''}",
                 count="Count",
             )
@@ -286,13 +287,23 @@ def orphan_check_parser() -> bool:
         for key in counts.keys():
             count = summary.get(key, 0)
             if has_orphans:
-                ids_list = counts.get(key, [])
-                preview_ids = ids_list[:20] if ids_list else []
-                preview = ", ".join(str(val) for val in preview_ids) if preview_ids else ""
+                orphan_pairs = counts.get(key, [])
+                # Extract source and target IDs from the list of dicts
+                source_ids = [pair["source_id"] for pair in orphan_pairs]
+                target_ids = [pair["target_id"] for pair in orphan_pairs]
+
+                # Preview first 20 of each
+                preview_sources = source_ids[:20] if source_ids else []
+                preview_targets = target_ids[:20] if target_ids else []
+
+                source_preview = ", ".join(str(val) for val in preview_sources) if preview_sources else ""
+                target_preview = ", ".join(str(val) for val in preview_targets) if preview_targets else ""
+
                 table.add_row(
                     key,
                     count=str(count),
-                    ids=preview,
+                    source_ids=source_preview,
+                    target_ids=target_preview,
                 )
             else:
                 table.add_row(
@@ -304,7 +315,7 @@ def orphan_check_parser() -> bool:
             render_block(
                 table,
                 FieldConfig()
-                .add_header("header")
+                .add_header("orphan_check_header")
                 .add_simple(["orphan_pages", "orphan_link_sources", "orphan_link_targets", "orphan_image_pages", "orphan_image_targets", "orphan_image_group_pages", "orphan_image_group_images", "orphan_file_group_pages", "orphan_file_group_files"]),
                 block_type="maintenance",
                 table_overrides={"margin_l": 4},

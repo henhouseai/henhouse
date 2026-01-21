@@ -9,7 +9,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
 
 @register_tool(
     tool_name='modify_mcp_request',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='mcp_request_dummy'

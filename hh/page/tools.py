@@ -58,7 +58,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
 )
 @register_tool(
     tool_name='help',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 # Write operations - admin and root only
 @register_tool(
@@ -217,27 +217,27 @@ All modes validate the final combined content through TextProcessor before savin
 )
 @register_tool(
     tool_name='copy_image',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_images',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_image',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_images',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='remove_image',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='set_image_rank',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_images_app',
@@ -271,39 +271,39 @@ All modes validate the final combined content through TextProcessor before savin
 )
 @register_tool(
     tool_name='add_file',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='add_files',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='upload_files',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_file',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_files',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_file',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_files',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='remove_file',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='set_file_rank',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_files_app',
@@ -331,51 +331,51 @@ All modes validate the final combined content through TextProcessor before savin
 )
 @register_tool(
     tool_name='copy_audio',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_audios',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_audio',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_audios',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='remove_audio',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='set_audio_rank',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_video',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='copy_videos',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_video',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='move_videos',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='remove_video',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='set_video_rank',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='upload_files_app',
@@ -467,15 +467,22 @@ All modes validate the final combined content through TextProcessor before savin
     crud_type='read'
 )
 @register_tool(
+    tool_name='check_links',
+    api_tiers=[3, 4],
+    app_action_tiers=[3, 4],
+    app_action_group='pages',
+    app_action_label='Check Links'
+)
+@register_tool(
     tool_name='set_page_visibility',
-    api_tiers=[3],
+    api_tiers=[3, 4],
     app_action_tiers=[3, 4],
     app_action_group='pages',
     app_action_label='Visibility'
 )
 @register_tool(
     tool_name='set_page_display_style',
-    api_tiers=[3],
+    api_tiers=[3, 4],
     app_action_tiers=[3, 4],
     app_action_group='pages',
     app_action_label='Display Style'

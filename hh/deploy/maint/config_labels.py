@@ -67,6 +67,11 @@ from hh.render.config.config_registry import register_label
 @register_label("job_status_updated", "Status", "📋")
 @register_label("job_update_success", "Result", "✅")
 @register_label("job_update_failed", "Result", "❌")
+@register_label("check_links_header", "Incoming Links Check", "🔗")
+@register_label("this_page_links_header", "This Page", "📄")
+@register_label("child_page_links_header", "Child Pages", "📁")
+@register_label("image_links_header", "Images", "🖼️")
+@register_label("incoming_link", "Link", "🔗")
 def _register_config():
     pass
 

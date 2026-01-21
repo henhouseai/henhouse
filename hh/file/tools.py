@@ -11,7 +11,7 @@ from hh.gateway.registry.tool_whitelist import register_tool
 
 @register_tool(
     tool_name='modify_file_description',
-    api_tiers=[3]
+    api_tiers=[3, 4]
 )
 @register_tool(
     tool_name='set_file_visibility',
