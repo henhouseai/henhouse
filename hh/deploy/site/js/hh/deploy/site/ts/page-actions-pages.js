@@ -104,10 +104,8 @@ export class PageActionsPages {
                                     }
                                 }
                             }
-                            // Return without auto-fade to keep error visible
-                            return {
-                                _autoFade: false
-                            };
+                            // Throw error to put overlay in error state (auto-fade disabled automatically)
+                            throw new Error(errorMsg);
                         }
                         // Deletion was successful
                         return {
