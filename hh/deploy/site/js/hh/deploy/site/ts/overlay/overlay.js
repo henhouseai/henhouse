@@ -26,6 +26,7 @@ export class Overlay {
             isLoading: false,
             error: null,
             success: null,
+            warning: null,
             messages: [],
             zIndex: zIndex
         };
@@ -212,8 +213,9 @@ export class Overlay {
             if (loadingImg) {
                 loadingImg.remove();
             }
-            // Only restore submit button on error (not on success)
-            if (!submitBtn && this.props.onSubmit && (this.state.error || (this.state.messages && this.state.messages.some(m => m.type === 'error')))) {
+            // Only restore submit button on error (not on success or warning)
+            // Warning state should keep submit button hidden (operation already attempted)
+            if (!submitBtn && this.props.onSubmit && !this.state.warning && (this.state.error || (this.state.messages && this.state.messages.some(m => m.type === 'error')))) {
                 // Restore middle button if it was configured
                 const middleButtonIndependent = this.props.middleButtonIndependent === true;
                 const willShowSubmit = this.props.showSubmit !== false && !!this.props.onSubmit;
@@ -253,25 +255,32 @@ export class Overlay {
         // Remove existing messages
         const existingMessages = this.windowEl.querySelectorAll('.overlaySuccess, .overlayError, .overlayWarning');
         existingMessages.forEach(msg => msg.remove());
-        // Add messages in order (from messages array, or fallback to error/success for backward compatibility)
+        // Add messages in order (from messages array, or fallback to error/success/warning for backward compatibility)
         if (this.state.messages && this.state.messages.length > 0) {
             // Insert messages after header (contentWrapperHeader), in order
             let insertAfter = this.headerEl;
             for (const msg of this.state.messages) {
                 const msgDiv = document.createElement('div');
-                msgDiv.className = msg.type === 'success' ? 'overlaySuccess' : 'overlayError';
+                msgDiv.className = msg.type === 'success' ? 'overlaySuccess' :
+                    msg.type === 'warning' ? 'overlayWarning' : 'overlayError';
                 msgDiv.textContent = msg.text;
                 insertAfter.insertAdjacentElement('afterend', msgDiv);
                 insertAfter = msgDiv;
             }
         }
         else {
-            // Backward compatibility: single error or success message
+            // Backward compatibility: single error, warning, or success message
             if (this.state.error) {
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'overlayError';
                 errorDiv.textContent = this.state.error;
                 this.headerEl.insertAdjacentElement('afterend', errorDiv);
+            }
+            if (this.state.warning) {
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'overlayWarning';
+                warningDiv.textContent = this.state.warning;
+                this.headerEl.insertAdjacentElement('afterend', warningDiv);
             }
             if (this.state.success) {
                 const successDiv = document.createElement('div');
@@ -341,10 +350,20 @@ export class Overlay {
             const result = await this.props.onSubmit();
             // Check if result has custom message and auto-fade flag
             const showMessage = result?._showMessage;
+            const showWarning = result?._showWarning;
             const autoFade = result?._autoFade === true;
             const redirectAfterFade = result?._redirectAfterFade;
             const debugData = result?.debug;
-            if (showMessage) {
+            if (showWarning) {
+                // Warning path: set warning state, clear success/error
+                this.setState({
+                    isLoading: false,
+                    warning: showWarning,
+                    success: null,
+                    error: null
+                });
+            }
+            else if (showMessage) {
                 // Use custom message from onSubmit handler
                 this.setState({ isLoading: false, success: showMessage });
             }
@@ -360,12 +379,13 @@ export class Overlay {
             if (debugData && Array.isArray(debugData.entries) && debugData.entries.length > 0 && !debugAlreadyShown) {
                 this.showDebugTable(debugData, requestInfo);
             }
-            // Check if there are any error messages in the messages array
+            // Check if there are any error or warning messages in the messages array
             const hasErrorMessages = this.state.messages && this.state.messages.some(msg => msg.type === 'error');
+            const hasWarningMessages = this.state.messages && this.state.messages.some(msg => msg.type === 'warning');
             // Auto-close after success: wait 1-2 seconds, then slow fade out
-            // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error AND no error messages AND no debug data
-            // Debug data or error messages disables auto-fade so user can see warnings/debug info/errors
-            if (autoFade && (this.state.success && !this.state.error && !hasErrorMessages && !debugData)) {
+            // Only auto-close if explicitly requested (autoFade flag) AND we have success with no error/warning AND no error/warning messages AND no debug data
+            // Debug data, warnings, or error messages disables auto-fade so user can see warnings/debug info/errors
+            if (autoFade && (this.state.success && !this.state.error && !this.state.warning && !hasErrorMessages && !hasWarningMessages && !debugData)) {
                 setTimeout(() => {
                     this.closeWithFade(1500); // 1.5 second slow fade
                     // If redirect is requested, do it after fade completes

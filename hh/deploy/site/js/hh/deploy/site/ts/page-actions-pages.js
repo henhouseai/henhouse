@@ -58,7 +58,7 @@ export class PageActionsPages {
                         if (result.data?.deleted === false && result.data?.html_sections) {
                             // Server returned pre-rendered HTML sections showing incoming links
                             const htmlSections = result.data.html_sections;
-                            const errorMsg = result.data.error || 'Cannot delete this page';
+                            const warningMsg = result.data.error || 'Cannot delete this page - incoming links exist';
                             // Extract content and headers from server-rendered sections
                             const content = [];
                             const contentHeaders = [];
@@ -66,22 +66,14 @@ export class PageActionsPages {
                                 contentHeaders.push(header);
                                 content.push(html);
                             }
-                            // Update the same overlay with error message and link details
+                            // Update overlay content with links table
                             const overlay = OverlayManager.getInstance().getTopOverlay();
                             if (overlay) {
                                 const windowEl = overlay.windowEl;
                                 if (windowEl) {
-                                    // Find and update contentWrapper
                                     const contentWrapper = windowEl.querySelector('.contentWrapper');
                                     if (contentWrapper) {
-                                        // Clear and rebuild content
                                         contentWrapper.innerHTML = '';
-                                        // Add error message at top
-                                        const errorDiv = document.createElement('div');
-                                        errorDiv.className = 'content overlay-error-text';
-                                        errorDiv.innerHTML = `<p><strong>${this.escapeHtml(errorMsg)}</strong></p>`;
-                                        contentWrapper.appendChild(errorDiv);
-                                        // Add content headers and sections
                                         for (let i = 0; i < content.length; i++) {
                                             const header = contentHeaders[i];
                                             const contentHtml = content[i];
@@ -97,15 +89,14 @@ export class PageActionsPages {
                                             contentWrapper.appendChild(contentDiv);
                                         }
                                     }
-                                    // Hide submit button
-                                    const submitBtn = windowEl.querySelector('#submitOverlayWindow');
-                                    if (submitBtn) {
-                                        submitBtn.style.display = 'none';
-                                    }
                                 }
                             }
-                            // Throw error to put overlay in error state (auto-fade disabled automatically)
-                            throw new Error(errorMsg);
+                            // Return warning result (triggers warning state)
+                            return {
+                                warning: true,
+                                _showWarning: warningMsg,
+                                _autoFade: false
+                            };
                         }
                         // Deletion was successful
                         return {
