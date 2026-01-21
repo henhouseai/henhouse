@@ -48,8 +48,7 @@ def check_links_action() -> bool:
         return False
 
     page_id = int(page_id_arg)
-    ignore_internal_arg = gateway.get_arg('ignore_internal')
-    ignore_internal = bool(ignore_internal_arg) if ignore_internal_arg else False
+    ignore_internal = gateway.is_set('ignore_internal')
 
     log(f"Running check_links for page {page_id} (ignore_internal={ignore_internal})")
 

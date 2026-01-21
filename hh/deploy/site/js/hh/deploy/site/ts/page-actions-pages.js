@@ -546,13 +546,14 @@ export class PageActionsPages {
                 onSubmit: async () => {
                     // Phase 2: Read checkbox and call RPC
                     const ignoreInternalCheckbox = document.getElementById('check-links-ignore-internal');
-                    const ignoreInternal = ignoreInternalCheckbox ? ignoreInternalCheckbox.checked : false;
                     try {
+                        // Build params - only include ignore_internal if checkbox is checked
+                        const params = { page_id: pageId };
+                        if (ignoreInternalCheckbox && ignoreInternalCheckbox.checked) {
+                            params.ignore_internal = true;
+                        }
                         // Call check_links API
-                        const result = await rpc.call('check_links', {
-                            page_id: pageId,
-                            ignore_internal: ignoreInternal
-                        });
+                        const result = await rpc.call('check_links', params);
                         const linksData = result.data?.links_data;
                         if (!linksData) {
                             throw new Error('No links data returned');
