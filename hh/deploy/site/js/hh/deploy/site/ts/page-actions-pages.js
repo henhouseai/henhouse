@@ -515,117 +515,191 @@ export class PageActionsPages {
             return;
         }
         try {
-            // Call check_links API
-            const result = await rpc.call('check_links', {
-                page_id: pageId,
-                ignore_internal: true
-            });
-            const linksData = result.data?.links_data;
-            if (!linksData) {
-                throw new Error('No links data returned');
-            }
-            // Build HTML content
-            const content = [];
-            // Summary section
-            const numThisPage = linksData.this_page_links?.length || 0;
-            const numChildren = linksData.num_children || 0;
-            const childPageLinks = linksData.child_page_links || {};
-            const numChildrenWithLinks = Object.keys(childPageLinks).length;
-            const numImages = linksData.num_images || 0;
-            const imageLinks = linksData.image_links || {};
-            const numImagesWithLinks = Object.keys(imageLinks).length;
-            let summaryHtml = '<div class="overlay-info-text">';
-            if (numThisPage > 0) {
-                summaryHtml += `<p>This page (page #${pageId}) has <strong>${numThisPage}</strong> incoming link${numThisPage !== 1 ? 's' : ''}.</p>`;
-            }
-            else {
-                summaryHtml += `<p>This page (page #${pageId}) has <strong>no incoming links</strong>.</p>`;
-            }
-            if (numChildren > 0) {
-                summaryHtml += `<p>This page has <strong>${numChildren}</strong> child page${numChildren !== 1 ? 's' : ''}. <strong>${numChildrenWithLinks}</strong> of these child page${numChildrenWithLinks !== 1 ? 's' : ''} ha${numChildrenWithLinks !== 1 ? 've' : 's'} incoming links.</p>`;
-            }
-            if (numImages > 0) {
-                summaryHtml += `<p>This page (and all of its children pages combined) contain${numImages === 1 ? 's' : ''} <strong>${numImages}</strong> image${numImages !== 1 ? 's' : ''}. <strong>${numImagesWithLinks}</strong> of these image${numImagesWithLinks !== 1 ? 's' : ''} ha${numImagesWithLinks !== 1 ? 've' : 's'} incoming links.</p>`;
-            }
-            summaryHtml += '</div>';
-            content.push(summaryHtml);
-            // This page links table
-            if (numThisPage > 0) {
-                let tableHtml = '<table class="dataTable"><thead><tr>';
-                tableHtml += '<th>Source ID</th><th>Link Text</th>';
-                tableHtml += '</tr></thead><tbody>';
-                for (const link of linksData.this_page_links) {
-                    tableHtml += '<tr>';
-                    tableHtml += `<td><a href="/page/${link.source_id}">${link.source_id}</a></td>`;
-                    tableHtml += `<td>${this.escapeHtml(link.link)}</td>`;
-                    tableHtml += '</tr>';
-                }
-                tableHtml += '</tbody></table>';
-                content.push(tableHtml);
-            }
-            // Child page links table
-            if (numChildrenWithLinks > 0) {
-                let tableHtml = '<table class="dataTable"><thead><tr>';
-                tableHtml += '<th>Target ID</th><th>Target Name</th><th>Source ID</th><th>Link Text</th>';
-                tableHtml += '</tr></thead><tbody>';
-                // Need to fetch child page names
-                for (const [childIdStr, links] of Object.entries(childPageLinks)) {
-                    const childId = parseInt(childIdStr);
-                    // Fetch child page data to get name
-                    let childName = '';
-                    try {
-                        const childResult = await rpc.call('get_page', { id: childId });
-                        childName = childResult.data?.page?.name || '';
-                    }
-                    catch {
-                        childName = '';
-                    }
-                    for (const link of links) {
-                        tableHtml += '<tr>';
-                        tableHtml += `<td><a href="/page/${childId}">${childId}</a></td>`;
-                        tableHtml += `<td>${this.escapeHtml(childName)}</td>`;
-                        tableHtml += `<td><a href="/page/${link.source_id}">${link.source_id}</a></td>`;
-                        tableHtml += `<td>${this.escapeHtml(link.link)}</td>`;
-                        tableHtml += '</tr>';
-                    }
-                }
-                tableHtml += '</tbody></table>';
-                content.push(tableHtml);
-            }
-            // Image links table
-            if (numImagesWithLinks > 0) {
-                let tableHtml = '<table class="dataTable"><thead><tr>';
-                tableHtml += '<th>Target ID</th><th>Source ID</th>';
-                tableHtml += '</tr></thead><tbody>';
-                for (const [imageIdStr, links] of Object.entries(imageLinks)) {
-                    const imageId = parseInt(imageIdStr);
-                    for (const link of links) {
-                        tableHtml += '<tr>';
-                        tableHtml += `<td><a href="/img/${imageId}">${imageId}</a></td>`;
-                        tableHtml += `<td><a href="/page/${link.source_id}">${link.source_id}</a></td>`;
-                        tableHtml += '</tr>';
-                    }
-                }
-                tableHtml += '</tbody></table>';
-                content.push(tableHtml);
-            }
-            // Build content headers
-            const contentHeaders = ['Summary'];
-            if (numThisPage > 0)
-                contentHeaders.push('This Page');
-            if (numChildrenWithLinks > 0)
-                contentHeaders.push('Child Pages');
-            if (numImagesWithLinks > 0)
-                contentHeaders.push('Images');
-            // Show overlay
+            const pageManager = PageManager.getInstance();
+            const pageName = this.getField('name') || `Page ${pageId}`;
+            // Phase 1: Show options form
+            const formHtml = `
+        <div class="overlay-info-text">
+          <p>Check for incoming links to <strong>${this.escapeHtml(pageName)}</strong> (page #${pageId}) and all its children.</p>
+        </div>
+        <div class="overlay-form-group">
+          <label class="overlay-label-inline">
+            <input type="checkbox" id="check-links-ignore-internal" class="overlay-form-checkbox">
+            <span>Ignore internal links (only show links from outside this page tree)</span>
+          </label>
+        </div>
+      `;
             OverlayManager.getInstance().show({
-                header: 'Incoming Links Check',
-                content,
-                contentHeaders,
+                header: 'Check Incoming Links',
+                content: [formHtml],
+                contentHeaders: [''],
                 mode: 'fixed',
                 closable: true,
-                showSubmit: false
+                submitLabel: 'Run Check',
+                cancelLabel: 'Cancel',
+                onCancel: () => {
+                    pageManager.clearFieldRegistry();
+                },
+                onUnmount: () => {
+                    pageManager.clearFieldRegistry();
+                },
+                onSubmit: async () => {
+                    // Phase 2: Read checkbox and call RPC
+                    const ignoreInternalCheckbox = document.getElementById('check-links-ignore-internal');
+                    const ignoreInternal = ignoreInternalCheckbox ? ignoreInternalCheckbox.checked : false;
+                    try {
+                        // Call check_links API
+                        const result = await rpc.call('check_links', {
+                            page_id: pageId,
+                            ignore_internal: ignoreInternal
+                        });
+                        const linksData = result.data?.links_data;
+                        if (!linksData) {
+                            throw new Error('No links data returned');
+                        }
+                        // Build results HTML
+                        const content = [];
+                        // Summary section
+                        const numThisPage = linksData.this_page_links?.length || 0;
+                        const numChildren = linksData.num_children || 0;
+                        const childPageLinks = linksData.child_page_links || {};
+                        const numChildrenWithLinks = Object.keys(childPageLinks).length;
+                        const numImages = linksData.num_images || 0;
+                        const imageLinks = linksData.image_links || {};
+                        const numImagesWithLinks = Object.keys(imageLinks).length;
+                        let summaryHtml = '<div class="overlay-info-text">';
+                        if (numThisPage > 0) {
+                            summaryHtml += `<p>This page (page #${pageId}) has <strong>${numThisPage}</strong> incoming link${numThisPage !== 1 ? 's' : ''}.</p>`;
+                        }
+                        else {
+                            summaryHtml += `<p>This page (page #${pageId}) has <strong>no incoming links</strong>.</p>`;
+                        }
+                        if (numChildren > 0) {
+                            summaryHtml += `<p>This page has <strong>${numChildren}</strong> child page${numChildren !== 1 ? 's' : ''}. <strong>${numChildrenWithLinks}</strong> of these child page${numChildrenWithLinks !== 1 ? 's' : ''} ha${numChildrenWithLinks !== 1 ? 've' : 's'} incoming links.</p>`;
+                        }
+                        if (numImages > 0) {
+                            summaryHtml += `<p>This page (and all of its children pages combined) contain${numImages === 1 ? 's' : ''} <strong>${numImages}</strong> image${numImages !== 1 ? 's' : ''}. <strong>${numImagesWithLinks}</strong> of these image${numImagesWithLinks !== 1 ? 's' : ''} ha${numImagesWithLinks !== 1 ? 've' : 's'} incoming links.</p>`;
+                        }
+                        summaryHtml += '</div>';
+                        content.push(summaryHtml);
+                        // This page links table
+                        if (numThisPage > 0) {
+                            let tableHtml = '<table class="dataTable"><thead><tr>';
+                            tableHtml += '<th>Source ID</th><th>Link Text</th>';
+                            tableHtml += '</tr></thead><tbody>';
+                            for (const link of linksData.this_page_links) {
+                                tableHtml += '<tr>';
+                                tableHtml += `<td><a href="/page/${link.source_id}">${link.source_id}</a></td>`;
+                                tableHtml += `<td>${this.escapeHtml(link.link)}</td>`;
+                                tableHtml += '</tr>';
+                            }
+                            tableHtml += '</tbody></table>';
+                            content.push(tableHtml);
+                        }
+                        // Child page links table
+                        if (numChildrenWithLinks > 0) {
+                            let tableHtml = '<table class="dataTable"><thead><tr>';
+                            tableHtml += '<th>Target ID</th><th>Target Name</th><th>Source ID</th><th>Link Text</th>';
+                            tableHtml += '</tr></thead><tbody>';
+                            // Need to fetch child page names
+                            for (const [childIdStr, links] of Object.entries(childPageLinks)) {
+                                const childId = parseInt(childIdStr);
+                                // Fetch child page data to get name
+                                let childName = '';
+                                try {
+                                    const childResult = await rpc.call('get_page', { id: childId });
+                                    childName = childResult.data?.page?.name || '';
+                                }
+                                catch {
+                                    childName = '';
+                                }
+                                for (const link of links) {
+                                    tableHtml += '<tr>';
+                                    tableHtml += `<td><a href="/page/${childId}">${childId}</a></td>`;
+                                    tableHtml += `<td>${this.escapeHtml(childName)}</td>`;
+                                    tableHtml += `<td><a href="/page/${link.source_id}">${link.source_id}</a></td>`;
+                                    tableHtml += `<td>${this.escapeHtml(link.link)}</td>`;
+                                    tableHtml += '</tr>';
+                                }
+                            }
+                            tableHtml += '</tbody></table>';
+                            content.push(tableHtml);
+                        }
+                        // Image links table
+                        if (numImagesWithLinks > 0) {
+                            let tableHtml = '<table class="dataTable"><thead><tr>';
+                            tableHtml += '<th>Target ID</th><th>Source ID</th>';
+                            tableHtml += '</tr></thead><tbody>';
+                            for (const [imageIdStr, links] of Object.entries(imageLinks)) {
+                                const imageId = parseInt(imageIdStr);
+                                for (const link of links) {
+                                    tableHtml += '<tr>';
+                                    tableHtml += `<td><a href="/img/${imageId}">${imageId}</a></td>`;
+                                    tableHtml += `<td><a href="/page/${link.source_id}">${link.source_id}</a></td>`;
+                                    tableHtml += '</tr>';
+                                }
+                            }
+                            tableHtml += '</tbody></table>';
+                            content.push(tableHtml);
+                        }
+                        // Build content headers
+                        const contentHeaders = ['Summary'];
+                        if (numThisPage > 0)
+                            contentHeaders.push('This Page');
+                        if (numChildrenWithLinks > 0)
+                            contentHeaders.push('Child Pages');
+                        if (numImagesWithLinks > 0)
+                            contentHeaders.push('Images');
+                        // Update the same overlay with results
+                        const overlay = OverlayManager.getInstance().getTopOverlay();
+                        if (overlay) {
+                            const windowEl = overlay.windowEl;
+                            if (windowEl) {
+                                // Find and update contentWrapper
+                                const contentWrapper = windowEl.querySelector('.contentWrapper');
+                                if (contentWrapper) {
+                                    // Clear and rebuild content
+                                    contentWrapper.innerHTML = '';
+                                    // Add content headers and sections
+                                    for (let i = 0; i < content.length; i++) {
+                                        const header = contentHeaders[i];
+                                        const contentHtml = content[i];
+                                        if (header) {
+                                            const headerDiv = document.createElement('div');
+                                            headerDiv.className = 'contentHeader';
+                                            headerDiv.textContent = header;
+                                            contentWrapper.appendChild(headerDiv);
+                                        }
+                                        const contentDiv = document.createElement('div');
+                                        contentDiv.className = 'content';
+                                        contentDiv.innerHTML = contentHtml;
+                                        contentWrapper.appendChild(contentDiv);
+                                    }
+                                }
+                                // Hide submit button
+                                const submitBtn = windowEl.querySelector('#submitOverlayWindow');
+                                if (submitBtn) {
+                                    submitBtn.style.display = 'none';
+                                }
+                            }
+                        }
+                        // Return without auto-fade to keep results visible
+                        return {
+                            _autoFade: false
+                        };
+                    }
+                    catch (error) {
+                        throw error;
+                    }
+                }
             });
+            // Focus the checkbox after overlay is shown
+            setTimeout(() => {
+                const checkbox = document.getElementById('check-links-ignore-internal');
+                if (checkbox) {
+                    checkbox.focus();
+                }
+            }, 100);
         }
         catch (error) {
             rpc.showError('check_links', error);

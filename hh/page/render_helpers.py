@@ -398,10 +398,7 @@ def render_generic_badge(
     if not badge_data:
         trace_out()
         return None
-    
-    # Import get_label for field config testing
-    from hh.render.config.config_registry import get_label
-    
+
     # Create table data
     badge_rows = TableData()
     field_config = FieldConfig()
@@ -427,7 +424,7 @@ def render_generic_badge(
     field_config.add_header(first_key)
     field_config_list.append(first_key)
     
-    # Process remaining rows
+    # Process remaining rows - always use generic field_type with label override
     remaining_items = [(k, v) for k, v in badge_data.items() if k != first_key]
     for key, value in remaining_items:
         # Convert value to string
@@ -437,21 +434,14 @@ def render_generic_badge(
             value_str = "None"
         else:
             value_str = str(value)
-        
-        # Test if key is a valid field config
-        label_result = get_label(f'l_{key}')
-        if label_result:  # Valid field config - use key as field_type
-            badge_rows.add_row(
-                key,
-                value=safe_str(value_str)
-            )
-            field_config_list.append(key)
-        else:  # Not a field config - explicitly set label=key
-            badge_rows.add_row(
-                'badge_headers_item',
-                label=key,
-                value=safe_str(value_str)
-            )
+
+        # Always use 'badge_headers_item' field_type with explicit label override
+        badge_rows.add_row(
+            'badge_headers_item',
+            label=key,
+            value=safe_str(value_str)
+        )
+        if 'badge_headers_item' not in field_config_list:
             field_config_list.append('badge_headers_item')
     
     # Add all field types to field config
