@@ -72,6 +72,8 @@ from hh.render.config.config_registry import register_label
 @register_label("child_page_links_header", "Child Pages", "📁")
 @register_label("image_links_header", "Images", "🖼️")
 @register_label("incoming_link", "Link", "🔗")
+@register_label("delete_page_error_header", "Deletion Blocked", "🚫")
+@register_label("delete_page_success_header", "Page Deleted", "✅")
 def _register_config():
     pass
 

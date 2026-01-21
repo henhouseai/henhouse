@@ -54,7 +54,62 @@ export class PageActionsPages {
                             page_id: pageId,
                             confirm: true
                         });
-                        // Use standardized redirect pattern: 'parent' redirects to parent page
+                        // Check if deletion was blocked due to incoming links
+                        if (result.data?.deleted === false && result.data?.html_sections) {
+                            // Server returned pre-rendered HTML sections showing incoming links
+                            const htmlSections = result.data.html_sections;
+                            const errorMsg = result.data.error || 'Cannot delete this page';
+                            // Extract content and headers from server-rendered sections
+                            const content = [];
+                            const contentHeaders = [];
+                            for (const [header, html] of htmlSections) {
+                                contentHeaders.push(header);
+                                content.push(html);
+                            }
+                            // Update the same overlay with error message and link details
+                            const overlay = OverlayManager.getInstance().getTopOverlay();
+                            if (overlay) {
+                                const windowEl = overlay.windowEl;
+                                if (windowEl) {
+                                    // Find and update contentWrapper
+                                    const contentWrapper = windowEl.querySelector('.contentWrapper');
+                                    if (contentWrapper) {
+                                        // Clear and rebuild content
+                                        contentWrapper.innerHTML = '';
+                                        // Add error message at top
+                                        const errorDiv = document.createElement('div');
+                                        errorDiv.className = 'content overlay-error-text';
+                                        errorDiv.innerHTML = `<p><strong>${this.escapeHtml(errorMsg)}</strong></p>`;
+                                        contentWrapper.appendChild(errorDiv);
+                                        // Add content headers and sections
+                                        for (let i = 0; i < content.length; i++) {
+                                            const header = contentHeaders[i];
+                                            const contentHtml = content[i];
+                                            if (header) {
+                                                const headerDiv = document.createElement('div');
+                                                headerDiv.className = 'contentHeader';
+                                                headerDiv.textContent = header;
+                                                contentWrapper.appendChild(headerDiv);
+                                            }
+                                            const contentDiv = document.createElement('div');
+                                            contentDiv.className = 'content';
+                                            contentDiv.innerHTML = contentHtml;
+                                            contentWrapper.appendChild(contentDiv);
+                                        }
+                                    }
+                                    // Hide submit button
+                                    const submitBtn = windowEl.querySelector('#submitOverlayWindow');
+                                    if (submitBtn) {
+                                        submitBtn.style.display = 'none';
+                                    }
+                                }
+                            }
+                            // Return without auto-fade to keep error visible
+                            return {
+                                _autoFade: false
+                            };
+                        }
+                        // Deletion was successful
                         return {
                             debug: result.debug,
                             success: true,

@@ -58,7 +58,7 @@ def render_delete_section(source_data: Dict[str, Any], lines: List[str]) -> None
     trace_out()
 
 
-@register_parser('delete_page')
+#@register_parser('delete_page')
 def delete_page() -> bool:
     trace_in()
     gateway = get_gateway()
