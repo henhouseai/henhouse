@@ -4,66 +4,47 @@ Agent entry point for Henhouse Framework. This file is a roadmap to existing doc
 
 ---
 
-## THE #1 RULE - Questions Come First
+## Working in this repository
 
-**This is a hard rule. Violations will be called out.**
+These rules replace the old "questions first", "no git commands" and "MCP only" rules (Lee, 2026-11-04).  Lee is
+the only user and Henhouse is installed in one place, so the repo does not have to stay in working shape between
+commits.
 
-If the operator asks ANY question or requests ANY information - regardless of what else is in their message - you MUST answer that question or provide that information BEFORE doing anything else.
+### Git: agents handle it, including merges
 
-**This means:**
-- Even if a message contains approvals, authorizations, or "go ahead" statements, the presence of even ONE question creates a STOP condition
-- Answer all questions first, then wait for the operator to respond before proceeding with approved work
-- Do not treat questions as optional or secondary to other instructions in the same message
+- `henhouse` is the main branch (GitHub: `git@github.com:henhouseai/henhouse.git`, push over SSH; the HTTPS login on
+  Lee's laptop has no write access).  Do larger work on a branch named for it (`refactor/...`, `fix/...`).
+- Commit as you go with messages that say what changed and why.  Push your branch so the work is never only local.
+- **Merge yourself.**  Merge `henhouse` into your branch, resolve conflicts, run the checks below, then merge the
+  branch into `henhouse` and push.  Never ask Lee to approve a merge.  If a merge breaks something, fix forward
+  on `henhouse`; if that gets hard, go back to the last good commit and merge again more carefully.
+- Never force-push `henhouse` or rewrite history that is already pushed.
+- Old remotes that point at `henhouse.ai` are dead (the domain is gone and that box is too).  Use GitHub.
+- Foxhouse is a separate repo on Lee's server (`/foxhouse`, `/srv/foxhouse`).  It is the one live install, built on
+  the Jan 7, 2026 layout.  Never push to it or change it from a Henhouse session unless the task says to.
 
-**Common violation:**
-> Operator: "Looks good, let's go ahead and implement it. What files will this touch?"
->
-> WRONG: Agent starts implementing, mentions files along the way
-> RIGHT: Agent answers "This will touch X, Y, Z files" and waits for operator response
+### Running code
 
-**"Do you have any questions?" IS A QUESTION:**
-- When the operator asks if you have questions before starting work, that is itself a question you must answer
-- Even if your answer is "No, I have no questions" - you must still answer and wait for their response
-- Do not interpret "any questions before we start?" as implicit approval to start
+- Static checks are always fine: read anything, `python -m compileall`, `mypy` (see `mypy.ini`), import checks,
+  small scripts you write to analyze the code.
+- There is no test suite and no CI.  Say in the commit or report which checks you ran and what they found.
+- Commands that need a live install (MySQL, Unix tier users, nginx, the Flask daemons) only work on Lee's server.
+  Never run `deploy`, `upgrade`, `install`, `uninstall` or anything with `sudo` unless the task says to.
+- The old `stage.py` / `stage.sh` git staging flow pushes to the dead `henhouse.ai` remote.  Do not use it.
 
-**Why this matters:** The operator needs information to make decisions. If you proceed without answering, you may be doing work based on misunderstandings that could have been caught. This rule ensures alignment before action.
+### Questions
 
----
-
-## RULE #2 - No Git Commands
-
-**The human handles all git operations.**
-
-Do not run any git commands (`git add`, `git commit`, `git status`, `git diff`, etc.). The operator reviews all changes and stages them manually through Cursor. This is intentional - with multiple agents potentially working on the project, the human needs to be the single point of control for version control.
-
-Just make your edits. The human will review, stage, and commit.
-
----
-
-## RULE #3 - MCP Only, No Command Line
-
-**MCP is your only interface into Henhouse. Do not run commands on the developer box.**
-
-**Prohibited:**
-- `python hen.py` or `python3 hen.py` (any command)
-- Ad-hoc Python scripts (`python -c "..."`)
-- Any attempt to test or run Henhouse code directly
-
-**Why:** This is a developer box, not a deployment box. The command line is for the human operator. Your interface is MCP, which connects to the deployed server.
-
-**Corollary - Deployment Wait:**
-If you're working on code that you expect to access through MCP (new tools, modified handlers, etc.), you must wait for the human to:
-1. Review and stage your changes
-2. Deploy to the server (`sudo hen deploy`)
-3. Possibly refresh the MCP tool list
-
-Yes, `python hen.py` is right there and would let you use it immediately, but that's against the rules. Be patient. Let the human test it first. Let them deploy it and refresh your toolbox json.
+When Lee asks a question in a conversation, answer it before doing other work in that message.  When working
+unattended from a task file, keep going: write the question down in your report or commit message, make the
+sensible choice, and say what you chose.
 
 ---
 
 ## Onboarding Workflow (Do This First)
 
-When you start a new session, follow these steps before asking the user what they want to do:
+If a task file or the person gives you a specific task, do that and read only the context it needs.  Otherwise,
+when you start a new session, follow these steps before asking the user what they want to do (Steps 2 and 3 need the
+Henhouse MCP server; skip them if it is not connected):
 
 ### Step 1: Read Required Context
 
