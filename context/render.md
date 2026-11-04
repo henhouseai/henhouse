@@ -647,7 +647,7 @@ html_content = image_group.render()  # Returns HTML string with wrapper div
 **Page Tiles**:
 ```python
 from hh.render.html.page_group import PageGroup
-from hh.page.page_class_registry import get_page_class
+from hh_page.page_class_registry import get_page_class
 
 PageClass = get_page_class(class_name)
 children_data = PageClass.getChildrenOf(page_id, view_type='tile')

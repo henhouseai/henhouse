@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
 from users.user.user import UserPage
-from hh.page.page_class_registry import register_page_class
+from hh_page.page_class_registry import register_page_class
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.gateway import get_gateway
 
@@ -69,7 +69,7 @@ class CompanyPage(UserPage):
     @staticmethod
     def getChildrenOf(parent_id: int, view_type: str = 'tile') -> List[Dict[str, Any]]:
         """Return CompanyPage children of a parent page."""
-        from hh.page.page_registry import get_page
+        from hh_page.page_registry import get_page
 
         gateway = get_gateway()
         if not gateway or not gateway.conn:

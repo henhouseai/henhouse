@@ -12,6 +12,7 @@ from hh.render.config.config_registry import register_label
 @register_label('action_list_header',                 'Action List:'                  )
 @register_label('parser_list_header',                 'Parser List:'                  )
 @register_label('mcp_list_header',                    'MCP List:'                      )
+@register_label('api_list_header',                    'API List:'                      )
 @register_label('http_list_header',                   'HTTP List:'                    )
 @register_label('maintenance_list_header',            'Maintenance List:'             )
 @register_label('dependency_list',                    'Dependency List:'              )

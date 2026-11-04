@@ -31,7 +31,7 @@ from hh.gateway.registry.registry import CommandRegistry
 from hh.gateway.registry.backend import BACKEND_TYPES
 from hh.gateway.registry.backend import BACKEND_RESPONSE_MODULES
 from hh.gateway.registry.media_registry import refresh_all_media_caches
-from hh.page.page_registry import refresh_stale_page_caches
+from hh_page.page_registry import refresh_stale_page_caches
 
 __all__ = [
     "get_gateway",
@@ -43,9 +43,9 @@ def _load_media_modules() -> None:
     """Dynamically import media module registries to trigger @register_media_type decorators."""
     media_modules = [
         ('audio', 'audio.audio_registry'),
-        ('hh_image', 'hh.image.image_registry'),
-        ('video', 'hh.video.video_registry'),
-        ('file', 'hh.file.file_registry'),
+        ('hh_image', 'hh_image.image_registry'),
+        ('video', 'hh_video.video_registry'),
+        ('file', 'hh_file.file_registry'),
     ]
 
     for module_name, import_path in media_modules:

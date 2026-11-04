@@ -5,13 +5,13 @@ DEPLOY_WHITELIST: List[str] = [
 ]
 
 CLIENT_WHITELIST: List[str] = [
-    'hh/deploy/flask/http_client.py',
-    'hh/deploy/flask/mcp_client.py',
-    'hh/deploy/flask/api_client.py',
-    'hh/deploy/flask/download_client.py',
+    'hh_flask/deploy/clients/http_client.py',
+    'hh_flask/deploy/clients/mcp_client.py',
+    'hh_flask/deploy/clients/api_client.py',
+    'hh_flask/deploy/clients/download_client.py',
 ]
 
 APP_WHITELIST: List[tuple] = [
-    ('flask', 'hh/deploy/flask/app.py'),
-    ('media', 'hh/deploy/flask/media_server.py'),
+    ('flask', 'hh_flask/deploy/apps/app.py'),
+    ('media', 'hh_flask/deploy/apps/media_server.py'),
 ]

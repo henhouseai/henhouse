@@ -4,8 +4,8 @@ Maintenance worker deployment hooks
 from typing import Dict, Any, Union
 from pathlib import Path
 from hh.gateway.registry.module_hooks import register_module_hook
-from hh.deploy.maintenance.maintenance_start import run_maintenance_start
-from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
+from maintenance.deploy.maintenance_start import run_maintenance_start
+from maintenance.deploy.maintenance_stop import run_maintenance_stop
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error

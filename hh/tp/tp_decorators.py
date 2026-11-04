@@ -4,7 +4,7 @@ from hh.tp.tp_decorator_registry import register_tp_decorator
 from hh.render.text.color import apply_color, RESET_COLOR
 from hh.render.render import TableData, FieldConfig, render_block
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.image.image_size_tiers import IMAGE_SIZE_TIERS
+from hh_image.image_size_tiers import IMAGE_SIZE_TIERS
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

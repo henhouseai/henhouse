@@ -12,9 +12,9 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.deploy.deploy_utils import detect_project_context
-from hh.page.page import Page
-from hh.page.page_registry import get_page
-from hh.page.page_class_registry import register_page_class
+from hh_page.page import Page
+from hh_page.page_registry import get_page
+from hh_page.page_class_registry import register_page_class
 
 def _format_relative_time(timestamp_str: str) -> str:
     """Convert ISO timestamp to relative time string (e.g., '3 days ago')."""

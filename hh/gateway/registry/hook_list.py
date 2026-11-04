@@ -45,7 +45,7 @@ def _initialize_debug():
 @register_action("hook_list")
 @register_command("hook_list")
 def hook_list_action() -> bool:
-    """List all discovered module hooks and which modules provide them."""
+    """List all discovered module hooks with individual module registrations."""
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -62,29 +62,39 @@ def hook_list_action() -> bool:
         hooks_data_raw = hooks_cache.get('hooks', {})
         log(f"Discovered {len(hooks_data_raw)} hook names")
 
-        # Build hook list with module information
-        hooks_list: List[Dict[str, Any]] = []
+        # Build expanded hook list - one entry per module registration
+        hook_registrations: List[Dict[str, Any]] = []
         for hook_name in sorted(hooks_data_raw.keys()):
             hook_entries = hooks_data_raw[hook_name]
 
-            # Get modules that provide this hook (sorted alphabetically)
-            modules = sorted([entry.get('module_name', 'unknown') for entry in hook_entries])
+            # Extract prefix from hook_name (everything before underscore followed by digit)
+            prefix = hook_name
+            for i in range(len(hook_name) - 1):
+                if hook_name[i] == '_' and hook_name[i + 1].isdigit():
+                    prefix = hook_name[:i]
+                    break
 
-            hook_info: Dict[str, Any] = {
-                "hook_name": hook_name,
-                "modules": modules,
-                "module_count": len(modules),
-            }
-            hooks_list.append(hook_info)
-            debug(f"Hook {hook_name}: {len(modules)} modules")
+            # Create one entry per module registration
+            for entry in hook_entries:
+                module_name = entry.get('module_name', 'unknown')
+                description = entry.get('description', '')
+
+                registration: Dict[str, Any] = {
+                    "hook_name": hook_name,
+                    "module_name": module_name,
+                    "description": description,
+                    "prefix": prefix,
+                }
+                hook_registrations.append(registration)
+                debug(f"Hook {hook_name} registered by {module_name}")
 
         payload = {
-            "total_hooks": len(hooks_list),
-            "hooks": hooks_list,
+            "total_registrations": len(hook_registrations),
+            "registrations": hook_registrations,
         }
 
         gateway.response.set_action_response(success_payload(payload))
-        log(f"Hook list created: {len(hooks_list)} hooks")
+        log(f"Hook list created: {len(hook_registrations)} total registrations")
         trace_out()
         return True
 
@@ -97,7 +107,7 @@ def hook_list_action() -> bool:
 
 @register_parser("hook_list")
 def hook_list_parser() -> bool:
-    """Render hook list with modules."""
+    """Render hook list with separate tables per prefix."""
     trace_in()
     gateway = get_gateway()
     if not gateway:
@@ -116,73 +126,95 @@ def hook_list_parser() -> bool:
         json_data = gateway.response.get_action_response()
         source_data = get_data(json_data if json_data is not None else {})
 
-        total_hooks = source_data.get("total_hooks", 0)
-        hooks = source_data.get("hooks", [])
+        total_registrations = source_data.get("total_registrations", 0)
+        registrations = source_data.get("registrations", [])
 
         lines = [render_header_block("l_hook_list_header")]
 
-        if total_hooks == 0:
+        if total_registrations == 0:
             lines.append("No module hooks registered.")
         else:
-            # Build hooks table with section breaks between deploy/remove groups
-            table = TableData()
+            # Group registrations by prefix
+            registrations_by_prefix: Dict[str, List[Dict[str, Any]]] = {}
+            for reg in registrations:
+                prefix = reg.get("prefix", "unknown")
+                if prefix not in registrations_by_prefix:
+                    registrations_by_prefix[prefix] = []
+                registrations_by_prefix[prefix].append(reg)
 
-            # Header row
-            table.add_row(
-                "hook_list_header",
-                hook_name="Hook Name",
-                modules="Modules",
-                count="Count",
-            )
+            log(f"Grouped registrations into {len(registrations_by_prefix)} prefixes")
 
-            # Group hooks by prefix (deploy_* vs remove_*) and add section breaks
-            separator_rows = []
-            current_row = 1  # Start after header
-            prefixes = sorted(set(h['hook_name'].split('_', 1)[0] for h in hooks if '_' in h['hook_name']))
+            # Create separate table for each prefix
+            for prefix in sorted(registrations_by_prefix.keys()):
+                prefix_registrations = registrations_by_prefix[prefix]
+                log(f"Rendering table for prefix '{prefix}' with {len(prefix_registrations)} registrations")
 
-            for prefix_idx, prefix in enumerate(prefixes):
-                prefix_hooks = [h for h in hooks if h['hook_name'].startswith(prefix + '_')]
+                table = TableData()
 
-                for hook_info in prefix_hooks:
-                    hook_name = hook_info.get("hook_name", "unknown")
-                    modules = hook_info.get("modules", [])
-                    module_count = hook_info.get("module_count", 0)
-
-                    # Format modules as comma-separated list
-                    modules_str = ", ".join(modules) if modules else "-"
-
-                    table.add_row(
-                        "hook_row",
-                        hook_name=safe_str(hook_name),
-                        modules=safe_str(modules_str),
-                        count=str(module_count),
-                    )
-                    current_row += 1
-
-                # Add section break after each prefix group (except last)
-                if prefix_idx < len(prefixes) - 1:
-                    separator_rows.append(current_row - 1)
-
-            # Field config - only configure field types, not columns
-            field_config = (FieldConfig()
-                .add_header("hook_list_header")
-                .add_simple(["hook_row"]))
-
-            # Table overrides with section breaks and type annotation
-            table_overrides: Dict[str, Any] = {"margin_l": 4}
-            if separator_rows:
-                table_overrides["separator_after_rows"] = separator_rows
-
-            lines.append(
-                render_block(
-                    table,
-                    field_config,
-                    block_type="rows",
-                    table_overrides=table_overrides,
+                # Header row with label override to show prefix
+                table.add_row(
+                    "hook_list_header",
+                    label=prefix,
+                    hook_name="Hook Name",
+                    module="Module",
+                    description="Description",
                 )
-            )
 
-        break_section(lines)
+                # Group by hook_name to calculate section breaks
+                hooks_in_prefix: Dict[str, List[Dict[str, Any]]] = {}
+                for reg in prefix_registrations:
+                    hook_name = reg.get("hook_name", "unknown")
+                    if hook_name not in hooks_in_prefix:
+                        hooks_in_prefix[hook_name] = []
+                    hooks_in_prefix[hook_name].append(reg)
+
+                # Build table rows with section breaks between hook names
+                separator_rows = []
+                current_row = 1  # Start after header
+                sorted_hook_names = sorted(hooks_in_prefix.keys())
+
+                for hook_idx, hook_name in enumerate(sorted_hook_names):
+                    hook_regs = sorted(hooks_in_prefix[hook_name], key=lambda r: r.get("module_name", ""))
+
+                    for reg_idx, reg in enumerate(hook_regs):
+                        module_name = reg.get("module_name", "unknown")
+                        description = reg.get("description", "")
+
+                        # Only show hook_name on first row of each group
+                        hook_name_display = safe_str(hook_name) if reg_idx == 0 else ""
+
+                        table.add_row(
+                            "hook_row",
+                            hook_name=hook_name_display,
+                            module=safe_str(module_name),
+                            description=safe_str(description),
+                        )
+                        current_row += 1
+
+                    # Add section break after each hook name group (except last)
+                    if hook_idx < len(sorted_hook_names) - 1:
+                        separator_rows.append(current_row - 1)
+
+                # Field config
+                field_config = (FieldConfig()
+                    .add_header("hook_list_header")
+                    .add_simple(["hook_row"]))
+
+                # Table overrides with section breaks
+                table_overrides: Dict[str, Any] = {"margin_l": 4}
+                if separator_rows:
+                    table_overrides["separator_after_rows"] = separator_rows
+
+                lines.append(
+                    render_block(
+                        table,
+                        field_config,
+                        block_type="rows",
+                        table_overrides=table_overrides,
+                    )
+                )
+                break_section(lines)
+
         gateway.response.add_output(finalize_output(lines))
         log(f"Parser execution completed successfully with {len(lines)} sections")
         trace_out()

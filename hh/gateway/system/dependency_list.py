@@ -25,6 +25,7 @@ from hh.render.render import (
     render_block,
     render_header_block,
 )
+from hh.render.config.config import break_section
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -198,7 +199,8 @@ def dependency_list_parser() -> bool:
                     table_overrides={"margin_l": 4},
                 )
             )
-        
+
+        break_section(lines)
         gateway.response.add_output(finalize_output(lines))
         return trace_out(True)
     except Exception as e:  # noqa: BLE001

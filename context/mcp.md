@@ -16,11 +16,13 @@ This document covers the Henhouse implementation of separate MCP and API backend
 
 - **MCP Backend**: Agent API backend with minimal responses - registered as backend type alongside `parser`, `http`, `maintenance`, `api`
 - **API Backend**: Web UI API backend with fuller responses - separate from MCP with dedicated whitelists
-- **Tool Whitelist**: Three-field system (`mcp_tiers`, `api_tiers`, `app_action_tiers`) with 12 separate whitelist files
+- **Tool Whitelist**: Three-field system (`mcp_tiers`, `api_tiers`, `app_action_tiers`) with 8 cold cache files (4 MCP + 4 API); app actions use hot cache only
+- **Role-Based Filtering**: MCP tools support optional `role_whitelist` parameter for additional role-based access control on top of tier permissions
+- **Multi-Role Support**: Agents can specify multiple roles (e.g., "worker,auditor") with automatic "general" role inheritance; ANY role match grants access
 - **Response Format**: MCP returns minimal JSON-RPC 2.0, API returns fuller responses with state data
 - **Config File**: `~/.{project_name}.cnf` (same format/location as database config)
 - **HTTP Endpoints**: `/mcp` (agents) and `/api` (web UI) on same host
-- **Redeployment**: Whitelist changes auto-discovered on cache miss; separate cache files for MCP, API, and app actions
+- **Redeployment**: Whitelist changes auto-discovered on cache miss; separate cache files for MCP and API
 
 ## Agent Training Notes
 
@@ -87,6 +89,11 @@ Handles MCP protocol methods for agent calls:
 - Server info: Returns `{"name": "Henhouse MCP Server", "version": "1.0.0"}` in initialize response
 - Server capabilities: Tools, prompts, resources support `listChanged`; resources support `subscribe`; logging supported
 - Tier determined from `USER_TIER` environment variable (defaults to 'guest' if not set or invalid)
+- **Role Handling**:
+  - `tools/list` accepts optional `role` parameter (comma-separated string, e.g., "worker,auditor")
+  - Always includes "general" role by default: `roles = ['general'] + additional_roles`
+  - Filters tools by role_whitelist using set intersection (ANY role match grants access)
+  - Empty role_whitelist hides tool from all roles
 - For `tools/call`: Validates tool name and arguments via `MCPWhitelist.validate_tool(tier, tool_name, args)`
 - Builds `argv` array: `[tool_name, --arg1, value1, ...]` (also accepts query string params from sys.argv[1:])
 - Sets `request_id` via `gateway.response.set_request_id()` before dispatch
@@ -98,8 +105,9 @@ Handles MCP protocol methods for agent calls:
 
 Handles API calls from TypeScript web UI:
 - Processes Fetch API requests from web UI components
-- Validates against `api-whitelist-{tier}.json` files
+- Validates against `api-whitelist-{tier}.json` files (simple tool name lists, no schema validation)
 - No MCP protocol methods (`tools/list`, etc.) - just tool execution
+- No role filtering (API uses tier-based access only)
 - Returns fuller responses with state data for web UI consumption
 - Builds `argv` array and calls `gateway.dispatch(argv, "api")` - dispatches to API backend
 
@@ -121,6 +129,22 @@ To use the MCP wrapper with Cursor IDE, add the following to `~/.cursor/mcp.json
 }
 ```
 
+For role-based filtering, add role arguments:
+```json
+{
+  "mcpServers": {
+    "{project_name}-worker": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp_wrapper.py", "worker"]
+    },
+    "{project_name}-auditor": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp_wrapper.py", "worker", "auditor"]
+    }
+  }
+}
+```
+
 Replace `/absolute/path/to/mcp_wrapper.py` with the full path to `mcp_wrapper.py` in your project directory. On Windows, use forward slashes or escaped backslashes (e.g., `"C:\\Users\\username\\project\\mcp_wrapper.py"` or `"C:/Users/username/project/mcp_wrapper.py"`).
 
 **File Upload Support:**
@@ -135,6 +159,10 @@ Bridges stdio MCP to HTTP endpoint:
 - Reads JSON-RPC from stdin (newline-delimited, one request per line)
 - Auto-detects project name by finding `hh/` directory starting from script location
 - Loads config from `~/.{project_name}.cnf` (requires user, password, host fields)
+- **Role Support**: Accepts optional positional arguments for agent roles (e.g., `python mcp_wrapper.py worker auditor`)
+  - Multiple role arguments comma-joined into single "role" parameter
+  - Sent to mcp_client.py which adds "general" role by default
+  - Tools filtered by role_whitelist on top of tier permissions
 - Handles file attachments: extracts `_files` or `file_paths` from params, validates paths, sends as multipart/form-data
 - POSTs to `https://{host}/mcp` with Basic Auth (uses JSON for regular requests, multipart for file uploads)
 - Outputs JSON-RPC responses to stdout
@@ -144,15 +172,20 @@ Bridges stdio MCP to HTTP endpoint:
 ### Tool Whitelist Registry
 **File**: `hh/gateway/registry/tool_whitelist.py`
 
-Manages three-field tool registration system:
-- `@register_tool()` decorator with `mcp_tiers`, `api_tiers`, `app_action_tiers` parameters
+Manages three-field tool registration system with role-based filtering:
+- `@register_tool()` decorator with `mcp_tiers`, `api_tiers`, `app_action_tiers`, `role_whitelist` parameters
 - Global registry `_global_tool_registry` populated by decorators at import time
-- Generates 12 separate whitelist files during cold cache regeneration:
+- Generates 8 separate cold cache files during regeneration:
   - 4 MCP whitelists (`mcp-whitelist-1.json` through `mcp-whitelist-4.json`)
   - 4 API whitelists (`api-whitelist-1.json` through `api-whitelist-4.json`)
-  - 4 App Action whitelists (`app-action-whitelist-1.json` through `app-action-whitelist-4.json`)
+  - App actions use hot cache only (no cold cache files)
 - Lazy loading with cache rebuild on miss by scanning all `tools.py` files
-- Supports role-based access control for MCP tools via `role_whitelist` parameter
+- **Role-Based Access Control**:
+  - `role_whitelist` parameter filters MCP tools by agent role (on top of tier permissions)
+  - Empty role_whitelist = tool hidden from all roles
+  - Multi-role support: Agent can specify multiple roles, ANY role match grants access
+  - Role inheritance: "general" role always included by default
+  - Example roles: "general" (all agents), "worker" (CRUD operations), "auditor" (read-only auditing)
 
 ### MCP Response Handler
 **File**: `hh/gateway/response/response_mcp.py`
@@ -217,7 +250,12 @@ Application actions provide clickable action links in the web UI. They read from
 - `mcp_tiers`: List of MCP tier levels (1-4) for agent access via `/mcp`
 - `api_tiers`: List of API tier levels (1-4) for web UI access via `/api`
 - `app_action_tiers`: List of app action tier levels (1-4) for web UI buttons
-- `role_whitelist`: List of MCP role names for additional agent restrictions
+- `role_whitelist`: List of MCP role names for additional agent role filtering (MCP only)
+  - Empty list = tool hidden from all roles
+  - Example: `["general"]` = available to all agents
+  - Example: `["worker"]` = only available to agents with "worker" role
+  - Example: `["worker", "auditor"]` = available to agents with "worker" OR "auditor" role
+  - Role check uses set intersection: agent's roles vs. tool's role_whitelist, ANY match grants access
 - `app_action_group`: Group name for organizing actions in web UI
 - `app_action_label`: Display label for app actions (defaults to tool_name)
 
@@ -235,13 +273,16 @@ MCP and API are registered as separate backend types in `hh/gateway/registry/bac
 ### MCP Command Execution Flow
 
 1. **MCP Client** receives tool call via `tools/call` method, gets tier from `USER_TIER` env var (defaults to 'guest')
-2. **Validation**: Validates tool exists and arguments match schema via `MCPWhitelist.validate_tool(tier, tool_name, args)`
-3. **Argument Conversion**: MCP arguments `{"key": "value"}` → `["tool_name", "--key", "value"]` format
-4. **Request ID**: Sets request ID via `gateway.response.set_request_id(request_id)` before dispatch
-5. **Gateway Dispatch**: `gateway.dispatch(argv, "mcp")` - routes to MCP backend
-6. **Action Handler**: Standard Gateway action executes, sets `action_response`
-7. **MCP Backend Handler**: Auto-generated wrapper verifies response exists
-8. **ResponseMCP**: Formats minimal JSON-RPC 2.0 response for agents
+2. **Role Extraction**: Extracts role parameter from request params (e.g., `role="worker,auditor"`), builds role list starting with "general"
+3. **Validation**: Validates tool exists and arguments match schema via `MCPWhitelist.validate_tool(tier, tool_name, args)`
+   - Checks tier permission (mcp_tiers)
+   - Checks role permission (role_whitelist) - uses set intersection, ANY role match grants access
+4. **Argument Conversion**: MCP arguments `{"key": "value"}` → `["tool_name", "--key", "value"]` format
+5. **Request ID**: Sets request ID via `gateway.response.set_request_id(request_id)` before dispatch
+6. **Gateway Dispatch**: `gateway.dispatch(argv, "mcp")` - routes to MCP backend
+7. **Action Handler**: Standard Gateway action executes, sets `action_response`
+8. **MCP Backend Handler**: Auto-generated wrapper verifies response exists
+9. **ResponseMCP**: Formats minimal JSON-RPC 2.0 response for agents
 
 ### API Command Execution Flow
 
@@ -327,7 +368,7 @@ Both `mcp_wrapper.py` and database connection use same detection:
    - `hh/source_code_file/tools.py` - For source code file tools
    - Or create new `tools.py` in appropriate module folder (will be auto-discovered by scanner)
 
-2. **Register Tool**: Use `@register_tool` decorator with appropriate tier parameters:
+2. **Register Tool**: Use `@register_tool` decorator with appropriate tier and role parameters:
 
 ```python
 @register_tool(
@@ -344,17 +385,34 @@ Both `mcp_wrapper.py` and database connection use same detection:
     mcp_tiers=[3, 4],          # Admin/root via MCP
     api_tiers=[3, 4],          # Admin/root via API
     app_action_tiers=[3, 4],   # Admin/root as app action
+    role_whitelist=['worker'], # Only agents with "worker" role
     crud_type='update'
 )
+```
+
+**Role Whitelist Examples**:
+```python
+# Available to all agents (any role)
+role_whitelist=['general']
+
+# Available to worker agents only
+role_whitelist=['worker']
+
+# Available to worker OR auditor agents (ANY role match)
+role_whitelist=['worker', 'auditor']
+
+# Hidden from all agents (empty list)
+role_whitelist=[]
 ```
 
 3. **Prerequisites**: Tool must have action handler with `@register_action` and `@register_command` decorators
 
 4. **Cache Rebuild**:
    - Cache files auto-rebuild on cache miss (when tool is requested but not in cache)
-   - Rebuild process: Scans all `tools.py` files, imports modules, rebuilds ALL whitelist files at once (12 total)
+   - Rebuild process: Scans all `tools.py` files, imports modules, rebuilds ALL whitelist files at once (8 total: 4 MCP + 4 API)
    - Or manually clear cache to force rebuild: Delete `hh/gateway/registry/cache/*-whitelist-*.json` files
    - No Flask server restart needed (cache files are checked on each request, in-memory cache persists)
+   - Note: App actions use hot cache only (no cold cache files)
 
 ### Tool Requirements
 
@@ -367,9 +425,9 @@ For a tool to work through MCP or API:
 
 ### How `tools.py` modules get imported (and when the registry is populated)
 
-- **Whitelist rebuild path**: On cache miss/force rebuild, `tool_whitelist._scan_for_mcp_tools()` finds every file with `@register_tool` under both `hh/` and `ext/`, then imports them. Each decorator call populates `_global_tool_registry`. Tools are then distributed into 12 separate whitelist files (4 MCP, 4 API, 4 app action).
+- **Whitelist rebuild path**: On cache miss/force rebuild, `tool_whitelist._scan_for_mcp_tools()` finds every file with `@register_tool` under both `hh/` and `ext/`, then imports them. Each decorator call populates `_global_tool_registry`. Tools are then distributed into 8 separate cold cache files (4 MCP, 4 API). App actions use hot cache only.
 - **Page-load path**: When a page is loaded, `hh/page/page_registry.py::_load_tools_for_page_class` walks the page class MRO and imports tools modules. This populates `_global_tool_registry` for app action access.
-- `get_app_actions(user_tier_level)` reads from dedicated app-action whitelist files and filters for appropriate user tiers.
+- `get_app_actions(user_tier_level)` uses hot cache (freshly imported tools modules) and filters for appropriate user tiers.
 
 ### Schema Validation
 
@@ -391,6 +449,152 @@ After adding to whitelist and redeploying:
 4. Argument validation should work per schema (MCP) or be more permissive (API)
 5. Tool execution should route through Gateway normally
 6. Responses should be formatted appropriately (JSON-RPC 2.0 for MCP, direct JSON for API)
+
+---
+
+## Role-Based Access Control for MCP Tools
+
+### Overview
+
+MCP tools support role-based filtering **in addition to** tier-based permissions. This two-layer system allows fine-grained control over agent tool access:
+
+1. **Tier Layer**: `mcp_tiers` controls which user tiers (1-4) can access the tool
+2. **Role Layer**: `role_whitelist` controls which agent roles can see/use the tool
+
+Both checks must pass for a tool to be available to an agent.
+
+### Role Inheritance Pattern
+
+Agents can have multiple roles with automatic inheritance:
+- **"general" role**: Always included by default, cannot be removed
+- **Additional roles**: Specified when launching agent (e.g., "worker", "auditor")
+- **ANY match**: Tool available if ANY agent role matches ANY tool role_whitelist entry
+
+Example:
+```bash
+# Agent with "worker" and "auditor" roles
+python mcp_wrapper.py worker auditor
+
+# Roles list becomes: ["general", "worker", "auditor"]
+# Agent sees tools with role_whitelist containing ANY of: "general", "worker", "auditor"
+```
+
+### Common Role Patterns
+
+**General Tools** (available to all agents):
+```python
+role_whitelist=['general']
+```
+Examples: `get_page`, `get_text`, `get_page_section`
+
+**Worker Tools** (CRUD operations):
+```python
+role_whitelist=['worker']
+```
+Examples: `modify_text`, `add_page`, `delete_page`, `modify_work_status`
+
+**Auditor Tools** (read-only inspection):
+```python
+role_whitelist=['auditor']
+```
+Examples: Accounting module tools for read-only financial auditing
+
+**Multi-Role Tools** (available to multiple specialized roles):
+```python
+role_whitelist=['worker', 'auditor']
+```
+Either worker OR auditor agents can use this tool
+
+**Hidden Tools** (not available via MCP):
+```python
+role_whitelist=[]
+```
+Tool exists for API/app-action use but hidden from all MCP agents
+
+### Role Filtering Logic
+
+From `tool_whitelist.py`:
+```python
+def list_tools(tier: str, roles: List[str]) -> List[Dict]:
+    # Roles defaults to ['general'] if not provided
+    roles_set = set(roles)
+
+    for tool in tier_tools:
+        tool_roles = set(tool.get('role_whitelist', []))
+
+        # If role_whitelist empty, tool hidden
+        if not tool_roles:
+            continue
+
+        # If ANY agent role in tool's role_whitelist, include tool
+        if roles_set & tool_roles:  # Set intersection
+            filtered_tools.append(tool)
+```
+
+### Multi-Role Agent Example
+
+An agent running as "worker" and "auditor":
+```bash
+python mcp_wrapper.py worker auditor
+```
+
+Gets access to:
+- All tools with `role_whitelist=['general']` (inheritance)
+- All tools with `role_whitelist=['worker']` (explicit)
+- All tools with `role_whitelist=['auditor']` (explicit)
+- All tools with `role_whitelist=['worker', 'auditor']` (ANY match)
+
+Does NOT get access to:
+- Tools with `role_whitelist=[]` (hidden)
+- Tools with `role_whitelist=['other_role']` (no match)
+
+### MCP Wrapper Role Configuration
+
+Configure different agents in `~/.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "henhouse-general": {
+      "command": "python",
+      "args": ["/path/to/mcp_wrapper.py"]
+    },
+    "henhouse-worker": {
+      "command": "python",
+      "args": ["/path/to/mcp_wrapper.py", "worker"]
+    },
+    "henhouse-auditor": {
+      "command": "python",
+      "args": ["/path/to/mcp_wrapper.py", "worker", "auditor"]
+    }
+  }
+}
+```
+
+Each connection gets different tool lists based on roles.
+
+---
+
+## Known Issues and Fixes
+
+### Work Page Status Bug (Fixed 2026-01-25)
+
+**Issue**: Work page status field not returned in API responses, causing TypeScript overlay to show wrong status and reject updates.
+
+**Root Cause**: `hh_page/data_operations.py` was calling standalone `get_page_data(page)` function instead of `page.get_page_data()` method, bypassing WorkPage's override that adds work-specific fields (status, sort_order, meta, etc.).
+
+**Impact**:
+- TypeScript overlay showed 'todo' for all work pages regardless of actual status
+- Status change submissions rejected as "not change needed"
+- Only affected API/HTTP interface, MCP unaffected
+
+**Fix**: Changed three locations in `data_operations.py` to call `page.get_page_data()` method:
+- Line 51: `assemble_page_data()` function
+- Line 324: `get_children_data()` function
+- Line 386: `show_page()` function
+
+This ensures derived class overrides (like WorkPage) are properly invoked and custom fields are included in API responses.
+
+**Deployment**: Requires `sudo hen deploy` to take effect on server.
 
 ---
 

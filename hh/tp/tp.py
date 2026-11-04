@@ -4,8 +4,8 @@ from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.gateway import get_gateway
 from hh.tp.tp_decorator_registry import get_tp_decorator
-from hh.page.page_registry import get_page, find_page
-from hh.image.image_registry import get_image
+from hh_page.page_registry import get_page, find_page
+from hh_image.image_registry import get_image
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

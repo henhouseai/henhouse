@@ -4,8 +4,8 @@ Flask removal hooks for nginx_flask module (hh_flask category).
 Handles stopping Flask and maintenance daemons.
 """
 from typing import Dict, Any
-from hh.deploy.flask.flask_stop import run_flask_stop
-from hh.deploy.maintenance.maintenance_stop import run_maintenance_stop
+from hh_flask.flask_stop import run_flask_stop
+from maintenance.deploy.maintenance_stop import run_maintenance_stop
 from hh.deploy.deploy_utils import detect_project_context
 from hh.gateway.registry.module_hooks import register_module_hook
 from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init

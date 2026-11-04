@@ -1,0 +1,8 @@
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS `image_instances`;
+DROP TABLE IF EXISTS `image_groups`;
+DROP TABLE IF EXISTS `images`;
+DROP TABLE IF EXISTS `image_links`;
+
+SET FOREIGN_KEY_CHECKS = 1;

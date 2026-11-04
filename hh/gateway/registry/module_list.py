@@ -238,6 +238,7 @@ def module_list_parser() -> bool:
                 table_overrides={"margin_l": 4},
             )
         )
+        break_section(lines)
 
         # Summary table (vertical layout like maintenance-jobs-status)
         summary = TableData()
@@ -257,6 +258,7 @@ def module_list_parser() -> bool:
                 table_overrides={"margin_l": 4},
             )
         )
+        break_section(lines)
 
         # Add per-module hook tables (only for modules with hooks)
         modules_with_hooks = [m for m in modules if m.get("hook_count", 0) > 0]
@@ -312,8 +314,8 @@ def module_list_parser() -> bool:
                         table_overrides=table_overrides,
                     )
                 )
+                break_section(lines)
 
-        break_section(lines)
         gateway.response.add_output(finalize_output(lines))
         log(f"Parser execution completed successfully with {len(lines)} sections")
         trace_out()

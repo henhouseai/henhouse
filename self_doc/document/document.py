@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
-from hh.page.page import Page
-from hh.page.page_class_registry import register_page_class
+from hh_page.page import Page
+from hh_page.page_class_registry import register_page_class
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import is_error
 from hh.gateway.gateway import get_gateway
@@ -88,7 +88,7 @@ class Document(Page):
     @staticmethod
     def getChildrenOf(parent_id: int, view_type: str = 'tile') -> List[Dict[str, Any]]:
         """Return Document children of a parent page, sorted by sort_order metadata."""
-        from hh.page.page_registry import get_page
+        from hh_page.page_registry import get_page
 
         gateway = get_gateway()
         if not gateway or not gateway.conn:
@@ -163,7 +163,7 @@ class Document(Page):
 
     def get_sections(self) -> List[Page]:
         """Return doc_section children in correct order by sort_order."""
-        from hh.page.page_registry import get_page
+        from hh_page.page_registry import get_page
 
         gateway = get_gateway()
         if not gateway or not gateway.conn:

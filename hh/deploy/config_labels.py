@@ -19,5 +19,12 @@ from hh.render.config.config_registry import register_label
 @register_label('remove_header',                       'Remove',                          '🗑️')
 @register_label('install_header',                      'Install',                         '⚙️')
 @register_label('install_summary',                     'Installation Summary',            '📋')
+@register_label('add_db_users_header',                 'Add Database Users Results',     '👥')
+@register_label('remove_db_users_header',             'Remove Database Users Results',   '🧹')
+@register_label('export_db_header',                    'Database Export Results',        '💾')
+@register_label('import_db_header',                    'Database Import Results',        '📥')
+@register_label('check_db_header',                     'Database Check Results',         '🔍')
+@register_label('clean_db_header',                     'DB Cleanup Results',             '🧹')
+@register_label('init_db_header',                      'DB Initialization Results',      '🏗️')
 def _register_config():
     pass

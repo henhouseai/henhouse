@@ -5,9 +5,9 @@ DEPLOY_WHITELIST: List[str] = [
 ]
 
 CLIENT_WHITELIST: List[str] = [
-    'hh/deploy/maint/maintenance_client.py',
+    'maintenance/maintenance_client.py',
 ]
 
 APP_WHITELIST: List[tuple] = [
-    ('maintenance', 'hh/deploy/maintenance/worker.py'),
+    ('maintenance', 'maintenance/deploy/apps/maintenance_worker.py'),
 ]

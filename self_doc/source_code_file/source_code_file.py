@@ -31,9 +31,9 @@ from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.system.dependency import register_dependency
-from hh.page.page import Page
-from hh.page.page_registry import get_page
-from hh.page.page_class_registry import register_page_class
+from hh_page.page import Page
+from hh_page.page_registry import get_page
+from hh_page.page_class_registry import register_page_class
 
 if TYPE_CHECKING:
     from pygments.lexers import get_lexer_by_name  # type: ignore[import-untyped]

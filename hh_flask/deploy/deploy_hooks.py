@@ -6,8 +6,8 @@ These functions handle Flask tier daemon and application deployment operations.
 import os
 from pathlib import Path
 from typing import Dict, Any, List
-from hh.deploy.flask.flask_start import run_flask_start
-from hh.deploy.flask.flask_stop import run_flask_stop
+from hh_flask.flask_start import run_flask_start
+from hh_flask.flask_stop import run_flask_stop
 from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 from hh.gateway.registry.debug import get_log, get_warn, get_trace_in, get_trace_out, get_debug, register_debug_init

@@ -210,7 +210,7 @@ You can create custom page classes in `ext/` that extend the base `Page` class:
 
 ```python
 # ext/my_module/my_page.py
-from hh.page.page import Page
+from hh_page.page import Page
 from hh.gateway.registry.page_class import register_page_class
 
 @register_page_class('my_custom_page')

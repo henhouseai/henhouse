@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hh.gateway.registry.registry import register_parser, register_http
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
-from hh.page.render_show_page import show_page
+from hh_page.render_show_page import show_page
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg

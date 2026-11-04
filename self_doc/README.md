@@ -118,7 +118,7 @@ Here's a complete example of creating a custom page class in `ext/`:
 
 ```python
 # ext/my_module/my_page.py
-from hh.page.page import Page
+from hh_page.page import Page
 from hh.gateway.registry.page_class import register_page_class
 
 @register_page_class('my_custom_page')

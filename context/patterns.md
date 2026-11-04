@@ -858,6 +858,7 @@ def render_multi_table_with_section_breaks(source_data, lines):
         table_overrides['separator_after_rows'] = separator_rows
 
     lines.append(render_block(main_table, main_config, block_type='commands', table_overrides=table_overrides))
+    break_section(lines)  # Space after first table
 
     # SUMMARY TABLE - Simple stats (no section breaks needed)
     stats = source_data.get('stats', {})
@@ -874,16 +875,18 @@ def render_multi_table_with_section_breaks(source_data, lines):
     )
 
     lines.append(render_block(summary_table, summary_config, block_type='summary'))
+    break_section(lines)  # Space after second table
 
-    break_section(lines)  # Visual separator between tables
+    gateway.response.add_output(finalize_output(lines))
     return trace_out(True)
 ```
 
 **Key Points:**
-- **Section breaks within tables**: Use `table_overrides['separator_after_rows']` to insert dividers between logical groups
-- **Multiple tables**: Each table can have its own section break logic
+- **Section breaks within tables**: Use `table_overrides['separator_after_rows']` to insert dividers between logical groups WITHIN a single table
+- **Section breaks between tables**: Call `break_section(lines)` after EACH table to add spacing between different tables
+- **Multiple tables**: Each table gets its own `break_section()` call after rendering
 - **Data analysis**: Calculate separator positions by analyzing data groupings
-- Section breaks make large tables more readable by grouping related items
+- **Final output**: Always call `gateway.response.add_output(finalize_output(lines))` at the end
 
 ### Example 15: **Multi-Column Tables with Label Override and Section Breaks**
 
