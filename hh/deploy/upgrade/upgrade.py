@@ -1,5 +1,5 @@
+import fnmatch
 import importlib.util
-import shutil
 import hashlib
 from pathlib import Path
 from typing import List, Optional, Dict, Set
@@ -25,6 +25,35 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+
+# Folders that are copied from the source as a whole (besides module folders found by __module__.py).
+DOC_FOLDERS = ("context", "README")
+
+# Generated files never copied into the target or counted as differences (mirrors the cache entries in .gitignore).
+CACHE_PATTERNS = (
+    "__pycache__", ".cache", "*.pyc", "*.pyo", "*.cache",
+    "*-reg.json", "*-whitelist-*.json", "*.cycle.json", "cache.json",
+    "page-classes.json", "tp-decorators.json", "config-registry.json", "module*.json",
+)
+
+
+def get_upgrade_folders(source_path: Path) -> List[str]:
+    """Folders the upgrade replaces: hh/, every other source module folder except ext/, then context/ and README/.
+
+    Module folders the target has but the source does not (a project's own modules) are left alone, and ext/ is
+    never touched.  Blacklisted modules are still copied; the target's module_blacklist keeps them switched off.
+    """
+    trace_in()
+    modules = sorted(
+        item.name for item in source_path.iterdir()
+        if item.is_dir() and item.name != "ext" and (item / "__module__.py").exists()
+    )
+    if "hh" in modules:
+        modules.remove("hh")
+        modules.insert(0, "hh")
+    folders = modules + [name for name in DOC_FOLDERS if (source_path / name).is_dir()]
+    return trace_out(folders)
 
 
 def validate_target(target_path: Path, source_path: Path) -> bool:
@@ -76,38 +105,23 @@ def validate_target(target_path: Path, source_path: Path) -> bool:
     trace_out()
     return True
 
-
 def create_unified_backup(target_path: Path, gateway) -> Path:
-    """Create a unified backup folder and move items into it. Returns the backup folder path."""
+    """Pick a free backup folder name (backup, backup_2, ...) and schedule its creation. Returns its path."""
     trace_in()
-    
-    # Check for dry_run flag
     dry_run = gateway.is_set('dry-run') or gateway.is_set('dry_run')
-    
-    # Find available backup name
-    backup_name = "backup"
-    backup_path = target_path / backup_name
+
+    backup_path = target_path / "backup"
     counter = 2
-    
     while backup_path.exists():
-        backup_name = f"backup_{counter}"
-        backup_path = target_path / backup_name
+        backup_path = target_path / f"backup_{counter}"
         counter += 1
-    
-    # Schedule backup directory creation (skip in dry-run mode)
+
     if not dry_run:
         gateway.files.schedule_create_directory(str(backup_path))
         log(f"Scheduled backup directory creation: {backup_path}")
     else:
         log(f"Would create backup directory: {backup_path} (dry-run)")
-    
-    # Move hh/ into backup/hh/
-    hh_path = target_path / "hh"
-    if hh_path.exists():
-        backup_hh = backup_path / "hh"
-        gateway.files.schedule_move(str(hh_path), str(backup_hh))
-        log(f"Scheduled backup: {hh_path} -> {backup_hh}")
-    
+
     trace_out()
     return backup_path
 
@@ -128,63 +142,20 @@ def move_to_backup(target_path: Path, backup_path: Path, item_name: str, gateway
     trace_out()
     return True
 
-
-def copy_hh(source_path: Path, target_path: Path, gateway) -> bool:
-    """Schedule copy of hh/ folder from source to target."""
+def copy_folder(source_path: Path, target_path: Path, name: str, gateway) -> bool:
+    """Schedule a copy of one framework folder from source to target, leaving out generated cache files."""
     trace_in()
-    source_hh = source_path / "hh"
-    target_hh = target_path / "hh"
-    
-    if not source_hh.exists():
-        warn(f"Source hh/ folder does not exist: {source_hh}")
-        report_error("action", f"Source hh/ folder does not exist: {source_hh}")
+    source_dir = source_path / name
+    target_dir = target_path / name
+
+    if not source_dir.exists():
+        warn(f"Source {name}/ folder does not exist: {source_dir}")
+        report_error("action", f"Source {name}/ folder does not exist: {source_dir}")
         trace_out()
         return False
-    
-    # Schedule copy of entire hh/ folder (no exclusions)
-    gateway.files.schedule_copy_tree(str(source_hh), str(target_hh))
-    log(f"Scheduled copy of hh/ to {target_hh}")
-    
-    trace_out()
-    return True
 
-
-def copy_context(source_path: Path, target_path: Path, gateway) -> bool:
-    """Schedule copy of context/ folder from source to target."""
-    trace_in()
-    source_context = source_path / "context"
-    target_context = target_path / "context"
-    
-    if not source_context.exists():
-        warn(f"Source context/ folder does not exist: {source_context}")
-        report_error("action", f"Source context/ folder does not exist: {source_context}")
-        trace_out()
-        return False
-    
-    # Schedule copy of entire context/ folder (no exclusions)
-    gateway.files.schedule_copy_tree(str(source_context), str(target_context))
-    log(f"Scheduled copy of context/ to {target_context}")
-    
-    trace_out()
-    return True
-
-
-def copy_readme(source_path: Path, target_path: Path, gateway) -> bool:
-    """Schedule copy of README/ folder from source to target."""
-    trace_in()
-    source_readme = source_path / "README"
-    target_readme = target_path / "README"
-    
-    if not source_readme.exists():
-        warn(f"Source README/ folder does not exist: {source_readme}")
-        report_error("action", f"Source README/ folder does not exist: {source_readme}")
-        trace_out()
-        return False
-    
-    # Schedule copy of entire README/ folder (no exclusions)
-    gateway.files.schedule_copy_tree(str(source_readme), str(target_readme))
-    log(f"Scheduled copy of README/ to {target_readme}")
-    
+    gateway.files.schedule_copy_tree(str(source_dir), str(target_dir), ignore=list(CACHE_PATTERNS))
+    log(f"Scheduled copy of {name}/ to {target_dir}")
     trace_out()
     return True
 
@@ -205,7 +176,6 @@ def copy_top_level_files(source_path: Path, target_path: Path, gateway) -> List[
     log(f"Scheduled copy of {len(copied_files)} top-level files")
     trace_out()
     return copied_files
-
 
 def restore_preserved(target_path: Path, backup_path: Path, gateway, preserve_set: Set[str]) -> List[str]:
     """Schedule restore of files from backup that are listed in upgrade_preserve.py.
@@ -233,41 +203,9 @@ def restore_preserved(target_path: Path, backup_path: Path, gateway, preserve_se
     trace_out()
     return restored_files
 
-
 def is_cache_file(file_path: Path) -> bool:
-    """Check if a file or directory should be excluded from comparison (cache files)."""
-    trace_in()
-    try:
-        # Check if file is in __pycache__ directory
-        parts = file_path.parts
-        if '__pycache__' in parts:
-            trace_out()
-            return True
-        
-        # Check if file is in .cache directory
-        if '.cache' in parts:
-            trace_out()
-            return True
-        
-        # Check file extensions
-        if file_path.is_file():
-            name = file_path.name
-            # .pyc and .pyo files
-            if name.endswith('.pyc') or name.endswith('.pyo'):
-                trace_out()
-                return True
-            
-            # Cache JSON files
-            if name.endswith('-reg.json') or name.endswith('.cycle.json') or name == 'cache.json' or name.endswith('.cache'):
-                trace_out()
-                return True
-        
-        trace_out()
-        return False
-    except Exception as e:
-        warn(f"Error checking if file is cache: {file_path}: {e}")
-        trace_out()
-        return False
+    """True for generated files (see CACHE_PATTERNS) that are neither copied nor compared."""
+    return any(fnmatch.fnmatch(part, pattern) for part in file_path.parts for pattern in CACHE_PATTERNS)
 
 
 def compute_file_hash(file_path: Path) -> Optional[str]:
@@ -289,7 +227,6 @@ def compute_file_hash(file_path: Path) -> Optional[str]:
         trace_out()
         return None
 
-
 @dataclass
 class FileDifferences:
     """Categorized file differences between source and target directories."""
@@ -304,7 +241,6 @@ class FileDifferences:
         return (len(self.will_be_lost) + len(self.will_be_restored) + 
                 len(self.will_be_created) + len(self.will_be_updated) + 
                 len(self.will_be_preserved))
-
 
 def load_preserve_list(target_path: Path) -> Set[str]:
     """Load UPGRADE_PRESERVE list from target project's ext folder."""
@@ -341,7 +277,6 @@ def load_preserve_list(target_path: Path) -> Set[str]:
     
     trace_out()
     return preserve_set
-
 
 def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Optional[Set[str]] = None, project_root: Optional[Path] = None) -> FileDifferences:
     """Compare two directories recursively and return categorized file differences.
@@ -450,8 +385,47 @@ def compare_directories(source_dir: Path, target_dir: Path, preserve_set: Option
     trace_out()
     return differences
 
+def diff_folder(source_path: Path, target_path: Path, name: str, preserve_set: Set[str]) -> FileDifferences:
+    """Compare one framework folder. Paths in the result are project-relative (e.g. "hh_page/add_page.py")."""
+    trace_in()
+    source_dir = source_path / name
+    target_dir = target_path / name
+    if target_dir.exists():
+        diffs = compare_directories(source_dir, target_dir, preserve_set, source_path)
+    else:
+        diffs = FileDifferences()
+        for file_path in source_dir.rglob('*'):
+            if file_path.is_file() and not is_cache_file(file_path):
+                diffs.will_be_created.append(str(file_path.relative_to(source_path)).replace('\\', '/'))
+    log(f"Found {diffs.total_count()} files that differ in {name}/")
+    return trace_out(diffs)
 
-def report_results(target_path: Path, backup_path: Path, restored_files: List[str], hh_diffs: Optional[FileDifferences] = None, context_diffs: Optional[FileDifferences] = None, readme_diffs: Optional[FileDifferences] = None, top_level_diffs: Optional[FileDifferences] = None, top_level_files: Optional[List[str]] = None, dry_run: bool = False) -> dict:
+
+def merge_diffs(diff_list: List[FileDifferences]) -> FileDifferences:
+    """Combine several FileDifferences into one."""
+    merged = FileDifferences()
+    for diffs in diff_list:
+        merged.will_be_lost.extend(diffs.will_be_lost)
+        merged.will_be_restored.extend(diffs.will_be_restored)
+        merged.will_be_created.extend(diffs.will_be_created)
+        merged.will_be_updated.extend(diffs.will_be_updated)
+        merged.will_be_preserved.extend(diffs.will_be_preserved)
+    return merged
+
+
+def _add_diffs(result_data: dict, prefix: str, diffs: Optional[FileDifferences]) -> None:
+    """Add <prefix>_diffs_<kind> lists and <prefix>_diff_count_<kind> counts to the payload."""
+    if diffs is None:
+        return
+    for kind, files in (("lost", diffs.will_be_lost), ("restored", diffs.will_be_restored),
+                        ("created", diffs.will_be_created), ("updated", diffs.will_be_updated),
+                        ("preserved", diffs.will_be_preserved)):
+        result_data[f"{prefix}_diffs_{kind}"] = files
+        result_data[f"{prefix}_diff_count_{kind}"] = len(files)
+    result_data[f"{prefix}_diff_count_total"] = diffs.total_count()
+
+
+def report_results(target_path: Path, backup_path: Path, restored_files: List[str], diffs_by_prefix: Dict[str, Optional[FileDifferences]], folders: List[str], top_level_files: Optional[List[str]] = None, dry_run: bool = False) -> dict:
     """Create result payload for upgrade operation."""
     trace_in()
     result_data = {
@@ -460,66 +434,15 @@ def report_results(target_path: Path, backup_path: Path, restored_files: List[st
         "backup_name": backup_path.name,
         "restored_files": restored_files,
         "restored_count": len(restored_files),
+        "upgraded_folders": folders,
         "status": "upgraded" if not dry_run else "dry_run",
         "dry_run": dry_run
     }
+    for prefix, diffs in diffs_by_prefix.items():
+        _add_diffs(result_data, prefix, diffs)
     if top_level_files:
         result_data["top_level_files"] = top_level_files
         result_data["top_level_files_count"] = len(top_level_files)
-    
-    # Add file differences (categorized)
-    if hh_diffs is not None:
-        result_data["hh_diffs_lost"] = hh_diffs.will_be_lost
-        result_data["hh_diffs_restored"] = hh_diffs.will_be_restored
-        result_data["hh_diffs_created"] = hh_diffs.will_be_created
-        result_data["hh_diffs_updated"] = hh_diffs.will_be_updated
-        result_data["hh_diffs_preserved"] = hh_diffs.will_be_preserved
-        result_data["hh_diff_count_lost"] = len(hh_diffs.will_be_lost)
-        result_data["hh_diff_count_restored"] = len(hh_diffs.will_be_restored)
-        result_data["hh_diff_count_created"] = len(hh_diffs.will_be_created)
-        result_data["hh_diff_count_updated"] = len(hh_diffs.will_be_updated)
-        result_data["hh_diff_count_preserved"] = len(hh_diffs.will_be_preserved)
-        result_data["hh_diff_count_total"] = hh_diffs.total_count()
-    if context_diffs is not None:
-        result_data["context_diffs_lost"] = context_diffs.will_be_lost
-        result_data["context_diffs_restored"] = context_diffs.will_be_restored
-        result_data["context_diffs_created"] = context_diffs.will_be_created
-        result_data["context_diffs_updated"] = context_diffs.will_be_updated
-        result_data["context_diffs_preserved"] = context_diffs.will_be_preserved
-        result_data["context_diff_count_lost"] = len(context_diffs.will_be_lost)
-        result_data["context_diff_count_restored"] = len(context_diffs.will_be_restored)
-        result_data["context_diff_count_created"] = len(context_diffs.will_be_created)
-        result_data["context_diff_count_updated"] = len(context_diffs.will_be_updated)
-        result_data["context_diff_count_preserved"] = len(context_diffs.will_be_preserved)
-        result_data["context_diff_count_total"] = context_diffs.total_count()
-    if readme_diffs is not None:
-        result_data["readme_diffs_lost"] = readme_diffs.will_be_lost
-        result_data["readme_diffs_restored"] = readme_diffs.will_be_restored
-        result_data["readme_diffs_created"] = readme_diffs.will_be_created
-        result_data["readme_diffs_updated"] = readme_diffs.will_be_updated
-        result_data["readme_diffs_preserved"] = readme_diffs.will_be_preserved
-        result_data["readme_diff_count_lost"] = len(readme_diffs.will_be_lost)
-        result_data["readme_diff_count_restored"] = len(readme_diffs.will_be_restored)
-        result_data["readme_diff_count_created"] = len(readme_diffs.will_be_created)
-        result_data["readme_diff_count_updated"] = len(readme_diffs.will_be_updated)
-        result_data["readme_diff_count_preserved"] = len(readme_diffs.will_be_preserved)
-        result_data["readme_diff_count_total"] = readme_diffs.total_count()
-    if top_level_diffs is not None:
-        result_data["top_level_diffs_lost"] = top_level_diffs.will_be_lost
-        result_data["top_level_diffs_restored"] = top_level_diffs.will_be_restored
-        result_data["top_level_diffs_created"] = top_level_diffs.will_be_created
-        result_data["top_level_diffs_updated"] = top_level_diffs.will_be_updated
-        result_data["top_level_diffs_preserved"] = top_level_diffs.will_be_preserved
-        result_data["top_level_diff_count_lost"] = len(top_level_diffs.will_be_lost)
-        result_data["top_level_diff_count_restored"] = len(top_level_diffs.will_be_restored)
-        result_data["top_level_diff_count_created"] = len(top_level_diffs.will_be_created)
-        result_data["top_level_diff_count_updated"] = len(top_level_diffs.will_be_updated)
-        result_data["top_level_diff_count_preserved"] = len(top_level_diffs.will_be_preserved)
-        result_data["top_level_diff_count_total"] = top_level_diffs.total_count()
-    if top_level_files:
-        result_data["top_level_files"] = top_level_files
-        result_data["top_level_files_count"] = len(top_level_files)
-    
     trace_out()
     return result_data
 
@@ -563,70 +486,18 @@ def do_upgrade() -> bool:
     # Load preserve list BEFORE comparison
     preserve_set = load_preserve_list(target_path)
     
-    # Compare files BEFORE upgrade operations
-    source_hh = source_path / "hh"
-    target_hh = target_path / "hh"
-    hh_diffs: Optional[FileDifferences] = None
-    
-    log("Comparing hh/ directories...")
-    if source_hh.exists() and target_hh.exists():
-        hh_diffs = compare_directories(source_hh, target_hh, preserve_set, source_path)
-        log(f"Found {hh_diffs.total_count()} files that differ in hh/")
-    elif source_hh.exists():
-        # Target hh/ doesn't exist yet, all files will be new
-        log("Target hh/ does not exist - all files will be new")
-        hh_diffs = FileDifferences()
-        for file_path in source_hh.rglob('*'):
-            if file_path.is_file() and not is_cache_file(file_path):
-                rel_path = file_path.relative_to(source_hh)
-                # Normalize path
-                rel_path_str = str(rel_path).replace('\\', '/')
-                hh_diffs.will_be_created.append(rel_path_str)
-    else:
-        log("Source hh/ does not exist - cannot compare")
-    
-    # Compare context/
-    context_diffs: Optional[FileDifferences] = None
-    source_context = source_path / "context"
-    target_context = target_path / "context"
-    log("Comparing context/ directories...")
-    if source_context.exists() and target_context.exists():
-        context_diffs = compare_directories(source_context, target_context, preserve_set, source_path)
-        log(f"Found {context_diffs.total_count()} files that differ in context/")
-    elif source_context.exists():
-        # Target context/ doesn't exist yet, all files will be new
-        log("Target context/ does not exist - all files will be new")
-        context_diffs = FileDifferences()
-        for file_path in source_context.rglob('*'):
-            if file_path.is_file() and not is_cache_file(file_path):
-                rel_path = file_path.relative_to(source_context)
-                # Normalize path
-                rel_path_str = str(rel_path).replace('\\', '/')
-                context_diffs.will_be_created.append(rel_path_str)
-    else:
-        log("Source context/ does not exist - cannot compare")
-    
-    # Compare README/
-    readme_diffs: Optional[FileDifferences] = None
-    source_readme = source_path / "README"
-    target_readme = target_path / "README"
-    log("Comparing README/ directories...")
-    if source_readme.exists() and target_readme.exists():
-        readme_diffs = compare_directories(source_readme, target_readme, preserve_set, source_path)
-        log(f"Found {readme_diffs.total_count()} files that differ in README/")
-    elif source_readme.exists():
-        # Target README/ doesn't exist yet, all files will be new
-        log("Target README/ does not exist - all files will be new")
-        readme_diffs = FileDifferences()
-        for file_path in source_readme.rglob('*'):
-            if file_path.is_file() and not is_cache_file(file_path):
-                rel_path = file_path.relative_to(source_readme)
-                # Normalize path
-                rel_path_str = str(rel_path).replace('\\', '/')
-                readme_diffs.will_be_created.append(rel_path_str)
-    else:
-        log("Source README/ does not exist - cannot compare")
-    
+    # Compare every framework folder BEFORE upgrade operations
+    folders = get_upgrade_folders(source_path)
+    log(f"Folders to upgrade: {', '.join(folders)}")
+    folder_diffs = {name: diff_folder(source_path, target_path, name, preserve_set) for name in folders}
+    module_names = [name for name in folders if name != "hh" and name not in DOC_FOLDERS]
+    diffs_by_prefix: Dict[str, Optional[FileDifferences]] = {
+        "hh": folder_diffs.get("hh"),
+        "modules": merge_diffs([folder_diffs[name] for name in module_names]),
+        "context": folder_diffs.get("context"),
+        "readme": folder_diffs.get("README"),
+    }
+
     # Compare top-level files
     top_level_diffs: Optional[FileDifferences] = None
     top_level_files_list: List[str] = []
@@ -656,7 +527,7 @@ def do_upgrade() -> bool:
         if source_hash is None:
             continue
         
-        # Check if file is preserved (preserve_set uses paths relative to hh/, so top-level files use just filename)
+        # preserve_set holds project-relative paths, so a top-level file is just its name
         is_preserved = normalize_path(filename) in preserve_set
         
         if target_file is None:
@@ -693,6 +564,8 @@ def do_upgrade() -> bool:
                 log(f"Top-level file will be lost: {filename}")
     
     log(f"Found {top_level_diffs.total_count()} top-level files that differ")
+
+    diffs_by_prefix["top_level"] = top_level_diffs
     
     # Create unified backup folder
     try:
@@ -703,40 +576,25 @@ def do_upgrade() -> bool:
         trace_out()
         return False
     
-    # Move context/ to backup
-    if not move_to_backup(target_path, backup_path, "context", gateway):
-        log("context/ does not exist, skipping backup")
-    
-    # Move README/ to backup
-    if not move_to_backup(target_path, backup_path, "README", gateway):
-        log("README/ does not exist, skipping backup")
+    # Move each framework folder the target has into the backup
+    for name in folders:
+        move_to_backup(target_path, backup_path, name, gateway)
     
     # Move top-level files to backup
-    top_level_files_backed_up = []
     for item in target_path.iterdir():
         if item.is_file() and item.name != backup_path.name:
             backup_file = backup_path / item.name
             gateway.files.schedule_move(str(item), str(backup_file))
-            top_level_files_backed_up.append(item.name)
             log(f"Scheduled backup of top-level file: {item.name}")
     
-    # Schedule copy of new hh/
-    if not copy_hh(source_path, target_path, gateway):
-        trace_out()
-        return False
-    
-    # Schedule copy of context/
-    if not copy_context(source_path, target_path, gateway):
-        trace_out()
-        return False
-    
-    # Schedule copy of README/
-    if not copy_readme(source_path, target_path, gateway):
-        trace_out()
-        return False
+    # Schedule copy of each framework folder (cache files left out, so the target rebuilds its registries)
+    for name in folders:
+        if not copy_folder(source_path, target_path, name, gateway):
+            trace_out()
+            return False
     
     # Schedule copy of top-level files
-    top_level_files_copied = copy_top_level_files(source_path, target_path, gateway)
+    copy_top_level_files(source_path, target_path, gateway)
     
     # Schedule restore of preserved files (skip in dry-run mode)
     restored_files = []
@@ -744,70 +602,16 @@ def do_upgrade() -> bool:
         restored_files = restore_preserved(target_path, backup_path, gateway, preserve_set)
     
     # File operations will be committed automatically by gateway dispatch
-    # Clean up cache files (skip if dry_run)
-    if not dry_run:
-        target_hh = target_path / "hh"
-        if target_hh.exists():
-            cache_cleaned = {
-                'pycache_dirs': 0,
-                'pyc_files': 0,
-                'pyo_files': 0,
-                'cache_files': 0,
-                'cache_dirs': 0
-            }
-            
-            try:
-                # Remove __pycache__ directories
-                for pycache_dir in target_hh.rglob('__pycache__'):
-                    shutil.rmtree(pycache_dir)
-                    cache_cleaned['pycache_dirs'] += 1
-                    log(f"Removed __pycache__ directory: {pycache_dir}")
-                
-                # Remove .pyc files
-                for pyc_file in target_hh.rglob('*.pyc'):
-                    pyc_file.unlink()
-                    cache_cleaned['pyc_files'] += 1
-                    log(f"Removed .pyc file: {pyc_file}")
-                
-                # Remove .pyo files
-                for pyo_file in target_hh.rglob('*.pyo'):
-                    pyo_file.unlink()
-                    cache_cleaned['pyo_files'] += 1
-                    log(f"Removed .pyo file: {pyo_file}")
-                
-                # Remove cache files
-                cache_patterns = ['*-reg.json', '*.cycle.json', 'cache.json', '*.cache']
-                for pattern in cache_patterns:
-                    for cache_file in target_hh.rglob(pattern):
-                        cache_file.unlink()
-                        cache_cleaned['cache_files'] += 1
-                        log(f"Removed cache file: {cache_file}")
-                
-                # Remove .cache directories
-                for cache_dir in target_hh.rglob('.cache'):
-                    shutil.rmtree(cache_dir)
-                    cache_cleaned['cache_dirs'] += 1
-                    log(f"Removed .cache directory: {cache_dir}")
-                
-                log(f"Cache cleanup complete: {cache_cleaned['pycache_dirs']} __pycache__ dirs, {cache_cleaned['pyc_files']} .pyc files, {cache_cleaned['pyo_files']} .pyo files, {cache_cleaned['cache_files']} cache files, {cache_cleaned['cache_dirs']} .cache dirs")
-            except Exception as e:
-                warn(f"Failed to clean cache files: {e}")
-                report_error("action", f"Failed to clean cache files: {e}")
-                trace_out()
-                return False
-    
-    # Report results
     result = not is_error()
     if result:
         if dry_run:
             log("Dry run completed successfully")
         else:
             log("Upgrade completed successfully")
-        result_data = report_results(target_path, backup_path, restored_files, hh_diffs, context_diffs, readme_diffs, top_level_diffs, top_level_files_list, dry_run)
+        result_data = report_results(target_path, backup_path, restored_files, diffs_by_prefix, folders, top_level_files_list, dry_run)
         gateway.response.set_action_response(success_payload(result_data))
     else:
         log("Upgrade encountered problems")
     
     trace_out()
     return result
-

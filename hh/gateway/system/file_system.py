@@ -151,14 +151,15 @@ class FileSystem:
         log(f"Scheduled file copy: {from_path} -> {to_path}")
         return trace_out(None)
     
-    def schedule_copy_tree(self, from_path: str, to_path: str) -> None:
+    def schedule_copy_tree(self, from_path: str, to_path: str, ignore: Optional[List[str]] = None) -> None:
         """Schedule a recursive directory copy operation to be executed on commit.
-        Copies entire directory tree like shutil.copytree()."""
+        Copies entire directory tree like shutil.copytree(); names matching any glob in ignore are left out."""
         trace_in()
         operation = {
             'type': 'copy_tree',
             'from_path': from_path,
             'to_path': to_path,
+            'ignore': list(ignore) if ignore else [],
             'status': 'scheduled'
         }
         self._operations.append(operation)
@@ -288,7 +289,9 @@ class FileSystem:
                         operation['status'] = 'failed'
                         return trace_out(False)
                     to_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copytree(str(from_path), str(to_path))
+                    ignore_patterns = operation.get('ignore') or []
+                    shutil.copytree(str(from_path), str(to_path),
+                                    ignore=shutil.ignore_patterns(*ignore_patterns) if ignore_patterns else None)
                     log(f"Copied directory tree: {from_path} -> {to_path}")
                     operation['status'] = 'completed'
                     completed_count += 1

@@ -120,6 +120,14 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
                 value='Upgrade completed'
             )
         
+        # Folders replaced from the source (hh/, module folders, context/, README/)
+        upgraded_folders: Any = source_data.get('upgraded_folders', [])
+        if isinstance(upgraded_folders, list) and upgraded_folders:
+            upgrade_data.add_row(
+                'upgraded_folders',
+                value=safe_str(', '.join(upgraded_folders))
+            )
+        
         # Backup name (only show if not dry run)
         if not dry_run:
             upgrade_data.add_row(
@@ -161,6 +169,13 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
             all_created.extend(hh_diffs_created)
             all_updated.extend(hh_diffs_updated)
             all_preserved.extend(hh_diffs_preserved)
+        
+        # Collect from module folders (hh_page/, maintenance/, ...)
+        for kind, bucket in (('lost', all_lost), ('restored', all_restored), ('created', all_created),
+                             ('updated', all_updated), ('preserved', all_preserved)):
+            module_files: Any = source_data.get(f'modules_diffs_{kind}', [])
+            if isinstance(module_files, list):
+                bucket.extend(module_files)
         
         # Collect from Context folder
         if has_context_diffs and context_total > 0:
@@ -310,7 +325,7 @@ def render_upgrade_section(source_data: Dict[str, Union[str, int, bool, List[str
         debug(f"Final upgrade_data: {upgrade_data.num_rows()} items")
         
         # Build field config for main upgrade data (status, backup info, etc.)
-        field_config = FieldConfig().add_header('target_header').add_simple(['status'])
+        field_config = FieldConfig().add_header('target_header').add_simple(['status', 'upgraded_folders'])
         
         if not dry_run:
             field_config.add_simple(['backup_created'])
