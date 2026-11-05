@@ -15,6 +15,7 @@ from hh.gateway.registry.debug import (
     register_debug_init,
 )
 from hh.gateway.registry.maintenance import register_maintenance_tool
+from hh.gateway.registry.maintenance_tasks import register_maintenance_task
 from hh.gateway.registry.registry import (
     register_action,
     register_command,
@@ -119,6 +120,13 @@ def rebuild_audio(audio_id: int) -> dict[str, Any] | None:
         return {"entity": "audio", "id": audio_id, "error": error_msg}
 
 
+@register_maintenance_task(
+    "audio-cache-refresh",
+    daemon="maintenance",
+    status_field="stale_audio",
+    trigger_type="cache_refresh",
+    priority=40
+)
 @register_action("audio_cache_refresh")
 @register_command("audio_cache_refresh")
 def audio_cache_refresh_action() -> bool:

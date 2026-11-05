@@ -279,6 +279,26 @@ def get_jobs_status(verbose_debug: bool = False) -> Optional[Dict[str, Any]]:
         return None
 
 
+_TASKS_LOADED = False
+
+
+def _load_maintenance_tasks() -> None:
+    """Import every module (hh/, ext/, active modules) that registers @register_maintenance_task."""
+    global _TASKS_LOADED
+    if _TASKS_LOADED:
+        return
+    import importlib
+    from hh.deploy.deploy_utils import scan_for_decorator
+    for module_path in scan_for_decorator("register_maintenance_task"):
+        if module_path.startswith("hh.gateway.registry.maintenance_tasks"):
+            continue
+        try:
+            importlib.import_module(module_path)
+        except Exception as e:  # noqa: BLE001
+            logging.error(f"Could not load maintenance tasks from {module_path}: {e}")
+    _TASKS_LOADED = True
+
+
 def build_work_docket(daemon_name: str, status: Dict[str, Any]) -> List[Tuple[str, bool]]:
     """Build ordered list of (command, is_job_queue) tuples for this daemon.
 
@@ -292,6 +312,7 @@ def build_work_docket(daemon_name: str, status: Dict[str, Any]) -> List[Tuple[st
         List of (command, is_job_queue) tuples
     """
     from hh.gateway.registry.maintenance_tasks import get_tasks_for_daemon
+    _load_maintenance_tasks()
 
     docket = []
 

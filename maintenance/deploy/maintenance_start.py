@@ -24,6 +24,7 @@ from hh.gateway.response.json_standard import success_payload, get_data
 from hh.gateway.error.error_store import report_error
 from hh.render.render import render_header_block, render_block, finalize_output, FieldConfig, TableData
 from hh.render.config.config import break_section, safe_str
+from maintenance.deploy.worker_paths import dev_main_worker, dev_module_workers, DEV_MAIN_WORKER_PROCESS
 
 trace_in = lambda message=None: None
 trace_out = lambda arg=None: arg
@@ -47,7 +48,7 @@ def _get_worker_path(project_name: str, is_deployed: bool, project_root: Path) -
     if is_deployed:
         return Path(f"/srv/{project_name}/{project_name}_maintenance.py")
     else:
-        return project_root / "hh" / "deploy" / "maintenance" / "worker.py"
+        return dev_main_worker(project_root)
 
 
 def _get_log_file(project_name: str, is_deployed: bool, project_root: Path) -> Path:
@@ -65,7 +66,7 @@ def _get_process_filter(project_name: str, is_deployed: bool) -> str:
     if is_deployed:
         return f"{project_name}_maintenance.py"
     else:
-        return "worker.py"
+        return DEV_MAIN_WORKER_PROCESS
 
 
 def _create_log_file(log_file_path: Path, project_name: str, gateway) -> None:
@@ -242,7 +243,7 @@ def start_ext_daemon(project_name: str, daemon_name: str) -> Dict[str, Any]:
             worker_path = Path(f"/srv/{project_name}/{project_name}_maintenance_{daemon_name}.py")
             process_name = f"{project_name}_maintenance_{daemon_name}.py"
         else:
-            worker_path = project_root / "ext" / "deploy" / "maintenance" / f"{daemon_name}_worker.py"
+            worker_path = dev_module_workers(project_root).get(daemon_name, project_root / f"{daemon_name}_worker.py")
             process_name = f"{daemon_name}_worker.py"
         
         # Use daemon-specific log file name
@@ -366,10 +367,9 @@ def run_maintenance_start(project_name: str) -> Dict[str, Any]:
                     log_file = logs_dir / f"{daemon_name}_{project_name}.log"
                     _create_log_file(log_file, project_name, gateway)
         else:
-            ext_maint_dir = project_root / "ext" / "deploy" / "maintenance"
-            if ext_maint_dir.exists():
-                for worker_file in ext_maint_dir.glob("*_worker.py"):
-                    daemon_name = worker_file.stem.replace("_worker", "")
+            module_workers = dev_module_workers(project_root)
+            if module_workers:
+                for daemon_name in module_workers:
                     log_file = logs_dir / f"{daemon_name}_{project_name}.log"
                     _create_log_file(log_file, project_name, gateway)
     
@@ -395,10 +395,9 @@ def run_maintenance_start(project_name: str) -> Dict[str, Any]:
                 if daemon_name:
                     ext_results[daemon_name] = start_ext_daemon(project_name, daemon_name)
         else:
-            ext_maint_dir = project_root / "ext" / "deploy" / "maintenance"
-            if ext_maint_dir.exists():
-                for worker_file in ext_maint_dir.glob("*_worker.py"):
-                    daemon_name = worker_file.stem.replace("_worker", "")
+            module_workers = dev_module_workers(project_root)
+            if module_workers:
+                for daemon_name in module_workers:
                     ext_results[daemon_name] = start_ext_daemon(project_name, daemon_name)
     
     # Combine results

@@ -15,6 +15,7 @@ from hh.gateway.registry.debug import (
     register_debug_init,
 )
 from hh.gateway.registry.maintenance import register_maintenance_tool
+from hh.gateway.registry.maintenance_tasks import register_maintenance_task
 from hh.gateway.registry.registry import (
     register_action,
     register_command,
@@ -119,6 +120,13 @@ def rebuild_video(video_id: int) -> dict[str, Any] | None:
         return {"entity": "video", "id": video_id, "error": error_msg}
 
 
+@register_maintenance_task(
+    "video-cache-refresh",
+    daemon="maintenance",
+    status_field="stale_video",
+    trigger_type="cache_refresh",
+    priority=40
+)
 @register_action("video_cache_refresh")
 @register_command("video_cache_refresh")
 def video_cache_refresh_action() -> bool:

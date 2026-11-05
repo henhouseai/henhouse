@@ -15,6 +15,7 @@ from hh.gateway.registry.debug import (
     register_debug_init,
 )
 from hh.gateway.registry.maintenance import register_maintenance_tool
+from hh.gateway.registry.maintenance_tasks import register_maintenance_task
 from hh.gateway.registry.registry import (
     register_action,
     register_command,
@@ -119,6 +120,13 @@ def rebuild_file(file_id: int) -> dict[str, Any] | None:
         return {"entity": "file", "id": file_id, "error": error_msg}
 
 
+@register_maintenance_task(
+    "file-cache-refresh",
+    daemon="maintenance",
+    status_field="stale_files",
+    trigger_type="cache_refresh",
+    priority=40
+)
 @register_action("file_cache_refresh")
 @register_command("file_cache_refresh")
 def file_cache_refresh_action() -> bool:
