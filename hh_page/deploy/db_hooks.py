@@ -168,3 +168,40 @@ def render_clean_summary():
         'table_data': table_data,
         'field_config': field_config
     })
+
+
+@register_module_hook('init_db_40_homepage', 'Create the home page (id 1, parent 0) if pages is empty')
+def init_homepage():
+    """
+    Create the root page every other page hangs under.
+
+    Restores the old init_homepage behaviour: page 1, parent 0, named after the project,
+    created only when the pages table is empty.
+    """
+    trace_in()
+    if is_error():
+        return trace_out({"success": False, "message": "Error state detected"})
+
+    import tempfile
+    from hh.deploy.user_accounts import detect_project_owner
+
+    project_name = DB_CONFIG["main_db"]
+    owner = detect_project_owner(Path(DB_CONFIG.get("project_path") or ".")) or "root"
+    sql = (
+        "INSERT INTO pages (id, parent, name, link, class, text, last_modified, username, visibility, displayStyle) "
+        "SELECT 1, 0, '{name}', NULL, 'page', 'Hello, World!', NOW(), '{user}', 1, 1 "
+        "FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM pages);\n"
+    ).format(name=project_name.replace("'", "''"), user=owner.replace("'", "''"))
+
+    with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as tmp:
+        tmp.write(sql)
+        tmp_path = Path(tmp.name)
+    try:
+        success = execute_sql_file(tmp_path, DB_CONFIG["main_db"], DB_CONFIG["main_credentials_file"], "hh_page homepage")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if not success or is_error():
+        return trace_out({"success": False, "message": "Failed to create homepage"})
+    DB_CONFIG["homepage_checked"] = True
+    return trace_out({"success": True, "message": "Homepage present (id 1)"})

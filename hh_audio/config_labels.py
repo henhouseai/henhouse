@@ -20,5 +20,9 @@ from hh.render.config.config_registry import register_label
 @register_label('extra_data_audio_id',                'Audio ID:',                    '🆔')
 @register_label('set_audio_visibility_header',        'Audio Visibility Modification', '👀')
 @register_label('modify_audio_caption_header',         'Audio Caption Modification',   '📝')
+@register_label('hh_audio_tables',                       'Audio Tables:',                    '🎵')
+@register_label('hh_audio_dropped',                      'Audio Tables Dropped:',            '🗑️')
+@register_label('hh_audio_permissions',                  'Audio Permissions:',               '🔑')
+@register_label('hh_audio_revoked',                      'Audio Permissions Revoked:',       '🚫')
 def _register_config():
     pass

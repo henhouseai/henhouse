@@ -143,6 +143,7 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     DB_CONFIG["cache_ssl_ca_path"] = str(cfg.get("cache_ssl_ca_path", ""))
     DB_CONFIG["ssl_verify_mode"] = int(cfg.get("ssl_verify_mode", 2))
     DB_CONFIG["db_host"] = str(cfg.get("db_host", ""))
+    DB_CONFIG["with_examples"] = bool(gateway.get_arg('with_examples'))
 
     hook_results: List[Dict[str, Any]] = []
 
@@ -192,6 +193,27 @@ def init_db(args: Optional[List[str]] = None) -> bool:
     if not is_error():
         log("Initializing media cache tables")
         results = run_hooks('init_db_30_init_media_cache')
+        if results:
+            hook_results.extend(results)
+
+    # Phase 35: Load each active module's deploy/db/schema.sql (and schema_cache.sql)
+    if not is_error():
+        log("Loading module schemas")
+        results = run_hooks('init_db_35_module_schemas')
+        if results:
+            hook_results.extend(results)
+
+    # Phase 40: Create the home page (id 1, parent 0) when pages is empty
+    if not is_error():
+        log("Creating homepage")
+        results = run_hooks('init_db_40_homepage')
+        if results:
+            hook_results.extend(results)
+
+    # Phase 45: Example data (only with -with_examples)
+    if not is_error():
+        log("Loading example data")
+        results = run_hooks('init_db_45_example_data')
         if results:
             hook_results.extend(results)
 

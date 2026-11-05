@@ -258,3 +258,80 @@ def render_database_creation():
         'table_data': table_data,
         'field_config': field_config
     })
+
+
+# ============ Generic module schema loading ============
+#
+# Convention: any active module may ship
+#   deploy/db/schema.sql        - tables for the main database (must be idempotent)
+#   deploy/db/schema_cache.sql  - tables for the cache database (optional)
+#   deploy/db/example_data.sql  - optional example rows, loaded only with -with_examples
+# Modules with more involved needs (page and media modules) register their own init_db hooks
+# and keep their SQL in init.sql / init_cache.sql instead.
+
+def _active_module_db_files(filename: str):
+    """Yield (module_name, path) for each active module that ships deploy/db/<filename> with SQL in it."""
+    from hh.deploy.deploy_utils import get_active_modules
+    for module in sorted(get_active_modules(), key=lambda m: m.name):
+        sql_path = Path(module.path) / "deploy" / "db" / filename
+        if not sql_path.exists():
+            continue
+        text = sql_path.read_text(encoding="utf-8")
+        has_sql = any(line.strip() and not line.strip().startswith("--") for line in text.splitlines())
+        if has_sql:
+            yield module.name, sql_path
+
+
+@register_module_hook('init_db_35_module_schemas', 'Load each active module\'s deploy/db/schema.sql')
+def init_module_schemas():
+    """Run every active module's schema.sql (main DB) and schema_cache.sql (cache DB)."""
+    trace_in()
+    if is_error():
+        return trace_out({"success": False, "message": "Error state detected"})
+
+    from hh.deploy.db_helpers import execute_sql_file
+    loaded = []
+    for filename, db_key, creds_key in (("schema.sql", "main_db", "main_credentials_file"),
+                                        ("schema_cache.sql", "cache_db", "cache_credentials_file")):
+        for module_name, sql_path in _active_module_db_files(filename):
+            if not execute_sql_file(sql_path, DB_CONFIG[db_key], DB_CONFIG[creds_key], f"{module_name} {filename}"):
+                return trace_out({"success": False, "message": f"Failed to load {module_name} {filename}"})
+            loaded.append(f"{module_name}/{filename}")
+
+    DB_CONFIG["module_schemas_loaded"] = loaded
+    log(f"Loaded module schemas: {loaded}")
+    return trace_out({"success": True, "message": f"Loaded {len(loaded)} module schema files", "files": loaded})
+
+
+@register_module_hook('init_db_45_example_data', 'Load module example_data.sql (only with -with_examples)')
+def init_example_data():
+    """Load each active module's example_data.sql into the main DB when -with_examples is given."""
+    trace_in()
+    if is_error() or not DB_CONFIG.get("with_examples"):
+        return trace_out({"success": True, "message": "Example data skipped"})
+
+    from hh.deploy.db_helpers import execute_sql_file
+    loaded = []
+    for module_name, sql_path in _active_module_db_files("example_data.sql"):
+        if not execute_sql_file(sql_path, DB_CONFIG["main_db"], DB_CONFIG["main_credentials_file"], f"{module_name} example_data.sql"):
+            return trace_out({"success": False, "message": f"Failed to load {module_name} example data"})
+        loaded.append(module_name)
+
+    DB_CONFIG["example_data_loaded"] = loaded
+    return trace_out({"success": True, "message": f"Loaded example data for {len(loaded)} modules"})
+
+
+@register_module_hook('init_db_95_render', 'Render module schema summary')
+def render_module_schemas():
+    """Contribute module schema and example data info to the init_db summary."""
+    trace_in()
+    table_data = TableData()
+    field_config = FieldConfig()
+    loaded = DB_CONFIG.get("module_schemas_loaded") or []
+    table_data.add_row('module_schemas', value=', '.join(loaded) if loaded else 'none')
+    field_config.add_simple(['module_schemas'])
+    if DB_CONFIG.get("with_examples"):
+        examples = DB_CONFIG.get("example_data_loaded") or []
+        table_data.add_row('example_data', value=', '.join(examples) if examples else 'none')
+        field_config.add_simple(['example_data'])
+    return trace_out({'table_data': table_data, 'field_config': field_config})

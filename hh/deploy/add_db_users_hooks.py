@@ -15,7 +15,8 @@ from hh.deploy.db_helpers import create_mysql_credentials_file
 from hh.deploy.db_config import DB_CONFIG
 from hh.deploy.install_helpers_config import get_install_config_path
 from hh.deploy.deploy_utils import detect_project_context
-from hh.deploy.db_user_helpers import read_user_password, create_database_user
+from hh.deploy.db_user_helpers import read_user_password, read_owner_password, create_database_user, grant_permissions, get_tier_permissions
+from hh.deploy.user_accounts import detect_project_owner
 from hh.render.render import TableData, FieldConfig
 
 trace_in = lambda message=None: None
@@ -133,6 +134,9 @@ def pre_validate():
     DB_CONFIG["main_credentials_file"] = main_creds_file
     DB_CONFIG["cache_credentials_file"] = cache_creds_file
     DB_CONFIG["tier_list"] = HENHOUSE_TIERS
+    owner = detect_project_owner(project_path)
+    # Never create or drop a MySQL account named "root"
+    DB_CONFIG["project_owner"] = owner if owner and owner != "root" else None
 
     log(f"Created MySQL credentials files for {project_name}")
     log(f"Loaded tiers: {', '.join(HENHOUSE_TIERS)}")
@@ -197,6 +201,21 @@ def create_tier_users():
             "status": "created" if success else "failed"
         })
 
+    # The project owner (whoever owns the install folder) gets a DB user too: install writes
+    # user=<owner> into the owner's and root's .<project>.cnf, so the CLI connects as the owner.
+    owner = DB_CONFIG.get("project_owner")
+    if owner:
+        owner_password = read_owner_password(project_name, owner)
+        if not owner_password:
+            warn(f"No DB password found for project owner {owner}, skipping")
+            user_results.append({"tier": "owner", "username": owner, "status": "failed", "error": "no password"})
+        else:
+            success = create_database_user(conn, owner, owner_password)
+            owner_permissions = get_tier_permissions('root')
+            for db_name in (DB_CONFIG["main_db"], DB_CONFIG["cache_db"]):
+                success = grant_permissions(conn, owner, db_name, owner_permissions) and success
+            user_results.append({"tier": "owner", "username": owner, "status": "created" if success else "failed"})
+
     return trace_out({
         "success": True,
         "message": f"Created {len([r for r in user_results if r['status'] == 'created'])} tier users",
@@ -254,6 +273,9 @@ def render_user_creation():
     if tier_list:
         table_data.add_row('tier_users', value=', '.join(tier_list))
         field_config.add_simple(['tier_users'])
+    if DB_CONFIG.get("project_owner"):
+        table_data.add_row('owner_db_user', value=DB_CONFIG["project_owner"])
+        field_config.add_simple(['owner_db_user'])
 
     return trace_out({
         'table_data': table_data,

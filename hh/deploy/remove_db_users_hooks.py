@@ -15,6 +15,7 @@ from hh.deploy.db_helpers import create_mysql_credentials_file
 from hh.deploy.db_config import DB_CONFIG
 from hh.deploy.install_helpers_config import get_install_config_path
 from hh.deploy.deploy_utils import detect_project_context
+from hh.deploy.user_accounts import detect_project_owner
 from hh.deploy.db_user_helpers import remove_database_user
 from hh.render.render import TableData, FieldConfig
 
@@ -133,6 +134,9 @@ def pre_validate():
     DB_CONFIG["main_credentials_file"] = main_creds_file
     DB_CONFIG["cache_credentials_file"] = cache_creds_file
     DB_CONFIG["tier_list"] = HENHOUSE_TIERS
+    owner = detect_project_owner(project_path)
+    # Never create or drop a MySQL account named "root"
+    DB_CONFIG["project_owner"] = owner if owner and owner != "root" else None
 
     log(f"Created MySQL credentials files for {project_name}")
     log(f"Loaded tiers: {', '.join(HENHOUSE_TIERS)}")
@@ -183,6 +187,12 @@ def remove_tier_users():
             "username": username,
             "status": "removed" if success else "failed"
         })
+
+    # Project owner's DB user (created by add_db_users_05_create_users)
+    owner = DB_CONFIG.get("project_owner")
+    if owner:
+        success = remove_database_user(conn, owner)
+        user_results.append({"tier": "owner", "username": owner, "status": "removed" if success else "failed"})
 
     return trace_out({
         "success": True,

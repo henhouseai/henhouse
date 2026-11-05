@@ -22,5 +22,9 @@ from hh.render.config.config_registry import register_label
 @register_label('extra_data_video_id',                'Video ID:',                    '🆔')
 @register_label('set_video_visibility_header',        'Video Visibility Modification', '👀')
 @register_label('modify_video_caption_header',         'Video Caption Modification',   '📝')
+@register_label('hh_video_tables',                       'Video Tables:',                    '🎬')
+@register_label('hh_video_dropped',                      'Video Tables Dropped:',            '🗑️')
+@register_label('hh_video_permissions',                  'Video Permissions:',               '🔑')
+@register_label('hh_video_revoked',                      'Video Permissions Revoked:',       '🚫')
 def _register_config():
     pass

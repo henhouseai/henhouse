@@ -1,3 +1,4 @@
+import configparser
 """
 Database user management helper functions.
 
@@ -24,6 +25,25 @@ def _initialize_debug():
     log = get_log(True)
     debug = get_debug(True)
     warn = get_warn(True)
+
+
+def read_owner_password(project_name: str, owner: str) -> Optional[str]:
+    """
+    Read the project owner's DB password from /home/<owner>/.<project>.cnf.
+
+    Install writes this file (user=<owner>, password=password_human_db) for the owner and root CLI.
+    """
+    config_file = Path(f"/home/{owner}/.{project_name}.cnf")
+    if not config_file.exists():
+        warn(f"Owner config file not found: {config_file}")
+        return None
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(config_file)
+        return parser.get('client', 'password', fallback=None)
+    except Exception as e:
+        warn(f"Failed to read owner config {config_file}: {e}")
+        return None
 
 
 def get_tier_permissions(tier: str) -> List[str]:

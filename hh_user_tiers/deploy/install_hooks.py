@@ -407,7 +407,7 @@ def setup_project_group() -> Dict[str, Any]:
         return trace_out({"status": "error", "error": error_msg})
 
 
-@register_module_hook('install_50_tier_env', 'Set up tier user environments')
+@register_module_hook('install_50_user_env', 'Set up tier user environments (PATH in .profile)')
 def setup_tier_environments() -> Dict[str, Any]:
     """Update user paths for tier users."""
     trace_in()

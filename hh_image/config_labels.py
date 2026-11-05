@@ -22,6 +22,10 @@ from hh.render.config.config_registry import register_label
 @register_label('extra_data_image_id',                'Image ID:',                    '🆔')
 @register_label('set_image_visibility_header',        'Image Visibility Modification', '👀')
 @register_label('modify_image_caption_header',         'Image Caption Modification', '📝')
+@register_label('hh_image_tables',                       'Image Tables:',                    '🖼️')
+@register_label('hh_image_dropped',                      'Image Tables Dropped:',            '🗑️')
+@register_label('hh_image_permissions',                  'Image Permissions:',               '🔑')
+@register_label('hh_image_revoked',                      'Image Permissions Revoked:',       '🚫')
 def _register_config():
     pass
 

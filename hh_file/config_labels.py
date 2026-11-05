@@ -17,6 +17,10 @@ from hh.render.config.config_registry import register_label
 @register_label("extra_data_file_id", "File ID:", "🆔")
 @register_label("extra_data_old_description", "Old Description:", "📝")
 @register_label("extra_data_new_description", "New Description:", "📝")
+@register_label('hh_file_tables',                        'File Tables:',                     '📄')
+@register_label('hh_file_dropped',                       'File Tables Dropped:',             '🗑️')
+@register_label('hh_file_permissions',                   'File Permissions:',                '🔑')
+@register_label('hh_file_revoked',                       'File Permissions Revoked:',        '🚫')
 def _register_config():
     pass
 

@@ -107,5 +107,9 @@ from hh.render.config.config_registry import register_label
 @register_label('chars_after',                        'Characters After:',           '🔢')
 @register_label('delta_lines',                        'Line Delta:',                 '📈')
 @register_label('delta_chars',                        'Character Delta:',            '📈')
+@register_label('hh_page_tables',                        'Page Tables:',                     '📄')
+@register_label('hh_page_dropped',                       'Page Tables Dropped:',             '🗑️')
+@register_label('hh_page_permissions',                   'Page Permissions:',                '🔑')
+@register_label('hh_page_revoked',                       'Page Permissions Revoked:',        '🚫')
 def _register_config():
     pass

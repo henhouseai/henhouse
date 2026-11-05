@@ -94,6 +94,12 @@ def load_install_config(project_name: str, section_name: str = "install") -> Opt
         "flask_start_port": flask_start_port,
         "htpasswd_dir": section.get("htpasswd_dir", "/var/www").strip(),
     }
+
+    # Pass every other key through as a stripped string.  Module install hooks read their own
+    # settings from this dict (e.g. hh_nginx: domain, ssl_enabled; core: password_human_db), so the
+    # loader must not drop keys it doesn't know about.
+    for key, value in section.items():
+        data.setdefault(key, value.strip())
     data["manifest_users"] = manifest_users
 
     return data

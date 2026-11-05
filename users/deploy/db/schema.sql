@@ -13,7 +13,7 @@
 -- These are login identifiers BEFORE a user gets a ~ page
 -- ============================================================
 
-CREATE TABLE credentials (
+CREATE TABLE IF NOT EXISTS credentials (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     -- Credential type and value
@@ -42,7 +42,7 @@ CREATE TABLE credentials (
 -- This is the single source of truth for group membership
 -- ============================================================
 
-CREATE TABLE subgroups (
+CREATE TABLE IF NOT EXISTS subgroups (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     -- Which user/group page owns this subgroup
@@ -72,7 +72,7 @@ CREATE TABLE subgroups (
 -- One table per content type: pages, images, files, audio, video
 -- ============================================================
 
-CREATE TABLE page_owners (
+CREATE TABLE IF NOT EXISTS page_owners (
     page_id INT NOT NULL,                    -- FK to pages.id in main DB
     subgroup_id INT NOT NULL,                -- FK to subgroups.id
 
@@ -83,7 +83,7 @@ CREATE TABLE page_owners (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE image_owners (
+CREATE TABLE IF NOT EXISTS image_owners (
     image_id INT NOT NULL,                   -- FK to images.id in main DB
     subgroup_id INT NOT NULL,
 
@@ -94,7 +94,7 @@ CREATE TABLE image_owners (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE file_owners (
+CREATE TABLE IF NOT EXISTS file_owners (
     file_id INT NOT NULL,                    -- FK to files.id in main DB
     subgroup_id INT NOT NULL,
 
@@ -105,7 +105,7 @@ CREATE TABLE file_owners (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE audio_owners (
+CREATE TABLE IF NOT EXISTS audio_owners (
     audio_id INT NOT NULL,                   -- FK to audio.id in main DB
     subgroup_id INT NOT NULL,
 
@@ -116,7 +116,7 @@ CREATE TABLE audio_owners (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE video_owners (
+CREATE TABLE IF NOT EXISTS video_owners (
     video_id INT NOT NULL,                   -- FK to video.id in main DB
     subgroup_id INT NOT NULL,
 
@@ -132,7 +132,7 @@ CREATE TABLE video_owners (
 -- For email verification via magic link authentication
 -- ============================================================
 
-CREATE TABLE magic_links (
+CREATE TABLE IF NOT EXISTS magic_links (
     token VARCHAR(64) PRIMARY KEY,           -- Random secure token
 
     credential_id INT NOT NULL,              -- Which credential this verifies
@@ -155,7 +155,7 @@ CREATE TABLE magic_links (
 -- Active user sessions
 -- ============================================================
 
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     session_id VARCHAR(64) PRIMARY KEY,      -- Random secure session ID
 
     credential_id INT NOT NULL,              -- Which credential owns this session
@@ -179,7 +179,7 @@ CREATE TABLE sessions (
 -- For contact form submissions (before user has ~ page)
 -- ============================================================
 
-CREATE TABLE contact_submissions (
+CREATE TABLE IF NOT EXISTS contact_submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     credential_id INT NOT NULL,              -- Who submitted

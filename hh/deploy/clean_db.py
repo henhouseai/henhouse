@@ -164,6 +164,13 @@ def clean_db(args: Optional[List[str]] = None) -> bool:
         if results:
             hook_results.extend(results)
 
+    # Phase 12: Drop module schema tables (before media/page tables they may reference)
+    if not is_error():
+        log("Dropping module schema tables")
+        results = run_hooks('clean_db_12_clean_module_schemas')
+        if results:
+            hook_results.extend(results)
+
     # Phase 15: Clean media main tables (all media types parallel)
     if not is_error():
         log("Cleaning media main tables")

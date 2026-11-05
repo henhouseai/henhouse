@@ -192,3 +192,44 @@ def render_database_cleanup():
         'table_data': table_data,
         'field_config': field_config
     })
+
+
+@register_module_hook('clean_db_12_clean_module_schemas', 'Drop tables created by module schema.sql files')
+def clean_module_schemas():
+    """
+    Drop every table that an active module's deploy/db/schema.sql or schema_cache.sql creates.
+
+    Runs before the page and media tables are dropped, since module tables may reference them.
+    """
+    trace_in()
+    if is_error():
+        return trace_out({"success": False, "message": "Error state detected"})
+
+    import re
+    import tempfile
+    from hh.deploy.db_helpers import execute_sql_file
+    from hh.deploy.init_db_hooks import _active_module_db_files
+
+    create_re = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([A-Za-z0-9_]+)`?", re.IGNORECASE)
+    dropped = []
+    for filename, db_key, creds_key in (("schema.sql", "main_db", "main_credentials_file"),
+                                        ("schema_cache.sql", "cache_db", "cache_credentials_file")):
+        tables = []
+        for module_name, sql_path in _active_module_db_files(filename):
+            tables.extend(create_re.findall(sql_path.read_text(encoding="utf-8")))
+        if not tables:
+            continue
+        sql = "SET FOREIGN_KEY_CHECKS = 0;\n" + "".join(f"DROP TABLE IF EXISTS `{t}`;\n" for t in tables) + "SET FOREIGN_KEY_CHECKS = 1;\n"
+        with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as tmp:
+            tmp.write(sql)
+            tmp_path = Path(tmp.name)
+        try:
+            ok = execute_sql_file(tmp_path, DB_CONFIG[db_key], DB_CONFIG[creds_key], f"module tables ({filename})")
+        finally:
+            tmp_path.unlink(missing_ok=True)
+        if not ok:
+            return trace_out({"success": False, "message": f"Failed to drop module tables from {filename}"})
+        dropped.extend(tables)
+
+    log(f"Dropped module tables: {dropped}")
+    return trace_out({"success": True, "message": f"Dropped {len(dropped)} module tables", "tables": dropped})

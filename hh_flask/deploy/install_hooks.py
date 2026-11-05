@@ -63,7 +63,7 @@ def validate_flask_config() -> Dict[str, Any]:
     parsed = INSTALL_CONFIG["parsed_config"]
 
     # Validate flask_start_port
-    port_str = parsed.get("flask_start_port", "5001").strip()
+    port_str = str(parsed.get("flask_start_port", "5001")).strip()
     try:
         flask_start_port = int(port_str)
         if flask_start_port < 1024 or flask_start_port > 65435:
