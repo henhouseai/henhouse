@@ -354,7 +354,8 @@ run without errors.  A full install with every module on was re-tested after the
 ### Still open
 
 - **`users` owns `audio_owners` and `video_owners`.**  They are created even with the media modules off.  They are
-  empty and harmless; moving them into the media modules would need the users module to stop assuming them.
+  empty and harmless.  Nothing outside the media modules uses them, so moving them into `hh_audio` and `hh_video`
+  schema files is a small follow-up.
 - **`hh/gateway` and `hh/tp` still import `hh_page` and `hh_image`** (chunk 6, bare metal).  An install without
   `hh_page` or `hh_image` is not possible yet.  `hh_file`, `hh_audio` and `hh_video` can be turned off.
 - **No start-on-boot for the daemons.**  Deploy starts them with `nohup`; after a reboot they stay down until the
