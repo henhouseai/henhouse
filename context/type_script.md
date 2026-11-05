@@ -184,7 +184,7 @@ The system uses a three-step process to determine which page classes are registe
 4. Load extension whitelist from `ext/deploy/conf/js_page_classes_whitelist.py` (if exists)
 5. Add extension items to result (warn if duplicates)
 
-**Registry Generation**: See `hh/deploy/srv/deploy.py` - page class registry generation:
+**Registry Generation**: See `hh/deploy/deploy.py` - page class registry generation:
 - During `hen deploy`, the system scans for page class files matching the whitelist
 - Files are searched in both `hh/deploy/site/js/page-classes/` and `ext/deploy/site/js/page-classes/`
 - Registry file is generated at: `hh/deploy/site/js/hh/deploy/site/ts/page-classes-registry.js`
@@ -816,12 +816,12 @@ Main browser component that manages hierarchical navigation and selection within
 
 Always returns HTML content with overlay classes/IDs pre-applied. Reuses rendering infrastructure from `show_page` but with overlay-specific modifications.
 
-**Parameters**: See `hh/page/get_browser.py`:
+**Parameters**: See `hh_page/get_browser.py`:
 - `id`: Page ID to display
 - Returns HTML with `overlay_` prefix on all content IDs
 - Uses `render_helpers.py` for consistent rendering
 
-**Overlay Mode**: See `hh/page/render_helpers.py`:
+**Overlay Mode**: See `hh_page/render_helpers.py`:
 - `overlay_mode=True` adds `overlay` class to content divs
 - `wrapper_id_prefix='overlay_'` ensures unique IDs
 - Headers and content sections get overlay-specific styling

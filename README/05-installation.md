@@ -292,11 +292,11 @@ The installer requires:
 
 ## Technical Details: Installation Process Implementation
 
-The installation command (`hh/deploy/users/install.py`) performs a comprehensive system initialization:
+The installation command (`hh/deploy/install.py`) performs a comprehensive system initialization:
 
 ### Project Detection
 
-**Function**: `detect_project_context()` from `hh/deploy/utils.py`
+**Function**: `detect_project_context()` from `hh/deploy/deploy_utils.py`
 
 - **Project name**: Automatically detected from folder name containing `hh/` directory
 - **Project owner**: Automatically detected from folder ownership (UID lookup)
@@ -307,7 +307,7 @@ These values determine file ownerships, permissions, and user access throughout 
 
 ### User Creation Process
 
-**File**: `hh/deploy/users/user_accounts.py`
+**File**: `hh/deploy/user_accounts.py`
 
 Each tier user is created with:
 - System user flag (`-r` flag for `useradd`)
@@ -323,7 +323,7 @@ Each tier user is created with:
 
 ### SSH Key Management
 
-**File**: `hh/deploy/users/access.py`
+**File**: `hh_user_tiers/deploy/access.py`
 
 **Auto-scan process**:
 - Reads project owner's `~/.ssh/authorized_keys` file

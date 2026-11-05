@@ -110,7 +110,7 @@ This will configure NGINX for HTTP-only access (no HTTPS).
 
 ## Technical Details: Deployment Process Flow
 
-The `deploy` command (`hh/deploy/http/deploy.py`) performs a comprehensive unified deployment process:
+The `deploy` command (`hh/deploy/deploy.py`) performs a comprehensive unified deployment process:
 
 ### Phase 1: File Deployment
 
@@ -191,7 +191,7 @@ This ensures clean deployment without stale cache files.
 #### Step 8: Deploy Flask Applications
 
 Creates tier-specific Flask application files:
-- **Source**: `hh/deploy/flask/app.py`
+- **Source**: `hh_flask/deploy/apps/app.py`
 - **Destination**: `/srv/{project_name}/{project_name}_{tier}.py` (one per tier)
 - **Port assignment**: Each tier gets sequential port starting from `start_port`:
   - Tier 0 (guest): `start_port + 0`
@@ -204,16 +204,16 @@ Creates tier-specific Flask application files:
 #### Step 9: Deploy Maintenance Worker
 
 Creates the maintenance worker script:
-- **Source**: `hh/deploy/maintenance/worker.py`
+- **Source**: `maintenance/deploy/apps/maintenance_worker.py`
 - **Destination**: `/srv/{project_name}/{project_name}_maintenance.py`
 - **Template replacement**: `__PROJECT_NAME__` replaced with actual project name
 
 #### Step 10: Deploy Extra Top-Level Files
 
 Copies additional files specified in `EXTRA_DEPLOY_FILES`:
-- `hh/deploy/flask/http_client.py` → `/srv/{project_name}/http_client.py`
-- `hh/deploy/flask/mcp_client.py` → `/srv/{project_name}/mcp_client.py`
-- `hh/deploy/maint/maintenance_client.py` → `/srv/{project_name}/maintenance_client.py`
+- `hh_flask/deploy/clients/http_client.py` → `/srv/{project_name}/http_client.py`
+- `hh_flask/deploy/clients/mcp_client.py` → `/srv/{project_name}/mcp_client.py`
+- `maintenance/maintenance_client.py` → `/srv/{project_name}/maintenance_client.py`
 
 These are entry point scripts used by the deployed applications.
 
@@ -531,7 +531,7 @@ Python files can be deployed to the site directory (currently includes `infograp
 
 ## Technical Details: Site Assets Deployment Process
 
-The deploy script (`hh/deploy/http/deploy.py`) handles site folder deployment:
+The deploy script (`hh/deploy/deploy.py`) handles site folder deployment:
 
 1. **Site Directory Setup**:
    - Creates `/srv/{project_name}/site/` directory
@@ -550,11 +550,7 @@ The deploy script (`hh/deploy/http/deploy.py`) handles site folder deployment:
    - Copies whitelisted CSS files to `site/css/`
    - Includes base stylesheet and tier-specific color schemes
 
-4. **Python File Deployment**:
-   - Reads `PY_WHITELIST` from `hh/deploy/conf/py_whitelist.py`
-   - Copies whitelisted Python files to `site/py/` (if any)
-
-5. **Miscellaneous File Deployment**:
+4. **Miscellaneous File Deployment**:
    - Reads `MISC_WHITELIST` from `hh/deploy/conf/misc_whitelist.py`
    - Copies whitelisted files to `site/` (top level)
    - Handles both files and directories (favicons, web manifest, etc.)
@@ -610,7 +606,6 @@ All site assets are controlled by whitelist files in `hh/deploy/conf/`:
 
 - **`css_whitelist.py`**: Defines `CSS_ALWAYS_INCLUDE` and `CSS_WHITELIST`
 - **`js_whitelist.py`**: Defines `JS_WHITELIST` and `JS_ALWAYS_INCLUDE`
-- **`py_whitelist.py`**: Defines `PY_WHITELIST` (if Python files are needed)
 - **`misc_whitelist.py`**: Defines `MISC_WHITELIST` for top-level files
 
 **Path Format**: All paths in whitelists are relative to project root (above `hh/` folder).

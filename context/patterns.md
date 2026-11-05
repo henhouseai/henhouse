@@ -7,7 +7,7 @@ This document describes the architectural patterns used throughout the Henhouse 
 - The basic patterns are demonstrated by simple action-parser pairs that show the core architectural components.
 - **Action Functions** Action functions do something, often CRUD related to the db, and store their result as JSON thru the gateway response setters
 - **Backend Functions** Backend functions transform action responses into formatted output for different interfaces. Parser backends produce CLI table output.
-- **See also**: Real examples in `hh/deploy/maint/maintenance_jobs_status.py` (functions `maintenance_jobs_status_action` and `maintenance_jobs_status_parser`) and `hh/deploy/maint/page_cache_refresh.py` (functions `page_cache_refresh_action` and `page_cache_refresh_parser`)
+- **See also**: Real examples in `maintenance/maintenance_jobs_status.py` (functions `maintenance_jobs_status_action` and `maintenance_jobs_status_parser`) and `maintenance/page_cache_refresh.py` (functions `page_cache_refresh_action` and `page_cache_refresh_parser`)
 
 ### Example 1: 
 
@@ -223,7 +223,7 @@ def some_action():
     return trace_out(True)
 ```
 
-**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_action`
+**See also**: `maintenance/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `maintenance/page_cache_refresh.py` function `page_cache_refresh_action`
 
 ### Example 4: **Example Error Pattern for Parsers:**
 ```python
@@ -246,7 +246,7 @@ def some_parser():
     return trace_out(True)
 ```
 
-**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_parser`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_parser`
+**See also**: `maintenance/maintenance_jobs_status.py` function `maintenance_jobs_status_parser`, `maintenance/page_cache_refresh.py` function `page_cache_refresh_parser`
 
 ### Example 5: **Example Error Pattern for Complex Chaining Logic:**
 
@@ -320,7 +320,7 @@ def some_function():
         return trace_out(False)
 ```
 
-**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_action`
+**See also**: `maintenance/maintenance_jobs_status.py` function `maintenance_jobs_status_action`, `maintenance/page_cache_refresh.py` function `page_cache_refresh_action`
 
 ## Common Error and Debug System Practices:
 
@@ -337,7 +337,7 @@ def some_function():
 - The boolean bubble-up system is what generates a list of errors at every level back up to the gateway, not just a single error message.
 - Database operations use `gateway.conn.read()`, `gateway.conn.create()`, `gateway.conn.update()`, `gateway.conn.delete()`
 
-**See also**: `hh/deploy/maint/maintenance_jobs_status.py` for examples of all these patterns
+**See also**: `maintenance/maintenance_jobs_status.py` for examples of all these patterns
 
 ## Medium Complexity Patterns
 
@@ -395,7 +395,7 @@ def some_db_read_action() -> bool:
         return trace_out(False)
 ```
 
-**See also**: `hh/deploy/maint/maintenance_jobs_status.py` function `count_stale_pages`, `hh/deploy/maint/page_cache_refresh.py` function `fetch_stale_page_id`
+**See also**: `maintenance/maintenance_jobs_status.py` function `count_stale_pages`, `maintenance/page_cache_refresh.py` function `fetch_stale_page_id`
 
 ### Example 8: **Simple Database Write Operations**
 
@@ -485,9 +485,9 @@ def some_complex_action() -> bool:
 Powerful generalized system for formatting CLI table output with rich control over formatting with tons of customizable features and overrides.
 
 **See also**: 
-- `hh/deploy/maint/maintenance_jobs_status.py` function `maintenance_jobs_status_parser` - basic table with dynamic field types
-- `hh/deploy/maint/page_cache_refresh.py` function `page_cache_refresh_parser` - table with conditional rows
-- `hh/gateway/registry/render_command_list.py` function `command_list` - multi-column table with separators
+- `maintenance/maintenance_jobs_status.py` function `maintenance_jobs_status_parser` - basic table with dynamic field types
+- `maintenance/page_cache_refresh.py` function `page_cache_refresh_parser` - table with conditional rows
+- `hh/gateway/registry/command_list.py` function `command_list` - multi-column table with separators
 - `hh/gateway/system/dependency_list.py` function `dependency_list_parser` - table with conditional columns
 
 ### Example 10: **Table Rendering Functions**

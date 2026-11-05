@@ -82,7 +82,7 @@ Each instance:
 
 ## Technical Details: Flask Application Architecture
 
-The Flask application (`hh/deploy/flask/app.py`) handles HTTP requests and routes them to the Gateway system.
+The Flask application (`hh_flask/deploy/apps/app.py`) handles HTTP requests and routes them to the Gateway system.
 
 **Tier Detection**:
 - Extracts tier from script name: `{project_name}_{tier}.py` → `tier`
@@ -165,7 +165,7 @@ The Flask application (`hh/deploy/flask/app.py`) handles HTTP requests and route
 
 ## Technical Details: MCP Client
 
-The MCP client (`hh/deploy/flask/mcp_client.py`) is the entry point for MCP requests from Flask.
+The MCP client (`hh_flask/deploy/clients/mcp_client.py`) is the entry point for MCP requests from Flask.
 
 **MCP Protocol Support**:
 - **Protocol Version**: `2024-11-05`
@@ -185,7 +185,7 @@ The MCP client (`hh/deploy/flask/mcp_client.py`) is the entry point for MCP requ
 
 ## Technical Details: HTTP Client
 
-The HTTP client (`hh/deploy/flask/http_client.py`) is the entry point for HTTP backend requests from Flask.
+The HTTP client (`hh_flask/deploy/clients/http_client.py`) is the entry point for HTTP backend requests from Flask.
 
 **Process Flow**:
 1. **Parse Arguments**: Gets argv from `sys.argv[1:]` (passed by Flask)
@@ -290,16 +290,16 @@ The maintenance daemon:
 
 ## Technical Details: Maintenance Daemon Architecture
 
-The maintenance daemon system consists of two distinct components:
+The maintenance daemon lives in the `maintenance` module:
 
-- **`hh/deploy/maintenance/`**: Daemon management commands (start, stop, status) - stays in project folder, only accessible by human users or root tier
-- **`hh/deploy/maint/`**: Maintenance tools and utilities - gets deployed to `/srv/{project_name}`, accessible by all agent tiers
+- **`maintenance/deploy/`**: daemon management commands (`maintenance-start`, `maintenance-stop`, `maintenance-status`) and the worker scripts in `maintenance/deploy/apps/`. Only human users or the root tier run these.
+- **`maintenance/`**: the shared tools the daemon calls (page cache refresh, job queue, orphan checks, `maintenance-jobs-status`). They are deployed to `/srv/{project_name}` like other module code.
+- **Media modules** own their own maintenance tasks: `hh_image/image_cache_refresh.py`, `hh_file/file_cache_refresh.py`, `hh_audio/audio_cache_refresh.py` and `audio_transcode.py`, `hh_video/video_cache_refresh.py` and `video_transcode.py`. Turning a media module off also drops its tasks.
+- **Other modules** can add a separate daemon by putting a `deploy/maintenance/<name>_worker.py` in the module; it is deployed as `/srv/{project_name}/{project_name}_maintenance_<name>.py`.
 
-**Key Distinction**:
-- **maintenance/**: Administrative commands for managing the daemon itself (start/stop/status) - privileged access only
-- **maint/**: Operational tools that the daemon uses (cache refresh, job queue, orphan checks) - deployed and accessible to all tiers
+Tasks are registered with `@register_maintenance_task` (`hh/gateway/registry/maintenance_tasks.py`); the worker finds them with `scan_for_decorator()` and builds its work list from them.
 
-**Maintenance Worker** (`hh/deploy/maintenance/worker.py`):
+**Maintenance Worker** (`maintenance/deploy/apps/maintenance_worker.py`):
 - **Continuous Loop**: Runs indefinitely with configurable delay (default: 5 seconds)
 - **Work Detection**: Checks for pending jobs and stale caches via `maintenance-jobs-status` command
 - **Work Prioritization**: Processes pending jobs first (by priority), then stale cache refreshes
@@ -312,9 +312,7 @@ The maintenance daemon system consists of two distinct components:
 1. **Get Status**: Calls `maintenance-jobs-status` to check for work
 2. **Build Work Docket**: Creates ordered list of tasks:
    - Pending jobs from `maintenance_jobs` table (by job_type) - stored in main database
-   - Stale page cache refreshes - detected via cache database
-   - Stale image cache refreshes - detected via cache database
-   - Stale file cache refreshes - detected via cache database
+   - Stale cache refreshes for pages and each active media module (images, files, audio, video) - detected via the cache database
 3. **Execute Tasks**: Runs each task via `maintenance_client.py`
 4. **Handle Responses**: Updates job status for job queue items, logs results for cache refreshes
 5. **Sleep**: Adaptive delay based on work status
@@ -327,12 +325,12 @@ The maintenance daemon system consists of two distinct components:
 
 **Process Management**:
 - **Deployed**: Runs as `{project_name}_root` user, script at `/srv/{project_name}/{project_name}_maintenance.py`
-- **Local Dev**: Runs as current user, script at `{project_root}/hh/deploy/maintenance/worker.py`
+- **Local Dev**: Runs as current user, script at `{project_root}/maintenance/deploy/apps/maintenance_worker.py`
 - **Discovery**: Uses `maintenance_client.py` path resolution (deployed vs. local)
 
 ## Technical Details: Maintenance Tools
 
-The maintenance daemon uses tools from the `maint/` folder, which are deployed to `/srv/{project_name}/hh/deploy/maint/` and accessible by all agent tiers:
+The maintenance daemon uses tools from the `maint/` folder, which are deployed to `/srv/{project_name}/maintenance/` and accessible by all agent tiers:
 
 ### Cache Refresh Tools
 
@@ -559,7 +557,7 @@ Maintenance operations are internal-only and never sent to external systems, so 
 
 ### Appendix D: Maintenance Client Entry Point
 
-**File**: `hh/deploy/maint/maintenance_client.py`
+**File**: `maintenance/maintenance_client.py`
 
 The maintenance client is a simple entry point script that bridges command-line arguments to the Gateway system:
 
@@ -590,8 +588,8 @@ Both routes execute the same action handler, but use different backend handlers 
 #### Deployment Modes
 
 **Local Development Mode**:
-- **Worker Path**: `{project_root}/hh/deploy/maintenance/worker.py`
-- **Client Path**: `{project_root}/hh/deploy/maint/maintenance_client.py`
+- **Worker Path**: `{project_root}/maintenance/deploy/apps/maintenance_worker.py`
+- **Client Path**: `{project_root}/maintenance/maintenance_client.py`
 - **Log Path**: `{project_root}/logs/maintenance_{project}.log`
 - **User**: Current user
 - **Privileges**: No special requirements

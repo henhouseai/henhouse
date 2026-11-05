@@ -78,7 +78,7 @@ The uninstall command:
 
 ## Technical Details: Uninstall Process
 
-The uninstall command (`hh/deploy/users/uninstall.py`) performs these steps:
+The uninstall command (`hh/deploy/uninstall.py`) performs these steps:
 
 1. **User Removal** (with safety validation):
    - Validates each user before deletion (see Safety Validation below)

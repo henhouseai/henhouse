@@ -62,7 +62,7 @@ For Gateway, Registry, Render, and other infrastructure details, see the respect
 
 ## 1. Page Module
 
-**Files**: `hh/page/*.py`
+**Files**: `hh_page/*.py`
 
 The hierarchical page management system with CRUD operations, display logic, and content processing. **The Page system is designed as extensible infrastructure** - the base `Page` class provides core functionality, while derived classes extend it for specific content types (source code files, work pages, etc.).
 
@@ -72,11 +72,11 @@ The Page class provides comprehensive functionality organized into focused areas
 
 #### Page Class Structure
 
-The Page class is defined in `hh/page/page.py`. See the class definition for the complete method list.
+The Page class is defined in `hh_page/page.py`. See the class definition for the complete method list.
 
 #### Metadata Extraction
 
-The Page constructor automatically extracts metadata fields as object attributes, enabling derived classes to store custom data in the metadata JSON field and access it directly. See `Page.__init__()` in `hh/page/page.py` (around lines 115-127) for the extraction logic.
+The Page constructor automatically extracts metadata fields as object attributes, enabling derived classes to store custom data in the metadata JSON field and access it directly. See `Page.__init__()` in `hh_page/page.py` (around lines 115-127) for the extraction logic.
 
 **Key Points**:
 - Metadata fields are automatically extracted as `self.attribute_name`
@@ -112,7 +112,7 @@ All five functions are defined in the Page class and can be overridden by derive
 - Set to `True` for classes that don't require names (e.g., `SourceCodeFile`, `WorkDocket`)
 - Set to `False` for classes that must have names (e.g., base `Page`)
 
-**Example Override**: See `SourceCodeFile.allow_null_names()` in `hh/source_code_file/source_code_file.py`
+**Example Override**: See `SourceCodeFile.allow_null_names()` in `self_doc/source_code_file/source_code_file.py`
 
 #### 2. `allow_duplicate_names()` - Class Method
 
@@ -126,7 +126,7 @@ All five functions are defined in the Page class and can be overridden by derive
 - Set to `False` to enforce unique names within a parent (rare)
 - Keep `True` for most use cases
 
-**Example Override**: See `SourceCodeFile.allow_duplicate_names()` in `hh/source_code_file/source_code_file.py`
+**Example Override**: See `SourceCodeFile.allow_duplicate_names()` in `self_doc/source_code_file/source_code_file.py`
 
 #### 3. `auto_link_name()` - Class Method
 
@@ -140,7 +140,7 @@ All five functions are defined in the Page class and can be overridden by derive
 - Set to `False` for classes that manage links manually (e.g., `SourceCodeFile`, `WorkDocket`)
 - Keep `True` for simple pages where name and link should match
 
-**Example Override**: See `SourceCodeFile.auto_link_name()` in `hh/source_code_file/source_code_file.py`
+**Example Override**: See `SourceCodeFile.auto_link_name()` in `self_doc/source_code_file/source_code_file.py`
 
 #### 4. `allow_class_inside()` - Instance Method
 
@@ -154,7 +154,7 @@ All five functions are defined in the Page class and can be overridden by derive
 - Restrict which child classes are allowed under this page type
 - Example: Work dockets might only allow "ask" children
 
-**Example Override**: See `SourceCodeFile.allow_class_inside()` in `hh/source_code_file/source_code_file.py`
+**Example Override**: See `SourceCodeFile.allow_class_inside()` in `self_doc/source_code_file/source_code_file.py`
 
 #### 5. `allow_inside_of()` - Class Method
 
@@ -168,9 +168,9 @@ All five functions are defined in the Page class and can be overridden by derive
 - Enforce hierarchy constraints (e.g., "asks can only be inside work dockets")
 - Prevent abstract classes from being instantiated directly
 
-**Example Override** (Abstract Class): See `WorkPage.allow_inside_of()` in `hh/work/work_page.py` - prevents abstract class from being instantiated directly.
+**Example Override** (Abstract Class): See `WorkPage.allow_inside_of()` in `work/work/work_page.py` - prevents abstract class from being instantiated directly.
 
-**Example Override** (Hierarchy Constraint): See `WorkDocket.allow_inside_of()` in `hh/work_docket/work_docket.py`
+**Example Override** (Hierarchy Constraint): See `WorkDocket.allow_inside_of()` in `work/work_docket/work_docket.py`
 
 #### Validation Function Usage
 
@@ -179,7 +179,7 @@ These functions are called during:
 - **Name Modification** (`modify_name()`): Checks `allow_null_names()`, `allow_duplicate_names()`, `auto_link_name()`
 - **Move Operations** (`move_page()`): Checks `allow_class_inside()` and `allow_inside_of()`
 
-See `Page.validate_name()` in `hh/page/page.py` for the full implementation that uses these functions.
+See `Page.validate_name()` in `hh_page/page.py` for the full implementation that uses these functions.
 
 ### Extensibility System
 
@@ -189,11 +189,11 @@ The Page system is designed for extension through inheritance. Derived classes c
 
 Derived classes extend `Page` (or intermediate abstract classes):
 
-**Simple Derived Class Example**: See `SourceCodeFile` class in `hh/source_code_file/source_code_file.py` - extends Page directly with custom validation and content methods.
+**Simple Derived Class Example**: See `SourceCodeFile` class in `self_doc/source_code_file/source_code_file.py` - extends Page directly with custom validation and content methods.
 
-**Abstract Intermediate Class Example**: See `WorkPage` class in `hh/work/work_page.py` - abstract base class that extends Page and provides shared functionality (status, meta, sort_order) for work entities.
+**Abstract Intermediate Class Example**: See `WorkPage` class in `work/work/work_page.py` - abstract base class that extends Page and provides shared functionality (status, meta, sort_order) for work entities.
 
-**Concrete Derived Class Example**: See `WorkDocket` class in `hh/work_docket/work_docket.py` - extends WorkPage (which extends Page) with work docket-specific validation and content methods.
+**Concrete Derived Class Example**: See `WorkDocket` class in `work/work_docket/work_docket.py` - extends WorkPage (which extends Page) with work docket-specific validation and content methods.
 
 #### Inheritance Patterns
 
@@ -281,14 +281,14 @@ The Page system provides comprehensive before/after hooks for all major lifecycl
 - Called automatically in `__init__()` after metadata extraction but before cache hydration
 - Example: See Statement, Invoice, Sale for derived field initialization and lazy computation setup
 
-See `Page` class in `hh/page/page.py` for the base hook implementations.
+See `Page` class in `hh_page/page.py` for the base hook implementations.
 
 ##### Display Hooks
 
 **`_get_display_name()`** - Instance Method
 - Override to customize how page names are displayed
 - Default: Returns `self.name` or `f"Page {self.id}"`
-- Example: See `SourceCodeFile._get_display_name()` in `hh/source_code_file/source_code_file.py` for an override that extracts filename from `file_path` when name is null
+- Example: See `SourceCodeFile._get_display_name()` in `self_doc/source_code_file/source_code_file.py` for an override that extracts filename from `file_path` when name is null
 
 **`_add_upper_content()`** - Instance Method
 - Override to add content above the main page content
@@ -304,13 +304,13 @@ See `Page` class in `hh/page/page.py` for the base hook implementations.
 - Override to customize badge headers displayed above page content
 - Returns `Dict[str, Any]` with badge data
 - Default: Returns page summary badge
-- See `Page._add_badge_headers()` in `hh/page/page.py` for base implementation
+- See `Page._add_badge_headers()` in `hh_page/page.py` for base implementation
 
 **`_get_child_row_field_type()`** - Instance Method
 - Override to customize the field type/icon shown when this page appears as a child in tables
 - Returns string field type (used for rendering icons/labels)
 - Default: Returns `'page'`
-- Example: See `WorkDocket._get_child_row_field_type()` in `hh/work_docket/work_docket.py` for status-based field types
+- Example: See `WorkDocket._get_child_row_field_type()` in `work/work_docket/work_docket.py` for status-based field types
 
 ##### Hierarchy Hooks
 
@@ -318,7 +318,7 @@ See `Page` class in `hh/page/page.py` for the base hook implementations.
 - Override to customize which children are returned and how they're ordered
 - Returns tuple of `(query_string, params_list)`
 - Default: Returns only 'page' class children, sorted by name
-- Example: See `WorkDocket._get_children_query()` in `hh/work_docket/work_docket.py` for custom ordering by metadata sort_order
+- Example: See `WorkDocket._get_children_query()` in `work/work_docket/work_docket.py` for custom ordering by metadata sort_order
 
 **`getChildrenOf(parent_id: int, view_type: str = 'tile')`** - Static Method
 - Override to customize default view_type and class-specific child retrieval behavior
@@ -326,7 +326,7 @@ See `Page` class in `hh/page/page.py` for the base hook implementations.
 - Matches legacy `getChildrenOf()` pattern where each class handles its own children
 - Default: `view_type='tile'` in base class, can be overridden (e.g., `SourceCodeFile` defaults to `'table'`)
 - Uses the class's own `_get_children_query()` to get children of that specific class
-- Example: See `SourceCodeFile.getChildrenOf()` in `hh/source_code_file/source_code_file.py` for class-specific override
+- Example: See `SourceCodeFile.getChildrenOf()` in `self_doc/source_code_file/source_code_file.py` for class-specific override
 
 **Note on Metadata Copying**: The `copy_page()` method automatically copies the entire metadata JSON field from source to target page. Derived classes can use `_after_copy_page()` hook to trigger recalculation or other post-copy operations.
 
@@ -356,7 +356,7 @@ All page actions follow this structure:
 
 #### Standard CRUD Flow
 
-**Example**: See `modify_name()` function in `hh/page/modify_name.py` for a complete example of the standard CRUD action pattern.
+**Example**: See `modify_name()` function in `hh_page/modify_name.py` for a complete example of the standard CRUD action pattern.
 
 **Key Pattern**: After the operation, all actions call `page.show_page()` and set it as the action response. This provides consistent output format across all CRUD operations.
 
@@ -372,7 +372,7 @@ The `show_page()` method is the standard output format for page operations. It r
 - `upper_content`: Additional content above main content
 - `lower_content`: Additional content below main content
 
-See `Page.show_page()` in `hh/page/page.py` for the full implementation. For MCP backend, it returns a lightweight payload without badge headers and extra content.
+See `Page.show_page()` in `hh_page/page.py` for the full implementation. For MCP backend, it returns a lightweight payload without badge headers and extra content.
 
 ### Cache System
 
@@ -410,7 +410,7 @@ This enables full page hydration from cache database without requiring main DB a
 4. If cache is stale or missing, fields remain empty and are computed on-demand
 5. Metadata backup is stored but not yet used for hydration (future enhancement)
 
-See `Page.__init__()` in `hh/page/page.py` for cache hydration logic.
+See `Page.__init__()` in `hh_page/page.py` for cache hydration logic.
 
 #### Cache Refresh Flow
 
@@ -421,11 +421,11 @@ See `Page.__init__()` in `hh/page/page.py` for cache hydration logic.
    - Main DB fields as metadata backup
 4. Updates `cache_built_at` in main database
 
-See `Page._refresh_cached_page()` in `hh/page/page.py` for the refresh implementation.
+See `Page._refresh_cached_page()` in `hh_page/page.py` for the refresh implementation.
 
 #### Lazy Computation Pattern
 
-All derived fields use lazy computation - they're only computed when accessed. See `get_images_data()` in `hh/page/page_images.py` for an example of the pattern.
+All derived fields use lazy computation - they're only computed when accessed. See `get_images_data()` in `hh_page/data_operations.py` for an example of the pattern.
 
 **Key Points**:
 - Fields are computed on first access
@@ -435,7 +435,7 @@ All derived fields use lazy computation - they're only computed when accessed. S
 
 ### Page Registry
 
-**File**: `hh/page/page_registry.py`
+**File**: `hh_page/page_registry.py`
 
 The page registry manages hot cache and provides page loading functions.
 
@@ -448,20 +448,20 @@ The page registry manages hot cache and provides page loading functions.
 - Page constructor handles main DB load and cache hydration automatically
 - Stores in hot cache for future access
 
-See `get_page()` in `hh/page/page_registry.py` for implementation.
+See `get_page()` in `hh_page/page_registry.py` for implementation.
 
 **`find_page(link: str)`**: Find page by link
 - Queries database for page with matching link
 - Returns page instance via `get_page()`
 
-See `find_page()` in `hh/page/page_registry.py` for implementation.
+See `find_page()` in `hh_page/page_registry.py` for implementation.
 
 **`refresh_stale_page_caches()`**: Refresh cache for all flagged pages
 - Called by gateway during commit process
 - Iterates through hot cache and refreshes pages with `_cache_needs_refresh` flag
 - Updates cache database with all five derived fields plus metadata
 
-See `refresh_stale_page_caches()` in `hh/page/page_registry.py` for implementation.
+See `refresh_stale_page_caches()` in `hh_page/page_registry.py` for implementation.
 
 #### Hot Cache Management
 
@@ -472,7 +472,7 @@ See `refresh_stale_page_caches()` in `hh/page/page_registry.py` for implementati
 
 ### Page Class Registry
 
-**File**: `hh/page/page_class_registry.py`
+**File**: `hh_page/page_class_registry.py`
 
 The page class registry manages dynamic subclass loading based on the `class` field in the database.
 
@@ -482,7 +482,7 @@ The page class registry manages dynamic subclass loading based on the `class` fi
 - Used as `@register_page_class('class_name')` on Page subclasses
 - Registers class in global registry `_page_class_registry`
 
-See `register_page_class()` in `hh/page/page_class_registry.py` for implementation.
+See `register_page_class()` in `hh_page/page_class_registry.py` for implementation.
 
 **`get_page_class(class_name: str)`**: Get Page subclass for a class name
 - Checks hot cache first (`_page_class_registry`)
@@ -490,14 +490,14 @@ See `register_page_class()` in `hh/page/page_class_registry.py` for implementati
 - If not found, rebuilds cold cache by scanning for `@register_page_class` decorators
 - Returns Page class or None (falls back to base Page class)
 
-See `get_page_class()` in `hh/page/page_class_registry.py` for implementation.
+See `get_page_class()` in `hh_page/page_class_registry.py` for implementation.
 
 **`discover_page_classes(force_regenerate: bool)`**: Scan codebase for page classes
 - Scans all Python files for `@register_page_class` decorators
 - Imports modules to populate registry
-- Caches results in JSON file (`hh/page/cache/page-classes.json`)
+- Caches results in JSON file (`hh_page/cache/page-classes.json`)
 
-See `discover_page_classes()` in `hh/page/page_class_registry.py` for implementation.
+See `discover_page_classes()` in `hh_page/page_class_registry.py` for implementation.
 
 #### Dynamic Class Loading
 
@@ -513,9 +513,20 @@ This enables polymorphic page loading - the same `get_page()` call returns diffe
 
 ---
 
+### Media modules are optional
+
+Images, files, audio and video each live in their own module (`hh_image`, `hh_file`, `hh_audio`, `hh_video`). Any of them can be turned off in `ext/deploy/conf/module_blacklist.py`; init-db then creates no tables for it and deploy leaves it out of `/srv`.
+
+Page code must not assume a media module is there:
+- Media types register with `@register_media_type` (`hh/gateway/registry/media_registry.py`). `get_registered_media_types()` returns only types whose module is active, and page deletion and cache hydration loop over that.
+- Code that queries another module's tables directly checks `is_module_active('<module>')` from `hh/deploy/deploy_utils.py` first (see the loaders in `hh_page/data_operations.py`).
+- Each media module owns its maintenance tasks (`<m>_cache_refresh.py`, `<m>_transcode.py`).
+
+---
+
 ## 2. Image Module
 
-**Files**: `hh/image/*.py`
+**Files**: `hh_image/*.py`
 
 The image management system with CRUD operations, multi-size instance management, and display logic. Handles automatic image processing and intelligent sizing.
 
@@ -549,13 +560,13 @@ Images cache two derived fields plus metadata:
 - `pages`: Usage data - which pages use this image (JSON)
 - `metadata`: Backup of main DB fields (caption, username, uploaded, last_modified, comments, visibility, viewCount)
 
-See `Image._refresh_cached_image()` in `hh/image/image.py` for cache refresh implementation.
+See `Image._refresh_cached_image()` in `hh_image/image.py` for cache refresh implementation.
 
 ---
 
 ## 3. File Module
 
-**Files**: `hh/file/*.py`
+**Files**: `hh_file/*.py`
 
 The file management system with CRUD operations and display logic. Follows the same patterns as Image but simpler (no multi-size processing).
 
@@ -588,13 +599,13 @@ Files cache one derived field plus metadata:
 - `pages`: Usage data - which pages use this file (JSON)
 - `metadata`: Backup of main DB fields (file_name, file_path, description, mime_type, size_bytes, username, uploaded, last_modified, comments, visibility)
 
-See `File._refresh_cached_file()` in `hh/file/file.py` for cache refresh implementation.
+See `File._refresh_cached_file()` in `hh_file/file.py` for cache refresh implementation.
 
 ---
 
 ## 4. Audio Module
 
-**Files**: `hh/audio/*.py`
+**Files**: `hh_audio/*.py`
 
 The audio management system with CRUD operations, transcoding support, and display logic. Follows the same patterns as Image and File but with audio-specific processing.
 
@@ -630,13 +641,13 @@ Audio caches two derived fields plus metadata:
 - `pages`: Usage data - which pages use this audio (JSON)
 - `metadata`: Backup of main DB fields (caption, username, uploaded, last_modified, comments, visibility, viewCount)
 
-See `Audio._refresh_cached_audio()` in `hh/audio/audio.py` for cache refresh implementation.
+See `Audio._refresh_cached_audio()` in `hh_audio/audio.py` for cache refresh implementation.
 
 ---
 
 ## 5. Video Module
 
-**Files**: `hh/video/*.py`
+**Files**: `hh_video/*.py`
 
 The video management system with CRUD operations, transcoding support, and display logic. Follows the same patterns as Audio but with video-specific processing.
 
@@ -672,7 +683,7 @@ Video caches two derived fields plus metadata:
 - `pages`: Usage data - which pages use this video (JSON)
 - `metadata`: Backup of main DB fields (caption, username, uploaded, last_modified, comments, visibility, viewCount)
 
-See `Video._refresh_cached_video()` in `hh/video/video.py` for cache refresh implementation.
+See `Video._refresh_cached_video()` in `hh_video/video.py` for cache refresh implementation.
 
 ---
 

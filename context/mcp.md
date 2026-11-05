@@ -81,7 +81,7 @@ Page Load → get_app_actions() → AppActionWhitelist → available_actions in 
 ## 2. Key Files
 
 ### MCP Client Entry Point
-**File**: `hh/deploy/flask/mcp_client.py`
+**File**: `hh_flask/deploy/clients/mcp_client.py`
 
 Handles MCP protocol methods for agent calls:
 - Implements MCP protocol methods: `initialize`, `tools/list`, `prompts/list`, `resources/list`, `tools/call`, `notifications/initialized`
@@ -101,7 +101,7 @@ Handles MCP protocol methods for agent calls:
 - Returns minimal JSON-RPC 2.0 responses to conserve agent context
 
 ### API Client Entry Point
-**File**: `hh/deploy/flask/api_client.py`
+**File**: `hh_flask/deploy/clients/api_client.py`
 
 Handles API calls from TypeScript web UI:
 - Processes Fetch API requests from web UI components
@@ -209,16 +209,16 @@ Formats Gateway responses with fuller data for web UI:
 - Includes complete action results and metadata needed by TypeScript components
 
 ### MCP Tools Whitelist System
-**Core File**: `hh/gateway/registry/mcp_whitelist.py`
+**Core File**: `hh/gateway/registry/tool_whitelist.py`
 
 Decorator-based lazy-loading whitelist system:
 - Tools registered via `@register_mcp_tool` decorators in module-specific `tools.py` files
-- Registration files located in: `hh/gateway/registry/tools.py`, `hh/page/tools.py`, `hh/agents/tools.py`, `hh/mcp_request/tools.py`, `hh/mcp_action_request/tools.py`, `hh/image/tools.py`, `hh/work/tools.py`, `hh/source_code_file/tools.py`
+- Registration files located in: `tools.py` files in `hh/gateway/registry/` and in each module (e.g. `hh_page/tools.py`, `hh_image/tools.py`, `work/work/tools.py`, `self_doc/source_code_file/tools.py`)
 - Global registry: `_global_tool_registry` dictionary populated by decorators at import time
 - Tier-specific whitelists: Each tier (guest, verified, admin, root) has separate cache file
 - Cache files: `hh/gateway/registry/cache/mcp-whitelist-{tier}.json`
 - Lazy loading: Cache files loaded on demand; rebuilt on cache miss by scanning all decorators and rebuilding all tier whitelists at once
-- Scanning: `_scan_for_mcp_tools()` recursively searches both `hh/` and `ext/` directories for files containing `@register_mcp_tool`
+- Scanning: `_scan_for_mcp_tools()` uses `scan_for_decorator()`, which searches every active module folder (hh/, ext/ and the module folders, minus blacklisted modules) for files containing `@register_mcp_tool`
 - Used by `mcp_client.py` for validation and `tools/list` via `MCPWhitelist` class
 - Used by `mcp.py` for auto-generating wrappers
 
@@ -362,10 +362,10 @@ Both `mcp_wrapper.py` and database connection use same detection:
 
 1. **Create or Edit Registration File**: Add `@register_tool` decorator to appropriate `tools.py` file:
    - `hh/gateway/registry/tools.py` - For registry lister tools
-   - `hh/page/tools.py` - For page-related tools
-   - `hh/image/tools.py` - For image-related tools
-   - `hh/work/tools.py` - For work-related tools
-   - `hh/source_code_file/tools.py` - For source code file tools
+   - `hh_page/tools.py` - For page-related tools
+   - `hh_image/tools.py` - For image-related tools
+   - `work/work/tools.py` - For work-related tools
+   - `self_doc/source_code_file/tools.py` - For source code file tools
    - Or create new `tools.py` in appropriate module folder (will be auto-discovered by scanner)
 
 2. **Register Tool**: Use `@register_tool` decorator with appropriate tier and role parameters:
@@ -426,7 +426,7 @@ For a tool to work through MCP or API:
 ### How `tools.py` modules get imported (and when the registry is populated)
 
 - **Whitelist rebuild path**: On cache miss/force rebuild, `tool_whitelist._scan_for_mcp_tools()` finds every file with `@register_tool` under both `hh/` and `ext/`, then imports them. Each decorator call populates `_global_tool_registry`. Tools are then distributed into 8 separate cold cache files (4 MCP, 4 API). App actions use hot cache only.
-- **Page-load path**: When a page is loaded, `hh/page/page_registry.py::_load_tools_for_page_class` walks the page class MRO and imports tools modules. This populates `_global_tool_registry` for app action access.
+- **Page-load path**: When a page is loaded, `hh_page/page_registry.py::_load_tools_for_page_class` walks the page class MRO and imports tools modules. This populates `_global_tool_registry` for app action access.
 - `get_app_actions(user_tier_level)` uses hot cache (freshly imported tools modules) and filters for appropriate user tiers.
 
 ### Schema Validation

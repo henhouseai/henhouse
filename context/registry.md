@@ -353,7 +353,7 @@ See `hh/gateway/registry/utils.py` - `command_list()` function for a complete ex
 
 ## 5. Generic Backend Module
 
-**File**: `hh/gateway/registry/render_command_list.py` (example: `command_list` function)
+**File**: `hh/gateway/registry/command_list.py` (example: `command_list` function)
 
 The backend handler layer that processes action response data through different backend types. It:
 
@@ -366,7 +366,7 @@ Backend modules are executed by the gateway after action completion and provide 
 
 ### Example Implementation
 
-See `hh/gateway/registry/render_command_list.py` - `command_list()` function for a complete example of backend handler implementation with dual registration (`@register_parser` + `@register_http`).
+See `hh/gateway/registry/command_list.py` - `command_list()` function for a complete example of backend handler implementation with dual registration (`@register_parser` + `@register_http`).
 
 ### Global Module
 

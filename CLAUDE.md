@@ -118,6 +118,7 @@ Once you know what you'll be working on, read additional context docs as needed:
 | `context/page.md` | Page system, CRUD, caching, media attachments |
 | `context/work-page-protocol.md` | **Work docket system** - agent modes, workflows, metadata |
 | `context/registry.md` | Decorator-based handler discovery |
+| `context/modules.md` | Module folders, manifests, blacklist, module hooks |
 | `context/render.md` | Output formatting (TableData, FieldConfig, TableBuilder) |
 | `context/mcp.md` | MCP integration, JSON-RPC, tool registration |
 | `context/debug.md` | Debug system, trace_in(), log() |
@@ -252,7 +253,8 @@ See `context/debug.md` for full debug system documentation.
 ## Architecture Quick Reference
 
 - **Entry Point**: `hen.py` -> Gateway -> dispatch
-- **Two-Folder Pattern**: `hh/` (framework) + `ext/` (customizations)
+- **Modules**: `hh/` (core) plus top-level module folders with a `__module__.py` (`hh_page`, `hh_video`, `maintenance`, `users`, `work`, `accounting`, ...) and `ext/` (project customizations). Turn modules off in `ext/deploy/conf/module_blacklist.py`; see `context/modules.md`
+- **Hooks**: install, deploy, init-db and the other deploy commands run `@register_module_hook` phases from every active module (`hh/gateway/registry/module_hooks.py`)
 - **Four Tiers**: guest, verified, admin, root
 - **Three Backends**: parser (CLI), http (web), mcp (JSON-RPC)
 - **Action-Backend Pair**: Every command has action (logic) + backend (presentation)
@@ -282,8 +284,9 @@ See `context/work-page-protocol.md` for full agent workflow including modes (Tra
 |------|---------|
 | `hen.py` | Entry point (dispatcher) |
 | `hh/gateway/gateway.py` | Central orchestrator |
-| `hh/page/page.py` | Page content management (base class) |
-| `hh/deploy/flask/app.py` | Flask application |
-| `hh/deploy/db/init.sql` | Database schema |
+| `hh_page/page.py` | Page content management (base class) |
+| `hh_flask/deploy/apps/app.py` | Flask application |
+| `<module>/deploy/db/init.sql`, `schema.sql` | Each module's tables (e.g. `hh_page/deploy/db/init.sql`) |
+| `hh/deploy/deploy_utils.py` | Module discovery (`get_active_modules`, `is_module_active`) and scanning |
 | `mcp_wrapper.py` | MCP stdio-to-HTTP wrapper |
 | `tsconfig.json` | TypeScript config (compiles ts/ to js/) |

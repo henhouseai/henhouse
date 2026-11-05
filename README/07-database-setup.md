@@ -27,8 +27,9 @@ sudo {hen_script_name} init-db -root -confirm
 **What this does**:
 - Creates the main database (`{project_name}`)
 - Creates the cache database (`{project_name}_cache`)
-- Executes schema scripts to create all tables
-- Automatically creates homepage (page ID 1) if pages table is empty
+- Runs each active module's `deploy/db/init.sql` (core tables such as pages, images, video), then each module's `deploy/db/schema.sql` / `schema_cache.sql` (users, maintenance jobs, ext tables, ...). Turned-off modules in `ext/deploy/conf/module_blacklist.py` get no tables
+- Automatically creates the home page (page ID 1, parent 0, named after the project and owned by the install folder's owner) if the pages table is empty
+- Add `-with_examples` to also load each module's example data
 - Requires `-root` flag and sudo privileges
 - Uses MySQL root credentials from install config
 
@@ -52,6 +53,7 @@ sudo {hen_script_name} add-db-users -root
   - `{project_name}_verified` - Verified tier user (SELECT, INSERT)
   - `{project_name}_admin` - Admin tier user (SELECT, INSERT, UPDATE, DELETE)
   - `{project_name}_root` - Root tier user (full privileges)
+- Creates a MySQL user named after the owner of the install folder (for example `lee`), with root-tier rights. The CLI connects as this user, using the password in that person's `~/.{project_name}.cnf`
 - Grants appropriate permissions to each user
 - Uses passwords from install config
 - Requires `-root` flag and sudo privileges
@@ -151,7 +153,7 @@ sudo {hen_script_name} check-db -root
 
 ## Technical Details: Database Export Implementation
 
-The `export-db` command (`hh/deploy/db/export_db.py`) performs these steps:
+The `export-db` command (`hh/deploy/export_db.py`) performs these steps:
 
 1. **Target Database Selection**: Uses `-database` argument if provided, or `-cache` flag to select cache database, or defaults to main database
 2. **Table Information Collection**: Collects table names and row counts before export
@@ -171,7 +173,7 @@ The export uses MySQL root credentials from install config via temporary option 
 
 ## Technical Details: Database Import Implementation
 
-The `import-db` command (`hh/deploy/db/import_db.py`) performs these steps:
+The `import-db` command (`hh/deploy/import_db.py`) performs these steps:
 
 1. **File Validation**: Checks that import file exists and gets file size
 2. **Target Database Selection**: Uses `-database` argument, `-cache` flag, or defaults to main database
@@ -207,12 +209,10 @@ sudo {hen_script_name} clean-db -root -confirm
 
 ## Technical Details: Database Cleanup Implementation
 
-The `clean-db` command (`hh/deploy/db/clean_db.py`) performs these steps:
+The `clean-db` command (`hh/deploy/clean_db.py`) performs these steps:
 
-1. **Clean Script Execution**: Executes `hh/deploy/db/clean.sql` on main database and `hh/deploy/db/clean_cache.sql` on cache database
-2. **SQL Files**:
-   - `clean.sql`: Drops all application tables (disables foreign key checks, drops all tables, re-enables checks)
-   - `clean_cache.sql`: Drops all cache tables
+1. **Module hooks**: `clean-db` runs the `clean_db_*` hooks. Each module that owns tables runs its own `deploy/db/clean.sql` (main database) and `deploy/db/clean_cache.sql` (cache database), e.g. `hh_page/deploy/db/clean.sql`
+2. **Module schemas**: tables created from a module's `deploy/db/schema.sql` (users, maintenance, ext, ...) are found by their `CREATE TABLE` lines and dropped with foreign key checks off
 3. **Verification**: Verifies all tables were dropped and checks both main and cache databases
 
 The cleanup uses MySQL root credentials via temporary option files and executes SQL scripts that disable foreign key checks during cleanup to handle table dependencies.

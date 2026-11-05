@@ -54,7 +54,7 @@ Henhouse uses a two-folder architecture to separate framework code from project-
 - Registry scanning (`scan_for_decorator()`) searches both `hh/` and `ext/` for decorators (e.g., `@register_action`, `@register_page_class`)
 - Page class registry discovers page classes from both `hh/` and `ext/` folders
 - Whitelist extension system allows `ext/deploy/conf/` to extend or blacklist items from base whitelists in `hh/deploy/conf/`
-- Database schema extensions via `ext/deploy/db/schema_ext.sql` executed after main schema
+- Database schema extensions via `ext/deploy/db/schema.sql`, run by init-db like any other module's schema
 - Site assets can be extended via `ext/deploy/site/` with whitelist extensions
 
 **Module System Architecture**:
@@ -257,7 +257,7 @@ The debug system provides always-on data capture that works across all backends,
 #### **Dynamic Subclassing**
 
 - Page class registry with @register_page_class decorators
-- Cold cache JSON file for class discovery (hh/page/cache/page-classes.json)
+- Cold cache JSON file for class discovery (hh_page/cache/page-classes.json)
 - Automatic loading of appropriate subclass based on page 'class' field
 - Same `get_page(page_id)` call returns different subclasses based on database content
 - Derived classes override validation functions, hooks, and display methods

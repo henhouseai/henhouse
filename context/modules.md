@@ -161,7 +161,7 @@ Results are passed to rendering functions for display and can be used for status
 ❌ **Wrong**: Modules importing each other's internal state
 
 ```python
-# hh_nginx/deploy/hooks.py
+# hh_nginx/deploy/deploy_hooks.py
 from hh_srv.deploy.hooks import srv_config  # ❌ Cross-cutting import
 ```
 

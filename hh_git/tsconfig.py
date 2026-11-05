@@ -146,6 +146,8 @@ def tsconfig_action() -> bool:
                 ts_files = list(ts_source_dir.rglob("*.ts")) + list(ts_source_dir.rglob("*.tsx"))
                 if ts_files:
                     ts_pattern = f"{module.path}/deploy/site/ts/**/*"
+                    if ts_pattern in include_patterns:
+                        continue  # hh/ is already in the base includes
                     module_ts_dirs.append(ts_pattern)
                     log(f"Adding TypeScript directory for module {module.name}: {ts_pattern}")
 

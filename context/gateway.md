@@ -369,7 +369,7 @@ See `build_request()` function in `hh/gateway/request/semantics.py`.
 
 ## 7. Connection
 
-**File**: `hh/gateway/connection/conn.py`
+**File**: `hh/gateway/connection/connection.py`
 
 The database connection manager that provides unified access to main, cache, and history databases.
 
@@ -405,7 +405,7 @@ The database connection manager that provides unified access to main, cache, and
 
 **Configuration**: DSN loaded from `~/.{project_name}.cnf` files. Project name detected via `detect_project_context()`.
 
-See `Connection` class and subclasses in `hh/gateway/connection/conn.py`.
+See `Connection` class and subclasses in `hh/gateway/connection/connection.py`.
 
 ---
 

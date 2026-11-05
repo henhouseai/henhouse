@@ -63,10 +63,6 @@ All configuration files are whitelisted to survive deployment cleanup. The `conf
 
 The system uses separate whitelist files for different file types:
 
-**Python Whitelist** (`py_whitelist.py`):
-- Defines `PY_WHITELIST`: Python files deployed to `/srv/{project_name}/site/py/`
-- Currently includes: `hh/deploy/site/infographic/infographic.py`
-
 **JavaScript Whitelist** (`js_whitelist.py`):
 - `JS_ALWAYS_INCLUDE`: JavaScript files included on every page (`seed.js`, `rpc-client.js`, `app.js`)
 - `JS_WHITELIST`: All JavaScript files that can be included via `gateway.add_js_link()`
@@ -110,9 +106,9 @@ Defines what stays in the `hh/deploy/` folder after deployment cleanup:
   - `'maint'` - Maintenance helpers
   - `'utils.py'` - General deployment utilities
 - **`EXTRA_DEPLOY_FILES`**: Additional files deployed to `/srv/{project_name}`:
-  - `hh/deploy/flask/http_client.py`
-  - `hh/deploy/flask/mcp_client.py`
-  - `hh/deploy/maint/maintenance_client.py`
+  - `hh_flask/deploy/clients/http_client.py`
+  - `hh_flask/deploy/clients/mcp_client.py`
+  - `maintenance/maintenance_client.py`
 
 ### Blacklist/Whitelist Pattern
 
@@ -160,7 +156,7 @@ The configuration system is used by:
 - **Site assets deployment**: Uses whitelists to determine which files are deployed
 - **Installation system**: Uses `HENHOUSE_TIERS` from `user_account_suffixes.py` to determine user tiers
 
-**Project Detection**: The system uses `detect_project_context()` from `hh/deploy/utils.py` to automatically find project name and repository root. This function walks up from the current working directory looking for an `hh/` folder. (See Chapter 5 for more details on project detection.)
+**Project Detection**: The system uses `detect_project_context()` from `hh/deploy/deploy_utils.py` to automatically find project name and repository root. This function walks up from the current working directory looking for an `hh/` folder. (See Chapter 5 for more details on project detection.)
 
 **Tier Configuration**: The `HENHOUSE_TIERS` constant (`['guest', 'verified', 'admin', 'root']`) is defined in `hh/deploy/conf/user_account_suffixes.py` and used throughout the deployment system to determine which users, database users, and Flask instances to create.
 
@@ -183,17 +179,16 @@ This allows projects to remove framework items via blacklists and add custom ite
 
 ## Database Extensions
 
-You can extend the database schema by creating `ext/deploy/db/schema_ext.sql`. This file is executed **after** the core schema (`hh/deploy/db/init.sql`) during database initialization.
+`ext/` is a module like any other, so you extend the database schema by creating `ext/deploy/db/schema.sql` (main database) and, if needed, `ext/deploy/db/schema_cache.sql` (cache database). `init-db` runs every active module's `schema.sql` after the core tables from each module's `deploy/db/init.sql` exist. `clean-db` drops the tables these files create.
 
 **Requirements**:
 - Must be idempotent (use `IF NOT EXISTS` clauses)
 - Can reference core tables via foreign keys
-- Runs in the same transaction as core schema
 
 **Example**:
 
 ```sql
--- ext/deploy/db/schema_ext.sql
+-- ext/deploy/db/schema.sql
 CREATE TABLE IF NOT EXISTS custom_data (
     id INT AUTO_INCREMENT PRIMARY KEY,
     page_id INT NOT NULL,

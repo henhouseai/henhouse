@@ -55,11 +55,11 @@ The installation system creates a bare git repository on the server:
 
 The file deployment system preserves this repository across deployments by temporarily moving it during deployment and restoring it afterward. This ensures your git history is never lost during code deployments.
 
-The `pull-project` and `push-project` commands use `detect_project_context()` from `hh/deploy/utils.py` to automatically find the project name and repository root, so you can run these commands from any directory within the project.
+The `pull-project` and `push-project` commands use `detect_project_context()` from `hh/deploy/deploy_utils.py` to automatically find the project name and repository root, so you can run these commands from any directory within the project.
 
 ## Technical Details: Project Context Detection
 
-**Function**: `detect_project_context()` from `hh/deploy/utils.py`
+**Function**: `detect_project_context()` from `hh/deploy/deploy_utils.py`
 
 This utility function is used throughout the deployment system to automatically detect project information:
 
@@ -119,7 +119,7 @@ Push local changes to remote via a stage branch:
 
 ## Technical Details: Pull Project Implementation
 
-The `pull-project` command (`hh/deploy/git/pull_project.py`) performs these steps:
+The `pull-project` command (`hh_git/pull_project.py`) performs these steps:
 
 1. **Project Detection**: Uses `detect_project_context()` to find project name and repository root
 2. **Branch Check**: Determines current branch via `git branch --show-current`
@@ -142,7 +142,7 @@ The `pull-project` command integrates automatically with the cache management sy
 
 ## Technical Details: Push Project Implementation
 
-The `push-project` command (`hh/deploy/git/push_project.py`) performs these steps:
+The `push-project` command (`hh_git/push_project.py`) performs these steps:
 
 1. **Message Validation**: Ensures `--message` argument is provided and non-empty
 2. **Project Detection**: Uses `detect_project_context()` to find project name and repository root
