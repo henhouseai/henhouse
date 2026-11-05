@@ -278,3 +278,34 @@ Chunks 1–3 are what Foxhouse needs.  Chunk 6 can wait.
 4. `install_50_tier_env` has never been called, even before the snapshot.  Did tier user environments get set up
    some other way on the live box, or is this a bug Foxhouse also has?
 5. Should `register_maintenance_task` (new) replace `register_maintenance_tool` (old), or do both stay?
+
+## 9. Sandbox baseline run (added 2026-11-05)
+
+A full install → init-db → add-db-users → deploy run of this branch in a cloud sandbox: Ubuntu 24.04, MySQL 8.0,
+nginx, no systemd, no IPv6.  Once the workarounds below were in place it got all the way through.  Five Flask
+daemons and the maintenance daemon started, nginx served `http://henhouse.local` (HTTP 200), and from the CLI
+`add-page`, `show-page`, `modify-text` and `modify-work-status` worked.  So did a full docket → ask → task →
+step tree.
+
+Branch bugs found (none of them are fixed on the branch yet):
+
+| Bug | Where | Sandbox workaround |
+|---|---|---|
+| `load_install_config` returns a fixed key list without `password_human_db`, `htaccess_human_password`, `domain`, `ssl_enabled` and others.  Core, nginx and Flask validators then fail.  Introduced Jan 20 (`f7471f9`), so `henhouse` has it too. | `hh/deploy/install_helpers_config.py:73-96` | Pass every raw section key through |
+| `hh_flask` calls `.strip()` on `flask_start_port`, which the loader has already turned into an int | `hh_flask/deploy/install_hooks.py:66` | `str(...)` |
+| Deploy strips `maintenance/deploy/apps`, but the deployed `henhouse_maintenance.py` imports `maintenance.deploy.apps.base_worker`, so the maintenance daemon can't start | `maintenance/deploy/conf/deploy_whitelist.py` | Add `maintenance/deploy/apps` |
+| `add-db-users` creates only the 4 tier users, while install writes `user=<owner>` (the human user) into `/root/.<project>.cnf` and `~owner/.<project>.cnf`.  Every CLI command then gets "Access denied for user 'lee'". | `hh/deploy/add_db_users_hooks.py:147` | Created the MySQL user by hand |
+| A fresh database has no root page, and nothing creates one.  `add-page` needs an existing parent, so the web home page returns 500 until one exists. | `hh_page` (no init or example data) | Inserted page 1 by SQL |
+| The maintenance worker loops on "No backend handler found" for its status calls | Gap 3 in the summary | none |
+| A failed install leaves groups behind, so the next install refuses to run until you uninstall | `hh_user_tiers` conflict check | Ran `uninstall` |
+| `add-page -target_page 0` reads `0` as missing (`get_arg(...) or ...`) | `hh_page/add_page.py:39` | n/a |
+
+Sandbox-only issues, not bugs: no IPv6, so the generated `listen [::]:80` lines were removed; no systemd, so a
+`systemctl` shim handled nginx; `psutil`, `wcwidth` and `openssh-client` had to be installed; and install needs
+the owner to have a non-empty `~/.ssh/authorized_keys`.
+
+Also worth fixing: about 150 "Nothing registered for '<label>'" warnings from new db hook labels such as
+`hh_page_tables` and `db_main`, which have no `config_labels` entries.  There are also 4 "Duplicate registration"
+warnings (`monitor` and `maintenance_start`, `maintenance_stop` and `maintenance_status`) on every command.
+
+The workaround diff is saved outside the repo as `sandbox-workarounds.diff`.
