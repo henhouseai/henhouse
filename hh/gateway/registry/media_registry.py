@@ -43,17 +43,23 @@ def register_media_type(
             'groups_table': groups_table,
             'get_func': get_func,
             'flag_modification_method': flag_modification_method,
-            'id_column': f'{media_type}_id'  # Derive column name from media type
+            'id_column': f'{media_type}_id',  # Derive column name from media type
+            'module': func.__module__.split('.')[0],  # e.g. 'hh_video'
         }
         return func
     return decorator
 
 def get_registered_media_types() -> Dict[str, Dict[str, Any]]:
-    """Get all registered media types."""
-    return _media_types.copy()
+    """Get the registered media types whose module is active (present and not blacklisted).
+
+    A blacklisted module can still be importable in the source tree, so registration alone is not enough:
+    its tables were never created.
+    """
+    from hh.deploy.deploy_utils import is_module_active
+    return {name: info for name, info in _media_types.items() if is_module_active(info['module'])}
 
 def refresh_all_media_caches() -> None:
     """Refresh caches for all registered media types that are enabled."""
-    for media_type, info in _media_types.items():
+    for media_type, info in get_registered_media_types().items():
         refresh_func = info['refresh_cache_func']
         refresh_func()

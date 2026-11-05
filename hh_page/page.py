@@ -8,6 +8,7 @@ from hh.gateway.gateway import get_gateway
 from hh.gateway.connection.utils import deserialize_json_blob, normalize_datetime
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn, register_debug_init
 from hh.gateway.error.error_store import report_error, is_error
+from hh.deploy.deploy_utils import is_module_active
 from hh_page.page_registry import get_page
 from hh_page.page_class_registry import register_page_class, get_page_class, get_all_page_classes
 from hh.tp.tp import TextProcessor
@@ -362,7 +363,7 @@ class Page:
             FROM image_groups ig
             WHERE ig.page_id IN ({placeholders})
         """
-        image_rows = self.gateway.conn.read(image_ids_query, tuple(all_page_ids))
+        image_rows = self.gateway.conn.read(image_ids_query, tuple(all_page_ids)) if is_module_active('hh_image') else []
         image_ids = [row['id'] for row in image_rows]
         log(f"Found {len(image_ids)} images in page tree")
 
@@ -1448,8 +1449,9 @@ class Page:
             links_deleted = self.gateway.conn.delete("DELETE FROM links WHERE id = %s", [self.id])
             log(f"Deleted {links_deleted} entries from links table")
 
-            image_links_deleted = self.gateway.conn.delete("DELETE FROM image_links WHERE id = %s", [self.id])
-            log(f"Deleted {image_links_deleted} entries from image_links table")
+            if is_module_active('hh_image'):
+                image_links_deleted = self.gateway.conn.delete("DELETE FROM image_links WHERE id = %s", [self.id])
+                log(f"Deleted {image_links_deleted} entries from image_links table")
 
         if not is_error():
             # Dynamic media cleanup using media registry

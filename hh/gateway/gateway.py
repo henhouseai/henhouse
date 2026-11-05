@@ -42,10 +42,10 @@ __all__ = [
 def _load_media_modules() -> None:
     """Dynamically import media module registries to trigger @register_media_type decorators."""
     media_modules = [
-        ('audio', 'audio.audio_registry'),
+        ('hh_audio', 'hh_audio.audio_registry'),
         ('hh_image', 'hh_image.image_registry'),
-        ('video', 'hh_video.video_registry'),
-        ('file', 'hh_file.file_registry'),
+        ('hh_video', 'hh_video.video_registry'),
+        ('hh_file', 'hh_file.file_registry'),
     ]
 
     for module_name, import_path in media_modules:
