@@ -77,26 +77,22 @@ all_tools = set()
 
 
 def _scan_for_download_tools() -> set:
-    """Scan codebase for register_download_tool() calls."""
+    """Scan hh/, ext/ and all active modules for register_download_tool("name") calls."""
     trace_in()
+    import re
+    from hh.deploy.deploy_utils import iter_scan_files
     found_tools = set()
+    pattern = re.compile(r'^\s*register_download_tool\(["\']([^"\']+)["\']\)', re.MULTILINE)
     try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        for py_file in hh_path.rglob("*.py"):
-            if py_file.name.startswith("cache_"):
-                continue
+        for py_file, scan_root in iter_scan_files():
             try:
-                with open(py_file, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    import re
-
-                    matches = re.findall(r"register_download_tool\([\"']([^\"']+)[\"']\)", content)
-                    for tool_name in matches:
-                        found_tools.add(tool_name)
-                        log(f"Found download tool: {tool_name} in {py_file.relative_to(hh_path)}")
+                content = py_file.read_text(encoding="utf-8")
             except Exception as e:
                 warn(f"Error reading {py_file}: {e}")
+                continue
+            for tool_name in pattern.findall(content):
+                found_tools.add(tool_name)
+                log(f"Found download tool: {tool_name} in {py_file.relative_to(scan_root.parent)}")
     except Exception as e:
         warn(f"Error scanning for download tools: {e}")
     trace_out()

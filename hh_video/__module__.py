@@ -11,7 +11,7 @@ This module will contain:
 """
 
 MODULE = {
-    "name": "video",
+    "name": "hh_video",
     "version": "1.0.0",
     "description": "Video handling subsystem - page classes and processing",
     "dependencies": []

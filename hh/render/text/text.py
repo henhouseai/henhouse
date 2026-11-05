@@ -22,9 +22,9 @@ def _initialize_debug():
     warn = get_warn(True)
 
 try:
-    import wcwidth as _wc  # type: ignore[import-untyped]
+    import wcwidth as _wc  # type: ignore[import-untyped,import-not-found,unused-ignore]
 except Exception:
-    _wc = None
+    _wc = None  # type: ignore[assignment,unused-ignore]
 
 def display_width(s: str) -> int:
     trace_in()

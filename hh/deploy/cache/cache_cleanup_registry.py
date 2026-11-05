@@ -83,7 +83,7 @@ def register_cache_cleanup(cache_name: str, cache_dir: Optional[str] = None):
     Decorator for registering cache cleanup methods.
     
     Usage:
-        @register_cache_cleanup('page_classes', cache_dir='hh/page/cache')
+        @register_cache_cleanup('page_classes', cache_dir='hh_page/cache')
         def cleanup_page_class_cache():
             # Clean up page class cache
             cache_file.unlink()
@@ -91,7 +91,7 @@ def register_cache_cleanup(cache_name: str, cache_dir: Optional[str] = None):
     
     Args:
         cache_name: Unique name for this cache (e.g., 'page_classes', 'tp_decorators')
-        cache_dir: Relative path to cache directory from project root (e.g., 'hh/page/cache')
+        cache_dir: Relative path to cache directory from project root (e.g., 'hh_page/cache')
                    If None, this cache won't appear in get_cache_directories()
     """
     def decorator(func: CleanupFunction) -> CleanupFunction:
@@ -243,7 +243,7 @@ def get_cache_directories() -> list[str]:
     Used by deployment scripts to set permissions.
     
     Returns:
-        List of cache directory paths relative to project root (e.g., 'hh/page/cache')
+        List of cache directory paths relative to project root (e.g., 'hh_page/cache')
     """
     trace_in()
     

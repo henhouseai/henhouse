@@ -2,6 +2,7 @@ from typing import List
 
 DEPLOY_WHITELIST: List[str] = [
     'maintenance/deploy/conf',
+    'maintenance/deploy/apps',
 ]
 
 CLIENT_WHITELIST: List[str] = [

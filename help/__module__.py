@@ -3,6 +3,6 @@
 
 MODULE = {
     'name': 'help',
-    'description': 'Help module showing minimal structure',
+    'description': 'Help system - command help text and categories',
     'version': '1.0.0',
 }

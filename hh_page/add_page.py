@@ -36,7 +36,7 @@ def add_page() -> bool:
         report_error("action", "Target page ID is required")
     target_page_id: int = 0
     if not is_error():
-        target_page_arg = gateway.get_arg('target_page') or gateway.get_arg('t_page')
+        target_page_arg = gateway.get_arg('target_page') if gateway.is_set('target_page') else gateway.get_arg('t_page')
         try:
             target_page_id = int(target_page_arg)
         except ValueError:

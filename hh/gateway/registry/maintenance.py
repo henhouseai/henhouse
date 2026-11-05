@@ -68,40 +68,22 @@ _wrapper_code = ""
 all_tools = set()
 
 def _scan_for_maintenance_tools() -> set:
-    """Scan hh/ and ext/ folders for register_maintenance_tool() calls."""
+    """Scan hh/, ext/ and all active modules for register_maintenance_tool("name") calls."""
     trace_in()
+    import re
+    from hh.deploy.deploy_utils import iter_scan_files
     found_tools = set()
+    pattern = re.compile(r'^\s*register_maintenance_tool\(["\']([^"\']+)["\']\)', re.MULTILINE)
     try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        project_root = hh_path.parent
-        
-        # Build list of paths to scan
-        scan_paths: list[Path] = [hh_path]
-        
-        # Check if ext/ exists and add it to scan paths
-        ext_path = project_root / "ext"
-        if ext_path.exists() and ext_path.is_dir():
-            scan_paths.append(ext_path)
-            log(f"Found ext/ folder, will scan for maintenance tools")
-        
-        # Scan each path
-        for scan_path in scan_paths:
-            for py_file in scan_path.rglob("*.py"):
-                if py_file.name.startswith("cache_"):
-                    continue
-                try:
-                    with open(py_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        # Look for register_maintenance_tool("tool_name") calls
-                        import re
-                        matches = re.findall(r'register_maintenance_tool\(["\']([^"\']+)["\']\)', content)
-                        for tool_name in matches:
-                            found_tools.add(tool_name)
-                            # Use scan_path as base for relative path calculation
-                            log(f"Found maintenance tool: {tool_name} in {py_file.relative_to(scan_path)}")
-                except Exception as e:
-                    warn(f"Error reading {py_file}: {e}")
+        for py_file, scan_root in iter_scan_files():
+            try:
+                content = py_file.read_text(encoding='utf-8')
+            except Exception as e:
+                warn(f"Error reading {py_file}: {e}")
+                continue
+            for tool_name in pattern.findall(content):
+                found_tools.add(tool_name)
+                log(f"Found maintenance tool: {tool_name} in {py_file.relative_to(scan_root.parent)}")
     except Exception as e:
         warn(f"Error scanning for maintenance tools: {e}")
     trace_out()

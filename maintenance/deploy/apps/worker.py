@@ -122,7 +122,7 @@ def maintenance_client_path() -> Path:
     if deployed_client.exists():
         return deployed_client
     
-    # In development environment, it's in the hh/deploy/maint/ directory
+    # In development environment, it's in the maintenance/deploy/apps/ directory
     return project_root / "hh" / "deploy" / "maint" / "maintenance_client.py"
 
 

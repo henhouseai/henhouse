@@ -48,33 +48,17 @@ _DEPENDENCY_DECORATOR_NAME = "register_dependency"
 
 
 def _scan_and_import_dependencies():
-    """Scan for dependency decorators and import those modules."""
-    from pathlib import Path
+    """Import every module (hh/, ext/ and active modules) that uses @register_dependency."""
     import importlib
-    
-    decorator_pattern = "@" + _DEPENDENCY_DECORATOR_NAME
-    
+    from hh.deploy.deploy_utils import scan_for_decorator
+
     try:
-        import hh
-        hh_path = Path(hh.__file__).parent
-        
-        for py_file in hh_path.rglob("*.py"):
-            if py_file.name.startswith("cache_"):
-                continue
+        for module_path in scan_for_decorator(_DEPENDENCY_DECORATOR_NAME):
             try:
-                with open(py_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if decorator_pattern in content:
-                        rel_path = py_file.relative_to(hh_path)
-                        module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                        module_path = "hh." + ".".join(module_parts)
-                        try:
-                            importlib.import_module(module_path)
-                            log(f"Imported {module_path} for dependency registration")
-                        except Exception as e:
-                            debug(f"Failed to import {module_path}: {e}")
+                importlib.import_module(module_path)
+                log(f"Imported {module_path} for dependency registration")
             except Exception as e:
-                debug(f"Error reading {py_file}: {e}")
+                debug(f"Failed to import {module_path}: {e}")
     except Exception as e:
         warn(f"Error scanning for dependencies: {e}")
 

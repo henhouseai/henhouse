@@ -92,7 +92,7 @@ def get_tasks_for_daemon(daemon_name: str, status: Dict[str, Any]) -> List[Tuple
         List of (command, is_job_queue) tuples to execute
     """
     trace_in()
-    tasks = []
+    tasks: list[tuple[str, bool]] = []
     daemon_registry = _MAINTENANCE_TASK_REGISTRY.get(daemon_name, {})
 
     if not daemon_registry:

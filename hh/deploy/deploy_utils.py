@@ -790,6 +790,35 @@ def cleanup_module_cache():
 
 # ============ Registry scanning functions ============
 
+def get_scan_roots() -> List[Path]:
+    """
+    Get the folders that registry scanners should search: hh/, ext/ and every active module.
+
+    Used by scanners that look for registration calls in source text (maintenance tools,
+    download tools, dependencies) so they find code that lives in modules, not just hh/.
+    """
+    import hh
+    project_root = Path(hh.__file__).parent.parent
+    roots: List[Path] = []
+    for prefix in get_module_paths():
+        path = project_root / prefix
+        if path.is_dir() and path not in roots:
+            roots.append(path)
+    return roots
+
+
+def iter_scan_files(exclude_cache: bool = True):
+    """Yield (py_file, scan_root) for every .py file under get_scan_roots(), skipping caches and VCS folders."""
+    skip_dirs = {'.git', 'git', '__pycache__', 'node_modules', 'venv', '.venv'}
+    for root in get_scan_roots():
+        for py_file in root.rglob("*.py"):
+            if exclude_cache and py_file.name.startswith("cache_"):
+                continue
+            if any(part in skip_dirs for part in py_file.relative_to(root).parts[:-1]):
+                continue
+            yield py_file, root
+
+
 def scan_for_decorator(
     decorator_name: str,
     exclude_cache: bool = True

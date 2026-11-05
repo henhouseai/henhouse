@@ -268,7 +268,7 @@ def check_page_class_exists(class_name: str) -> bool:
     return result
 
 
-@register_cache_cleanup('page_classes', cache_dir='hh/page/cache')
+@register_cache_cleanup('page_classes', cache_dir='hh_page/cache')
 def cleanup_page_class_cache():
     trace_in()
     # Clear hot cache
@@ -278,7 +278,7 @@ def cleanup_page_class_cache():
     removed_files = []
     candidate_files = [CACHE_DIR / "page-classes.json"]
     for root in get_deployment_paths():
-        candidate_files.append(root / 'hh' / 'page' / 'cache' / 'page-classes.json')
+        candidate_files.append(root / 'hh_page' / 'cache' / 'page-classes.json')
     for cache_file in candidate_files:
         if cache_file.exists():
             cache_file.unlink()

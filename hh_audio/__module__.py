@@ -11,7 +11,7 @@ This module will contain:
 """
 
 MODULE = {
-    "name": "audio",
+    "name": "hh_audio",
     "version": "1.0.0",
     "description": "Audio handling subsystem - page classes and processing",
     "dependencies": []

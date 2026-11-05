@@ -10,7 +10,7 @@ from hh.render.config.config_registry import register_label
 @register_label('migration_stop_header', 'Migration Stop', '⏸️')
 @register_label('migration_add_phase_header', 'Migration Add Phase', '➕')
 @register_label('migration_set_phase_status_header', 'Migration Set Phase Status', '✏️')
-# Note: orphan_pages is already registered in hh.deploy.maint.config_labels
+# Note: orphan_pages is already registered in maintenance.config_labels
 @register_label('orphan_accounts', 'Accounts Missing Pages', '💰')
 @register_label('orphan_statements', 'Statements Missing Pages', '📊')
 @register_label('orphan_transfers', 'Transfers Missing Pages', '💸')

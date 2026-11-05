@@ -3,7 +3,6 @@ from typing import List
 DEPLOY_WHITELIST: List[str] = [
     'hh/deploy/cache',
     'hh/deploy/conf',
-    'hh/deploy/maint',
     'hh/deploy/deploy_utils.py',
 ]
 

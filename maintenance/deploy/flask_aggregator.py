@@ -18,7 +18,7 @@ from hh.deploy.deploy_utils import detect_project_context
 from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
 # Tier colors - dynamically built based on project and tiers
-TIER_COLOR_MAP = {}
+TIER_COLOR_MAP: dict[str, str] = {}
 
 def initialize_tier_colors():
     """Initialize tier color mapping based on current project and configured tiers."""

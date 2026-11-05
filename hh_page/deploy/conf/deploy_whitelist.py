@@ -1,7 +1,7 @@
 from typing import List
 
 DEPLOY_WHITELIST: List[str] = [
-    'page/deploy/conf',
+    'hh_page/deploy/conf',
 ]
 
 CLIENT_WHITELIST: List[str] = [

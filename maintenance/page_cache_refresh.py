@@ -130,7 +130,6 @@ def rebuild_page(page_id: int) -> dict[str, Any] | None:
 )
 @register_action("page_cache_refresh")
 @register_command("page_cache_refresh")
-@register_maintenance_tool("page-cache-refresh")
 def page_cache_refresh_action() -> bool:
     trace_in()
     gateway = get_gateway()

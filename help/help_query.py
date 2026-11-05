@@ -290,7 +290,7 @@ class HelpQuery:
             log("Registry already loaded")
         trace_out()
 
-@register_cache_cleanup('help_registry', cache_dir='hh/help/cache')
+@register_cache_cleanup('help_registry', cache_dir='help/cache')
 def cleanup_help_registry_cache():
     """Clean up help registry cache"""
     trace_in()
@@ -299,7 +299,7 @@ def cleanup_help_registry_cache():
     removed_files = []
     candidate_files = [Path(__file__).parent / "cache" / "help_registry.tsv"]
     for root in get_deployment_paths():
-        candidate_files.append(root / 'hh' / 'help' / 'cache' / 'help_registry.tsv')
+        candidate_files.append(root / 'help' / 'cache' / 'help_registry.tsv')
     
     # Remove help_registry.tsv
     for registry_file in candidate_files:
