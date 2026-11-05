@@ -182,7 +182,19 @@ def register_module_hook(hook_name: str, description: str = "") -> Callable[[Cal
         if hook_name not in hooks:
             hooks[hook_name] = []
 
-        hooks[hook_name].append(hook_info)
+        # A hook may already be listed from the cold cache (function not loaded yet).  Importing its
+        # file later runs this decorator again, so update that entry instead of adding a duplicate.
+        # Without this, the other hooks in the same file ran twice on the first run after a cache rebuild.
+        for existing in hooks[hook_name]:
+            if existing.function_module == hook_info.function_module and existing.function_name == hook_info.function_name:
+                existing.function = wrapper
+                existing.module_name = module_name
+                existing.module_path = module_path
+                if description:
+                    existing.description = description
+                break
+        else:
+            hooks[hook_name].append(hook_info)
         log(f"Registered hook '{hook_name}' from module '{module_name}' -> {func.__module__}.{func.__name__}")
 
         return trace_out(wrapper)
@@ -280,13 +292,16 @@ def run_hooks(hook_name: str) -> List[Dict[str, Any]]:
 
     log(f"Running {len(handlers)} hooks for '{hook_name}'")
 
-    # Handlers already sorted alphabetically by get_hook_handlers()
+    # get_hook_handlers() loaded each entry's function.  Take the function from the entry itself so
+    # a hook that failed to load can't shift the others out of line.
     hook_list = hooks.get(hook_name, [])
-    sorted_hooks = sorted(hook_list, key=lambda h: h.module_name)
+    sorted_hooks = [h for h in sorted(hook_list, key=lambda h: h.module_name) if h.function is not None]
 
     results: List[Dict[str, Any]] = []
 
-    for hook_info, func in zip(sorted_hooks, handlers):
+    for hook_info in sorted_hooks:
+        func = hook_info.function
+        assert func is not None
         module_name = hook_info.module_name
 
         # Check if any previous error occurred - stop processing hooks if so
