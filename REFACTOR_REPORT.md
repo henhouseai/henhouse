@@ -3,6 +3,9 @@
 Written 2026-11-05 by a review-only session, following `REFACTOR_REVIEW_TASK.md`, on branch
 `refactor/hookified-modules` at `50d71ae`.  No code was changed.
 
+**Update, later the same day:** most of the gaps below are now fixed on the branch.  See section 10 for what
+changed and what is still open.
+
 ## Summary
 
 The folder migration is about **80% done**, but the parts that make the system actually start up are behind.
@@ -309,3 +312,57 @@ Also worth fixing: about 150 "Nothing registered for '<label>'" warnings from ne
 warnings (`monitor` and `maintenance_start`, `maintenance_stop` and `maintenance_status`) on every command.
 
 The workaround diff is saved outside the repo as `sandbox-workarounds.diff`.
+
+
+## 10. Fixes made after the review (2026-11-05)
+
+Eight commits on `refactor/hookified-modules`, `4153e8d` to `0e795ea`.  After them, a fresh sandbox install →
+init-db → add-db-users → deploy runs clean on the first try with no code workarounds (only the sandbox's own
+IPv6 and systemd tweaks).  The home page exists, the web home page returns 200, `add-page`, `delete-page` and
+`show-page` work, and the maintenance worker refreshes page caches.
+
+### What was fixed
+
+| Area | Fix | Commit |
+|---|---|---|
+| Scanners | Maintenance, download and dependency scans use the active module folders (`iter_scan_files()`), and only match decorators at the start of a line | `4153e8d` |
+| Bad decorator | Removed `@register_maintenance_tool` from `page_cache_refresh.py` | `4153e8d` |
+| Duplicate parsers | Deleted the 4 duplicate `maintenance/deploy/render_*.py` | `4153e8d` |
+| Whitelists, cache paths, manifests | `hh_page`, `hh_subpage`, `hh_git` whitelists name their own conf folders; `maintenance/deploy/apps` is deployed; cache-cleanup paths and manifest names fixed | `4153e8d` |
+| `add-page -target_page 0` | Reads 0 correctly | `4153e8d` |
+| Module schemas | New init-db phase 35 runs each active module's `deploy/db/schema.sql` (main) and `schema_cache.sql` (cache); phase 45 loads `example_data.sql` with `-with_examples`; clean-db phase 12 drops those tables | `c1e29f9` |
+| `maintenance_jobs` | Back, in `maintenance/deploy/db/schema.sql` | `c1e29f9` |
+| Home page | Restored as hook `init_db_40_homepage` (`hh_page/deploy/db_hooks.py`): page 1, parent 0, named after the project, owned by the install folder's owner | `c1e29f9` |
+| Owner DB user | add-db-users creates a MySQL user named after the folder owner (detected, not hard-coded) with root-tier rights; remove-db-users drops it | `c1e29f9` |
+| Install config | `load_install_config` passes through every key; `hh_flask` port parsing fixed | `c1e29f9` |
+| `install_50_tier_env` | Renamed to `install_50_user_env` so it runs | `c1e29f9` |
+| Labels | Added the ~40 missing db hook labels | `c1e29f9` |
+| Hooks ran twice | After a hook cache rebuild every hook ran twice, so the first deploy failed with "File exists".  `register_module_hook` now updates an existing entry | `c915085` |
+| Maintenance worker | Media cache refresh tasks register with `@register_maintenance_task`, and the worker imports them; old `worker.py` deleted; dev-mode start/stop/status use the real worker paths | `caecf91` |
+| Upgrade | Backs up and copies `hh/`, every module folder (except `ext/`), `context/` and `README/`; leaves target-only modules alone; does not copy cache files; reports module diffs | `5d0854a` |
+| Optional media modules | `is_module_active()`; page media loaders, maintenance status and orphan checks skip modules that are off; media maintenance tasks moved into their modules | `3f8d9f4` |
+| Audio never registered | The gateway imported `audio.audio_registry` (does not exist), so audio was never a media type.  Fixed; media types from turned-off modules are skipped | `4f4d310` |
+| Docs | Paths updated across `CLAUDE.md`, `context/`, `README/`; README 07, 10, 15, 16 rewritten where the behaviour changed | `0e795ea` |
+
+### Install with modules turned off
+
+With `hh_video` and `hh_audio` added to `MODULE_BLACKLIST`, a fresh install → deploy works.  No video or audio
+tables are created, they are not deployed to `/srv`, their commands are gone, and the web home page,
+`add-page`, `delete-page`, `show-page`, `maintenance-jobs-status`, `orphan-check` and the maintenance worker all
+run without errors.  A full install with every module on was re-tested after the change.
+
+### Still open
+
+- **`users` owns `audio_owners` and `video_owners`.**  They are created even with the media modules off.  They are
+  empty and harmless; moving them into the media modules would need the users module to stop assuming them.
+- **`hh/gateway` and `hh/tp` still import `hh_page` and `hh_image`** (chunk 6, bare metal).  An install without
+  `hh_page` or `hh_image` is not possible yet.  `hh_file`, `hh_audio` and `hh_video` can be turned off.
+- **No start-on-boot for the daemons.**  Deploy starts them with `nohup`; after a reboot they stay down until the
+  next deploy or `maintenance-start`.  Adding systemd units changes how the live box behaves, so it is Lee's call.
+- **init-db prints "Unknown database"** once on a fresh install, because the gateway connects before the
+  database exists.  Harmless.
+- **`upgrade` does not touch the database.**  New module tables after an upgrade need init-db on a fresh database
+  or the SQL run by hand.
+- **Foxhouse move** (section 5) still needs Lee on the server.
+- Questions 1, 2, 3 and 5 in section 8 are still open.  Question 4 is answered: the tier env hook never ran, so
+  Foxhouse has that bug too.
