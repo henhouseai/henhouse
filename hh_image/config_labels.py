@@ -26,6 +26,11 @@ from hh.render.config.config_registry import register_label
 @register_label('hh_image_dropped',                      'Image Tables Dropped:',            '🗑️')
 @register_label('hh_image_permissions',                  'Image Permissions:',               '🔑')
 @register_label('hh_image_revoked',                      'Image Permissions Revoked:',       '🚫')
+# Maintenance task labels
+@register_label("image_cache_refresh_header", "Image Cache Refresh", "🎨")
+@register_label("image_cache_error", "Error", "❌")
+@register_label("no_stale_images", "No Stale Images", "✨")
+@register_label("image_cache_refresh_remaining", "Images Remaining", "⏳")
 def _register_config():
     pass
 

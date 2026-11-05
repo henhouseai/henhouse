@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from hh.deploy.deploy_utils import is_module_active
 from hh.gateway.error.error_store import is_error, report_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
@@ -64,6 +65,8 @@ def count_stale_pages() -> int:
 
 def count_stale_images() -> int:
     """Count images needing cache rebuild."""
+    if not is_module_active("hh_image"):
+        return 0
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return 0
@@ -80,6 +83,8 @@ def count_stale_images() -> int:
 
 def count_stale_files() -> int:
     """Count files needing cache rebuild."""
+    if not is_module_active("hh_file"):
+        return 0
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return 0
@@ -96,6 +101,8 @@ def count_stale_files() -> int:
 
 def count_stale_audio() -> int:
     """Count audio needing cache rebuild."""
+    if not is_module_active("hh_audio"):
+        return 0
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return 0
@@ -112,6 +119,8 @@ def count_stale_audio() -> int:
 
 def count_stale_video() -> int:
     """Count video needing cache rebuild."""
+    if not is_module_active("hh_video"):
+        return 0
     gateway = get_gateway()
     if not gateway or not gateway.conn:
         return 0

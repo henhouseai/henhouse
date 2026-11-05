@@ -10,6 +10,7 @@ Functions in this module operate on a Page instance passed as the first paramete
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from hh.gateway.registry.debug import get_trace_in, get_trace_out, get_log, get_debug, get_warn
 from hh.gateway.error.error_store import is_error
+from hh.deploy.deploy_utils import is_module_active
 from hh_page.page_registry import get_page as get_page_from_registry
 from hh.tp.tp import TextProcessor
 
@@ -115,7 +116,7 @@ def get_files_data(page: 'Page', rebuild: bool = False) -> List[Dict[str, Any]]:
         return page.files
     # Field is empty, need to hydrate from database
     files: List[Dict[str, Any]] = []
-    if not is_error():
+    if not is_error() and is_module_active('hh_file'):
         rows = page.gateway.conn.read(
             """
             SELECT fg.file_rank,
@@ -176,7 +177,7 @@ def get_images_data(page: 'Page', rebuild: bool = False) -> List[Dict[str, Any]]
         return page.images
     # Field is empty, need to hydrate from database
     images_data = []
-    if not is_error():
+    if not is_error() and is_module_active('hh_image'):
         try:
             from hh_image.image_registry import get_image
             results = page.gateway.conn.read("""
@@ -225,7 +226,7 @@ def get_audios_data(page: 'Page', rebuild: bool = False) -> List[Dict[str, Any]]
         return page.audios
     # Field is empty, need to hydrate from database
     audio_data = []
-    if not is_error():
+    if not is_error() and is_module_active('hh_audio'):
         try:
             from hh_audio.audio_registry import get_audio
             results = page.gateway.conn.read("""
@@ -274,7 +275,7 @@ def get_videos_data(page: 'Page', rebuild: bool = False) -> List[Dict[str, Any]]
         return page.videos
     # Field is empty, need to hydrate from database
     video_data = []
-    if not is_error():
+    if not is_error() and is_module_active('hh_video'):
         try:
             from hh_video.video_registry import get_video
             results = page.gateway.conn.read("""

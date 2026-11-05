@@ -26,5 +26,14 @@ from hh.render.config.config_registry import register_label
 @register_label('hh_video_dropped',                      'Video Tables Dropped:',            '🗑️')
 @register_label('hh_video_permissions',                  'Video Permissions:',               '🔑')
 @register_label('hh_video_revoked',                      'Video Permissions Revoked:',       '🚫')
+# Maintenance task labels
+@register_label("video_cache_refresh_header", "Video Cache Refresh", "🎬")
+@register_label("video_cache_video_id", "Video ID", "🆔")
+@register_label("video_cache_error", "Error", "❌")
+@register_label("no_stale_video", "No Stale Video", "✨")
+@register_label("video_cache_refresh_remaining", "Video Remaining", "⏳")
+@register_label("video_transcode_header", "Video Transcode", "🎬")
+@register_label("video_transcode_complete", "Complete", "✅")
+@register_label("video_transcode_error", "Error", "❌")
 def _register_config():
     pass

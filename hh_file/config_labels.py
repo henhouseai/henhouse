@@ -21,6 +21,12 @@ from hh.render.config.config_registry import register_label
 @register_label('hh_file_dropped',                       'File Tables Dropped:',             '🗑️')
 @register_label('hh_file_permissions',                   'File Permissions:',                '🔑')
 @register_label('hh_file_revoked',                       'File Permissions Revoked:',        '🚫')
+# Maintenance task labels
+@register_label("file_cache_refresh_header", "File Cache Refresh", "📁")
+@register_label("file_cache_file_id", "File ID", "🆔")
+@register_label("file_cache_error", "Error", "❌")
+@register_label("no_stale_files", "No Stale Files", "✨")
+@register_label("file_cache_refresh_remaining", "Files Remaining", "⏳")
 def _register_config():
     pass
 

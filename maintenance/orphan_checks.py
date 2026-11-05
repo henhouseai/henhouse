@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from hh.deploy.deploy_utils import is_module_active
 from hh.gateway.error.error_store import report_error, is_error
 from hh.gateway.gateway import get_gateway
 from hh.gateway.registry.debug import (
@@ -212,13 +213,16 @@ def orphan_check_action() -> bool:
             "orphan_pages": check_orphan_pages(),
             "orphan_link_sources": check_orphan_link_sources(),
             "orphan_link_targets": check_orphan_link_targets(),
-            "orphan_image_pages": check_orphan_image_pages(),
-            "orphan_image_targets": check_orphan_image_targets(),
-            "orphan_image_group_pages": check_orphan_image_group_pages(),
-            "orphan_image_group_images": check_orphan_image_group_images(),
-            "orphan_file_group_pages": check_orphan_file_group_pages(),
-            "orphan_file_group_files": check_orphan_file_group_files(),
         }
+        # Image and file checks only run when those modules are installed (their tables exist)
+        if is_module_active("hh_image"):
+            counts["orphan_image_pages"] = check_orphan_image_pages()
+            counts["orphan_image_targets"] = check_orphan_image_targets()
+            counts["orphan_image_group_pages"] = check_orphan_image_group_pages()
+            counts["orphan_image_group_images"] = check_orphan_image_group_images()
+        if is_module_active("hh_file"):
+            counts["orphan_file_group_pages"] = check_orphan_file_group_pages()
+            counts["orphan_file_group_files"] = check_orphan_file_group_files()
         summary = {key: len(ids) for key, ids in counts.items()}
         total_count = sum(summary.values())
         log(f"Found {total_count} orphan{'s' if total_count != 1 else ''} across {len(counts)} check types")

@@ -24,5 +24,14 @@ from hh.render.config.config_registry import register_label
 @register_label('hh_audio_dropped',                      'Audio Tables Dropped:',            '🗑️')
 @register_label('hh_audio_permissions',                  'Audio Permissions:',               '🔑')
 @register_label('hh_audio_revoked',                      'Audio Permissions Revoked:',       '🚫')
+# Maintenance task labels
+@register_label("audio_cache_refresh_header", "Audio Cache Refresh", "🎵")
+@register_label("audio_cache_audio_id", "Audio ID", "🆔")
+@register_label("audio_cache_error", "Error", "❌")
+@register_label("no_stale_audio", "No Stale Audio", "✨")
+@register_label("audio_cache_refresh_remaining", "Audio Remaining", "⏳")
+@register_label("audio_transcode_header", "Audio Transcode", "🎵")
+@register_label("audio_transcode_complete", "Complete", "✅")
+@register_label("audio_transcode_error", "Error", "❌")
 def _register_config():
     pass

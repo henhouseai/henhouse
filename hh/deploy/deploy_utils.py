@@ -576,6 +576,15 @@ def get_active_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
     return modules
 
 
+def is_module_active(name: str) -> bool:
+    """True when module `name` (its folder name, e.g. "hh_video") is present and not blacklisted.
+
+    Use it before code in one module touches another module's tables or imports, so an install
+    with that module turned off skips the work instead of failing.
+    """
+    return any(module.name == name for module in get_active_modules())
+
+
 def get_all_modules(force_regenerate: bool = False) -> List[ModuleInfo]:
     """
     Discover ALL modules in the project root (including blacklisted ones).
