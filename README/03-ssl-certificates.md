@@ -131,21 +131,33 @@ Henhouse uses **webroot mode** for all Let's Encrypt certificates:
 **Why Webroot Mode?**
 - No need to stop/start NGINX (avoids service disruption)
 - Works seamlessly with existing NGINX configurations
-- Allows automatic renewal without manual intervention
-- Compatible with all domain types (main, admin, panel, db, cache)
+- Allows automatic renewal without manual intervention: certbot records `webroot` in
+  `/etc/letsencrypt/renewal/{domain}.conf`, so `certbot renew` uses it too
+- `--standalone` cannot work here: it needs port 80 for itself, which NGINX holds, so issuing
+  and renewing both fail
+
+`deploy -get-cert` issues with `--webroot -w {webroot_dir}`. While certbot runs, the site's own
+config is swapped for a small port-80 site that only serves challenges, because the full config
+points at certificates that do not exist yet.
+
+A certificate first issued with `--standalone` keeps renewing with `--standalone`. Re-issue it
+once with `certbot certonly --webroot -w /var/www/html --cert-name {domain} -d ...` (same names)
+so its renewal config switches to webroot.
 
 ### HTTP Redirect Block with ACME Exception
 
-Your NGINX HTTP configuration must include an exception for Let's Encrypt ACME challenges:
+Deploy writes this block (shown for `example.com`):
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name example.com www.example.com admin.example.com panel.example.com db.example.com cache.example.com;
+    server_name example.com www.example.com admin.example.com panel.example.com;
 
-    # Allow Let's Encrypt ACME challenges (must be on HTTP for webroot validation)
-    location /.well-known/acme-challenge/ {
+    # Let's Encrypt ACME challenges: always reachable, before any deny or auth rule
+    location ^~ /.well-known/acme-challenge/ {
+        allow all;
+        auth_basic off;
         root /var/www/html;
         try_files $uri =404;
     }
@@ -157,10 +169,16 @@ server {
 }
 ```
 
-This configuration:
-- Serves ACME challenge files from `/var/www/html/.well-known/acme-challenge/` on HTTP (port 80)
-- Redirects all other HTTP traffic to HTTPS
-- Automatically includes `db.{domain}` and `cache.{domain}` subdomains
+Rules that keep challenges and renewals working:
+- **Never bind a site to the server's IP** (`listen 203.0.113.5:80;`). nginx then sends every
+  request for that address to the IP-bound blocks only, so every other site's ACME location is
+  unreachable and renewals fail with 403. Use plain `listen 80;` / `listen 443 ssl http2;` and let
+  `server_name` plus `allow`/`deny` decide. This includes local-only sites and the catch-all.
+- **The ACME location comes first and overrides access rules.** `^~` beats regex locations such
+  as the hidden-file block, `allow all` replaces a server-level `deny all`, and `auth_basic off`
+  drops Basic Auth.
+- Local-only deployments get a plain `listen 80 default_server` catch-all (`sites-enabled/decoy`)
+  only when no other enabled site is already the default server.
 
 ## Obtaining Certificates
 

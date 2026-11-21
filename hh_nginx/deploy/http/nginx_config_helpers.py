@@ -58,15 +58,28 @@ def get_client_ip_access_control(local_allow_block: str) -> List[str]:
     
     return lines
 
-def get_block_hidden_files(webroot_dir: str = "/var/www/html") -> List[str]:
-    """Return location blocks to block hidden files but allow .well-known."""
+def get_acme_challenge_block(webroot_dir: str = "/var/www/html") -> List[str]:
+    """Return the Let's Encrypt ACME challenge location.
+
+    `^~` makes this prefix win over every regex location (hidden-file blocking, static
+    whitelist).  `allow all` replaces any server-level allow/deny list (nginx does not merge
+    access rules into a location that sets its own), and `auth_basic off` drops any
+    server-level Basic Auth, so certbot's HTTP-01 check is never answered with 403 or 401.
+    """
     return [
-        "    # Allow Let's Encrypt ACME challenges",
-        f"    location /.well-known/acme-challenge/ {{",
+        "    # Let's Encrypt ACME challenges: always reachable, before any deny or auth rule",
+        "    location ^~ /.well-known/acme-challenge/ {",
+        "        allow all;",
+        "        auth_basic off;",
         f"        root {webroot_dir};",
         "        try_files $uri =404;",
         "    }",
         "",
+    ]
+
+def get_block_hidden_files(webroot_dir: str = "/var/www/html") -> List[str]:
+    """Return location blocks to block hidden files but allow .well-known."""
+    return get_acme_challenge_block(webroot_dir) + [
         "    # Block hidden files (but allow .well-known)",
         "    location ~ /\\.(?!well-known) {",
         "        deny all;",
@@ -308,45 +321,26 @@ def get_security_headers_ssl() -> List[str]:
 
 def generate_http_redirect_block(all_domains: List[str], webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate HTTP to HTTPS redirect server block.
-    
+
     Includes exception for Let's Encrypt ACME challenges which must be served on HTTP.
-    Automatically includes db and cache subdomains for Henhouse sites.
     """
-    # Extract base domain (first domain without www prefix)
-    base_domain = all_domains[0] if all_domains else ""
-    if base_domain.startswith("www."):
-        base_domain = base_domain[4:]
-    
-    # Add db and cache subdomains if not already present
-    extended_domains = list(all_domains)
-    db_subdomain = f"db.{base_domain}"
-    cache_subdomain = f"cache.{base_domain}"
-    
-    if db_subdomain not in extended_domains:
-        extended_domains.append(db_subdomain)
-    if cache_subdomain not in extended_domains:
-        extended_domains.append(cache_subdomain)
-    
     lines = [
         "# HTTP - redirect to HTTPS (except ACME challenges)",
         "server {",
         "    listen 80;",
         "    listen [::]:80;",
-        f"    server_name {' '.join(extended_domains)};",
+        f"    server_name {' '.join(all_domains)};",
         "",
-        "    # Allow Let's Encrypt ACME challenges (must be on HTTP for webroot validation)",
-        f"    location /.well-known/acme-challenge/ {{",
-        f"        root {webroot_dir};",
-        "        try_files $uri =404;",
-        "    }",
-        "",
+    ]
+    lines.extend(get_acme_challenge_block(webroot_dir))
+    lines.extend([
         "    # Redirect all other HTTP traffic to HTTPS",
         "    location / {",
         "        return 301 https://$host$request_uri;",
         "    }",
         "}",
         "",
-    ]
+    ])
     return lines
 
 def generate_https_server_block(server_names: List[str], port: int, static_locations: str,

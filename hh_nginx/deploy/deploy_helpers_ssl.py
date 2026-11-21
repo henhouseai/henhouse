@@ -346,22 +346,59 @@ def generate_self_signed_certificate(
         return False
 
 
-def get_certificate_from_letsencrypt(domain: str, cert_dir: Path) -> bool:
+def _nginx_is_active() -> bool:
+    result = subprocess.run(['systemctl', 'is-active', 'nginx'], capture_output=True, text=True, check=False)
+    return result.returncode == 0 and result.stdout.strip() == 'active'
+
+
+def _nginx_test_and_reload() -> bool:
+    test = subprocess.run(['nginx', '-t'], capture_output=True, text=True, check=False)
+    if test.returncode != 0:
+        warn(f"nginx -t failed: {test.stderr}")
+        return False
+    reload = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True, check=False)
+    if reload.returncode != 0:
+        warn(f"nginx reload failed: {reload.stderr}")
+        return False
+    return True
+
+
+def get_certificate_from_letsencrypt(domain: str, cert_dir: Path, webroot_dir: str = "/var/www/html",
+                                     nginx_site_name: Optional[str] = None) -> bool:
     """
     Obtain SSL certificate from Let's Encrypt using certbot.
-    
+
+    Uses the webroot authenticator whenever nginx can run, so certbot never needs port 80
+    for itself.  certbot records the authenticator in /etc/letsencrypt/renewal/{domain}.conf,
+    so renewals use the webroot too and are answered by the ACME location in the deployed
+    port-80 block.  (`--standalone` fails, renewals included, while nginx holds port 80.)
+
+    The site's own config may point at certificates that do not exist yet, which makes
+    `nginx -t` fail.  So while certbot runs, that site (nginx_site_name in sites-enabled) is
+    swapped for a small port-80 site that only serves ACME challenges, then put back.
+
     Note: Let's Encrypt always stores certificates in /etc/letsencrypt/live/{domain}/
-    regardless of the cert_dir parameter. The cert_dir parameter is accepted for
-    API consistency but Let's Encrypt's path structure is fixed.
-    
+    regardless of the cert_dir parameter.
+
     Args:
         domain: Domain name for the certificate
         cert_dir: Directory parameter (ignored - Let's Encrypt uses fixed path)
-    
+        webroot_dir: Directory the ACME challenge location serves from
+        nginx_site_name: sites-enabled entry to swap out while certbot runs
+
     Returns:
         True on success, False on error
     """
     trace_in()
+    sites_available = Path("/etc/nginx/sites-available")
+    sites_enabled = Path("/etc/nginx/sites-enabled")
+    all_domains = [domain, f"www.{domain}", f"admin.{domain}", f"panel.{domain}"]
+    acme_name = f"hh-acme-{domain}"
+    acme_available = sites_available / acme_name
+    acme_enabled = sites_enabled / acme_name
+    site_enabled = sites_enabled / nginx_site_name if nginx_site_name else None
+    site_link_target: Optional[str] = None
+    swapped = False
     try:
         # Check if certbot is available
         result = subprocess.run(
@@ -375,32 +412,59 @@ def get_certificate_from_letsencrypt(domain: str, cert_dir: Path) -> bool:
             report_error("action", "certbot not found - install certbot to use Let's Encrypt certificates")
             trace_out()
             return False
-        
+
+        use_webroot = _nginx_is_active()
+        if not use_webroot:
+            subprocess.run(['systemctl', 'start', 'nginx'], capture_output=True, text=True, check=False)
+            use_webroot = _nginx_is_active()
+
+        if use_webroot:
+            from hh_nginx.deploy.http.nginx_config_helpers import get_acme_challenge_block
+            Path(webroot_dir, ".well-known", "acme-challenge").mkdir(parents=True, exist_ok=True)
+            lines = [
+                "# Temporary: serves Let's Encrypt challenges while certbot runs (hh_nginx deploy)",
+                "server {",
+                "    listen 80;",
+                "    listen [::]:80;",
+                f"    server_name {' '.join(all_domains)};",
+                "",
+            ]
+            lines.extend(get_acme_challenge_block(webroot_dir))
+            lines.extend(["    location / {", "        return 404;", "    }", "}", ""])
+            acme_available.write_text("\n".join(lines))
+            if site_enabled is not None and site_enabled.is_symlink():
+                site_link_target = os.readlink(site_enabled)
+                site_enabled.unlink()
+            if acme_enabled.exists() or acme_enabled.is_symlink():
+                acme_enabled.unlink()
+            acme_enabled.symlink_to(acme_available)
+            swapped = True
+            if not _nginx_test_and_reload():
+                report_error("action", "Could not load the temporary ACME nginx site for certbot")
+                trace_out()
+                return False
+            auth_args = ["--webroot", "-w", webroot_dir]
+        else:
+            warn("nginx is not running; using certbot --standalone. Renewals will need port 80 free "
+                 "until the certificate is re-issued with nginx running.")
+            auth_args = ["--standalone"]
+
         # Run certbot to obtain certificate
-        log(f"Obtaining Let's Encrypt certificate for {domain}...")
-        result = subprocess.run(
-            [
-                "certbot", "certonly",
-                "--standalone",
-                "--non-interactive",
-                "--agree-tos",
-                "--email", f"admin@{domain}",  # Default email, could be made configurable
-                "-d", domain,
-                "-d", f"www.{domain}",
-                "-d", f"admin.{domain}",
-                "-d", f"panel.{domain}"
-            ],
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        
+        log(f"Obtaining Let's Encrypt certificate for {domain} ({auth_args[0]})...")
+        cmd = ["certbot", "certonly", *auth_args,
+               "--non-interactive",
+               "--agree-tos",
+               "--email", f"admin@{domain}"]  # Default email, could be made configurable
+        for name in all_domains:
+            cmd.extend(["-d", name])
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
         if result.returncode != 0:
             warn(f"certbot failed: {result.stderr}")
             report_error("action", f"certbot failed: {result.stderr}")
             trace_out()
             return False
-        
+
         # Let's Encrypt always stores certificates in /etc/letsencrypt/live/{domain}/
         # This path is fixed by Let's Encrypt and cannot be configured
         letsencrypt_path = Path(f"/etc/letsencrypt/live/{domain}")
@@ -409,13 +473,27 @@ def get_certificate_from_letsencrypt(domain: str, cert_dir: Path) -> bool:
             report_error("action", f"Let's Encrypt certificate directory not found after certbot: {letsencrypt_path}")
             trace_out()
             return False
-        
+
         log(f"Let's Encrypt certificate obtained for {domain} at {letsencrypt_path}")
         trace_out()
         return True
-        
+
     except Exception as e:
         warn(f"Error obtaining Let's Encrypt certificate: {e}")
         report_error("action", f"Error obtaining Let's Encrypt certificate: {e}")
         trace_out()
         return False
+
+    finally:
+        if swapped:
+            try:
+                for path in (acme_enabled, acme_available):
+                    if path.exists() or path.is_symlink():
+                        path.unlink()
+                if site_enabled is not None and site_link_target is not None and not site_enabled.exists():
+                    site_enabled.symlink_to(site_link_target)
+                # deploy_87 reloads with the real config on success; reload here too so a
+                # failed run does not leave nginx serving the temporary site.
+                _nginx_test_and_reload()
+            except Exception as e:
+                warn(f"Failed to restore nginx sites after certbot: {e}")
