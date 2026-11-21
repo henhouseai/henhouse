@@ -82,16 +82,9 @@ def deploy_nginx_config() -> Dict[str, Any]:
     nginx_sites_available = Path("/etc/nginx/sites-available")
     nginx_sites_enabled = Path("/etc/nginx/sites-enabled")
 
-    # Detect if local deployment
-    is_local = (domain.startswith('192.168.') or
-                domain.startswith('10.') or
-                (domain.startswith('172.') and len(domain.split('.')) >= 2 and
-                 domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
-
-    # Get local_allow_block if local
-    local_allow_block = ""
-    if is_local:
-        local_allow_block = f"{'.'.join(domain.split('.')[:-1])}.0/24"
+    # Local-only deployment: .local / private-IP domain, or local_only in the install config
+    from hh_nginx.deploy.deploy_helpers_nginx import get_local_settings
+    is_local, local_allow_block = get_local_settings(sec)
 
     server_ip = get_server_ip()  # shown in the deploy summary only, never used in listen directives
     log(f"hh_nginx: Detected server IP: {server_ip}")
@@ -254,10 +247,8 @@ def deploy_ssl_certificates() -> Dict[str, Any]:
     ssl_cert_dir_letsencrypt = Path("/etc/letsencrypt/live")
 
     # Detect if local deployment
-    is_local = (domain.startswith('192.168.') or
-                domain.startswith('10.') or
-                (domain.startswith('172.') and len(domain.split('.')) >= 2 and
-                 domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
+    from hh_nginx.deploy.deploy_helpers_nginx import get_local_settings
+    is_local, _ = get_local_settings(sec)
 
     # Check for certificate creation flags
     create_mode = None
@@ -383,10 +374,8 @@ def restart_nginx() -> Dict[str, Any]:
     domain = sec.get("domain", "").strip()
 
     # Detect if local deployment
-    is_local = (domain.startswith('192.168.') or
-                domain.startswith('10.') or
-                (domain.startswith('172.') and len(domain.split('.')) >= 2 and
-                 domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
+    from hh_nginx.deploy.deploy_helpers_nginx import get_local_settings
+    is_local, _ = get_local_settings(sec)
 
     webroot_dir = sec.get("webroot_dir", "/var/www/html").strip() or "/var/www/html"
 

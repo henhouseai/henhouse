@@ -15,47 +15,53 @@ def get_security_headers() -> List[str]:
         "",
     ]
 
+def normalize_allow_ranges(local_allow_block: str) -> List[str]:
+    """Turn a comma-separated allow list into valid nginx `allow` values.
+
+    Accepts CIDR (`192.168.1.0/24`, `fd00::/8`), single addresses (`10.0.0.5`, `::1`) and the old
+    install config's dotted prefixes (`192.168.1.` -> `192.168.1.0/24`, `10.` -> `10.0.0.0/8`).
+    Anything else is dropped, so a bad entry can never produce an `allow` line nginx rejects.
+    """
+    import ipaddress
+    ranges: List[str] = []
+    for raw in (local_allow_block or "").split(','):
+        entry = raw.strip()
+        if not entry:
+            continue
+        if entry.endswith('.') and '/' not in entry:
+            octets = entry.rstrip('.').split('.')
+            if 1 <= len(octets) <= 3 and all(o.isdigit() for o in octets):
+                entry = '.'.join(octets + ['0'] * (4 - len(octets))) + f"/{8 * len(octets)}"
+        try:
+            net = ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            continue
+        value = str(net.network_address) if net.num_addresses == 1 else str(net)
+        if value not in ranges:
+            ranges.append(value)
+    return ranges
+
 def get_client_ip_access_control(local_allow_block: str) -> List[str]:
     """
     Generate nginx allow/deny directives for client IP access control.
-    
+
     Args:
-        local_allow_block: Comma-separated CIDR notation (e.g., "192.168.1.0/24,10.0.0.0/8")
-                          or single IP/CIDR. Always includes 127.0.0.1 if not present.
-    
+        local_allow_block: Comma-separated ranges (see normalize_allow_ranges), e.g.
+                          "192.168.1.0/24,10.0.0.0/8".  127.0.0.1 is always allowed.
+
     Returns:
         List of nginx directive strings for allow/deny rules.
     """
     lines = [
         "    # Client IP access control (intranet only)",
     ]
-    
-    # Parse comma-separated values
-    allow_ranges = [r.strip() for r in local_allow_block.split(',') if r.strip()]
-    
-    # Always allow localhost (unless already present)
-    has_localhost = any('127.0.0.1' in r or '::1' in r for r in allow_ranges)
-    if not has_localhost:
+    allow_ranges = normalize_allow_ranges(local_allow_block)
+    if not any(r.startswith('127.') for r in allow_ranges):
         lines.append("    allow 127.0.0.1;")
-    
-    # Add each allowed range
     for range_str in allow_ranges:
-        # Validate basic format (simple check - IP or CIDR)
-        if '/' in range_str or range_str.replace('.', '').replace('/', '').isdigit():
-            lines.append(f"    allow {range_str};")
-        else:
-            # If it looks like an IP without CIDR, add /32
-            parts = range_str.split('.')
-            if len(parts) == 4 and all(p.isdigit() for p in parts):
-                lines.append(f"    allow {range_str}/32;")
-            else:
-                # Invalid format, skip with warning (could log here)
-                continue
-    
-    # Deny all other IPs
+        lines.append(f"    allow {range_str};")
     lines.append("    deny all;")
     lines.append("")
-    
     return lines
 
 def get_acme_challenge_block(webroot_dir: str = "/var/www/html") -> List[str]:

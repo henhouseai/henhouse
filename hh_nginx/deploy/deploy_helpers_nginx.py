@@ -63,6 +63,66 @@ def get_server_ip() -> str:
     return "127.0.0.1"
 
 
+# Allow list for local-only sites when the install config sets none: every private IPv4 range.
+DEFAULT_LOCAL_ALLOW_BLOCK = "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+
+# Private ranges that mark an IP domain as local (not Python's is_private, which also covers
+# documentation and benchmark ranges).
+_LOCAL_NETWORKS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")
+
+_TRUE_VALUES = ("1", "true", "yes", "on")
+_FALSE_VALUES = ("0", "false", "no", "off")
+
+
+def is_local_domain(domain: str) -> bool:
+    """True for domains that only make sense on a private network.
+
+    `.local` (mDNS / hosts-file names such as foxhouse.local), `localhost`, loopback and the
+    private IPv4 ranges 192.168/16, 10/8 and 172.16/12.
+    """
+    d = (domain or "").strip().lower().rstrip(".")
+    if not d:
+        return False
+    if d == "localhost" or d.endswith(".local") or d.endswith(".localhost"):
+        return True
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(d)
+    except ValueError:
+        return False
+    return ip.is_loopback or any(ip in ipaddress.ip_network(n) for n in _LOCAL_NETWORKS
+                                 if ipaddress.ip_network(n).version == ip.version)
+
+
+def get_local_settings(install_section: Any) -> Tuple[bool, str]:
+    """Decide whether a deploy is local-only and which client ranges it allows.
+
+    install_section is the [install] section of the install config (any mapping with .get).
+
+    - `local_only = 1` / `0` in the install config forces local / public.  Left out or empty,
+      the domain decides (is_local_domain).
+    - `local_allow_block` from the install config is used when set, otherwise
+      DEFAULT_LOCAL_ALLOW_BLOCK.  Entries are normalized by get_client_ip_access_control.
+
+    Returns (is_local, local_allow_block); local_allow_block is "" when not local.
+    """
+    domain = (install_section.get("domain", "") or "").strip()
+    override = (install_section.get("local_only", "") or "").strip().lower()
+    if override in _TRUE_VALUES:
+        is_local = True
+    elif override in _FALSE_VALUES:
+        is_local = False
+    else:
+        if override:
+            warn(f"hh_nginx: Ignoring invalid local_only value '{override}'; detecting from domain")
+        is_local = is_local_domain(domain)
+
+    if not is_local:
+        return False, ""
+    allow_block = (install_section.get("local_allow_block", "") or "").strip()
+    return True, allow_block or DEFAULT_LOCAL_ALLOW_BLOCK
+
+
 DECOY_SITE_NAME = "decoy"
 
 

@@ -177,6 +177,11 @@ Rules that keep challenges and renewals working:
 - **The ACME location comes first and overrides access rules.** `^~` beats regex locations such
   as the hidden-file block, `allow all` replaces a server-level `deny all`, and `auth_basic off`
   drops Basic Auth.
+- A deployment is **local-only** when its domain ends in `.local`, is `localhost`, or is a private
+  IP (192.168/16, 10/8, 172.16/12), or when the install config sets `local_only = 1`
+  (`local_only = 0` forces a public config). Local-only sites allow `127.0.0.1` plus the install
+  config's `local_allow_block` (default `192.168.0.0/16,10.0.0.0/8,172.16.0.0/12` when empty) and
+  `deny all` the rest. Old-style prefixes such as `192.168.1.` are read as `192.168.1.0/24`.
 - Local-only deployments get a plain `listen 80 default_server` catch-all (`sites-enabled/decoy`)
   only when no other enabled site is already the default server.
 

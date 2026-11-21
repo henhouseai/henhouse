@@ -76,6 +76,8 @@ def contribute_nginx_template() -> Dict[str, Any]:
         "# This restricts NGINX to only accept connections from matching client IPs, preventing external access",
         "# Default allows common private network ranges: 192.168.1.0/24 (class C) and 10.0.0.0/8 (class A)",
         "local_allow_block = 192.168.1.0/24,10.0.0.0/8",
+        "# Force local-only (1) or public (0) NGINX config; leave empty to decide from the domain",
+        "local_only = ",
         "",
         "# NGINX Configuration Directories",
         "# NGINX sites-available directory (where config files are stored)",
