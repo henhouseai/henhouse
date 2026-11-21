@@ -13,7 +13,7 @@ Updated on every merge to `henhouse` (context/testing.md TS-H42).
 
 | Suite | Passed | Failed | Skipped | Known bugs (xfail) |
 |---|---|---|---|---|
-| `all` (24 module suites + framework), 2026-11-21 | 848 | 0 | 0 | 1 |
+| `all` (24 module suites + framework), 2026-11-21 | 834 | 0 | 0 | 0 |
 | `live` (cloud sandbox), 2026-11-21 | 61 | 0 | 0 | 0 |
 
 ## Merge queue
@@ -24,8 +24,9 @@ Updated on every merge to `henhouse` (context/testing.md TS-H42).
 
 ## Needs Lee
 
-- Two currency questions from the first accounting tests (see the test-suite PR).
+- Nothing right now.
 
 ## Recent changes
 
+- 2026-11-21: removed unused DecimalMath validate, divide, average and multiply (Lee).
 - 2026-11-21: test suites, runner and testing policy added (`context/testing.md`).

@@ -35,27 +35,6 @@ def test_subtract(a: str, b: str, diff: str) -> None:
     assert D.subtract(a, b) == diff
 
 
-@pytest.mark.parametrize("value, by, product", [
-    ("2.50", 3, "7.5"),
-    ("2.50", "1.5", "3.75"),
-    ("19.99", 0, ""),
-    ("-4", 2, "-8"),
-])
-def test_multiply(value: str, by, product: str) -> None:
-    assert D.multiply(value, by) == product
-
-
-@pytest.mark.parametrize("value, by, quotient", [("10", 4, "2.5"), ("10", "4", "2.5"), ("1", 3, "0.33"), ("9", "0.5", "18")])
-def test_divide(value: str, by, quotient: str) -> None:
-    assert D.divide(value, by) == quotient
-
-
-@pytest.mark.parametrize("by", [0, "0", "0.00"])
-def test_divide_by_zero_raises(by) -> None:
-    with pytest.raises(ValueError):
-        D.divide("1", by)
-
-
 def test_extra_decimals_are_truncated_not_rounded() -> None:
     assert D.add("0.019", "0") == "0.01"
     assert D.round("2.999") == "2.99"
@@ -68,11 +47,9 @@ def test_decimal_places() -> None:
 def test_aggregates() -> None:
     values = ["1.50", "2.50", "-1"]
     assert D.sum(values) == "3"
-    assert D.average(values) == "1"
     assert D.max(values) == "2.5"
     assert D.min(values) == "-1"
     assert D.sum([]) == ""
-    assert D.average([]) == ""
     assert D.max([]) == ""
     assert D.min([]) == ""
 
@@ -134,15 +111,3 @@ def test_normalize_range_past_upper_limit() -> None:
 def test_normalize_range_past_lower_limit() -> None:
     with pytest.raises(ValueError):
         D.normalize("-1000000.01")
-
-
-@pytest.mark.parametrize("raw, ok", [
-    ("1.5", True),
-    ("-2", True),
-    ("1.2.3", False),
-    pytest.param("abc", False, marks=pytest.mark.xfail(
-        reason="known bug: validate() strips letters before converting, so 'abc' reads as zero and passes",
-        strict=True)),
-])
-def test_validate(raw: str, ok: bool) -> None:
-    assert D.validate(raw) is ok

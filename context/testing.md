@@ -38,7 +38,7 @@ slices that come from recorded times rather than from someone's guess.
     is right.
   - A *system test* checks what the code does, on inputs built in the test or on fixed fixtures.
   - `--system` runs only the system tests (system integrity), `--data` only the data tests, neither flag both.
-    `run_suite.py --counts` prints the split per suite without running anything.  On 2026-11-21: 732 system and
+    `run_suite.py --counts` prints the split per suite without running anything.  On 2026-11-21: 717 system and
     117 data tests outside `live`, and 61 live tests.
 - TS-H05: **Groups.**  A suite's tests can sit in subfolders, for example `tests/hh/system/tp/` and
   `tests/hh/data/tp/`; `run_suite.py hh/tp` runs that group in both kinds.  Split a suite into groups by what the
