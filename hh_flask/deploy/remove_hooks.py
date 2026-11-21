@@ -40,6 +40,8 @@ def stop_flask_daemons() -> Dict[str, Any]:
 
     try:
         log(f"Stopping Flask daemons for {project_name}")
+        from hh.deploy.systemd_units import remove_daemon_unit
+        boot_unit = remove_daemon_unit(project_name, "flask")
         flask_stop_info = run_flask_stop(project_name)
         log("Flask daemons stopped successfully")
 
@@ -47,7 +49,8 @@ def stop_flask_daemons() -> Dict[str, Any]:
             "status": "completed",
             "component": "flask_stop",
             "flask_stopped": True,
-            "stop_info": flask_stop_info
+            "stop_info": flask_stop_info,
+            "boot_unit": boot_unit
         })
 
     except Exception as e:
@@ -68,6 +71,8 @@ def stop_maintenance_daemon() -> Dict[str, Any]:
 
     try:
         log(f"Stopping maintenance daemon for {project_name}")
+        from hh.deploy.systemd_units import remove_daemon_unit
+        boot_unit = remove_daemon_unit(project_name, "maintenance")
         maint_stop_info = run_maintenance_stop(project_name)
         log("Maintenance daemon stopped successfully")
 
@@ -75,7 +80,8 @@ def stop_maintenance_daemon() -> Dict[str, Any]:
             "status": "completed",
             "component": "maint_stop",
             "maintenance_stopped": True,
-            "stop_info": maint_stop_info
+            "stop_info": maint_stop_info,
+            "boot_unit": boot_unit
         })
 
     except Exception as e:

@@ -33,6 +33,11 @@ def get_server_ip() -> str:
     Get the first non-localhost IP address from the server's network interfaces.
     Falls back to 127.0.0.1 if no other IP is found.
 
+    Display only (deploy summary).  Never put this address in a `listen` directive: on a box
+    with a public IP, `listen <ip>:80` makes nginx route every request for that address to the
+    IP-bound server blocks only, which hides all `listen 80` sites, including the ACME
+    challenge locations Let's Encrypt renewals need.
+
     Returns:
         IP address string (e.g., "192.168.1.100")
     """
@@ -58,48 +63,89 @@ def get_server_ip() -> str:
     return "127.0.0.1"
 
 
-def create_local_decoy(server_ip: str, nginx_sites_available: Path, nginx_sites_enabled: Path) -> bool:
-    """Create a decoy server for local deployments to prevent IP-based access from hijacking local sites."""
+DECOY_SITE_NAME = "decoy"
+
+
+def _other_default_server_on_80(nginx_sites_enabled: Path) -> Optional[str]:
+    """Return the name of an enabled site (other than the decoy) that already declares a
+    port-80 default_server, or None."""
+    import re
+    pattern = re.compile(r'^\s*listen\s+(?:\S*:)?80\b[^;]*\bdefault_server\b', re.MULTILINE)
+    if not nginx_sites_enabled.exists():
+        return None
+    for site in sorted(nginx_sites_enabled.iterdir()):
+        if site.name == DECOY_SITE_NAME:
+            continue
+        try:
+            if pattern.search(site.read_text()):
+                return site.name
+        except Exception:
+            continue
+    return None
+
+
+def build_local_decoy_config(webroot_dir: str = "/var/www/html") -> str:
+    """Catch-all server for requests whose Host matches no site (e.g. bare-IP scans).
+
+    Plain `listen 80 default_server`, never bound to a specific IP, so it never hides the
+    other `listen 80` sites.  ACME challenges stay reachable; everything else is dropped.
+    """
+    from .http.nginx_config_helpers import get_acme_challenge_block
+    lines = [
+        "# Henhouse catch-all (decoy) for local deployments.",
+        "# Answers requests whose Host matches no site. Written by hh_nginx deploy.",
+        "server {",
+        "    listen 80 default_server;",
+        "    server_name _;",
+        "",
+    ]
+    lines.extend(get_acme_challenge_block(webroot_dir))
+    lines.extend([
+        "    location / {",
+        "        return 444;",
+        "    }",
+        "}",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def create_local_decoy(nginx_sites_available: Path, nginx_sites_enabled: Path,
+                       webroot_dir: str = "/var/www/html") -> Dict[str, Any]:
+    """Make sure local deployments have a port-80 catch-all, without stealing traffic.
+
+    If another enabled site (usually the distro `default`) is already the port-80
+    default_server, that site is the catch-all and any decoy from an older deploy (which
+    bound to the server's IP) is removed.  Otherwise a plain catch-all is written.
+
+    Must run before `nginx -t` and the reload so the result is tested and loaded.
+    """
     trace_in()
+    decoy_available = nginx_sites_available / DECOY_SITE_NAME
+    decoy_enabled = nginx_sites_enabled / DECOY_SITE_NAME
     try:
-        default_config_path = Path("/etc/nginx/sites-available/default")
-        if not default_config_path.exists():
-            warn("Default NGINX config not found, cannot create decoy")
-            trace_out()
-            return False
+        existing_default = _other_default_server_on_80(nginx_sites_enabled)
+        if existing_default:
+            removed = False
+            for path in (decoy_enabled, decoy_available):
+                if path.exists() or path.is_symlink():
+                    path.unlink()
+                    removed = True
+            log(f"Site '{existing_default}' is already the default server; no decoy needed"
+                + (" (removed old decoy)" if removed else ""))
+            return trace_out({"status": "not_needed", "default_site": existing_default,
+                              "old_decoy_removed": removed})
 
-        # Read the default configuration
-        default_config = default_config_path.read_text()
-
-        # Modify listen directives to use specific IP with default_server
-        modified_config = default_config
-        modified_config = modified_config.replace(
-            "listen 80 default_server;",
-            f"listen {server_ip}:80 default_server;"
-        )
-        # Remove the entire IPv6 listen line to prevent conflicts
-        import re
-        modified_config = re.sub(r'listen \[::\]:80.*;\s*', '', modified_config)
-
-        # Write the decoy configuration
-        decoy_config_path = nginx_sites_available / "decoy"
-        decoy_config_path.write_text(modified_config)
-        log(f"Decoy NGINX config written to: {decoy_config_path}")
-
-        # Create symlink in sites-enabled
-        decoy_enabled_path = nginx_sites_enabled / "decoy"
-        if decoy_enabled_path.exists():
-            decoy_enabled_path.unlink()
-        decoy_enabled_path.symlink_to(decoy_config_path)
-        log(f"Decoy symlink created: {decoy_enabled_path}")
-
-        trace_out()
-        return True
+        decoy_available.write_text(build_local_decoy_config(webroot_dir))
+        if decoy_enabled.exists() or decoy_enabled.is_symlink():
+            decoy_enabled.unlink()
+        decoy_enabled.symlink_to(decoy_available)
+        log(f"Decoy NGINX config written to: {decoy_available}")
+        return trace_out({"status": "created", "path": str(decoy_available)})
 
     except Exception as e:
         warn(f"Failed to create local decoy: {e}")
-        trace_out()
-        return False
+        return trace_out({"status": "error", "error": str(e)})
 
 
 def check_nginx_status() -> Dict[str, Any]:
@@ -134,7 +180,7 @@ def check_nginx_status() -> Dict[str, Any]:
 
 # Config generation functions (moved from nginx_flask)
 
-def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_block: str, server_ip: str, certificate_path: str) -> str:
+def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_block: str, certificate_path: str) -> str:
     """Generate Nginx SSL configuration with client IP access control for local deployments."""
     trace_in()
     try:
@@ -154,9 +200,8 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_bl
             get_security_headers_ssl, get_block_hidden_files,
             get_auth_block, get_media_server_proxy_block, get_flask_proxy_block,
             get_server_configs, detect_flask_ports, generate_http_redirect_block,
-            get_client_ip_access_control
+            get_client_ip_access_control, get_acme_challenge_block
         )
-        from hh.deploy.conf.user_account_suffixes import HENHOUSE_TIERS
 
         whitelist_result = generate_nginx_static_locations(project_name)
         static_locations = whitelist_result['config'] if isinstance(whitelist_result, dict) else whitelist_result
@@ -188,10 +233,11 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_bl
         all_domains = [domain, f'www.{domain}', f'admin.{domain}', f'panel.{domain}']
         config_lines.append("# HTTP to HTTPS redirect (with client IP access control)")
         config_lines.append("server {")
-        config_lines.append(f"    listen {server_ip}:80;")
+        config_lines.append("    listen 80;")
         config_lines.append(f"    server_name {' '.join(all_domains)};")
         config_lines.append("")
         config_lines.extend(get_client_ip_access_control(local_allow_block))
+        config_lines.extend(get_acme_challenge_block(webroot_dir))
         config_lines.append("    location / {")
         config_lines.append("        return 301 https://$host$request_uri;")
         config_lines.append("    }")
@@ -206,7 +252,7 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_bl
             block_lines = _generate_local_https_server_block(
                 server['names'], server['port'], static_locations, certificate_path,
                 server['label'], project_name=project_name, media_port=media_port,
-                server_ip=server_ip, local_allow_block=local_allow_block,
+                local_allow_block=local_allow_block,
                 guest_password=guest_password, webroot_dir=webroot_dir
             )
             config_lines.extend(block_lines)
@@ -223,7 +269,6 @@ def create_nginx_ssl_config_local(domain: str, project_name: str, local_allow_bl
 def _generate_local_https_server_block(server_names: List[str], port: int, static_locations: str,
                                       certificate_path: str, label: str = "",
                                       project_name: str = "henhouse", media_port: Optional[int] = None,
-                                      server_ip: str = "127.0.0.1",
                                       local_allow_block: str = "192.168.1.0/24,10.0.0.0/8",
                                       guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate an HTTPS server block with client IP access control for local deployments."""
@@ -243,7 +288,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
         lines.append(f"# {label} (local deployment with client IP access control)")
 
     lines.append("server {")
-    lines.append(f"    listen {server_ip}:443 ssl http2;")
+    lines.append("    listen 443 ssl http2;")
     lines.append(f"    server_name {' '.join(server_names)};")
     lines.append("")
     lines.extend(get_client_ip_access_control(local_allow_block))
@@ -275,7 +320,7 @@ def _generate_local_https_server_block(server_names: List[str], port: int, stati
     return lines
 
 
-def create_nginx_config_local(domain: str, project_name: str, local_allow_block: str, server_ip: str) -> str:
+def create_nginx_config_local(domain: str, project_name: str, local_allow_block: str) -> str:
     """Generate Nginx HTTP-only configuration with client IP access control for local deployments."""
     trace_in()
     try:
@@ -331,7 +376,7 @@ def create_nginx_config_local(domain: str, project_name: str, local_allow_block:
         for server in servers:
             block_lines = _generate_local_http_server_block(
                 server['names'], server['port'], static_locations, server['label'],
-                project_name=project_name, media_port=media_port, server_ip=server_ip,
+                project_name=project_name, media_port=media_port,
                 local_allow_block=local_allow_block, guest_password=guest_password,
                 webroot_dir=webroot_dir
             )
@@ -348,7 +393,7 @@ def create_nginx_config_local(domain: str, project_name: str, local_allow_block:
 
 def _generate_local_http_server_block(server_names: List[str], port: int, static_locations: str,
                                       label: str = "", project_name: str = "henhouse",
-                                      media_port: Optional[int] = None, server_ip: str = "127.0.0.1",
+                                      media_port: Optional[int] = None,
                                       local_allow_block: str = "192.168.1.0/24,10.0.0.0/8",
                                       guest_password: Optional[str] = None, webroot_dir: str = "/var/www/html") -> List[str]:
     """Generate an HTTP server block with client IP access control for local deployments."""
@@ -368,7 +413,7 @@ def _generate_local_http_server_block(server_names: List[str], port: int, static
         lines.append(f"# {label} (local deployment with client IP access control)")
 
     lines.append("server {")
-    lines.append(f"    listen {server_ip}:80;")
+    lines.append("    listen 80;")
     lines.append(f"    server_name {' '.join(server_names)};")
     lines.append("")
     lines.extend(get_client_ip_access_control(local_allow_block))

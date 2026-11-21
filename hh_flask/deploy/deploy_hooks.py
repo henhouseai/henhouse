@@ -74,7 +74,15 @@ def restart_flask_daemons() -> Dict[str, Any]:
     flask_restart_info = run_flask_start(project_name, start_port)
     log(f"hh_flask: Flask restart summary: {flask_restart_info.get('summary')}")
 
-    return trace_out({"module": "hh_flask", "action": "restart", "flask_restart": flask_restart_info})
+    # Bring the Flask daemons (and the database they need) back after a reboot
+    from hh.deploy.systemd_units import install_daemon_unit, enable_existing_service
+    _, project_root = detect_project_context()
+    boot_unit = install_daemon_unit(project_name, "flask", f"Henhouse {project_name} Flask daemons",
+                                    project_root, "flask-start", "flask-stop")
+    mysql_boot = enable_existing_service("mysql")
+
+    return trace_out({"module": "hh_flask", "action": "restart", "flask_restart": flask_restart_info,
+                      "boot_unit": boot_unit, "mysql_boot": mysql_boot})
 
 
 @register_module_hook('deploy_40_flask_apps', 'Deploy Flask tier applications and media server')

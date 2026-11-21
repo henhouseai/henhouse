@@ -60,7 +60,15 @@ def restart_maintenance_daemon() -> Union[Dict[str, Any], bool]:
         maintenance_restart_info = run_maintenance_start(project_name)
         log(f"maintenance hook: Maintenance restart status: {maintenance_restart_info.get('status')}")
 
-        return {"module": "maintenance", "action": "restart", "maintenance_restart": maintenance_restart_info}
+        # Bring the maintenance daemon back after a reboot
+        from hh.deploy.systemd_units import install_daemon_unit
+        _, project_root = detect_project_context()
+        boot_unit = install_daemon_unit(project_name, "maintenance",
+                                        f"Henhouse {project_name} maintenance daemon",
+                                        project_root, "maintenance-start", "maintenance-stop")
+
+        return {"module": "maintenance", "action": "restart", "maintenance_restart": maintenance_restart_info,
+                "boot_unit": boot_unit}
     except Exception as e:
         warn(f"maintenance hook: Failed to restart maintenance daemon: {e}")
         return False

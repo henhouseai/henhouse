@@ -93,7 +93,7 @@ def deploy_nginx_config() -> Dict[str, Any]:
     if is_local:
         local_allow_block = f"{'.'.join(domain.split('.')[:-1])}.0/24"
 
-    server_ip = get_server_ip()
+    server_ip = get_server_ip()  # shown in the deploy summary only, never used in listen directives
     log(f"hh_nginx: Detected server IP: {server_ip}")
     deployment_mode = "https" if ssl_enabled else "http"
 
@@ -140,7 +140,7 @@ def deploy_nginx_config() -> Dict[str, Any]:
 
         if is_local:
             log(f"hh_nginx: Local deployment with access control: {local_allow_block}")
-            config_content = create_nginx_ssl_config_local(domain, project_name, local_allow_block, server_ip, str(certificate_path))
+            config_content = create_nginx_ssl_config_local(domain, project_name, local_allow_block, str(certificate_path))
         else:
             config_content = create_nginx_ssl_config(domain, project_name, str(certificate_path))
 
@@ -168,7 +168,7 @@ def deploy_nginx_config() -> Dict[str, Any]:
 
         if is_local:
             log(f"hh_nginx: Local deployment with access control: {local_allow_block}")
-            config_content = create_nginx_config_local(domain, project_name, local_allow_block, server_ip)
+            config_content = create_nginx_config_local(domain, project_name, local_allow_block)
         else:
             config_content = create_nginx_config(domain, project_name)
 
@@ -311,7 +311,9 @@ def deploy_ssl_certificates() -> Dict[str, Any]:
     elif create_mode == "get-cert" and not is_error():
         log("hh_nginx: Obtaining Let's Encrypt certificate...")
         from hh_nginx.deploy.deploy_helpers_ssl import get_certificate_from_letsencrypt, ensure_certificate_exists
-        if get_certificate_from_letsencrypt(domain, certificate_path):
+        webroot_dir = sec.get("webroot_dir", "/var/www/html").strip() or "/var/www/html"
+        if get_certificate_from_letsencrypt(domain, certificate_path, webroot_dir=webroot_dir,
+                                            nginx_site_name=domain):
             certificate_created = True
             log(f"hh_nginx: Let's Encrypt certificate obtained for {domain}")
 
@@ -350,7 +352,7 @@ def restart_nginx() -> Dict[str, Any]:
     """
     Test NGINX configuration, restart/reload NGINX, and verify it's running.
 
-    Creates local decoy server if needed for local deployments.
+    Sets up the local catch-all (decoy) first when needed, and enables nginx at boot.
     Returns comprehensive deployment status.
     """
     trace_in()
@@ -386,12 +388,23 @@ def restart_nginx() -> Dict[str, Any]:
                 (domain.startswith('172.') and len(domain.split('.')) >= 2 and
                  domain.split('.')[1].isdigit() and 16 <= int(domain.split('.')[1]) <= 31))
 
+    webroot_dir = sec.get("webroot_dir", "/var/www/html").strip() or "/var/www/html"
+
     nginx_sites_available = Path("/etc/nginx/sites-available")
     nginx_sites_enabled = Path("/etc/nginx/sites-enabled")
-    server_ip = get_server_ip()
+    server_ip = get_server_ip()  # summary only
 
     nginx_restarted = False
-    decoy_created = False
+    decoy_status = None
+
+    # Local deployments get a port-80 catch-all.  Written before `nginx -t` so it is tested
+    # and loaded by this reload (it used to be written after the reload and only took
+    # effect on the next one).
+    if is_local:
+        log("hh_nginx: Checking local catch-all (decoy) server...")
+        decoy_status = create_local_decoy(nginx_sites_available, nginx_sites_enabled, webroot_dir)
+        if decoy_status.get("status") == "error":
+            warn("hh_nginx: Failed to set up local decoy server (non-fatal)")
 
     # Test NGINX configuration
     log("hh_nginx: Testing NGINX configuration...")
@@ -431,14 +444,9 @@ def restart_nginx() -> Dict[str, Any]:
         log("hh_nginx: Nginx reloaded successfully")
         nginx_restarted = True
 
-    # Create decoy server for local deployments
-    if is_local and nginx_restarted:
-        log("hh_nginx: Creating local decoy server...")
-        if create_local_decoy(server_ip, nginx_sites_available, nginx_sites_enabled):
-            decoy_created = True
-            log("hh_nginx: Local decoy server created successfully")
-        else:
-            warn("hh_nginx: Failed to create local decoy server (non-fatal)")
+    # Make sure nginx comes back after a reboot
+    from hh.deploy.systemd_units import enable_existing_service
+    nginx_boot = enable_existing_service("nginx")
 
     # Get final NGINX status
     try:
@@ -454,7 +462,9 @@ def restart_nginx() -> Dict[str, Any]:
         "nginx_restarted": nginx_restarted,
         "nginx_active": nginx_status.get('is_active', False),
         "nginx_enabled_sites": nginx_status.get('enabled_sites', []),
-        "decoy_created": decoy_created if is_local else None,
+        "decoy_created": (decoy_status or {}).get("status") == "created" if is_local else None,
+        "decoy": decoy_status,
+        "nginx_boot": nginx_boot,
         "server_ip": server_ip
     }
 

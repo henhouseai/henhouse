@@ -368,7 +368,7 @@ You should see:
 
 **Note**: If you need to stop them, use `{hen_script_name} flask-stop` and `{hen_script_name} maintenance-stop`, but note that they will automatically restart the next time you run `sudo {hen_script_name} deploy`.
 
-**Auto-start on server reboot**: Auto-start on server reboot is not yet enabled. If your server reboots, you'll need to manually start the daemons using `sudo {hen_script_name} flask-start` and `sudo {hen_script_name} maintenance-start`.
+**Auto-start on server reboot**: Deploy writes and enables two systemd units, `{project_name}-flask.service` and `{project_name}-maintenance.service`. At boot they run `hen.py flask-start` and `hen.py maintenance-start` from the project folder, after the network and MySQL are up. Deploy also enables `nginx` and `mysql` at boot. Check them with `systemctl status {project_name}-flask {project_name}-maintenance`. On a machine without systemd the unit files are written but not enabled, so start the daemons by hand after a reboot.
 
 ### Step 2: Verify Web Access
 
