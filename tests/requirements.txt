@@ -1,0 +1,8 @@
+# Packages the test suites need, on top of what henhouse itself imports.
+# The runner checks these before every run (TS-03) and stops with exit 3 when one is missing or too old.
+#   pip install -r tests/requirements.txt
+pytest>=8.0
+flask>=2.0
+pymysql>=1.0
+psutil>=5.0
+wcwidth>=0.2

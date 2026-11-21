@@ -56,3 +56,7 @@ aoc/
 # Henhouse upgrade backups
 backup/
 backup_*/
+
+# Test results (context/testing.md): kept out of git, upload to the project instead
+test-results/
+.pytest_cache/

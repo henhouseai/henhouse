@@ -27,7 +27,9 @@ commits.
 
 - Static checks are always fine: read anything, `python -m compileall`, `mypy` (see `mypy.ini`), import checks,
   small scripts you write to analyze the code.
-- There is no test suite and no CI.  Say in the commit or report which checks you ran and what they found.
+- Tests: `python tests/harness/run_suite.py --changed origin/henhouse` runs the tests of your branch; put the counts
+  from its results file in the PR.  Only the merge runner runs the full suite.  Rules: `context/testing.md`.  There
+  is no CI.  Say in the commit or report which checks you ran and what they found.
 - Commands that need a live install (MySQL, Unix tier users, nginx, the Flask daemons) only work on Lee's server.
   Never run `deploy`, `upgrade`, `install`, `uninstall` or anything with `sudo` unless the task says to.
 - The old `stage.py` / `stage.sh` git staging flow pushes to the dead `henhouse.ai` remote.  Do not use it.
@@ -125,6 +127,7 @@ Once you know what you'll be working on, read additional context docs as needed:
 | `context/patterns.md` | Code patterns with examples |
 | `context/text_processor.md` | Custom markup parsing and decorators |
 | `context/type_script.md` | TypeScript client architecture |
+| `context/testing.md` | **Test suites, runner, results files, merge policy** |
 
 ### README Folder (Human Users - Installation)
 

@@ -5,7 +5,7 @@ All operations work with strings and convert to integers internally for calculat
 """
 
 import re
-from typing import List, Union
+from typing import List
 from hh.gateway.error.error_store import report_error
 
 
@@ -103,50 +103,12 @@ class DecimalMath:
         return DecimalMath._units_to_string(result_units, decimal_places)
 
     @staticmethod
-    def multiply(value: str, multiplier: Union[int, str], decimal_places: int = DEFAULT_DECIMAL_PLACES) -> str:
-        """Multiply decimal value by an integer or decimal multiplier."""
-        units = DecimalMath._string_to_units(value, decimal_places)
-
-        if isinstance(multiplier, str):
-            multiplier_units = DecimalMath._string_to_units(multiplier, decimal_places)
-            result_units = units * multiplier_units // (10 ** decimal_places)
-        else:
-            result_units = units * multiplier
-
-        return DecimalMath._units_to_string(result_units, decimal_places)
-
-    @staticmethod
-    def divide(dividend: str, divisor: Union[int, str], decimal_places: int = DEFAULT_DECIMAL_PLACES) -> str:
-        """Divide decimal value by an integer or decimal divisor."""
-        dividend_units = DecimalMath._string_to_units(dividend, decimal_places)
-
-        if isinstance(divisor, str):
-            divisor_units = DecimalMath._string_to_units(divisor, decimal_places)
-            if divisor_units == 0:
-                raise ValueError("Division by zero")
-            result_units = (dividend_units * (10 ** decimal_places)) // divisor_units
-        else:
-            if divisor == 0:
-                raise ValueError("Division by zero")
-            result_units = dividend_units // divisor
-
-        return DecimalMath._units_to_string(result_units, decimal_places)
-
-    @staticmethod
     def sum(values: List[str], decimal_places: int = DEFAULT_DECIMAL_PLACES) -> str:
         """Sum a list of decimal values."""
         total_units = 0
         for value in values:
             total_units += DecimalMath._string_to_units(value, decimal_places)
         return DecimalMath._units_to_string(total_units, decimal_places)
-
-    @staticmethod
-    def average(values: List[str], decimal_places: int = DEFAULT_DECIMAL_PLACES) -> str:
-        """Calculate average of decimal values."""
-        if not values:
-            return ''
-        total = DecimalMath.sum(values, decimal_places)
-        return DecimalMath.divide(total, len(values), decimal_places)
 
     @staticmethod
     def max(values: List[str], decimal_places: int = DEFAULT_DECIMAL_PLACES) -> str:
@@ -215,15 +177,6 @@ class DecimalMath:
         """Round to specified decimal places."""
         units = DecimalMath._string_to_units(value, decimal_places)
         return DecimalMath._units_to_string(units, decimal_places)
-
-    @staticmethod
-    def validate(value: str, decimal_places: int = DEFAULT_DECIMAL_PLACES) -> bool:
-        """Validate that string represents a valid decimal."""
-        try:
-            DecimalMath._string_to_units(value, decimal_places)
-            return True
-        except ValueError:
-            return False
 
     @staticmethod
     def normalize(value: str, decimal_places: int = DEFAULT_DECIMAL_PLACES) -> str:
